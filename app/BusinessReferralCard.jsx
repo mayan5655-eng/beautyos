@@ -35,8 +35,8 @@ export default function BusinessReferralCard({ pc, pcTint, toast, isDemo }) {
   const ghost = { background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 };
   const title = <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>חברה מביאה חברה 🌸</p>;
 
-  if (s.failed) return <div data-testid="referral-card" style={box}>{title}<p style={text}>לא הצלחנו לטעון את קישור ההזמנה. נסי שוב מאוחר יותר.</p></div>;
-  if (s.ready === false) return <div data-testid="referral-card" style={box}>{title}<p style={text}>ההזמנות לעסקים חברים עוד לא פעילות בחשבון. נעדכן כשהן זמינות.</p></div>;
+  if (s.failed) return <div id="business-referral" data-testid="referral-card" style={{ ...box, scrollMarginTop: 80 }}>{title}<p style={text}>לא הצלחנו לטעון את קישור ההזמנה. נסי שוב מאוחר יותר.</p></div>;
+  if (s.ready === false) return <div id="business-referral" data-testid="referral-card" style={{ ...box, scrollMarginTop: 80 }}>{title}<p style={text}>ההזמנות לעסקים חברים עוד לא פעילות בחשבון. נעדכן כשהן זמינות.</p></div>;
 
   const st = s.stats || { joined: 0, paid: 0, earned: 0, used: 0, waiting: 0, available: 0 };
   const copy = async () => {
@@ -51,7 +51,7 @@ export default function BusinessReferralCard({ pc, pcTint, toast, isDemo }) {
   );
 
   return (
-    <div data-testid="referral-card" style={box}>
+    <div id="business-referral" data-testid="referral-card" style={{ ...box, scrollMarginTop: 80 }}>
       {title}
       <p style={{ ...text, marginBottom: 10 }}>
         מכירה עוד בעלת עסק שתאהב את קלמיה? שלחי לה את הקישור האישי שלך. כשהיא מצטרפת ומשלמת את התשלום הראשון, שתיכן מקבלות חודש מנוי במתנה.

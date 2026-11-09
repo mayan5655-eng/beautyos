@@ -290,7 +290,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   }
 
   return (
-    <div data-testid="billing-card" style={box}>
+    <div id="billing-card" data-testid="billing-card" style={{ ...box, scrollMarginTop: 80 }}>
       <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>המנוי שלי בקלמיה</p>
       {s.mode === 'mock' && <p data-testid="billing-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
       {body}

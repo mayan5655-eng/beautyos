@@ -20,7 +20,9 @@ import { fillTemplate } from '@/lib/design/mapBranding';
 import { businessFieldsOf } from '@/lib/businessFields';
 import { TOPIC_BANK, SHAPE_META, buildTopicBrief } from '@/lib/ai/topicBank';
 import { ADDON_PACKS, addonPacksEnabled, addonButtonHe } from '@/lib/pricing';
-import { openAddons } from '@/lib/addonOffer';
+import { UPGRADES_CHANGED_EVENT, openUpgrades } from '@/lib/upgradesStore';
+import { UpgradeChip, useUpgrades } from '../UpgradesStore';
+import { packFor } from '@/lib/upgradesStore';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '10px 12px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)', resize: 'vertical', minHeight: 64 };
 const btn = { padding: '9px 14px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--pc-deep)', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 };
@@ -42,6 +44,8 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
   const [brief, setBrief] = useState(preset?.brief || '');
   const [format, setFormat] = useState(preset?.format || 'feed45');
   const [allowance, setAllowance] = useState(null); // { used, cap } | null while loading
+  // The cap-hit offer shows only when the posts pack can really be bought now (billing on and able to charge), never a dead button.
+  const upgrades = useUpgrades();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // { options, copy }
   const [error, setError] = useState('');
@@ -51,8 +55,11 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
 
   useEffect(() => {
     let alive = true;
-    fetchAllowance().then((a) => { if (alive) setAllowance(a || { used: 0, cap: 0 }); });
-    return () => { alive = false; };
+    const reload = () => fetchAllowance().then((a) => { if (alive) setAllowance(a || { used: 0, cap: 0 }); });
+    reload();
+    // A pack bought in the upgrades store (app/UpgradesStore.jsx) counts at once: the generator opens again without a page reload.
+    window.addEventListener(UPGRADES_CHANGED_EVENT, reload);
+    return () => { alive = false; window.removeEventListener(UPGRADES_CHANGED_EVENT, reload); };
   }, []);
 
   // The message must be on screen the moment she taps: on a phone it sits below the fold and behind the floating buttons otherwise.
@@ -122,9 +129,11 @@ export default function Generate({ settings, readOnly, toast, onCreated, onOpen,
           ניצלת את {allowance.cap} היצירות של החודש. בחודש הבא הן מתחדשות; בינתיים כל תבנית בגלריה פתוחה לך.
         </p>
       ) : null}
-      {atCap && addonPacksEnabled() ? (
-        <button type="button" data-testid="addon-offer-posts" onClick={openAddons} className="primary-btn" style={{ marginTop: 8, background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 16px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>{addonButtonHe(ADDON_PACKS.posts)}</button>
+      {atCap && addonPacksEnabled() && packFor(upgrades, 'posts') ? (
+        <button type="button" data-testid="addon-offer-posts" onClick={() => openUpgrades("posts")} className="primary-btn" style={{ marginTop: 8, background: 'var(--pc-grad)', color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 16px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>{addonButtonHe(ADDON_PACKS.posts)}</button>
       ) : null}
+      {/* Always there, quiet below 80% of the month and the stronger nudge from 80%; opens the posts pack's one-tap confirm. */}
+      {atCap ? null : <UpgradeChip pack="posts" used={allowance?.used} cap={allowance?.cap} style={{ marginTop: 0, marginBottom: 10 }} />}
       {atCap ? null : (
         <>
           <textarea value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="לדוגמה: מבצע על הטיפול הראשון ב-249 ₪ לפני ראש השנה" style={input} dir="rtl" maxLength={400} rows={2} />

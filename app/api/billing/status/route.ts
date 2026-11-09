@@ -12,9 +12,8 @@
 import { NextResponse } from 'next/server';
 import { priceOf, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/service';
 import { admin, billing, caller, tableMissing } from '../_shared';
-import { ADDON_PACKS, ADDON_PACK_KEYS, addonPacksEnabled, addonButtonHe, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
-import { getCallCapStatus } from '@/lib/ai/callCaps';
-import { purchasedAddons } from '@/lib/addonQuota';
+import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
+import { addonUsageFor } from '@/lib/addonUsage';
 
 const SUB_COLS = 'id, tenant_id, price, currency, status, next_charge_at, card_last4, card_brand, failed_attempts, past_due_since, last_attempt_at, canceled_at, ends_at';
 
@@ -75,12 +74,7 @@ export async function GET() {
   if (!p.error) out.payments = p.data || [];
   // Add-on packs (lib/pricing.ts): this month's use of each metered feature and the pack she can buy. Absent while packs are off.
   if (addonPacksEnabled()) {
-    const bought = await purchasedAddons(c.tenantId, { noCache: true });
-    const addons = await Promise.all(ADDON_PACK_KEYS.map(async (k) => {
-      const p = ADDON_PACKS[k];
-      const st = await getCallCapStatus(c.tenantId, p.callSite, { purchased: bought });
-      return { key: k, label: p.unitHe, used: st.unknown ? null : st.used, cap: st.cap, purchased: st.purchased || 0, units: p.units, price: p.price, button: addonButtonHe(p) };
-    }));
+    const addons = await addonUsageFor(c.tenantId);
     return NextResponse.json({ ...out, addons, ...(annual ? { annual } : {}) });
   }
   return NextResponse.json(annual ? { ...out, annual } : out);

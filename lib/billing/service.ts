@@ -126,6 +126,8 @@ export type BillingRepo = {
   setPlanStatus(tenantId: string, status: 'active' | 'expired'): Promise<void>;
   /** Credits an add-on pack after its charge succeeded (add_billing_addons.sql). Optional: absent = packs cannot be bought. */
   insertAddon?(row: { tenant_id: string; pack: string; units: number; usd_allowance: number; price: number; period_month: string; payment_id: string }): Promise<void>;
+  /** The newest pending / unknown add-on charge of this pack created since `sinceIso`, if any. Optional: absent = no check. */
+  findOpenAddon?(tenantId: string, packKey: string, sinceIso: string): Promise<PaymentRecord | null>;
   /** A succeeded ANNUAL subscription charge whose year covers this date (period_start <= date < period_end). Optional. */
   coveredByAnnual?(subId: string, periodStart: string): Promise<boolean>;
 };
@@ -464,7 +466,10 @@ async function issueInvoice(d: Deps, pay: PaymentRecord, tenant: TenantRow | nul
 
 export type BuyAddonResult =
   | { ok: true; payment: PaymentRecord }
-  | { ok: false; reason: 'no-card' | 'declined' | 'pending' | 'not-configured' | 'unavailable'; error: string };
+  | { ok: false; reason: 'no-card' | 'declined' | 'pending' | 'not-configured' | 'unavailable' | 'in-progress'; error: string };
+
+/** How long an open (pending / unknown) charge of the same pack blocks a new one: a double tap, a second tab, a retry. */
+export const ADDON_OPEN_WINDOW_MS = 3 * 60 * 1000;
 
 /**
  * She buys one add-on pack (lib/pricing.ts ADDON_PACKS) for THIS month: one charge to the card saved for her subscription, then the units are
@@ -478,6 +483,12 @@ export async function buyAddon(d: Deps, tenantId: string, pack: AddonPack): Prom
   const now = clock(d);
   const sub = await d.repo.getSub(tenantId);
   if (!sub || !sub.token_ref || sub.status === 'canceled') return { ok: false, reason: 'no-card', error: 'no saved card' };
+  // A second request for the same pack while the first is still open (a double tap that reached another server instance, a second tab)
+  // never draws a second charge: it is answered "in progress". A read failure throws (fail closed), so nothing is charged on a guess.
+  if (d.repo.findOpenAddon) {
+    const open = await d.repo.findOpenAddon(tenantId, pack.key, new Date(now.getTime() - ADDON_OPEN_WINDOW_MS).toISOString());
+    if (open) return { ok: false, reason: 'in-progress', error: 'a charge for this pack is still open' };
+  }
   const tenant = await d.repo.getTenant(tenantId);
   const month = periodMonth(now);
   const description = `תוספת לקלמיה: +${pack.units} ${pack.unitHe}`;
