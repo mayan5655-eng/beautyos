@@ -57,7 +57,7 @@ import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPoli
 import { cancelDeps } from "../grow/_cancel";
 // The pre-visit intake gate (lib/intakeGate.ts): off unless she turned it on for this service.
 import { resolveIntake } from "../../../lib/intakeGate";
-import { ensureIntakeForm, queueIntakeMessage, hadEarlierVisit } from "../../../lib/intakeQueue.js";
+import { ensureIntakeForm, queueIntakeMessage } from "../../../lib/intakeQueue.js";
 import { sendWhatsApp } from "../../../lib/whatsapp.js";
 import { hebrewDate } from "../../../lib/messages.js";
 
@@ -638,9 +638,16 @@ export async function POST(request) {
     }
 
     // The intake gate, for a service she turned it on for (off by default, lib/intakeGate.ts). Best-effort and after the booking is
-    // saved: nothing here can fail or undo it. The client gets the form link on her confirmation screen; the "send the form" message
-    // waits in HER manual queue (type intake_form is never sent by the system, lib/intakeQueue.js). A held deposit booking is not
-    // queued: it may still be released, and its confirmation goes out when it is paid.
+    // saved: nothing here can fail or undo it. The "send the form" message waits in HER manual queue, addressed to the number on the
+    // client card (type intake_form is never sent by the system, lib/intakeQueue.js). A held deposit booking is not queued: it may
+    // still be released, and its confirmation goes out when it is paid.
+    //
+    // This form is public and anyone can type any phone number into it, so the ANSWER must not depend on who that number belongs to:
+    //  - The form link is shown only when THIS booking created both the client card and the form. A returning client's form is
+    //    never handed to whoever typed her number: the link shows her name (app/api/forms GET) and would let a stranger sign her
+    //    health form. Everyone else is told the business sends the link ("if you have not filled it yet"), signed or not.
+    //  - The patch-test line is the same for everyone on a gated service ("if it is your first ..."), never computed from her
+    //    history, which would tell a stranger whether that number has visited before.
     let intakeOut = null;
     const intake = resolveIntake(svcRow);
     if (intake) {
@@ -649,7 +656,7 @@ export async function POST(request) {
         if (intake.form && clientId) {
           const f = await ensureIntakeForm({ db: supabase, tenantId: activeTenantId, clientId, clientName: name, formType: intake.formType });
           if (f.state === "pending") {
-            formPath = `/form?id=${encodeURIComponent(f.formId)}`;
+            if (createdClient && f.created === true) formPath = `/form?id=${encodeURIComponent(f.formId)}`;
             if (!heldForDeposit) {
               const formId = f.formId;
               after(() => queueIntakeMessage({
@@ -659,8 +666,9 @@ export async function POST(request) {
             }
           }
         }
-        const patchTest = intake.patchTest && !(isReturningClient && await hadEarlierVisit({ db: supabase, tenantId: activeTenantId, clientId, beforeDate: date, excludeId: appt.id }));
-        if (formPath || patchTest) intakeOut = { formUrl: formPath, patchTest };
+        const formFromBusiness = intake.form && !formPath;
+        const patchTest = intake.patchTest === true;
+        if (formPath || formFromBusiness || patchTest) intakeOut = { formUrl: formPath, formFromBusiness, patchTest };
       } catch (intakeErr) {
         console.warn("[book-appointment] intake step failed:", intakeErr?.message || String(intakeErr));
       }

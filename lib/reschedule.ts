@@ -67,7 +67,9 @@ export type SlotQuery = {
 export function moveSlotProblem(q: SlotQuery & { date: string; start: number }): null | 'bad' | 'too_soon' | 'too_far' | 'closed' | 'hours' | 'taken' {
   const now = q.now ?? new Date();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(q.date) || !Number.isFinite(q.start) || q.start < 0 || q.start >= 1440 || q.start % 5 !== 0) return 'bad';
-  if (new Date(q.date + 'T12:00:00Z').toISOString().slice(0, 10) !== q.date) return 'bad';
+  // Month 13 or day 32 is an Invalid Date, whose toISOString() throws: refuse it as 'bad', never a 500.
+  const asDate = new Date(q.date + 'T12:00:00Z');
+  if (Number.isNaN(asDate.getTime()) || asDate.toISOString().slice(0, 10) !== q.date) return 'bad';
   if (isTooSoonForSelfBooking(q.date, q.start, now, q.rules.minLeadMinutes)) return 'too_soon';
   if (isTooFarAhead(q.date, q.rules.maxDaysAhead, now)) return 'too_far';
   const dh = dayHoursFrom(q.hours, new Date(q.date + 'T12:00:00Z').getUTCDay());

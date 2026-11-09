@@ -668,6 +668,21 @@ export function checkPhoneLimit(phoneE164: string | null | undefined, policy: Po
   return limited(p.tenantMessage(retryPhrase(verdict.retryAfterSec)), verdict.retryAfterSec);
 }
 
+/**
+ * Per-LINK gate for the client's move flow (app/api/confirm/reschedule): the appointment id a valid signed link names is the key.
+ * Called after the signature check, so only a real link spends it, and before the per-business gate, so one link (a forwarded
+ * message, a script holding one token) cannot use up the business's budget for every other client. A woman opens the times,
+ * looks at a few days and moves once: 20 calls in 10 minutes is far above that.
+ */
+export const RESCHEDULE_PER_LINK: RateRule = { limit: 20, windowMs: 10 * MINUTE };
+export function checkRescheduleLinkLimit(appointmentId: string, onBlock?: BlockListener): Response | null {
+  if (!appointmentId) return null;
+  const verdict = hit(`reschedule:link:${appointmentId}`, RESCHEDULE_PER_LINK);
+  if (verdict.ok) return null;
+  onBlock?.({ scope: 'tenant', policy: 'reschedule', key: appointmentId, first: !!verdict.first, retryAfterSec: verdict.retryAfterSec });
+  return limited(RATE_POLICIES.reschedule.ipMessage(retryPhrase(verdict.retryAfterSec)), verdict.retryAfterSec);
+}
+
 /** Phone numbers are personal data: ops logs keep the shape and the last three digits only. */
 export function maskPhone(p: string): string {
   const d = String(p || '').replace(/\D/g, '');

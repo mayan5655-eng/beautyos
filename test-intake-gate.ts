@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   resolveIntake, intakeToStore, intakeColumnReady, intakeBadges, intakeFormMessage, formLink, cleanFormType,
-  intakeFormChoices, INTAKE_MESSAGE_TYPE, INTAKE_CONFIRM_HE, patchTestConfirmHe,
+  intakeFormChoices, INTAKE_MESSAGE_TYPE, INTAKE_CONFIRM_HE, patchTestConfirmHe, intakeFromBusinessHe,
 } from './lib/intakeGate.ts';
 import { ensureIntakeForm, queueIntakeMessage, hadEarlierVisit } from './lib/intakeQueue.js';
 
@@ -87,7 +87,9 @@ ok('message: her voice, the link, no em dash, no automatic promise', () => {
   assert.match(m, /^היי רונית 🌸/);
   assert.ok(m.includes('https://kalmea.app/form?id=f-1'));
   assert.ok(m.includes('לקראת הפילינג ביום שלישי, 10 בנובמבר'));
-  for (const t of [m, INTAKE_CONFIRM_HE, patchTestConfirmHe('רונה')]) {
+  assert.match(patchTestConfirmHe('רונה'), /^אם זה הטיפול הראשון שלך/, 'conditional: the page does not know her history');
+  assert.match(intakeFromBusinessHe('רונה'), /אם עוד לא מילאת אותו, רונה תשלח לך קישור/);
+  for (const t of [m, INTAKE_CONFIRM_HE, patchTestConfirmHe('רונה'), intakeFromBusinessHe('רונה')]) {
     assert.ok(!t.includes('—'), 'no em dash');
     assert.ok(!/אוטומטית/.test(t));
   }
@@ -151,8 +153,14 @@ ok('wiring: booking route, booking page, calendar card, services editor', () => 
   assert.ok(route.indexOf('const intake = resolveIntake(svcRow);') > route.indexOf('writeWithApptBuffer({'), 'after the booking is saved');
   assert.ok(route.includes('if (!heldForDeposit) {'), 'a held deposit is not queued');
   assert.ok(route.includes('intake: intakeOut,'));
+  // The public answer never depends on whose number was typed (security review, PR #52).
+  assert.ok(route.includes('if (createdClient && f.created === true) formPath ='), 'the link only for a card and form this booking created');
+  assert.ok(route.includes('const formFromBusiness = intake.form && !formPath;'));
+  assert.ok(route.includes('const patchTest = intake.patchTest === true;'), 'patch line not computed from her history');
+  assert.ok(!route.includes('hadEarlierVisit('), 'no history lookup on the public route');
   const page = read('./app/BookingPage.jsx');
   assert.ok(page.includes('data-testid="intake-form-link"'));
+  assert.ok(page.includes('data-testid="intake-from-business"'));
   assert.ok(page.includes('result.intake.formUrl.startsWith("/form?id=")'), 'same-site link only');
   assert.ok(page.includes('from "@/lib/intakeCopy"') && !page.includes('from "@/lib/intakeGate"'), 'the public page does not bundle every form template');
   const app = read('./app/beautyos.jsx');

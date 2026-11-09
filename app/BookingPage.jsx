@@ -45,7 +45,7 @@ import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
 import { CARD_CONSENT_TEXT_HE } from "@/lib/grow/tokenFlow";
 import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from "@/lib/paymentTerms";
-import { INTAKE_CONFIRM_HE, INTAKE_CONFIRM_BTN_HE, patchTestConfirmHe } from "@/lib/intakeCopy";
+import { INTAKE_CONFIRM_HE, INTAKE_CONFIRM_BTN_HE, patchTestConfirmHe, intakeFromBusinessHe } from "@/lib/intakeCopy";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -718,6 +718,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       // Same-site form link only (app/form/page.jsx), never an outside URL.
       setIntakeInfo(result.intake && typeof result.intake === "object" ? {
         formUrl: typeof result.intake.formUrl === "string" && result.intake.formUrl.startsWith("/form?id=") ? result.intake.formUrl : null,
+        formFromBusiness: result.intake.formFromBusiness === true,
         patchTest: result.intake.patchTest === true,
       } : null);
       setPolicyStep(result.policyStep || null);
@@ -1539,7 +1540,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
                 {/* The form she asked for before this treatment, and a first-timer's patch test (lib/intakeGate.ts). Only for a gated service. */}
-                {intakeInfo && (intakeInfo.formUrl || intakeInfo.patchTest) && (
+                {intakeInfo && (intakeInfo.formUrl || intakeInfo.formFromBusiness || intakeInfo.patchTest) && (
                   <div data-testid="intake-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
                     {intakeInfo.formUrl && (
                       <>
@@ -1547,7 +1548,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         <a href={intakeInfo.formUrl} data-testid="intake-form-link" style={{ display: "block", textAlign: "center", padding: "13px 0", minHeight: 48, boxSizing: "border-box", background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700, fontSize: "var(--t-md)", textDecoration: "none" }}>{INTAKE_CONFIRM_BTN_HE}</a>
                       </>
                     )}
-                    {intakeInfo.patchTest && <p data-testid="intake-patch-test" style={{ fontSize: "var(--t-md)", color: ink, marginTop: intakeInfo.formUrl ? 12 : 0 }}>{patchTestConfirmHe(bizName)}</p>}
+                    {!intakeInfo.formUrl && intakeInfo.formFromBusiness && <p data-testid="intake-from-business" style={{ fontSize: "var(--t-md)", color: ink }}>{intakeFromBusinessHe(bizName)}</p>}
+                    {intakeInfo.patchTest && <p data-testid="intake-patch-test" style={{ fontSize: "var(--t-md)", color: ink, marginTop: (intakeInfo.formUrl || intakeInfo.formFromBusiness) ? 12 : 0 }}>{patchTestConfirmHe(bizName)}</p>}
                   </div>
                 )}
                 {/* The manual deposit and how to pay it. It sat in step 1's social links, which are gone by step 4, so the client never saw it. */}

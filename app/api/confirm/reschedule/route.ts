@@ -8,7 +8,7 @@ import { fmtApptTime, fmtTime, startMinute as apptStart, endMinute as apptEnd, s
 import { resolveLunch } from '@/lib/lunchBreak';
 import { bufferLookup, businessBufferDefault, serviceBufferMinutes, bufferedRange } from '@/lib/serviceBuffer';
 import { isMissingColumnError, missingColumnName } from '@/lib/pgError';
-import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
+import { checkIpLimit, checkTenantLimit, checkRescheduleLinkLimit } from '@/lib/rateLimit';
 import { tenantIsBlocked } from '@/lib/tenantActive';
 import { notifyOwner } from '@/lib/ownerNotify';
 import { askGapFillAfterClientCancel } from '@/lib/ownerQuestions';
@@ -27,7 +27,9 @@ import {
  *    confirmation and reminder already carries (a move frees the slot just as a cancel does, so the cancel link holder is
  *    the right person, and the messages already sent keep working). A "confirm" token can NOT move an appointment.
  *  - Tenant-scoped: every read and the write filter by the appointment's own tenant_id.
- *  - Rate-limited per device and per business (lib/rateLimit.ts 'reschedule'), and at most N moves per appointment.
+ *  - Rate-limited per device, per link (appointment) and per business (lib/rateLimit.ts), and at most N moves per appointment.
+ *  - Only the date and start come from the request, and both are validated. The treatment, its length, the tenant and the
+ *    row stay the appointment's own: the patch below names its columns, nothing from the body is spread into it.
  *  - POST only (a link-preview crawler must not move anything). { peek: true } reads and changes nothing.
  *  - The answer carries what her own message already told her (treatment, day, time) and the free times. No name,
  *    phone, price or ids.
@@ -35,7 +37,12 @@ import {
 
 const reject = () => NextResponse.json({ error: 'הקישור אינו תקין או שפג תוקפו' }, { status: 404 });
 
-const SETTINGS_COLS = 'business_name, branding, primary_color, business_phone, business_hours, working_hours_start, working_hours_end, working_days';
+// automations: notifyOwner (lib/ownerNotify.js) reads automations.owner_alert_whatsapp and owner_phone from this row for her
+// opt-in WhatsApp copy, exactly as the cancel path does (lib/cancelNotify.js). Without it the "תור הוזז" notice reached the app and
+// push only. Never returned to the client: the response carries brand + publicContactFor only.
+const SETTINGS_COLS = 'business_name, branding, primary_color, business_phone, automations, business_hours, working_hours_start, working_hours_end, working_days';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_TOKEN_CHARS = 512;
 const LIVE = ['pending', 'confirmed'];
 
 type Appt = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -47,13 +54,19 @@ export async function POST(request: NextRequest) {
     const ipLimited = checkIpLimit(request, 'reschedule');
     if (ipLimited) return ipLimited;
 
-    const body = await request.json().catch(() => ({} as Record<string, unknown>));
-    const id = String(body.id ?? '').trim();
-    const token = String(body.token ?? '').trim();
-    const via = String(body.via ?? 'reschedule').trim();
+    const raw = await request.json().catch(() => null);
+    // A JSON null, array or string is not a request: refused like a bad link, not a 500.
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return reject();
+    const body = raw as Record<string, unknown>;
+    const id = typeof body.id === 'string' ? body.id.trim() : '';
+    const token = typeof body.token === 'string' ? body.token.trim() : '';
+    const via = body.via === undefined ? 'reschedule' : body.via;
     if (via !== 'reschedule' && via !== 'cancel') return reject();
+    if (!UUID_RE.test(id) || !token || token.length > MAX_TOKEN_CHARS) return reject();
     // Signature before the database, so an unsigned request costs nothing and reveals nothing.
     if (!verifyConfirm(id, via, token)) return reject();
+    const linkLimited = checkRescheduleLinkLimit(id);
+    if (linkLimited) return linkLimited;
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -94,6 +107,11 @@ export async function POST(request: NextRequest) {
     });
     if (appt.confirmation_status === 'cancelled') return refuse(`התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם ${brand.businessName || 'העסק'}.`);
     if (refusal) return refuse(refusal.error, refusal.tooLate ? { tooLate: true } : {});
+    // A row without a start time, or one whose day is already behind her, is not moved from a link: clientLinkRefusal can only
+    // see "past" when it knows the start, and the guarded update below needs the old start to pin the row it changes.
+    if (oldStart == null || !/^\d{4}-\d{2}-\d{2}$/.test(oldDate) || oldDate < wallClockNow().date) {
+      return refuse(`כדי לשנות את התור הזה אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`, { tooLate: true });
+    }
     if (appt.confirmation_status === 'pending') {
       const { data: hold } = await db.from('appointment_policy_consents').select('status').eq('appointment_id', id).eq('tenant_id', tenantId).maybeSingle();
       if (hold && hold.status === 'awaiting_deposit') return refuse(MOVE_HELD_HE);
@@ -136,8 +154,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ── The move ──────────────────────────────────────────────────────────────────────────────────────────────
-    const date = String(body.date ?? '');
-    const newStart = Number(body.startMinute);
+    // Strict types: a string date in YYYY-MM-DD and an integer minute. Number('') is 0 and Number([600]) is 600, so no coercion.
+    const date = typeof body.date === 'string' ? body.date : '';
+    const newStart = typeof body.startMinute === 'number' && Number.isInteger(body.startMinute) ? body.startMinute : Number.NaN;
     const problem = moveSlotProblem({ ...q, date, start: newStart });
     if (problem === 'bad') return NextResponse.json({ success: false, error: 'השעה שנבחרה לא תקינה, אפשר לבחור שוב?' }, { status: 400 });
     if (problem === 'taken') return NextResponse.json({ success: false, code: 'slot_taken', error: RESCHEDULE_COPY.taken }, { status: 409 });

@@ -10,6 +10,7 @@ import {
 } from './lib/reschedule.ts';
 import { clientLinkRefusal, resolveBookingRules } from './lib/bookingPolicy.ts';
 import { signConfirm, verifyConfirm, confirmLinks } from './lib/confirmToken.ts';
+import { checkRescheduleLinkLimit, RESCHEDULE_PER_LINK } from './lib/rateLimit.ts';
 
 let passed = 0, failed = 0;
 const ok = (name: string, fn: () => void) => {
@@ -160,6 +161,64 @@ ok('copy: Hebrew, feminine, no em dashes, no "automatic" promise', () => {
     assert.ok(!/אוטומטית/.test(t), 'nothing promises an automatic send');
   }
   assert.match(ownerMoveMessage({ name: 'רונית', service: 'מניקור', fromWhen: 'ביום שלישי', toWhen: 'ביום רביעי' }), /רונית הזיזה את התור למניקור מביום שלישי לביום רביעי\. השעה הקודמת התפנתה ביומן\./);
+});
+
+ok('owner notice: the settings row carries automations, so her opt-in WhatsApp copy goes out exactly as on a cancel', () => {
+  const r = read('./app/api/confirm/reschedule/route.ts');
+  const cols = /const SETTINGS_COLS = '([^']+)'/.exec(r)![1].split(',').map((c) => c.trim());
+  // What notifyOwner reads from settingsRow (lib/ownerNotify.js): automations.owner_alert_whatsapp / owner_phone, then business_phone.
+  const notify = read('./lib/ownerNotify.js');
+  assert.ok(notify.includes('settingsRow?.automations') && notify.includes('settingsRow?.business_phone'));
+  for (const c of ['automations', 'business_phone']) assert.ok(cols.includes(c), `settings select has ${c}`);
+  // The cancel path reads the same two (lib/cancelNotify.js): parity.
+  assert.match(read('./lib/cancelNotify.js'), /select\("business_phone, automations"\)/);
+  assert.ok(r.includes(".from('settings').select(SETTINGS_COLS)"));
+  assert.ok(/notifyOwner\(\{[^}]*kind: 'reschedule'[^}]*settingsRow: st,/.test(r), 'the row it read is the one notifyOwner gets');
+  // And automations never reaches the client: the responses spread brand and contact only, never the settings row.
+  assert.ok(!/\.\.\.(st|settings)\b/.test(r), 'no settings spread into a response');
+});
+
+ok('request shape: an object body, a UUID id, a bounded token, strict date and integer minute', () => {
+  const r = read('./app/api/confirm/reschedule/route.ts');
+  assert.ok(r.includes("if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return reject();"));
+  assert.ok(r.includes('if (!UUID_RE.test(id) || !token || token.length > MAX_TOKEN_CHARS) return reject();'));
+  assert.ok(r.indexOf('UUID_RE.test(id)') < r.indexOf('verifyConfirm(id, via, token)'), 'shape before signature');
+  assert.ok(r.includes("typeof body.startMinute === 'number' && Number.isInteger(body.startMinute)"), 'no Number() coercion of the minute');
+  assert.ok(r.includes("typeof body.date === 'string' ? body.date : ''"));
+  // moveSlotProblem refuses what coercion would have let through.
+  const p = (date: string, start: number) => moveSlotProblem({ ...base, date, start });
+  assert.equal(p('2026-11-11T10:00', 600), 'bad');
+  assert.equal(p('2026-13-01', 600), 'bad');
+  assert.equal(p('2026-11-11', 1440), 'bad');
+  assert.equal(p('2026-11-11', -30), 'bad');
+  assert.equal(p('2026-11-09', 600), 'too_soon', 'a past day');
+});
+
+ok('the move patch names its columns: no service, duration, tenant or status from the request', () => {
+  const r = read('./app/api/confirm/reschedule/route.ts');
+  const line = r.split('\n').find((l) => l.includes('let patch: Record<string, unknown> = {'))!;
+  assert.ok(line, 'the patch line');
+  assert.ok(!/body|\.\.\.(?!startFields|\(hasCountColumn)/.test(line.replace('...startFields(newStart)', '').replace("...(hasCountColumn ? { reschedule_count: used + 1 } : {})", '')), 'nothing spread from the body');
+  for (const k of ['service', 'duration', 'tenant_id', 'confirmation_status', 'client_id', 'price']) assert.ok(!new RegExp(`\\b${k}\\s*:`).test(line), `patch has no ${k}`);
+  assert.ok(r.includes('const duration = Number(appt.duration) > 0 ? Number(appt.duration) : 60;'), 'the length is the appointment\'s own');
+  assert.ok(!/body\.(service|duration|tenant|tenantId)/.test(r), 'never read from the request');
+});
+
+ok('an undated or past appointment is not moved, even with no start for clientLinkRefusal to see', () => {
+  const r = read('./app/api/confirm/reschedule/route.ts');
+  assert.ok(r.includes('if (oldStart == null || !/^\\d{4}-\\d{2}-\\d{2}$/.test(oldDate) || oldDate < wallClockNow().date) {'));
+  assert.ok(r.indexOf('oldDate < wallClockNow().date') < r.indexOf('if (body.peek === true)'), 'before slots are shown');
+});
+
+ok('per-link limit: one appointment\'s link is capped on its own, after the signature and before the business budget', () => {
+  const id = 'aaaaaaaa-bbbb-cccc-dddd-' + String(Date.now()).padStart(12, '0').slice(-12);
+  for (let i = 0; i < RESCHEDULE_PER_LINK.limit; i++) assert.equal(checkRescheduleLinkLimit(id), null);
+  const blocked = checkRescheduleLinkLimit(id);
+  assert.ok(blocked && blocked.status === 429, 'the next call is refused');
+  assert.equal(checkRescheduleLinkLimit(id.replace(/^a/, 'b')), null, 'another appointment is not affected');
+  const r = read('./app/api/confirm/reschedule/route.ts');
+  assert.ok(r.indexOf('verifyConfirm(id, via, token)') < r.indexOf('checkRescheduleLinkLimit(id)'));
+  assert.ok(r.indexOf('checkRescheduleLinkLimit(id)') < r.indexOf("checkTenantLimit(tenantId, 'reschedule')"));
 });
 
 console.log(`test-reschedule: passed ${passed} failed ${failed}`);
