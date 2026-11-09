@@ -33,6 +33,18 @@ revoke all on public.visit_feedback from anon, authenticated;
 
 create index if not exists idx_visit_feedback_tenant_created on public.visit_feedback (tenant_id, created_at desc);
 
+-- One private-note notification per visit: two submissions of the same link at the same moment must not reach her twice
+-- (/api/reviews/feedback + lib/ownerNotify onceForAppointment). Duplicates from before this index are removed first, keeping
+-- the earliest, so the index can be created.
+delete from public.owner_notifications a
+  using public.owner_notifications b
+  where a.kind = 'visit_feedback' and b.kind = 'visit_feedback'
+    and a.appointment_id is not null and a.appointment_id = b.appointment_id
+    and (a.created_at, a.id) > (b.created_at, b.id);
+create unique index if not exists uq_owner_notifications_visit_feedback_once
+  on public.owner_notifications (appointment_id, kind)
+  where kind = 'visit_feedback' and appointment_id is not null;
+
 notify pgrst, 'reload schema';
 
 -- Verify (run after the above)
@@ -42,3 +54,5 @@ notify pgrst, 'reload schema';
 --      select count(*) as policies from pg_policies where schemaname = 'public' and tablename = 'visit_feedback';
 -- 3. One answer per visit: appointment_id is unique. Expect one row.
 --      select conname from pg_constraint where conrelid = 'public.visit_feedback'::regclass and contype = 'u';
+-- 4. One private-note notification per visit. Expect one row.
+--      select indexname from pg_indexes where schemaname = 'public' and indexname = 'uq_owner_notifications_visit_feedback_once';

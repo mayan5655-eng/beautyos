@@ -15,6 +15,7 @@ import { checkIpLimit } from "@/lib/rateLimit";
 import { resolveReviewVisit } from "@/lib/reviewVisit";
 import { isMood, cleanFeedback, isMissingFeedbackTable, feedbackNotice, reviewTwoStepOn } from "@/lib/reviewRequests";
 import { notifyOwner } from "@/lib/ownerNotify";
+import { saveVisitFeedback } from "@/lib/visitFeedbackWrite";
 
 // JSON of a 1000 character note, escaped, with room to spare.
 const MAX_FEEDBACK_BODY_BYTES = 16_000;
@@ -46,45 +47,23 @@ export async function POST(request) {
     const { data: s } = await admin.from("settings").select("automations, business_phone").eq("tenant_id", appt.tenant_id).maybeSingle();
     if (!reviewTwoStepOn(s)) return Response.json({ success: false, error: "הקישור אינו תקין" }, { status: 404 });
 
-    const prev = await admin.from("visit_feedback").select("id, mood, body").eq("appointment_id", appt.id).maybeSingle();
-    if (prev.error) {
-      if (isMissingFeedbackTable(prev.error)) return Response.json({ success: false, needsMigration: true }, { status: 503 });
-      console.error("[reviews/feedback] read failed:", prev.error.message);
+    // The write and the race (two submissions of the same link at once) live in lib/visitFeedbackWrite.js: only the request
+    // whose own write stored its own words gets noteCommitted, so the owner hears about a note exactly once.
+    const w = await saveVisitFeedback(admin, appt, mood, text, { isMissingTable: isMissingFeedbackTable });
+    if (w.status === "error") {
+      if (w.missingTable) return Response.json({ success: false, needsMigration: true }, { status: 503 });
+      console.error("[reviews/feedback] write failed:", w.error?.message, w.error?.code);
       return Response.json({ success: false, error: "לא הצלחנו לשמור, אפשר לנסות שוב" }, { status: 500 });
     }
+    if (w.status === "already") return Response.json({ success: true, already: true });
 
-    // ONE note per visit. Once she has written, the link cannot rewrite it or send another notification: a forwarded or
-    // leaked link must not be a way to replace her words or to push note after note at the owner.
-    if (prev.data?.body) return Response.json({ success: true, already: true });
-
-    const nowIso = new Date().toISOString();
-    let error;
-    if (prev.data) {
-      const patch = { mood, updated_at: nowIso };
-      if (text) patch.body = text;
-      // is(body, null): a note written by a parallel request in between is never overwritten.
-      ({ error } = await admin.from("visit_feedback").update(patch).eq("appointment_id", appt.id).eq("tenant_id", appt.tenant_id).is("body", null));
-    } else {
-      ({ error } = await admin.from("visit_feedback").insert({
-        tenant_id: appt.tenant_id, appointment_id: appt.id, client_id: appt.client_id || null,
-        client_name: appt.name || "", mood, body: text || null,
-      }));
-      // Two taps at the same moment: the second insert meets the unique index. Retry as an update.
-      if (error && error.code === "23505") {
-        ({ error } = await admin.from("visit_feedback").update({ mood, updated_at: nowIso, ...(text ? { body: text } : {}) }).eq("appointment_id", appt.id).eq("tenant_id", appt.tenant_id).is("body", null));
-      }
-    }
-    if (error) {
-      console.error("[reviews/feedback] write failed:", error.message, error.code);
-      return Response.json({ success: false, error: "לא הצלחנו לשמור, אפשר לנסות שוב" }, { status: 500 });
-    }
-
-    // Tell her, once per note: only when this request brought words that were not there before. In the app and as a push,
-    // never a WhatsApp (it is about her client, read on her own screen).
-    if (mood === "unhappy" && text && text !== String(prev.data?.body || "")) {
+    // Tell her, once per note. In the app and as a push, never a WhatsApp (it is about her client, read on her own screen).
+    // onceForAppointment: with the unique index from add_visit_feedback_2026-11-09.sql, a second notification for the same
+    // visit is refused by the database and no push goes out; before it runs, noteCommitted alone keeps it to one.
+    if (mood === "unhappy" && text && w.noteCommitted) {
       const n = feedbackNotice({ clientName: appt.name || "", body: text });
       try {
-        await notifyOwner({ tenantId: appt.tenant_id, kind: "visit_feedback", title: n.title, body: n.body, appointmentId: appt.id, settingsRow: s, url: "/dashboard/feedback", whatsapp: false });
+        await notifyOwner({ tenantId: appt.tenant_id, kind: "visit_feedback", title: n.title, body: n.body, appointmentId: appt.id, settingsRow: s, url: "/dashboard/feedback", whatsapp: false, onceForAppointment: true });
       } catch (e) {
         console.error("[reviews/feedback] notify failed:", e?.message || String(e));
       }

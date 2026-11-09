@@ -405,8 +405,10 @@ await ok('security: the Google link is https on a Google host only, so /api/revi
 
 await ok('security: one private note per visit, bounded, never rewritten by a replayed link', () => {
   const fb = rd('app/api/reviews/feedback/route.js');
-  assert.ok(fb.includes('if (prev.data?.body) return Response.json({ success: true, already: true });'), 'a written note is final');
-  assert.equal((fb.match(/\.is\("body", null\)/g) || []).length, 2, 'both update paths refuse to overwrite a note');
+  const fw = rd('lib/visitFeedbackWrite.js');
+  assert.ok(fw.includes('if (prev.data?.body) return { status: "already" };') && fb.includes('if (w.status === "already") return Response.json({ success: true, already: true });'), 'a written note is final');
+  assert.equal((fw.match(/\.is\("body", null\)\.select\(/g) || []).length, 1, 'the one guarded update refuses to overwrite a note');
+  assert.ok(fw.includes('const u = await guardedUpdate();') && (fw.match(/guardedUpdate\(\)/g) || []).length === 2, 'both update paths use it');
   assert.ok(fb.includes('raw.length > MAX_FEEDBACK_BODY_BYTES') && fb.includes('status: 413'), 'oversized bodies are refused before parsing');
   assert.ok(!/body\??\.tenant_id|searchParams\.get\("tenant/.test(fb), 'the tenant comes from the signed appointment, never the client');
   assert.ok(cleanFeedback('x'.repeat(5000)).length <= 1000);
@@ -549,6 +551,72 @@ await ok('review finding: the monthly report loads on a database without appoint
   // Any other error still fails the report, never a silent zero.
   const broken = { from(table: string) { const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>; if (table === 'appointments') c.range = () => Promise.resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }); return c; } };
   await assert.rejects(() => loadMonthFull(broken, 'tm', { automations: {} }, OCT, NOW));
+});
+
+await ok('race: two submissions at once store one note, notify once, and the loser answers already', async () => {
+  const { saveVisitFeedback } = await import('./lib/visitFeedbackWrite.js');
+  // A fake visit_feedback with the database's two guarantees: a unique appointment_id, and an update whose condition is
+  // checked at write time (so the second guarded update matches zero rows, without an error). Every call yields first, so
+  // the two requests interleave: both read "nothing yet" before either writes.
+  const rows: Row[] = [];
+  const tick = () => new Promise((res) => setImmediate(res));
+  const db = {
+    from() {
+      const f: Array<(r: Row) => boolean> = [];
+      let op: 'select' | 'insert' | 'update' = 'select'; let payload: Row = {};
+      const q: Record<string, unknown> = {
+        select() { return q; },
+        eq(c: string, v: unknown) { f.push((r) => r[c] === v); return q; },
+        is(c: string, v: unknown) { f.push((r) => (v === null ? r[c] == null : r[c] === v)); return q; },
+        insert(row: Row) { op = 'insert'; payload = row; return q; },
+        update(p: Row) { op = 'update'; payload = p; return q; },
+        async maybeSingle() { await tick(); const hit = rows.filter((r) => f.every((g) => g(r))); return { data: hit[0] ? { ...hit[0] } : null, error: null }; },
+        then(res: (v: unknown) => unknown) {
+          return tick().then(() => {
+            if (op === 'insert') {
+              if (rows.some((r) => r.appointment_id === payload.appointment_id)) return { data: null, error: { code: '23505', message: 'duplicate key' } };
+              rows.push({ ...payload }); return { data: [{ ...payload }], error: null };
+            }
+            if (op === 'update') { const hit = rows.filter((r) => f.every((g) => g(r))); hit.forEach((r) => Object.assign(r, payload)); return { data: hit.map((r) => ({ ...r })), error: null }; }
+            return { data: rows.filter((r) => f.every((g) => g(r))), error: null };
+          }).then(res);
+        },
+      };
+      return q;
+    },
+  };
+  const appt = { id: 'ap-1', tenant_id: 'tr', client_id: 'cr', name: 'רונית' };
+  let notifications = 0;
+  // What the route does with the result.
+  const submit = async (text: string) => {
+    const w = await saveVisitFeedback(db, appt, 'unhappy', text);
+    if (w.status === 'already') return { success: true, already: true };
+    if (w.status === 'saved' && w.noteCommitted) notifications++;
+    return { success: w.status === 'saved' };
+  };
+  const [a, b] = await Promise.all([submit('הצבע לא יצא טוב'), submit('חיכיתי חצי שעה')]);
+  assert.equal(rows.length, 1, 'one row');
+  assert.ok(rows[0].body === 'הצבע לא יצא טוב' || rows[0].body === 'חיכיתי חצי שעה', 'one note, not a mix');
+  assert.equal(notifications, 1, 'exactly one notification');
+  assert.equal([a, b].filter((x) => (x as { already?: boolean }).already).length, 1, 'the loser answers already');
+  // a third, later submission changes nothing and notifies nobody
+  const c = await submit('עוד משהו');
+  assert.deepEqual(c, { success: true, already: true }); assert.equal(notifications, 1);
+
+  // An existing row without a note (she tapped first, then two notes race): same outcome through the guarded update.
+  rows.length = 0; rows.push({ appointment_id: 'ap-1', tenant_id: 'tr', mood: 'unhappy', body: null });
+  notifications = 0;
+  const [d, e] = await Promise.all([submit('אחת'), submit('שתיים')]);
+  assert.equal(notifications, 1); assert.ok(['אחת', 'שתיים'].includes(String(rows[0].body)));
+  assert.equal([d, e].filter((x) => (x as { already?: boolean }).already).length, 1);
+
+  // The durable side: the route asks for one notification per visit, and the migration adds the index that enforces it.
+  const fb = rd('app/api/reviews/feedback/route.js');
+  assert.ok(fb.includes('w.noteCommitted') && fb.includes('onceForAppointment: true') && !fb.includes('prev.data?.body || ""'), 'notify only on this request\'s own committed note');
+  const on = rd('lib/ownerNotify.js');
+  assert.ok(on.includes('if (error && onceForAppointment && error.code === "23505") return;'), 'a refused duplicate sends no push');
+  const mig = rd('supabase/migrations/add_visit_feedback_2026-11-09.sql');
+  assert.ok(/create unique index if not exists uq_owner_notifications_visit_feedback_once\s+on public\.owner_notifications \(appointment_id, kind\)\s+where kind = 'visit_feedback' and appointment_id is not null;/.test(mig));
 });
 
 console.log(`\n${n} groups passed`);
