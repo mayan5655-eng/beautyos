@@ -12,11 +12,18 @@ import { moneyAlert } from '@/lib/moneyAlert';
 import { admin } from '../../_shared';
 
 export const maxDuration = 15;
+const DIAG_MAX_BYTES = 4096;
 
 export async function POST(request: Request) {
   const ipLimited = checkIpLimit(request, 'wallet-diag');
   if (ipLimited) return ipLimited;
-  const body = await request.json().catch(() => ({}));
+  // A real report is a few hundred bytes: anything far bigger is refused before it is parsed (Vercel Security Review 2026-11-09).
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (declared > DIAG_MAX_BYTES) return NextResponse.json({ success: false }, { status: 413 });
+  const text = await request.text().catch(() => '');
+  if (text.length > DIAG_MAX_BYTES) return NextResponse.json({ success: false }, { status: 413 });
+  let body: unknown = {};
+  try { body = JSON.parse(text); } catch { body = {}; }
   const repo = supabaseGrowRepo(admin());
   const r = await recordWalletDiag(body, {
     findByToken: (t) => repo.findByToken(t),

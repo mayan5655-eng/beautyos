@@ -226,4 +226,14 @@ await ok('the page: reports failures, falls back, never shows an empty failure; 
   assert.match(src('lib/grow/walletClient.js'), /'onTimeout'\)/);
 });
 
+await ok('diag body: huge strings are cut before any regex runs (no CPU burn), and the route refuses oversized bodies', () => {
+  const big = 'a'.repeat(200000);
+  const t0 = Date.now();
+  const c = cleanDiagBody({ event: 'onFailure', message: big, code: '1'.repeat(200000), status: big, phase: big });
+  assert.ok(Date.now() - t0 < 200, 'linear: done in well under 200ms');
+  assert.equal(c.message.length, 200); assert.ok(c.code.length <= 40);
+  const r = src('app/api/grow/wallet/diag/route.ts');
+  assert.match(r, /DIAG_MAX_BYTES/); assert.match(r, /status: 413/); assert.doesNotMatch(r, /request\.json\(/);
+});
+
 console.log(`\npassed ${n} failed 0`);
