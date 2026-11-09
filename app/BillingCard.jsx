@@ -89,7 +89,10 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
       setConfirmPack(null);
       await load();
     } catch {
-      toast?.('אין חיבור. לא חויבת, נסי שוב', 'error');
+      // A lost answer is not a refusal: the charge may have gone through. Re-read and say so honestly (Vercel review 2026-11-09).
+      toast?.('לא קיבלנו תשובה. בודקות אם החיוב עבר, ואם כן החבילה תופיע כאן', 'info');
+      setConfirmPack(null);
+      await load();
     } finally { setBusy(false); }
   };
 

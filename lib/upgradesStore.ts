@@ -43,6 +43,8 @@ export type UpgradesData = {
   packs: PackUsage[];
   annual: { ready: boolean; monthly: number; yearly: number; billingPeriod: 'monthly' | 'annual'; pendingPeriod: string | null } | null;
   referrals: boolean;
+  /** Her add-on charges of the last 15 minutes; absent or null when the ledger could not be read. */
+  recentAddons?: { pack: string; status: string; at: string }[] | null;
 };
 
 export type UsageLevel = 'unknown' | 'quiet' | 'near' | 'full';
@@ -157,4 +159,45 @@ export function openUpgrades(pack?: AddonPackKey, target: { dispatchEvent?: (e: 
   if (!target?.dispatchEvent) return;
   if (!target.__kalmeaUpgradesMounted) { target.dispatchEvent(new CustomEvent(OPEN_ADDONS_EVENT)); return; }
   target.dispatchEvent(new CustomEvent(UPGRADES_EVENT, { detail: pack ? { pack } : {} }));
+}
+
+// ── after a purchase request: what really happened ──────────────────────────────────────────────────────────────────────────────
+// Vercel review 2026-11-09: a LOST answer (no connection, a timeout, a body that is not JSON, a server error) must never say "not
+// charged": the server may already have charged the card. Only an explicit refusal, one that by construction never reached a charge,
+// may be shown as final. Everything else is checked against her real ledger (recentAddons from /api/billing/upgrades).
+
+/** Refusals the purchase route sends BEFORE any charge is attempted, or the provider's own "no". Shown as final. */
+const FINAL_REASONS = new Set(['no-card', 'declined', 'not-configured', 'unavailable', 'not-owner']);
+
+export function isFinalRefusal(status: number, body: unknown): boolean {
+  const b = (body && typeof body === 'object' ? body : null) as { success?: unknown; reason?: unknown; hidden?: unknown } | null;
+  if (!b || b.success !== false) return false;
+  if (typeof b.reason === 'string') return FINAL_REASONS.has(b.reason);
+  // Refused at the door: off, not signed in, not her business, demo, an unknown pack, the rate limit. None of these reach buyAddon.
+  return b.hidden === true || status === 400 || status === 401 || status === 403 || status === 429;
+}
+
+export type PurchaseOutcome = 'succeeded' | 'pending' | 'failed' | 'none' | 'unknown';
+
+/** The newest charge of this pack since the request began, as the server recorded it. `recent` null = the ledger could not be read. */
+export function purchaseOutcome(recent: { pack: string; status: string; at: string }[] | null | undefined, pack: string, sinceIso: string): PurchaseOutcome {
+  if (!Array.isArray(recent)) return 'unknown';
+  const since = Date.parse(sinceIso);
+  const mine = recent.filter((r) => r.pack === pack && (!Number.isFinite(since) || Date.parse(r.at) >= since)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const s = mine[0]?.status;
+  if (!s) return 'none';
+  if (s === 'succeeded') return 'succeeded';
+  if (s === 'failed') return 'failed';
+  return 'pending';
+}
+
+export const LOST_ANSWER_HE = 'לא קיבלנו תשובה. בודקות אם החיוב עבר…';
+
+/** What she reads once the ledger was checked. Only 'failed' (the provider's recorded "no") and 'none' (no charge row exists) say she was not charged. */
+export function outcomeHe(o: PurchaseOutcome): string {
+  if (o === 'pending') return 'החיוב עוד בבדיקה מול חברת האשראי. אם הוא עבר, החבילה תתווסף לבד ונעדכן אותך. אין צורך ללחוץ שוב.';
+  if (o === 'failed') return 'חברת האשראי לא אישרה את החיוב, ולא חויבת. אפשר לנסות שוב.';
+  if (o === 'none') return 'החיוב לא התחיל, ולא חויבת. אפשר לנסות שוב.';
+  if (o === 'unknown') return 'לא הצלחנו לבדוק אם החיוב עבר. כדאי להציץ ברשימת החיובים במנוי שלך לפני שמנסים שוב.';
+  return 'החבילה נוספה 🌸';
 }

@@ -7,6 +7,9 @@
 //   packs                         this month's use of each metered AI feature, from the server's real counts (lib/addonUsage.ts)
 //   annual                        only with NEXT_PUBLIC_ANNUAL_PLAN=1, the same shape as /api/billing/status
 //   referrals                     NEXT_PUBLIC_REFERRALS is on and its tables exist
+//   recentAddons                  her add-on charges of the last 15 minutes ({ pack, status, at }): after a lost purchase answer the store
+//                                 reads the REAL outcome from here instead of guessing (app/UpgradesStore.jsx)
+// Only the business's owner gets the card and anything chargeable (callerIsOwner): a member sees no pack, no yearly switch, no card.
 // Unlike /api/billing/status it never reads the payment history, so a screen can ask on every open. Read-only, rate-limited
 // ('billing-upgrades'). With every switch off it answers { hidden: true } and reads nothing.
 import { NextResponse } from 'next/server';
@@ -14,20 +17,22 @@ import { createClient as createSession } from '@/lib/supabase/server';
 import { callerTenantId } from '@/lib/tenantScope';
 import { billingUiEnabled } from '@/lib/billing/adapter';
 import { isDemoTenantId } from '@/lib/demoTenants';
-import { checkTenantLimit } from '@/lib/rateLimit';
+import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { referralsEnabled } from '@/lib/referral';
 import { priceOf } from '@/lib/billing/service';
 import { addonUsageFor } from '@/lib/addonUsage';
-import { admin, billing, tableMissing } from '../_shared';
+import { admin, billing, callerIsOwner, tableMissing } from '../_shared';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   const packsOn = addonPacksEnabled();
   const annualOn = annualPlanEnabled();
   const refOn = referralsEnabled();
   if (!packsOn && !annualOn && !refOn) return NextResponse.json({ success: false, hidden: true });
+  const ipLimited = checkIpLimit(request, 'billing-upgrades');
+  if (ipLimited) return ipLimited;
 
   const session = await createSession();
   const { data: { user } } = await session.auth.getUser();
@@ -48,6 +53,7 @@ export async function GET() {
     card: null as { last4: string } | null,
     subStatus: null as string | null,
     nextChargeAt: null as string | null,
+    recentAddons: [] as { pack: string; status: string; at: string }[] | null,
     packs: [] as unknown[],
     annual: null as Record<string, unknown> | null,
     referrals: false,
@@ -63,6 +69,8 @@ export async function GET() {
   if (!out.configured) return NextResponse.json(out);
 
   const db = admin();
+  // A member of the business (not its owner) can never charge its card, so nothing chargeable, and no card digits, reach her.
+  if (!(await callerIsOwner(db, tenantId, user.id))) return NextResponse.json({ ...out, configured: false });
   const s = await db.from('billing_subscriptions').select('id, price, status, next_charge_at, card_last4').eq('tenant_id', tenantId).maybeSingle();
   if (s.error && !tableMissing(s.error)) {
     console.error('[upgrades] subscription read failed for tenant', tenantId, s.error.message);
@@ -76,7 +84,14 @@ export async function GET() {
     if (sub.card_last4 && sub.status !== 'canceled') out.card = { last4: String(sub.card_last4) };
   }
 
-  if (packsOn) out.packs = await addonUsageFor(tenantId);
+  if (packsOn) {
+    out.packs = await addonUsageFor(tenantId);
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const ra = await db.from('billing_payments').select('note, status, created_at').eq('tenant_id', tenantId).eq('kind', 'addon')
+      .gte('created_at', since).order('created_at', { ascending: false }).limit(10);
+    // null, not [], when the read fails: "could not check" must never look like "no charge".
+    out.recentAddons = ra.error ? null : (ra.data || []).map((r) => ({ pack: String(r.note || ''), status: String(r.status || ''), at: String(r.created_at || '') }));
+  }
 
   if (annualOn) {
     let monthly = Number(sub?.price);

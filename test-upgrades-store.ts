@@ -14,6 +14,8 @@ import {
 import { OPEN_ADDONS_EVENT } from './lib/addonOffer.ts';
 import { buyAddon, ADDON_OPEN_WINDOW_MS, type Deps, type PaymentRecord } from './lib/billing/service.ts';
 import { RATE_POLICIES } from './lib/rateLimit.ts';
+import { isFinalRefusal, purchaseOutcome, outcomeHe, LOST_ANSWER_HE } from './lib/upgradesStore.ts';
+import { callerIsOwner } from './lib/billing/owner.ts';
 
 let n = 0;
 const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
@@ -361,6 +363,99 @@ await ok('admin: this month\'s packs, only with packs on', () => {
   const p = read('app/dashboard/admin/AddonPurchasesAdmin.tsx');
   assert.match(p, /\.eq\('period_month', month\)/);
   assert.match(p, /'עסק', 'חבילה', 'סכום', 'מתי'/);
+});
+
+
+// ── Vercel review, 2026-11-09 ──────────────────────────────────────────────────────────────────────────────────────────────────
+await ok('review 1: a forced read after a purchase is never answered by an older read still in flight', () => withFlags(ON, async () => {
+  const { loadUpgrades, currentUpgrades } = store;
+  primeUpgrades(null);
+  const pending: ((v: unknown) => void)[] = [];
+  const realFetch = globalThis.fetch;
+  (globalThis as any).fetch = () => new Promise((res) => pending.push(res));
+  const answer = (cap: number) => ({ ok: true, json: async () => data({ packs: [usage('reels', 10, cap, cap - 10)] }) });
+  try {
+    const old = loadUpgrades();            // started before the purchase
+    const fresh = loadUpgrades(true);      // the forced read after it
+    assert.equal(pending.length, 2, 'the forced read starts its own request instead of reusing the old one');
+    pending[1](answer(20));
+    const got = await fresh;
+    assert.equal(got.packs[0].cap, 20, 'the forced read returns its own, new answer');
+    pending[0](answer(10));
+    await old;
+    assert.equal(currentUpgrades().packs[0].cap, 20, 'the older answer, arriving late, does not overwrite the newer one');
+  } finally { (globalThis as any).fetch = realFetch; primeUpgrades(null); }
+}));
+
+await ok('review 2: the store renders above the client drawer, in a portal', () => {
+  const ui = read('app/UpgradesStore.jsx');
+  assert.match(ui, /createPortal\(/);
+  assert.match(ui, /document\.body,/);
+  const z = Number(/export const STORE_Z = (\d+)/.exec(ui)?.[1]);
+  const app = read('app/beautyos.jsx');
+  const drawer = Number(/zIndex:(\d+)\}\} data-overlay="client"/.exec(app)?.[1]);
+  const more = Number(/zIndex:(\d+),background:"rgba\(48,24,72,0\.34\)"/.exec(app)?.[1]);
+  assert.ok(drawer > 0 && z > drawer, `store ${z} above the client drawer ${drawer}`);
+  assert.ok(more > 0 && z > more, `and above the "more" sheet ${more}`);
+  assert.ok(z < 4000, 'below the confirm dialog and the toasts');
+  assert.match(app, /onOpenCard=\{\(\)=>\{setSelectedClient\(null\);openAddonsRef/, 'sending her to save a card closes the client drawer first');
+});
+
+await ok('review 3: a lost answer never says "not charged"; only an explicit refusal is final', () => {
+  assert.equal(isFinalRefusal(402, { success: false, reason: 'declined' }), true);
+  assert.equal(isFinalRefusal(402, { success: false, reason: 'no-card' }), true);
+  assert.equal(isFinalRefusal(403, { success: false, reason: 'not-owner' }), true);
+  assert.equal(isFinalRefusal(429, { success: false, error: 'limit' }), true);
+  assert.equal(isFinalRefusal(500, { success: false, error: 'x' }), false, 'a server error may come after the charge');
+  assert.equal(isFinalRefusal(202, { success: false, reason: 'pending' }), false);
+  assert.equal(isFinalRefusal(409, { success: false, reason: 'in-progress' }), false);
+  assert.equal(isFinalRefusal(502, null), false, 'a body that is not JSON');
+  assert.equal(isFinalRefusal(0, undefined), false, 'no answer at all');
+  const since = '2026-11-09T09:00:00Z';
+  const rows = [{ pack: 'reels', status: 'succeeded', at: '2026-11-09T09:00:05Z' }, { pack: 'posts', status: 'failed', at: '2026-11-09T09:00:06Z' }];
+  assert.equal(purchaseOutcome(rows, 'reels', since), 'succeeded');
+  assert.equal(purchaseOutcome(rows, 'posts', since), 'failed');
+  assert.equal(purchaseOutcome([{ pack: 'reels', status: 'unknown', at: '2026-11-09T09:00:05Z' }], 'reels', since), 'pending');
+  assert.equal(purchaseOutcome([{ pack: 'reels', status: 'succeeded', at: '2026-11-09T08:00:00Z' }], 'reels', since), 'none', 'an older purchase is not this one');
+  assert.equal(purchaseOutcome(null, 'reels', since), 'unknown', 'an unreadable ledger is "could not check", never "no charge"');
+  assert.ok(!/לא חויבת/.test(outcomeHe('pending')) && !/לא חויבת/.test(outcomeHe('unknown')) && !/לא חויבת/.test(LOST_ANSWER_HE));
+  assert.ok(/לא חויבת/.test(outcomeHe('failed')) && /לא חויבת/.test(outcomeHe('none')), 'only a recorded "no" or no charge row says so');
+  const ui = read('app/UpgradesStore.jsx');
+  assert.doesNotMatch(ui, /אין חיבור\. לא חויבת/);
+  assert.match(ui, /await verify\(key, sinceIso\)/);
+  assert.doesNotMatch(read('app/BillingCard.jsx'), /אין חיבור\. לא חויבת/, 'the billing card had the same sentence');
+  const up = read('app/api/billing/upgrades/route.ts');
+  assert.match(up, /out\.recentAddons = ra\.error \? null :/, 'a failed ledger read is null, not an empty list');
+});
+
+const ownerDb = (tenant: any, member: any, fail = false) => ({
+  from: (t: string) => {
+    const row = t === 'tenants' ? tenant : member;
+    const q: any = { select: () => q, eq: () => q, maybeSingle: async () => (fail ? { data: null, error: { message: 'down' } } : { data: row, error: null }) };
+    return q;
+  },
+});
+
+await ok('security: only the owner moves money; a member, or an unreadable answer, cannot', async () => {
+  assert.equal(await callerIsOwner(ownerDb({ owner_id: 'u1' }, null), 't', 'u1'), true);
+  assert.equal(await callerIsOwner(ownerDb({ owner_id: 'u1' }, { role: 'owner' }), 't', 'u2'), false, 'owner_id decides when set');
+  assert.equal(await callerIsOwner(ownerDb({ owner_id: null }, { role: 'member' }), 't', 'u2'), false);
+  assert.equal(await callerIsOwner(ownerDb({ owner_id: null }, { role: 'owner' }), 't', 'u2'), true);
+  assert.equal(await callerIsOwner(ownerDb({ owner_id: null }, { role: null }), 't', 'u2'), true, 'the original single-user signup');
+  assert.equal(await callerIsOwner(ownerDb({ owner_id: null }, null), 't', 'u2'), false);
+  assert.equal(await callerIsOwner(ownerDb(null, null, true), 't', 'u1'), false, 'fails closed');
+  const addon = read('app/api/billing/addon/route.ts');
+  assert.match(addon, /if \(!\(await callerIsOwner\(admin\(\), c\.tenantId, c\.userId\)\)\)/);
+  assert.ok(addon.indexOf('callerIsOwner(admin()') < addon.indexOf('buyAddon({'), 'checked before any charge');
+  assert.match(addon, /const ridKey = rid \? `\$\{c\.tenantId\}\|\$\{c\.userId\}\|\$\{rid\}`/, 'a replayed answer is only ever her own');
+  assert.match(addon, /answered\.size > REPLAY_MAX/, 'the replay memory is bounded');
+  assert.match(addon, /checkIpLimit\(req, 'billing-addon'\)/);
+  assert.match(read('app/api/billing/period/route.ts'), /callerIsOwner\(admin\(\), c\.tenantId, c\.userId\)/, 'the yearly switch too');
+  const up = read('app/api/billing/upgrades/route.ts');
+  assert.match(up, /checkIpLimit\(request, 'billing-upgrades'\)/);
+  assert.match(up, /if \(!\(await callerIsOwner\(db, tenantId, user\.id\)\)\) return NextResponse\.json\(\{ \.\.\.out, configured: false \}\)/, 'a member gets no card digits and nothing chargeable');
+  assert.ok(up.indexOf('callerIsOwner(db') < up.indexOf("card_last4"), 'before the card is read');
+  assert.match(up, /select\('id, price, status, next_charge_at, card_last4'\)/, 'only the last four, never the brand, token or anything else');
 });
 
 primeUpgrades(null);

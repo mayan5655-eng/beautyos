@@ -8488,8 +8488,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       {/* "שדרוגים ✨" (app/UpgradesStore.jsx): renders nothing unless one of its switches is on. */}
       <UpgradesStore toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}
-        onOpenCard={()=>openAddonsRef.current?.("billing-card")}
-        onOpenReferral={()=>openAddonsRef.current?.("business-referral")}/>
+        onOpenCard={()=>{setSelectedClient(null);openAddonsRef.current?.("billing-card");}}
+        onOpenReferral={()=>{setSelectedClient(null);openAddonsRef.current?.("business-referral");}}/>
 
       {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
       {tourStep !== null && tourStep !== undefined && (

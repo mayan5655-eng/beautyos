@@ -16,11 +16,13 @@ import { buyAddon } from '@/lib/billing/service';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
 import { ADDON_PACKS, addonPacksEnabled, type AddonPackKey } from '@/lib/pricing';
 import { forgetPurchased } from '@/lib/addonQuota';
-import { checkTenantLimit } from '@/lib/rateLimit';
-import { admin, billing, caller } from '../_shared';
+import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
+import { admin, billing, caller, callerIsOwner, NOT_OWNER_HE } from '../_shared';
 
 type Answer = { status: number; body: Record<string, unknown> };
 const REPLAY_MS = 10 * 60 * 1000;
+/** The replay memory never grows without bound: past this, the oldest answers are dropped (they are only a double-tap guard). */
+const REPLAY_MAX = 2000;
 const answered = new Map<string, { at: number; a: Answer }>();
 const running = new Set<string>();
 const reply = (a: Answer) => NextResponse.json(a.body, { status: a.status });
@@ -40,8 +42,12 @@ export async function POST(req: Request) {
   const c = await caller();
   if ('error' in c) return c.error;
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, error: 'זו תצוגה, בחשבון הדגמה לא מחייבים' }, { status: 403 });
+  const ipLimited = checkIpLimit(req, 'billing-addon');
+  if (ipLimited) return ipLimited;
   const limited = checkTenantLimit(c.tenantId, 'billing-addon');
   if (limited) return limited;
+  // Only the owner charges the business's card; a member of the business never can (fails closed).
+  if (!(await callerIsOwner(admin(), c.tenantId, c.userId))) return NextResponse.json({ success: false, reason: 'not-owner', error: NOT_OWNER_HE }, { status: 403 });
   const body = await req.json().catch(() => null);
   const key = String(body?.pack || '') as AddonPackKey;
   const pack = ADDON_PACKS[key];
@@ -50,7 +56,8 @@ export async function POST(req: Request) {
   const now = Date.now();
   for (const [k, v] of answered) if (now - v.at > REPLAY_MS) answered.delete(k);
   const rid = cleanId(body?.requestId);
-  const ridKey = rid ? `${c.tenantId}|${rid}` : '';
+  // Keyed by business AND user: an id can only ever replay her own answer, never another business's or another member's.
+  const ridKey = rid ? `${c.tenantId}|${c.userId}|${rid}` : '';
   const prior = ridKey ? answered.get(ridKey) : undefined;
   if (prior) return reply({ status: prior.a.status, body: { ...prior.a.body, replay: true } });
   const lock = `${c.tenantId}|${key}`;
@@ -59,7 +66,13 @@ export async function POST(req: Request) {
   }
   running.add(lock);
   if (ridKey) running.add(ridKey);
-  const remember = (a: Answer) => { if (ridKey) answered.set(ridKey, { at: Date.now(), a }); return reply(a); };
+  const remember = (a: Answer) => {
+    if (ridKey) {
+      answered.set(ridKey, { at: Date.now(), a });
+      while (answered.size > REPLAY_MAX) { const oldest = answered.keys().next().value; if (oldest === undefined) break; answered.delete(oldest); }
+    }
+    return reply(a);
+  };
   try {
     const b = billing();
     const r = await buyAddon({ repo: supabaseBillingRepo(admin()), payments: b.payments!, invoicing: b.invoicing! }, c.tenantId, pack);

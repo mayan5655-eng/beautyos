@@ -20,6 +20,7 @@
 // is on, and the server decides what is really offered (packs and yearly also need BILLING_UI_ENABLED). An empty store hides its entries.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Sheet from './Sheet';
 import { ADDON_PACKS, addonButtonHe, addonPacksEnabled, priceHe } from '@/lib/pricing';
 import { annualOfferHe, trialEndDateHe } from '@/lib/planCopy';
@@ -28,29 +29,50 @@ import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 import {
   UPGRADES_EVENT, UPGRADES_CHANGED_EVENT, upgradesFlagsOn, storeCards, packFor, homeNudgePack, usageLevel, usagePct, usageLineHe,
   pageChipHe, packTitleHe, packWhatHe, priceNoteHe, confirmChargeHe, successHe, annualSavingHe, newRequestId, openUpgrades,
+  isFinalRefusal, purchaseOutcome, outcomeHe, LOST_ANSWER_HE,
 } from '@/lib/upgradesStore';
+
+/** Above every drawer and sheet that can hold a chip (the client drawer 1200, the scan report 1300, the "more" sheet 1401), below the
+ *  confirm dialog (4000) and the toasts (5000). Rendered into document.body, so no parent's stacking context can trap it. */
+export const STORE_Z = 1450;
 
 // ── one shared read of /api/billing/upgrades for every chip, entry and the sheet ────────────────────────────────────────────────────
 let shared = { data: null, loading: false, at: 0 };
+// Vercel review 2026-11-09: a forced read (after a purchase) must never be satisfied by an older read still in flight, and an older
+// answer arriving late must never overwrite a newer one. Every read takes a number; only the newest one may write.
+let seq = 0;
+let inflight = null;
 const listeners = new Set();
 const emit = () => { for (const l of listeners) l(shared.data); };
+
+/** The last answer the store holds (tests, and the toast's availability check). */
+export function currentUpgrades() { return shared.data; }
 
 /** Tests (and only tests) seed the data a server render would otherwise wait for. */
 export function primeUpgrades(data) { shared = { data, loading: false, at: data ? Date.now() : 0 }; emit(); }
 
 export async function loadUpgrades(force = false) {
   if (!upgradesFlagsOn()) return null;
-  if (shared.loading) return shared.data;
+  if (!force && inflight) return inflight;
   if (!force && shared.data && Date.now() - shared.at < 60_000) return shared.data;
-  shared.loading = true;
-  try {
-    const r = await fetch('/api/billing/upgrades', { cache: 'no-store' });
-    const j = await r.json().catch(() => null);
-    if (r.ok && j?.success) shared = { data: j, loading: false, at: Date.now() };
-    else shared = { ...shared, loading: false };
-  } catch { shared = { ...shared, loading: false }; }
-  emit();
-  return shared.data;
+  const mine = ++seq;
+  shared = { ...shared, loading: true };
+  const run = (async () => {
+    let fresh = null;
+    try {
+      const r = await fetch('/api/billing/upgrades', { cache: 'no-store' });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success) fresh = j;
+    } catch { /* keep what we had */ }
+    // A newer read started after this one: its answer wins, this one is dropped (it may predate a purchase).
+    if (mine !== seq) return fresh;
+    shared = fresh ? { data: fresh, loading: false, at: Date.now() } : { ...shared, loading: false };
+    inflight = null;
+    emit();
+    return fresh;
+  })();
+  inflight = run;
+  return run;
 }
 
 /** Can this pack be bought right now (the last answer from the server)? For buttons rendered outside a hook (the cap-hit toast). */
@@ -324,25 +346,49 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
 
   const close = () => { if (!busy) { setOpen(false); goTo(null); } };
 
+  const landed = async (key) => {
+    try { window.dispatchEvent(new CustomEvent(UPGRADES_CHANGED_EVENT, { detail: { pack: key } })); } catch { /* old browser */ }
+    setView({ kind: 'success', key });
+    toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
+  };
+
+  // The answer was lost or is not a clear refusal: read her real ledger instead of guessing. Twice, a few seconds apart, because a lost
+  // answer can mean the server is still charging. Never says "not charged" unless the ledger shows no charge, or the provider's "no".
+  const verify = async (key, sinceIso) => {
+    setErr(LOST_ANSWER_HE);
+    let o = 'unknown';
+    for (let i = 0; i < 2; i++) {
+      if (i) await new Promise((res) => setTimeout(res, 3000));
+      const fresh = await loadUpgrades(true);
+      o = fresh ? purchaseOutcome(fresh.recentAddons, key, sinceIso) : 'unknown';
+      if (o === 'succeeded' || o === 'failed') break;
+    }
+    if (o === 'succeeded') { setErr(''); await landed(key); return; }
+    setErr(outcomeHe(o));
+    // A recorded "no", or no charge at all: a second tap is a new, deliberate request. Pending / unknown keep the same id.
+    if (o === 'failed' || o === 'none') rid.current = newRequestId();
+  };
+
   const buy = async (key) => {
     if (busy) return;
     setBusy(true); setErr('');
+    // A little before now, so a server clock slightly behind hers still counts this charge as this request's.
+    const sinceIso = new Date(Date.now() - 60_000).toISOString();
     try {
-      const r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid.current }) });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) {
-        const m = j?.error || 'החיוב לא הצליח, נסי שוב';
-        setErr(m);
-        // A refused charge is final for this sheet's id: a deliberate second tap after reading the reason is a new request.
-        if (r.status !== 202 && r.status !== 409) rid.current = newRequestId();
+      let r = null;
+      let j = null;
+      try {
+        r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid.current }) });
+        j = await r.json().catch(() => null);
+      } catch { r = null; }
+      if (r && r.ok && j?.success) { await loadUpgrades(true); await landed(key); return; }
+      if (r && isFinalRefusal(r.status, j)) {
+        setErr(j?.error || 'החיוב לא הצליח, נסי שוב');
+        rid.current = newRequestId();
         return;
       }
-      await loadUpgrades(true);
-      try { window.dispatchEvent(new CustomEvent(UPGRADES_CHANGED_EVENT, { detail: { pack: key } })); } catch { /* old browser */ }
-      setView({ kind: 'success', key });
-      toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
-    } catch {
-      setErr('אין חיבור. לא חויבת, נסי שוב');
+      // No answer, a body that is not JSON, a server error, "pending", "in progress": the card may have been charged. Check.
+      await verify(key, sinceIso);
     } finally { setBusy(false); }
   };
 
@@ -361,8 +407,9 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
     } finally { setBusy(false); }
   };
 
-  return (
-    <Sheet open={open} onClose={close} busy={busy} width={460} zIndex={1200} ariaLabel="שדרוגים"
+  if (!open || typeof document === 'undefined') return null;
+  return createPortal(
+    <Sheet open={open} onClose={close} busy={busy} width={460} zIndex={STORE_Z} ariaLabel="שדרוגים"
       title={view ? undefined : 'שדרוגים ✨'} subtitle={view ? undefined : 'חבילה שמוסיפים נכנסת לתוקף מיד, בלי התחייבות.'}>
       <div data-testid="upgrades-store" style={{ paddingTop: view ? 4 : 0 }}>
         <StoreBody d={d} view={view} busy={busy} err={err} consentOk={consentOk} isDemo={isDemo}
@@ -371,6 +418,7 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
           onOpenReferral={() => { setOpen(false); goTo(null); onOpenReferral?.(); }}
           onClose={close} />
       </div>
-    </Sheet>
+    </Sheet>,
+    document.body,
   );
 }

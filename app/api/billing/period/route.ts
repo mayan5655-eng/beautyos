@@ -16,7 +16,7 @@ import { supabaseBillingRepo } from '@/lib/billing/repo';
 import { billingAnnualConsentTextHe, billingMonthlyConsentTextHe, BILLING_ANNUAL_CONSENT_VERSION } from '@/lib/billing/consent';
 import { trialEndDateHe } from '@/lib/planCopy';
 import { checkTenantLimit } from '@/lib/rateLimit';
-import { admin, billing, caller, tableMissing } from '../_shared';
+import { admin, billing, caller, callerIsOwner, NOT_OWNER_HE, tableMissing } from '../_shared';
 
 const NOT_READY = 'התשלום השנתי עוד לא פעיל בחשבון. נעדכן כשהוא זמין.';
 
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, error: 'זו תצוגה, אי אפשר לשנות מנוי בחשבון הדגמה' }, { status: 403 });
   const limited = checkTenantLimit(c.tenantId, 'billing-period');
   if (limited) return limited;
+  if (!(await callerIsOwner(admin(), c.tenantId, c.userId))) return NextResponse.json({ success: false, code: 'not-owner', error: NOT_OWNER_HE }, { status: 403 });
 
   const body = (await request.json().catch(() => ({}))) as { period?: unknown; consent?: unknown };
   const period = body.period === 'annual' ? 'annual' : body.period === 'monthly' ? 'monthly' : null;
