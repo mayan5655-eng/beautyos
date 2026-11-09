@@ -101,3 +101,31 @@ break chosen by hand. The booking video books two appointments on the demo tenan
 When the UI changes, a step that no longer finds its button fails with the step's name and `out/failure-*.png`: fix that selector
 and re-run. (October 2026: settings moved services to "יומן ושירותים" and branding to "הדף שלי"; the booking page grew a second
 checkbox, the marketing opt-in, which stays unticked.)
+
+## promo (the "everything Kalmea does" video, November 2026)
+
+```
+node promo-shots.mjs                              # the real screens -> out/promo/shots/ (+ marks.json)
+node promo-music.mjs                              # the 90 s music on its own -> out/promo/promo-music.wav
+node promo-motion.mjs                             # all four cuts -> out/promo/
+node promo-motion.mjs reel --frame=3,21,75        # stills to check
+node promo-motion.mjs reel --voice=her-voice.m4a  # a voice track from 0 s; the music ducks under it (sidechain)
+node promo-motion.mjs podcast --podcast=clip.mp4  # default out/promo/in/podcast.mp4 (not committed)
+```
+
+Cuts: `kalmea-promo-90s-9x16.mp4` (reel), `kalmea-promo-30s-9x16.mp4` (short), `kalmea-promo-90s-16x9.mp4` (site),
+`kalmea-promo-podcast-9x16.mp4` (her podcast clip as the spine, screens between her lines, her words captioned, the music 18 dB
+under her voice). 720x1280 / 1280x720, H.264 + AAC. Each render also leaves its music as `out/promo/music-<cut>.wav`.
+
+- **Screens.** promo-shots.mjs takes them from the demo tenant (every non-GET aborted), production's public demo pages, and a local
+  `next dev` against `promo-fixtures.mjs` (a read-only stand-in database with a made-up business) for what production cannot show
+  while Grow is off: the deposit page, the gift shop and voucher page, the review, form and client pages. The products list and the
+  help chat's answer are the real components fed made-up rows (the demo cannot add products; a real answer is a paid AI call).
+  In a cloud session: `KALMEA_CHROMIUM=<chromium> KALMEA_PROXY=$HTTPS_PROXY KALMEA_CHROMIUM_ARGS="--no-sandbox"`.
+- **Music.** promo-music.mjs: original, synthesized by the reel templates' own instruments (`lib/design/reelMusic.js` `voices`),
+  120 BPM, arranged to the story (A-minor pain, a one-bar build, the lift into C major on the first feature, the drums out on the
+  closing card). Every cut is on its 0.5 s beat grid. No sample, no download, no paid API; the same file every run.
+- **What it may show** (owner rule, 2026-11-09): only what is live on main. Reminders are her one tap from her own WhatsApp, never
+  "automatic"; no waitlist offers (that screen promises an automatic WhatsApp); no voice booking (a per-business flag). Grow card
+  payments, deposits, paying from a WhatsApp link and the refund on a void are on main and are shown.
+- Before rendering, every caption is checked against the frame edges and for spilling out of its card. Then look at stills.

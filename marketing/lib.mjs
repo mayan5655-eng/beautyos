@@ -257,7 +257,13 @@ export async function recordTake(browser, dir, { owner = true, setup, play, labe
 
 export async function openBrowser() {
   // KALMEA_CHROMIUM: a Chromium already on the machine (a cloud session has one at /opt/pw-browsers/chromium) instead of playwright's own.
-  try { return await chromium.launch(process.env.KALMEA_CHROMIUM ? { executablePath: process.env.KALMEA_CHROMIUM } : {}); } catch (e) {
+  // KALMEA_PROXY: an HTTPS proxy the browser must use (a cloud session's egress proxy); localhost stays direct, for a local
+  // `next dev`. KALMEA_CHROMIUM_ARGS: extra flags, space separated (a Lambda-style Chromium build needs --no-sandbox).
+  const opts = {};
+  if (process.env.KALMEA_CHROMIUM) opts.executablePath = process.env.KALMEA_CHROMIUM;
+  if (process.env.KALMEA_PROXY) opts.proxy = { server: process.env.KALMEA_PROXY, bypass: 'localhost,127.0.0.1' };
+  if (process.env.KALMEA_CHROMIUM_ARGS) opts.args = process.env.KALMEA_CHROMIUM_ARGS.split(/\s+/).filter(Boolean);
+  try { return await chromium.launch(opts); } catch (e) {
     console.error('[tour] could not start Chromium. First time on this machine? Run:  npx playwright-core install chromium');
     throw e;
   }
