@@ -19,11 +19,16 @@
 //   headers  x-api-key (GROW_REGISTER_API_KEY_TEST / _LIVE), User-Agent (REQUIRED), Content-Type: application/json
 //   body     { marketer, business_number, phone (05 + 8 digits), price_quote, is_direct_debit (1 test / 0 live), website: '',
 //              is_send_sms: 1 }
+//   price_quote is the code of the plan SHE picked (lib/grow/plans.ts, checked against that list on the server). Live has no
+//   fallback: no valid plan, no call. GROW_REGISTER_PRICE_QUOTE is a fallback for the test environment only (the smoke script).
+//   Live also needs GROW_REGISTER_MARKETER: without it registration is off (fail closed), never Grow's test marketer.
 // Error ids are mapped to plain Hebrew in GETLINK_ERRORS below.
 //
 // Mock mode (GROW_MODE=mock, no registration key) still works end to end: the link opens /api/grow/mock-register.
 
 export type RegistrationStatus = 'waiting' | 'approved' | 'rejected';
+
+import { growPlanByCode } from './plans.ts';
 
 export type RegisterInput = {
   /** Ours, random; the mock form uses it as its lead id. GetLink does not take it: Grow's encrypted_lead is the match key. */
@@ -32,6 +37,8 @@ export type RegisterInput = {
   businessNumber: string;
   /** Her Israeli mobile, 05XXXXXXXX: the SMS with the form goes there, and she must fill the form from that phone. */
   phone: string;
+  /** The plan she picked (a GROW_PLANS code). Anything else is ignored; live then refuses to call Grow. */
+  priceQuote?: string;
 };
 
 export type RegisterErrorKind = 'open-lead' | 'not-approved' | 'exists' | 'bad-phone' | 'bad-business-number' | 'platform' | 'general';
@@ -113,12 +120,15 @@ export function createMockRegistration(origin: string): RegistrationOps {
 // ── live ───────────────────────────────────────────────────────────────────
 
 export const GROW_REGISTER_TEST_URL = 'https://devregisterapi.meshulam.co.il/GetLink';
+/** Grow's TEST environment marketer (from its sandbox onboarding). Never used live. */
+export const GROW_REGISTER_TEST_MARKETER = 'b4f38969f705';
 export const GROW_REGISTER_USER_AGENT = 'Kalmea/1.0 (+https://kalmea.app)';
 
 export type RegisterCfg = {
   url: string;
   apiKey: string;
   marketer: string;
+  /** Test environment only: the price_quote when no plan was picked. Always '' live. */
   priceQuote: string;
   /** 1 in the test environment, 0 live (Grow's rule). */
   isDirectDebit: 0 | 1;
@@ -128,18 +138,21 @@ type Env = Record<string, string | undefined>;
 
 /**
  * The registration settings for this deployment, or null when the key is missing. Test is the default; live needs
- * GROW_REGISTER_ENV=live plus GROW_REGISTER_API_KEY_LIVE and GROW_REGISTER_URL_LIVE (Grow gives the live address separately).
+ * GROW_REGISTER_ENV=live plus GROW_REGISTER_API_KEY_LIVE, GROW_REGISTER_URL_LIVE (Grow gives the live address separately) and
+ * GROW_REGISTER_MARKETER: live never falls back to Grow's test marketer or test price quote.
  */
 export function registerConfig(env: Env = process.env): RegisterCfg | null {
   const live = (env.GROW_REGISTER_ENV || '').trim().toLowerCase() === 'live';
   const apiKey = String((live ? env.GROW_REGISTER_API_KEY_LIVE : env.GROW_REGISTER_API_KEY_TEST) || '').trim();
   const url = String((live ? env.GROW_REGISTER_URL_LIVE : env.GROW_REGISTER_URL_TEST || GROW_REGISTER_TEST_URL) || '').trim();
   if (!apiKey || !/^https:\/\//i.test(url)) return null;
+  const marketer = String(env.GROW_REGISTER_MARKETER || (live ? '' : GROW_REGISTER_TEST_MARKETER)).trim();
+  if (!marketer) return null;
   return {
     url,
     apiKey,
-    marketer: String(env.GROW_REGISTER_MARKETER || 'b4f38969f705').trim(),
-    priceQuote: String(env.GROW_REGISTER_PRICE_QUOTE || '1997').trim(),
+    marketer,
+    priceQuote: live ? '' : String(env.GROW_REGISTER_PRICE_QUOTE || '1997').trim(),
     isDirectDebit: live ? 0 : 1,
   };
 }
@@ -149,7 +162,7 @@ export function getLinkBody(cfg: RegisterCfg, i: RegisterInput): Record<string, 
     marketer: cfg.marketer,
     business_number: i.businessNumber,
     phone: i.phone,
-    price_quote: cfg.priceQuote,
+    price_quote: growPlanByCode(i.priceQuote)?.code || cfg.priceQuote,
     is_direct_debit: cfg.isDirectDebit,
     website: '',
     is_send_sms: 1,
@@ -160,6 +173,8 @@ export function createLiveRegistration(cfg: RegisterCfg, fetchImpl: typeof fetch
   return {
     kind: 'live',
     async createLink(i) {
+      // No plan from the allowlist and no test fallback: never ask Grow with an empty or invented price_quote.
+      if (!getLinkBody(cfg, i).price_quote) return getLinkError('', 'no plan picked');
       let json: unknown = null;
       let httpStatus = 0;
       try {

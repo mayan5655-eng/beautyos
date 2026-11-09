@@ -3,9 +3,9 @@
 // app/GrowCostNote.jsx
 //
 // The cost of card clearing through Grow, said up front wherever Kalmea offers it to her: one short line, and "מה זה כולל?"
-// for the whole track. The numbers live in lib/growPricing.ts only.
+// for every plan. The plans live in lib/grow/plans.ts only (the same list the registration plan picker shows).
 
-import { growCostLineHe, growCostDetailsHe } from '@/lib/growPricing';
+import { growCostLineHe, growCostDetailsHe, GROW_FEES_URL } from '@/lib/growPricing';
 
 export default function GrowCostNote({ style }) {
   return (
@@ -16,6 +16,7 @@ export default function GrowCostNote({ style }) {
         <ul style={{ margin: '2px 0 0', paddingInlineStart: 18 }}>
           {growCostDetailsHe().map((l) => <li key={l}>{l}</li>)}
         </ul>
+        <a href={GROW_FEES_URL} target="_blank" rel="noreferrer" style={{ display: 'inline-block', padding: '6px 0', color: 'var(--pc-deep, var(--ink))', fontWeight: 700 }}>כל התנאים באתר Grow</a>
       </details>
     </div>
   );

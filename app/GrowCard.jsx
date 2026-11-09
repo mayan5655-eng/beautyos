@@ -8,7 +8,9 @@
 // The whole card is invisible unless the deployment has switched the Grow screens on (GROW_UI_ENABLED, default off): /api/grow/status
 // answers 404 and nothing renders. When it is on, the honest states are:
 //   - the payment tables are not created yet: says so, offers nothing to press;
-//   - not connected: two doors. (a) "I have a Grow account": she pastes her Grow business id (only when the platform can charge).
+//   - not connected: two doors. (a) "I have a Grow account": she asks Grow's customer service (from the email / mobile on that
+//         account only) to connect it to Kalmea; Grow sends the identifiers to /api/grow/webhook. Pasting her Grow business id
+//         stays as the fallback (only when the platform can charge).
 //     (b) "I don't have Grow yet": Grow texts her its registration form (GetLink, app/GrowRegistration.jsx), and the card
 //         shows waiting / rejected until Grow approves; then it turns connected with clearing on. Where that link is not
 //         available, she leaves her name, phone, business name and business id, and we pass them on to Grow;
@@ -21,6 +23,8 @@ import GrowRegistration from './GrowRegistration';
 import GrowCostNote from './GrowCostNote';
 import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 
+// Grow's customer service, for connecting an account she already has (Grow, 2026-11).
+const GROW_SUPPORT = { email: 'support@grow.business', whatsapp: '052-7773144', whatsappUrl: 'https://wa.me/972527773144' };
 const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל', refunded: 'הוחזר' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
@@ -181,7 +185,23 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
   } else if (door === 'have') {
     body = (
       <>
-        <p style={{ ...text, marginBottom: 10 }}>הדביקי את מזהה העסק שקיבלת מ-Grow. את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.</p>
+        <div data-testid="grow-have-steps">
+          <p style={{ ...text, color: 'var(--ink)', fontWeight: 700, marginBottom: 6 }}>מחברים חשבון Grow קיים בפנייה אחת לשירות הלקוחות של Grow:</p>
+          <ol style={{ ...text, margin: '0 0 10px', paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <li>פונים רק מהמייל או מהנייד שרשומים בחשבון ה-Grow שלך.</li>
+            <li>
+              מבקשים לחבר את החשבון ל-Kalmea. במייל:{' '}
+              <a href={`mailto:${GROW_SUPPORT.email}`} dir="ltr" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700, whiteSpace: 'nowrap' }}>{GROW_SUPPORT.email}</a>
+              {' '}או בוואטסאפ:{' '}
+              <a href={GROW_SUPPORT.whatsappUrl} target="_blank" rel="noreferrer" dir="ltr" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700, whiteSpace: 'nowrap' }}>{GROW_SUPPORT.whatsapp}</a>
+            </li>
+            <li>אם החשבון מחובר היום למערכת אחרת, מבקשים מ-Grow לנתק אותו משם ולחבר ל-Kalmea.</li>
+          </ol>
+          <p style={{ ...text, marginBottom: 12 }}>זהו. את המזהים Grow שולחת אלינו ישירות, ונעדכן כאן כשהחשבון מחובר. את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.</p>
+        </div>
+        {!isDemo && s.platform.configured && (
+          <p style={{ ...text, fontSize: 'var(--t-xs)', marginBottom: 6 }}>קיבלת מ-Grow מזהה עסק? אפשר גם להדביק אותו כאן:</p>
+        )}
         {!isDemo && (s.platform.configured ? (
           <div style={{ display: 'flex', gap: 6 }}>
             <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder="מזהה עסק ב-Grow" aria-label="מזהה עסק ב-Grow" style={{ ...inp, ...ltr }} />

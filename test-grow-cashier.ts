@@ -226,7 +226,9 @@ await ok('registration is live whenever its test (or live) key is set; the mock 
   // live needs its own key AND its own URL (Grow gives it separately); no test default leaks into live
   assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_TEST: 'k' }), null);
   assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k' }), null);
-  const live = registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k', GROW_REGISTER_URL_LIVE: 'https://register.example/GetLink' })!;
+  // live also needs its own marketer: no test marketer leaks into live (fail closed, test-grow-live-plans.ts)
+  assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k', GROW_REGISTER_URL_LIVE: 'https://register.example/GetLink' }), null);
+  const live = registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k', GROW_REGISTER_URL_LIVE: 'https://register.example/GetLink', GROW_REGISTER_MARKETER: 'm' })!;
   assert.equal(live.isDirectDebit, 0);
   const test = registerConfig({ GROW_REGISTER_API_KEY_TEST: 'k' })!;
   assert.deepEqual([test.url, test.marketer, test.priceQuote, test.isDirectDebit], [GROW_REGISTER_TEST_URL, 'b4f38969f705', '1997', 1]);
