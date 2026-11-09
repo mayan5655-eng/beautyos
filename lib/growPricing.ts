@@ -27,7 +27,7 @@ const ils = (n: number) => `₪${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 /** The one short line: what she pays Grow, before VAT. */
 export function growCostLineHe(p: Pricing = GROW_PRICING): string {
-  return `הסליקה דרך Grow, במסלול שלהם: ${ils(p.monthlyAnnual)} לחודש + ${p.feePercent}% מכל עסקה, לפני מע״מ.`;
+  return `הסליקה דרך Grow, במסלול שלהם: ${ils(p.monthlyAnnual)} לחודש בתשלום שנתי (או ${ils(p.monthly)} בתשלום חודשי) + ${p.feePercent}% מכל עסקה, לפני מע״מ.`;
 }
 
 /** "מה זה כולל?": the whole track in plain lines. */
