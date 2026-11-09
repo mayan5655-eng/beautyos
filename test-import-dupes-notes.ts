@@ -19,6 +19,7 @@ assert.equal(IMPORT_FIELDS[0].label, 'לא לייבא', 'the option speaks her l
 
 const dash = fs.readFileSync(new URL('./app/beautyos.jsx', import.meta.url), 'utf8');
 assert.ok(!/replace\(\/\\D\/g,""\)\)\.filter\(Boolean\)/.test(dash.slice(dash.indexOf('const importContacts'), dash.indexOf('const importContacts') + 3000)), 'the client import compares with importPhoneKey');
-assert.ok(dash.includes('const existingClientCount = importTarget!=="clients" ? 0'), 'the preview counts existing clients');
+// (a services import counts names already on her list in the same variable: test-regression-qa.ts)
+assert.ok(dash.includes('const existingClientCount = importTarget==="services" ? countExistingServices(built.rows, services) : importTarget!=="clients" ? 0'), 'the preview counts existing clients');
 assert.ok(dash.includes('{built.rows.length-existingClientCount} {importSpec.unit} ייווצרו'), 'and says how many will really be created');
 console.log('test-import-dupes-notes: ok');

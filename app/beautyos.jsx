@@ -758,7 +758,7 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
-import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
+import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, withServiceDefaults, countExistingServices, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
 import { vcardImportText, isVcardFile, VCARD_ACCEPT } from "@/lib/vcard";
 
 // Manually added leads start at "new", the same entry status the Facebook
@@ -4354,7 +4354,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     () => new Set(services.map(s => String(s.name||"").trim()).filter(Boolean)),
     [services]
   );
-  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours()*60+now.getMinutes(),knownServiceNames))
+  // Appointments: a row with no duration or price in the paste takes her treatment's own (lib/importMapping withServiceDefaults).
+  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>{ const b=buildApptRows(g,c,h,today,now.getHours()*60+now.getMinutes(),knownServiceNames); return { ...b, rows: withServiceDefaults(b.rows, services) }; })
                       : importTarget === "services" ? buildServiceRows
                       : ((g,c,h)=>buildImportRows(g,c,h,knownServiceNames));
 
@@ -4433,7 +4434,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (importing) return;
 
     const grid = parseImportGrid(importText);
-    const built = buildApptRows(grid, importCols, importHasHeader, today, now.getHours()*60+now.getMinutes(), knownServiceNames);
+    const built0 = buildApptRows(grid, importCols, importHasHeader, today, now.getHours()*60+now.getMinutes(), knownServiceNames);
+    // Duration and price from her own treatment when the paste has none, BEFORE the overlap check below uses the duration.
+    const built = { ...built0, rows: withServiceDefaults(built0.rows, services) };
     if (built.rows.length === 0) { toast("לא נמצאו תורים עתידיים להוספה", "error"); return; }
 
     setImporting(true);
@@ -11698,7 +11701,8 @@ ${MARKETING_FOOTER}`)}`;
    })();
    // Clients already on file are skipped by the import (matched by phone), so the preview counts them
    // too: it promised "3 will be created" when 1 of them would be skipped (2026-10-24 sweep).
-   const existingClientCount = importTarget!=="clients" ? 0 : (()=>{
+   // A services import skips names already on her list the same way (countExistingServices), so its preview counts them as well.
+   const existingClientCount = importTarget==="services" ? countExistingServices(built.rows, services) : importTarget!=="clients" ? 0 : (()=>{
      const have = new Set(clients.map(c=>importPhoneKey(c.phone)).filter(Boolean));
      const s = new Set(); let n = 0;
      built.rows.forEach(r=>{ const k=importPhoneKey(r.phone); if(!k) return; if(have.has(k)||s.has(k)) n++; else s.add(k); });
@@ -11709,7 +11713,7 @@ ${MARKETING_FOOTER}`)}`;
 
  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
  <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(importGuesser(grid.rows,h));}}/>
-   השורה הראשונה היא כותרות (לא לקוחה)
+   {importSpec.headerNote}
  </label>
 
  <div style={{overflowX:"auto",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",marginBottom:12}}>
@@ -11743,7 +11747,7 @@ ${MARKETING_FOOTER}`)}`;
    ?<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,marginBottom:12}}>יש לבחור עמודה בתור «{missingLabels}» כדי להמשיך.</p>
    :<p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>
       <strong style={{color:pcDeep}}>{built.rows.length-existingClientCount} {importSpec.unit} ייווצרו</strong>
-      {existingClientCount>0&&<> · {existingClientCount} כבר קיימות אצלך ולא ייווצרו שוב</>}
+      {existingClientCount>0&&<> · {existingClientCount} {importSpec.existingNote}</>}
       {newClientCount>0&&<> · {newClientCount} לקוחות חדשות ייווצרו גם</>}
       {built.past>0&&<> · {built.past} דולגו, תאריך שכבר עבר</>}
       {built.noDate>0&&<> · {built.noDate} דולגו, תאריך לא ברור</>}
@@ -11785,7 +11789,7 @@ ${MARKETING_FOOTER}`)}`;
    {importResult.past>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.past} דולגו, תאריך שכבר עבר (היסטוריה לא מיובאת)</p>}
    {importResult.noTime>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.noTime} נקבעו ל-9:00 (שעה לא קריאה)</p>}
    {importResult.noDate>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.noDate} דולגו, תאריך לא ברור</p>}
-   {importResult.dupes>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.dupes} דולגו, כבר קיימות אצלך (זוהו לפי טלפון)</p>}
+   {importResult.dupes>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.dupes} {importSpec.dupesNote}</p>}
    {/* Not the same as a duplicate, and not in grey: these are real future
        bookings that were NOT imported because the slot was already busy. She
        has to place them by hand, so the line has to be impossible to skim past. */}
@@ -11795,7 +11799,7 @@ ${MARKETING_FOOTER}`)}`;
    {importResult.failed>0&&(
  <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:"var(--r-sm)",padding:"10px 12px"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:700,marginBottom:3}}>{importResult.failed} לא נוספו</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>שאר הלקוחות נוספו בהצלחה. אפשר להדביק שוב רק את מי שחסרה. לקוחות שכבר קיימות לא ייווצרו פעמיים.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>{importSpec.failedNote}</p>
  {importResult.error&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:5,direction:"ltr",textAlign:"left"}}>{importResult.error}</p>}
  </div>
    )}
