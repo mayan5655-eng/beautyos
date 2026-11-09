@@ -135,6 +135,7 @@ import { ProductTillPicker, ProductTillWarnings } from "./ProductsTill";
 import useProducts from "./useProducts";
 import { lowStockAttention, productsConfig } from "@/lib/products";
 import { tillTabsOf, activeTillTab } from "@/lib/tillTabs";
+import { VOID_REFUND_HE } from "@/lib/grow/voidRefund";
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -1314,6 +1315,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Void form on the receipt modal: the reason is required.
   const [voidOpen,        setVoidOpen]        = useState(false);
   const [voidReason,      setVoidReason]      = useState("");
+  // "גם להחזיר את הכסף ללקוחה ב-Grow": on by default for a sale paid through Grow (lib/grow/voidRefund.ts).
+  const [voidGrowRefund,  setVoidGrowRefund]  = useState(true);
   // A recurring appointment: "every N weeks, M times", new appointments only.
   const [apptRepeat,      setApptRepeat]      = useState({on:false, everyWeeks:3, count:6});
   // Grow deposit on a booking she makes by hand: the switch in the appointment sheet, and the link sheet that follows a save with it on.
@@ -5569,9 +5572,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleVoidReceipt = async (receipt) => {
     if (guardWrite()) return;
     if (!receipt || !voidReason.trim()) { toast("כתבי בקצרה למה מבטלים, זה נשמר ברישום", "error"); return; }
-    // A card payment taken through Grow is not undone by voiding it here: the charge and Grow's own document stay.
-    // Say so first, so the books and the bank do not quietly disagree.
-    if (receipt.legal_provider === "grow" && !growVoidOk.current) {
+    // A card payment taken through Grow is not undone by a void alone: the charge and Grow's own document stay.
+    // With the refund unticked, say so first, so the books and the bank do not quietly disagree.
+    // With the refund ticked (the default) the void sheet already says the money goes back, so there is nothing to confirm.
+    const paidByGrow = receipt.legal_provider === "grow";
+    const refundAtGrow = paidByGrow && voidGrowRefund;
+    if (paidByGrow && !refundAtGrow && !growVoidOk.current) {
       askConfirm({
         title: "התשלום נגבה דרך Grow",
         message: "ביטול כאן לא מחזיר את הכסף ללקוחה ולא מבטל את המסמך של Grow. את הזיכוי עושים בחשבון Grow. לבטל רק ברישום שלך?",
@@ -5616,11 +5622,32 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           else if (!vr || vr.success === false) toast("התשלום בוטל, אבל הסכום עוד לא חזר לשובר. אפשר לנסות שוב ממסך שוברי המתנה, או לכתוב לנו.", "error");
         } catch { /* the void itself stands; the message above covers a refusal */ }
       }
+      // The void is saved and stands whatever Grow answers. Only now is the refund asked for (app/api/grow/void-refund).
+      let growRefund = null;
+      if (refundAtGrow && data && data[0]) {
+        try {
+          const res = await fetch("/api/grow/void-refund", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receiptId: receipt.id }) });
+          growRefund = await res.json().catch(() => null);
+        } catch { growRefund = null; }
+        if (!growRefund || growRefund.hidden || !growRefund.message) growRefund = { refunded: false, status: "failed", message: VOID_REFUND_HE.failed("") };
+        if (growRefund.note) {
+          const note = growRefund.note;
+          setReceipts(prev => prev.map(r => String(r.id) === String(receipt.id) ? { ...r, note } : r));
+          setShowReceipt(prev => prev && String(prev.id) === String(receipt.id) ? { ...prev, note } : prev);
+        }
+      }
       setVoidOpen(false); setVoidReason("");
       // A loyalty reward given on this sale comes back to her client's card by itself (lib/loyalty.js loyaltyState drops a
       // voided receipt's redemption). Said out loud, so she does not think the gift is gone or re-add the stamps by hand.
       const rewardBack = loyaltyCfg.enabled && rewardGivenOn(receipt, loyaltyDb.redemptions) ? ". המתנה חזרה לכרטיסיית הנאמנות של הלקוחה" : "";
-      if (legal && data && data[0]) {
+      if (growRefund) {
+        // A Grow payment's document is Grow's own (no legal_doc_id), so this is normally false; kept so a credit request is never skipped.
+        if (legal && data && data[0]) await requestCredit(data[0]);
+        // Refused or unanswered: an error toast, which stays until she taps it, sending her to Grow's dashboard.
+        const extra = (voucherBack > 0 ? ` ₪${voucherBack} חזרו לשובר המתנה.` : "") + (rewardBack ? ` ${rewardBack.replace(/^\.\s*/, "")}.` : "");
+        if (growRefund.refunded || growRefund.status === "already_refunded") toast(growRefund.message + extra);
+        else toast(growRefund.message, "error");
+      } else if (legal && data && data[0]) {
         const d = await requestCredit(data[0]);
         if (d && d.status === "issued") toast("מסמך זיכוי מספר " + (d.number || "") + " הונפק, והתשלום ירד מהסיכומים" + rewardBack + " ✦");
         else toast(((d && d.error) || "מסמך הזיכוי עוד לא הונפק") + " התשלום ממשיך להיספר עד שהוא יונפק.", "error");
@@ -12345,12 +12372,21 @@ ${MARKETING_FOOTER}`)}`;
               {!voidOf(showReceipt,receiptVoids)&&(
  <div style={{margin:"0 24px 18px"}}>
                   {!voidOpen?(
- <button onClick={()=>{setVoidOpen(true);setVoidReason("");}} style={{background:"none",border:"none",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:"6px 0",minHeight:36}}>ביטול התשלום</button>
+ <button onClick={()=>{setVoidOpen(true);setVoidReason("");setVoidGrowRefund(true);}} style={{background:"none",border:"none",color:"var(--danger)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:"6px 0",minHeight:36}}>ביטול התשלום</button>
                   ):(
  <div style={{padding:"12px",borderRadius:"var(--r-sm)",background:"rgba(224,91,111,0.06)",border:"1px solid var(--danger)"}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:4}}>למה התשלום מבוטל?</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>{showReceipt.legal_status==="issued"?"בחשבון מורנינג שלך יונפק מסמך זיכוי שמבטל את המסמך המקורי. עד שהוא יונפק, התשלום ימשיך להיספר בהכנסות. הביטול עצמו נרשם ואי אפשר למחוק אותו.":"האישור המקורי יישאר כפי שהוא, מסומן כמבוטל, ולא ייספר בהכנסות. הביטול עצמו נרשם ואי אפשר למחוק אותו."}</p>
  <textarea value={voidReason} onChange={e=>setVoidReason(e.target.value)} rows={2} placeholder="למשל: סכום שגוי, נרשם ללקוחה הלא נכונה" aria-label="סיבת הביטול" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)",resize:"none",marginBottom:8}}/>
+                  {showReceipt.legal_provider==="grow"&&(
+ <label data-testid="void-grow-refund" style={{display:"flex",alignItems:"flex-start",gap:8,padding:"9px 10px",marginBottom:8,borderRadius:"var(--r-sm)",background:"var(--surface)",border:"1px solid var(--line-2)",cursor:"pointer",minHeight:44}}>
+ <input type="checkbox" checked={voidGrowRefund} onChange={e=>setVoidGrowRefund(e.target.checked)} style={{marginTop:3,width:18,height:18,accentColor:"var(--danger)",flexShrink:0}}/>
+ <span style={{fontSize:"var(--t-sm)",lineHeight:1.5,color:"var(--ink-2)"}}>
+ <b style={{color:"var(--ink)"}}>גם להחזיר את הכסף ללקוחה ב-Grow</b><br/>
+                        {voidGrowRefund?`₪${Number(showReceipt.amount||0)} יחזרו ללקוחה במלואם, באותו אמצעי תשלום. אם Grow לא תאשר, הביטול יישאר ונגיד לך להחזיר מלוח הבקרה של Grow.`:"בלי הסימון, הביטול הוא רק ברישום שלך, והכסף נשאר אצל Grow."}
+ </span>
+ </label>
+                  )}
  <div style={{display:"flex",gap:6}}>
  <button onClick={()=>setVoidOpen(false)} className="primary-btn" style={{flex:1,padding:"10px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>חזרה</button>
  <button onClick={()=>handleVoidReceipt(showReceipt)} disabled={!voidReason.trim()||isBusy("voidReceipt")} className="primary-btn" style={{flex:2,padding:"10px 0",background:voidReason.trim()?"var(--danger)":"var(--line-2)",color:"var(--surface)",fontSize:"var(--t-sm)"}}>{isBusy("voidReceipt")?<Spinner inline label="מבטלת"/>:"בטלי את התשלום"}</button>
