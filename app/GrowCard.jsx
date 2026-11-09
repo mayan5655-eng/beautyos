@@ -197,7 +197,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
             </li>
             <li>אם החשבון מחובר היום למערכת אחרת, מבקשים מ-Grow לנתק אותו משם ולחבר ל-Kalmea.</li>
           </ol>
-          <p style={{ ...text, marginBottom: 12 }}>זהו. את המזהים Grow שולחת אלינו ישירות, ונעדכן כאן כשהחשבון מחובר. את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.</p>
+          <p style={{ ...text, marginBottom: 12 }}>אחרי שהם מחברים, תקבלי מ-Grow במייל "קוד עסק". מדביקים אותו כאן למטה ולוחצים "חיבור". את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.</p>
         </div>
         {!isDemo && s.platform.configured && (
           <p style={{ ...text, fontSize: 'var(--t-xs)', marginBottom: 6 }}>קיבלת מ-Grow מזהה עסק? אפשר גם להדביק אותו כאן:</p>
