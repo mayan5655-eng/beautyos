@@ -116,6 +116,9 @@ function makeDb(tables: Record<string, Row[]>) {
         order() { return chain; },
         eq(col: string, val: unknown) { rows = rows.filter((r) => r[col] === val); return chain; },
         in(col: string, vals: unknown[]) { rows = rows.filter((r) => vals.includes(r[col])); return chain; },
+        gte(col: string, val: unknown) { rows = rows.filter((r) => String(r[col]) >= String(val)); return chain; },
+        lt(col: string, val: unknown) { rows = rows.filter((r) => String(r[col]) < String(val)); return chain; },
+        limit() { return chain; },
         range(from: number, to: number) { return Promise.resolve({ data: rows.slice(from, to + 1), error: null, count: rows.length }); },
         insert(row: Row) { (tables[table] = tables[table] || []).push(row); return Promise.resolve({ error: null }); },
         then(res: (v: unknown) => unknown) { return Promise.resolve({ data: rows, error: null }).then(res); },
@@ -514,6 +517,38 @@ await ok('review finding: a database without appointments.kind still sends revie
   // Any other error still stops the run, as before.
   const broken = { from(table: string) { const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>; if (table === 'appointments') c.range = () => Promise.resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }); return c; } };
   await assert.rejects(() => runSmartReminders({ db: broken, send: async () => ({ ok: true }), now, reviewLinkFor: () => 'x' }));
+});
+
+await ok('review finding: the monthly report loads on a database without appointments.kind', async () => {
+  const { loadMonthFull } = await import('./lib/monthlyFullLoad.ts');
+  const w: Record<string, Row[]> = {
+    receipts: [{ id: 'r1', tenant_id: 'tm', amount: 300, created_at: '2026-10-05T08:00:00', service: 'טיפול פנים' }],
+    appointments: [{ id: 'a1', tenant_id: 'tm', client_id: 'c1', date: '2026-10-05', confirmation_status: 'confirmed' }],
+    clients: [{ id: 'c1', tenant_id: 'tm', name: 'רונית' }],
+    receipt_voids: [],
+  };
+  const base = makeDb(w);
+  let kindErrors = 0;
+  const db = {
+    from(table: string) {
+      const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>;
+      if (table !== 'appointments') return c;
+      let cols = '';
+      const sel = c.select; const range = c.range;
+      c.select = (x: unknown, ...rest: unknown[]) => { cols = String(x || ''); sel(x, ...rest); return c; };
+      c.range = (a: unknown, b: unknown) => {
+        if (/\bkind\b/.test(cols)) { kindErrors++; return Promise.resolve({ data: null, error: { code: '42703', message: 'column appointments.kind does not exist' }, count: null }); }
+        return range(a, b);
+      };
+      return c;
+    },
+  };
+  const r = await loadMonthFull(db, 'tm', { automations: {} }, OCT, NOW);
+  assert.ok(kindErrors >= 1, 'the fake really refused kind');
+  assert.equal(r.visits.cur, 1, 'the report loaded; a visit without kind is a visit');
+  // Any other error still fails the report, never a silent zero.
+  const broken = { from(table: string) { const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>; if (table === 'appointments') c.range = () => Promise.resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }); return c; } };
+  await assert.rejects(() => loadMonthFull(broken, 'tm', { automations: {} }, OCT, NOW));
 });
 
 console.log(`\n${n} groups passed`);

@@ -8,6 +8,7 @@
 // only one line, so a failed read leaves "redeemed" out (null), never shown as 0.
 
 import { readAllRows } from './pagedRead.js';
+import { isMissingColumnError, missingColumnName } from './pgError.ts';
 import { liveReceipts } from './till.ts';
 import { giftVouchersVisible } from './giftVouchers.ts';
 import { productsVisible } from './products.ts';
@@ -25,6 +26,23 @@ export const vatRateForYear = (y: number) => (Number(y) >= 2025 ? 0.18 : 0.17);
 const dayBefore = (key: string) => { const d = new Date(`${key}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
 const dayAfter = (key: string) => { const d = new Date(`${key}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 2); return d.toISOString().slice(0, 10); };
 
+/**
+ * readAllRows, but a column in `optional` the database does not have yet (appointments.kind arrives with a hand-run migration)
+ * is dropped and the read retried, so the report still loads. Only the column the error NAMES is dropped (lib/pgError.ts); a row
+ * without it is treated as unknown (no kind = a visit). Any other error is returned as is.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function readDroppingMissing(db: Db, table: string, opts: { columns: string; filter?: (q: any) => any }, optional: string[]) {
+  let columns = opts.columns.split(',').map((c) => c.trim()).filter(Boolean);
+  for (let attempt = 0; ; attempt++) {
+    const r = await readAllRows(db, table, { ...opts, columns: columns.join(', ') });
+    const col = r.error && isMissingColumnError(r.error) ? missingColumnName(r.error) : null;
+    if (!col || !optional.includes(col) || !columns.includes(col) || attempt >= optional.length) return r;
+    console.warn(`[monthly] ${table}: column ${col} is missing (migration not run yet), reading without it`);
+    columns = columns.filter((c) => c !== col);
+  }
+}
+
 export async function loadMonthFull(db: Db, tenantId: string, settings: MonthlySettings, month: MonthRef, now: Date): Promise<MonthFull> {
   const prev = previousMonth(month.year, month.month);
   // A day early and a day late: a bare date bound is UTC midnight, two or three hours off the Israeli day. Cut by Israeli day later.
@@ -37,7 +55,7 @@ export async function loadMonthFull(db: Db, tenantId: string, settings: MonthlyS
   const [rc, ap, cl] = await Promise.all([
     readAllRows(db, 'receipts', { columns: 'id, amount, created_at, service, items', filter: (q: any) => byTenant(q).gte('created_at', since).lt('created_at', until) }), // eslint-disable-line @typescript-eslint/no-explicit-any
     // All of her appointments: first visits, "has she come back" and "is something booked ahead" need the whole history.
-    readAllRows(db, 'appointments', { columns: 'id, client_id, date, confirmation_status, kind', filter: byTenant }),
+    readDroppingMissing(db, 'appointments', { columns: 'id, client_id, date, confirmation_status, kind', filter: byTenant }, ['kind']),
     // '*': an archived card (status) is not on every schema version, so no column list can name it safely.
     readAllRows(db, 'clients', { columns: '*', filter: byTenant }),
   ]);
