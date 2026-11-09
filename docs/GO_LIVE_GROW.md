@@ -32,7 +32,7 @@ webhook field list; whether they sign webhooks.
 | You receive | Vercel env var |
 |---|---|
 | Platform API key | `GROW_API_KEY` |
-| Platform card payment-page code (live) | `GROW_PAGE_CODE` |
+| Platform card (redirect) payment-page code (live), **optional** | `GROW_PAGE_CODE` (optional: without it every client payment uses the wallet page) |
 | Only if Grow gives a different production address | `GROW_API_BASE` (optional; default `https://secure.meshulam.co.il/api/light/server/1.0` for the card page, the wallet and saved cards) |
 | Saved-card (token) API key, production | `GROW_TOKEN_API_KEY` |
 | Credit-card token page code, production | `GROW_TOKEN_PAGE_CODE` |
@@ -53,10 +53,15 @@ and go nowhere else (never in code, chat or the repository).
 
 1. `GROW_API_KEY`: the platform API key.
 2. `GROW_WALLET_PAGE_CODE`: the wallet page code (card, Bit, Apple Pay, Google Pay on one page).
-3. `GROW_PAGE_CODE`: the **card (redirect) payment-page code**. This is NOT the wallet page code: booking deposits and other
-   redirect payments need a page that answers with a URL, and the wallet page answers with an SDK authCode, so a wallet code here
-   makes those payments fail. Ask Grow for the live card page code if it was not sent. The platform's card status
-   (`lib/grow/config.ts`) counts as configured only when this is set.
+3. `GROW_PAGE_CODE` (optional): the **card (redirect) payment-page code**. **Without it, all client payments use the wallet page**
+   (`/pay/<token>`: card, Bit, Apple Pay, Google Pay in Grow's SDK): cashier charges, payment requests, paying for a visit from the
+   booking page, gift vouchers bought online, and booking deposits (the 30-minute hold, the policy consent and the amount checks are
+   the same; `lib/grow/wallet.ts` `depositsOnWallet`). The platform counts as configured with the wallet page alone
+   (`lib/grow/config.ts`). What changes without it: a booking deposit no longer keeps the client's card (the wallet saves no card),
+   so in deposit mode the booking page does not ask for the card-save tick. If Grow later sends a card page code, set it here (never the
+   wallet code: a wallet code answers with an SDK authCode, not a URL), and deposits go back to Grow's card page, which also keeps the
+   card. Change it only when no deposit is waiting (a hold lasts 30 minutes), since the approve call follows the current setting.
+   Saved-card mode (no charge, a token only) always uses the token page (`GROW_TOKEN_PAGE_CODE`), with or without this.
 4. `GROW_TOKEN_API_KEY`: the saved-card (token) API key.
 5. `GROW_TOKEN_PAGE_CODE`: the credit-card token page code.
 6. `GROW_ENV` = `production` (Grow's secure base `https://secure.meshulam.co.il`, and the wallet SDK in `PRODUCTION`).

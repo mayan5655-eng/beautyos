@@ -393,8 +393,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   };
   // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
   const needsPolicy = !!growPolicy && policyAppliesToService(growPolicy.mode, selectedService);
-  // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges.
-  const needsCardTick = needsPolicy && (growPolicy.mode === "saved_card" || growPolicy.mode === "deposit");
+  // Saving a card is a second, separate tick (Grow's rule): the client agrees that her card details are kept for future charges. A deposit
+  // paid on the wallet page keeps no card (/api/grow/policy/public cardSave: false), so it asks for none.
+  const needsCardTick = needsPolicy && (growPolicy.mode === "saved_card" || (growPolicy.mode === "deposit" && growPolicy.cardSave !== false));
   // Where this visit came from (?src= / ?ref=, lib/bookingSource.ts): remembered for the visit and sent with the booking.
   useEffect(() => {
     if (tenantId && typeof window !== "undefined") rememberSource(tenantId, window.location.search);

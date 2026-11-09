@@ -44,6 +44,15 @@ export default function PayClient({ token }) {
   }, [token]);
   useEffect(() => { load(); preloadGrowSdk(window); return () => { if (timer.current) clearInterval(timer.current); }; }, [load]);
 
+  // A booking (deposit or the visit itself) or a gift voucher: once OUR record says paid, she goes back to her booking confirmation (or
+  // the voucher) on her own, a few seconds after the thank-you, and the button below does it at once.
+  const backUrl = info?.context?.returnUrl || '';
+  useEffect(() => {
+    if (phase !== 'paid' || !backUrl) return undefined;
+    const id = setTimeout(() => { window.location.assign(backUrl); }, 4000);
+    return () => clearTimeout(id);
+  }, [phase, backUrl]);
+
   // After the wallet says success, look for our own record of the payment for up to ~40 seconds.
   const confirm = useCallback(() => {
     setPhase('confirming');
@@ -91,6 +100,8 @@ export default function PayClient({ token }) {
   const onAccent = contrastOn(accent);
   const accentText = readableAccentText(accent);
   const closed = info && info.state !== 'open' && info.state !== 'paid';
+  const ctx = info?.context || null;
+  const backLink = { display: 'inline-block', marginTop: 12, fontSize: 16, color: accentText, fontWeight: 700 };
   const card = { background: '#fff', border: '1px solid #E8DFD0', borderRadius: 20, padding: '28px 22px', maxWidth: 420, margin: '0 auto', textAlign: 'center', boxShadow: '0 6px 24px rgba(31,58,48,.06)' };
 
   return (
@@ -100,14 +111,22 @@ export default function PayClient({ token }) {
         {phase === 'loading' && <p>רגע, פותחות את הדף…</p>}
         {phase === 'error' && <p style={{ color: '#B3261E' }}>{msg}</p>}
 
-        {closed && phase !== 'loading' && <p data-testid="pay-closed" style={{ fontSize: 17, lineHeight: 1.7 }}>{WORDS[info.state] || WORDS.closed}</p>}
+        {closed && phase !== 'loading' && <p data-testid="pay-closed" style={{ fontSize: 17, lineHeight: 1.7 }}>{info.note || WORDS[info.state] || WORDS.closed}</p>}
+        {closed && phase !== 'loading' && ctx && (ctx.kind === 'deposit' || ctx.kind === 'booking') && <a href={ctx.returnUrl.replace(/[?&]grow=paid/, '')} style={backLink}>לדף קביעת התורים</a>}
 
         {info && !closed && phase !== 'loading' && phase !== 'error' && (
           <>
             {phase !== 'paid' && phase !== 'late' && (
               <>
                 <h1 style={{ fontSize: 34, margin: '4px 0', fontFamily: 'var(--font-frank, "Frank Ruhl Libre", serif)', fontWeight: 600 }} data-testid="pay-amount">{money(info.amount)}</h1>
-                {info.description && <p style={{ fontSize: 16, color: '#656A56', marginBottom: 18 }}>{info.description}</p>}
+                {info.description && <p style={{ fontSize: 16, color: '#656A56', marginBottom: ctx && ctx.when ? 10 : 18 }}>{info.description}</p>}
+                {ctx && (ctx.kind === 'deposit' || ctx.kind === 'booking') && (ctx.service || ctx.when) && (
+                  <div data-testid="pay-booking" style={{ background: '#FBF8F1', border: '1px solid #E8DFD0', borderRadius: 14, padding: '12px 14px', marginBottom: 18, textAlign: 'right', fontSize: 15, lineHeight: 1.7 }}>
+                    {ctx.service && <div><span style={{ color: '#656A56' }}>טיפול: </span><b>{ctx.service}</b></div>}
+                    {ctx.when && <div><span style={{ color: '#656A56' }}>מתי: </span><b>{ctx.when}</b></div>}
+                    {ctx.kind === 'deposit' && phase !== 'paid' && <div style={{ color: '#656A56', fontSize: 14, marginTop: 4 }}>התור שמור עבורך ל-30 דקות, ויאושר מיד עם תשלום המקדמה.</div>}
+                  </div>
+                )}
               </>
             )}
             {(phase === 'ready' || phase === 'opening') && (
@@ -131,9 +150,11 @@ export default function PayClient({ token }) {
                 <p style={{ fontSize: 40, margin: 0 }}>🌸</p>
                 <h2 style={{ fontSize: 24, margin: '6px 0', fontFamily: 'var(--font-frank, "Frank Ruhl Libre", serif)' }}>התשלום התקבל, תודה!</h2>
                 <p style={{ fontSize: 15, color: '#656A56' }}>{money(info.amount)}{info.description ? ` · ${info.description}` : ''}</p>
+                {ctx?.kind === 'deposit' && <p style={{ fontSize: 15, marginTop: 6 }}>התור שלך מאושר. נתראה{ctx.when ? ` ב${ctx.when}` : ''}!</p>}
               </div>
             )}
             {phase === 'late' && <p data-testid="pay-late" style={{ fontSize: 16, lineHeight: 1.7 }}>התשלום עבר ב-Grow, והאישור בדרך אל העסק. אין צורך לשלם שוב. 🌸</p>}
+            {(phase === 'paid' || phase === 'late') && ctx && <a data-testid="pay-back" href={ctx.returnUrl} style={{ ...backLink, display: 'block', marginTop: 16, padding: '13px 0', borderRadius: 14, background: accent, color: onAccent, textDecoration: 'none', fontWeight: 700 }}>{ctx.returnLabel}</a>}
             {msg && phase === 'ready' && <p role="alert" style={{ color: '#B3261E', fontSize: 14, marginTop: 12 }}>{msg}</p>}
           </>
         )}

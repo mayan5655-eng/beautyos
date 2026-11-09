@@ -254,11 +254,11 @@ await ok('a callback for a process we never opened, or naming another business o
 await ok('the booking page asks for the card tick in plain Hebrew, blocks submission until it is ticked, and the server refuses without it', () => {
   assert.ok(CARD_CONSENT_TEXT_HE.length > 40 && /פרטי האשראי/.test(CARD_CONSENT_TEXT_HE) && /חיובים עתידיים/.test(CARD_CONSENT_TEXT_HE) && !/אצל חברת הסליקה/.test(CARD_CONSENT_TEXT_HE));
   const page = read('app/BookingPage.jsx');
-  assert.ok(/needsCardTick = needsPolicy && \(growPolicy\.mode === "saved_card" \|\| growPolicy\.mode === "deposit"\)/.test(page), 'the tick is asked in both modes that keep a card');
+  assert.ok(/needsCardTick = needsPolicy && \(growPolicy\.mode === "saved_card" \|\| \(growPolicy\.mode === "deposit" && growPolicy\.cardSave !== false\)\)/.test(page), 'the tick is asked in both modes that keep a card (a wallet deposit keeps none)');
   assert.ok(/needsCardTick && !cardOk/.test(page) && /acceptedCardSave: needsCardTick/.test(page));
   assert.ok(/data-testid="grow-card-consent"/.test(page) && /CARD_CONSENT_TEXT_HE/.test(page));
   const route = read('app/api/book-appointment/route.js');
-  assert.ok(/\(policy\.mode === "saved_card" \|\| policy\.mode === "deposit"\) && acceptedCardSave !== true/.test(route), 'server side, in both modes');
+  assert.ok(/\(policy\.mode === "saved_card" \|\| \(policy\.mode === "deposit" && depositKeepsCard\)\) && acceptedCardSave !== true/.test(route), 'server side, in both modes (a wallet deposit keeps no card)');
   assert.ok(/cardConsentText: CARD_CONSENT_TEXT_HE/.test(route), 'the exact words are stored with the consent');
   const cf = read('lib/grow/cancelFees.ts');
   assert.ok(/insertCardConsent\(\{[\s\S]*consent_text: i\.cardConsentText \|\| CARD_CONSENT_TEXT_HE[\s\S]*consented_at/.test(cf), 'words, time, tenant and client are stored');

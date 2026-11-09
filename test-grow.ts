@@ -17,7 +17,7 @@ const ok = async (name: string, fn: () => void | Promise<void>) => { await fn();
 await ok('nothing configured: not connected, and the missing variables are named', () => {
   const s = growPlatformStatus({});
   assert.equal(s.configured, false);
-  assert.deepEqual(s.missing, ['GROW_API_KEY', 'GROW_PAGE_CODE']);
+  assert.deepEqual(s.missing, ['GROW_API_KEY', 'GROW_PAGE_CODE or GROW_WALLET_PAGE_CODE']);
   assert.equal(s.env, 'sandbox');
   assert.equal(growCredentials({}), null);
 });

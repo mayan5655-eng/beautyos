@@ -23,7 +23,7 @@ import { signGrowSession } from './mockSession.ts';
 import { pageCodesFromEnv } from './methods.ts';
 import { tokenCredentials } from './tokenFlow.ts';
 import type { TokenCreds } from './tokenFlow.ts';
-import { walletCredentials } from './wallet.ts';
+import { walletCredentials, depositsOnWallet } from './wallet.ts';
 import type { WalletCreds } from './wallet.ts';
 
 export type GrowMode = 'mock' | 'live';
@@ -59,6 +59,8 @@ export type GrowAdapter = {
   tokenCreds?: TokenCreds | null;
   /** Live only: the wallet checkout (card, Bit, Apple Pay, Google Pay on one page, lib/grow/wallet.ts). Null when its page code is not set. */
   wallet?: WalletCreds | null;
+  /** Booking deposits open on the wallet too (no GROW_PAGE_CODE, the wallet configured: lib/grow/wallet.ts depositsOnWallet). */
+  depositWallet?: boolean;
   /** Why it is not configured, for the operator's logs (never shown to her). */
   reason?: string;
 };
@@ -71,7 +73,8 @@ export function resolveGrow(env: GrowEnv = process.env, origin = ''): GrowAdapte
     // Until the platform keys are issued, the saved-card page (credit card only) also serves the booking deposit page: the same apiKey, page code and base.
     const platform = growCredentials(env);
     const creds = platform ? { ...platform, pageCodes: pageCodesFromEnv(env) } : (tokenCreds ? { apiKey: tokenCreds.apiKey, pageCode: tokenCreds.pageCode, apiBase: tokenCreds.apiBase } : null);
-    return { mode: 'live', configured: s.configured || !!tokenCreds || !!wallet, wallet, env: s.env, creds, tokenCreds, ops: tokenCreds ? createLiveOps(tokenCreds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
+    // Without the card page code, every client payment uses the wallet page, booking deposits included.
+    return { mode: 'live', configured: s.configured || !!tokenCreds || !!wallet, wallet, depositWallet: depositsOnWallet(env), env: s.env, creds, tokenCreds, ops: tokenCreds ? createLiveOps(tokenCreds) : undefined, reason: s.configured ? undefined : `missing ${s.missing.join(', ')}` };
   }
   if ((env.VERCEL_ENV || '') === 'production') {
     return { mode: 'mock', configured: false, env: 'sandbox', creds: null, reason: 'mock mode is not allowed on the production deployment' };
