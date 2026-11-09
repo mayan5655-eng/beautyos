@@ -48,6 +48,13 @@ export default function PaymentsSettings({ rules, setRule, pc, pcTint, toast, is
           <p style={{ fontSize: 'var(--t-md)', fontWeight: 600, color: 'var(--ink)', margin: '12px 0 0' }}>מקדמה באשראי דרך Grow</p>
           <p style={small}>בוחרים &quot;מקדמה בקביעת התור&quot; במדיניות הביטולים, והלקוחה משלמת בכרטיס כשהיא קובעת. בקופה המקדמה יורדת מהתשלום.</p>
           <CancelPolicyCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
+          {/* Both deposits on at once: the booking page shows the direct one in its terms AND charges the card one, so a client is
+              asked for two deposits for one appointment. Said here, where both are set; nothing is changed for her. */}
+          {mode === 'deposit' && amount > 0 && (
+            <p data-testid="deposit-both-warning" role="note" style={{ ...box, background: 'var(--surface)', border: '1px solid var(--danger)', fontSize: 'var(--t-sm)', color: 'var(--ink)', lineHeight: 1.6 }}>
+              שימי לב: מוגדרות עכשיו שתי מקדמות. בטיפול שמסומן &quot;דורש מקדמה&quot; הלקוחה תתבקש לשלם גם ₪{amount} ישירות אלייך וגם מקדמה באשראי. אם רצית רק אחת, מחקי את הסכום במקדמה הישירה למעלה ושמרי.
+            </p>
+          )}
           {mode === 'deposit' && (
             <div style={{ ...box, background: 'var(--surface)' }}>
               <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: 0, lineHeight: 1.6 }}>אילו טיפולים דורשים מקדמה? מסמנים &quot;דורש מקדמה&quot; ליד כל טיפול ברשימת השירותים.</p>
