@@ -84,7 +84,7 @@ export async function POST(request) {
     if (mood === "unhappy" && text && text !== String(prev.data?.body || "")) {
       const n = feedbackNotice({ clientName: appt.name || "", body: text });
       try {
-        await notifyOwner({ tenantId: appt.tenant_id, kind: "visit_feedback", title: n.title, body: n.body, settingsRow: s, url: "/dashboard/feedback", whatsapp: false });
+        await notifyOwner({ tenantId: appt.tenant_id, kind: "visit_feedback", title: n.title, body: n.body, appointmentId: appt.id, settingsRow: s, url: "/dashboard/feedback", whatsapp: false });
       } catch (e) {
         console.error("[reviews/feedback] notify failed:", e?.message || String(e));
       }

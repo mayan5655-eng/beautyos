@@ -22,6 +22,7 @@
 // still in the database. If any step fails the client card is NOT deleted and the result says so, so the owner can run it again.
 
 import { createHash } from 'node:crypto'
+import { feedbackNotice } from './reviewRequests.ts'
 import { normalizeIsraeliMobile } from './phone.ts'
 
 /** The slice of the Supabase client this uses, so tests can pass a fake. */
@@ -198,6 +199,19 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
     if (!ok || !removedOk) { failed = true; steps.push({ table: 'files', action: 'failed' }) } else steps.push({ table: 'files', action: paths.length ? 'deleted' : 'none', count: paths.length })
   } catch { failed = true; steps.push({ table: 'files', action: 'failed' }) }
 
+  // Her answers to "איך היה?" (public.visit_feedback, add_visit_feedback_2026-11-09.sql): the names written on them, read BEFORE
+  // they are deleted, so the owner notifications that quoted a note (kind visit_feedback) can be found too, including the ones
+  // written before notifications carried their appointment id. A table not created yet is nothing to erase.
+  const feedbackTitles: string[] = []
+  {
+    const reads = [db.from('visit_feedback').select('client_name').eq('tenant_id', tenantId).eq('client_id', clientId)]
+    if (apptIds.length) reads.push(db.from('visit_feedback').select('client_name').eq('tenant_id', tenantId).in('appointment_id', apptIds))
+    for (const fr of await Promise.all(reads)) {
+      if (fr.error) { if (!isTableMissing(fr.error)) { failed = true; steps.push({ table: 'visit_feedback', action: 'failed', note: 'read' }) } continue }
+      for (const row of fr.data || []) { const t = feedbackNotice({ clientName: String(row.client_name || ''), body: '' }).title; if (!feedbackTitles.includes(t)) feedbackTitles.push(t) }
+    }
+  }
+
   // The tables are independent of each other, so they are cleaned in parallel. Steps are reported in a fixed order.
   const jobs: Array<Promise<Step>> = []
   const run = (table: string, action: 'deleted' | 'anonymised', op: () => Promise<{ error: any; count?: number | null; data?: any[] | null }>) => {
@@ -223,6 +237,12 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
     run('messages to the owner', 'deleted', () => db.from('whatsapp_messages').delete().eq('tenant_id', tenantId).or(phones.map((p) => `message_body.ilike.%${p}%`).join(',')).select('id'))
   }
   if (apptIds.length) run('owner_notifications', 'deleted', () => db.from('owner_notifications').delete().eq('tenant_id', tenantId).in('appointment_id', apptIds).select('id'))
+  // her private notes: by her card AND by the appointments collected above (before they are anonymised), so a note written
+  // on a visit that was never linked to her card goes too
+  run('visit_feedback', 'deleted', () => db.from('visit_feedback').delete().eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
+  if (apptIds.length) run('visit_feedback (by appointment)', 'deleted', () => db.from('visit_feedback').delete().eq('tenant_id', tenantId).in('appointment_id', apptIds).select('id'))
+  // the notifications that quoted a note but carry no appointment id (sent before they did): matched by the title naming her
+  if (feedbackTitles.length) run('owner_notifications (private notes)', 'deleted', () => db.from('owner_notifications').delete().eq('tenant_id', tenantId).eq('kind', 'visit_feedback').is('appointment_id', null).in('title', feedbackTitles).select('id'))
 
   // 3. kept for the books, without her identity
   const scrubAppt = { client_id: null, name: ANONYMOUS_NAME_HE, client_phone: null, note: null }

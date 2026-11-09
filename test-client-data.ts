@@ -21,7 +21,8 @@ const COLUMNS: Record<string, string[]> = {
   leads: ['id', 'tenant_id', 'client_id', 'name', 'phone', 'email'],
   slot_offers: ['id', 'tenant_id', 'client_id', 'phone'],
   client_pages: ['id', 'tenant_id', 'client_id', 'token_id'],
-  owner_notifications: ['id', 'tenant_id', 'appointment_id', 'body'],
+  owner_notifications: ['id', 'tenant_id', 'appointment_id', 'body', 'kind', 'title'],
+  visit_feedback: ['id', 'tenant_id', 'appointment_id', 'client_id', 'client_name', 'mood', 'body'],
   whatsapp_messages: ['id', 'tenant_id', 'recipient_phone', 'recipient_name', 'message_body'],
   waitlist: ['id', 'tenant_id', 'phone', 'client_name'],
   grow_payments: ['id', 'tenant_id', 'client_id', 'client_name'],
@@ -245,6 +246,48 @@ assert.ok(isColumnMissing({ code: '42703' }) && isColumnMissing({ code: 'PGRST20
   const r = await eraseClientData(fakeDb(data) as never, T, 'zzz');
   assert.ok(!r.ok && JSON.stringify(data) === before);
 }
+
+// her private notes ("איך היה?"): gone by card AND by appointment, with the owner notifications that quoted them
+{
+  const data = seed();
+  data.visit_feedback = [
+    { id: 'vf1', tenant_id: T, appointment_id: 'a1', client_id: 'c1', client_name: 'דנה', mood: 'unhappy', body: 'הצבע לא יצא טוב' },
+    { id: 'vf2', tenant_id: T, appointment_id: 'a4', client_id: null, client_name: 'דנה', mood: 'unhappy', body: 'חיכיתי חצי שעה' }, // by appointment only
+    { id: 'vf3', tenant_id: T, appointment_id: 'a2', client_id: 'c2', client_name: 'רחל', mood: 'unhappy', body: 'של רחל' },
+    { id: 'vf4', tenant_id: OTHER, appointment_id: 'a3', client_id: 'c1', client_name: 'אחרת', mood: 'happy', body: null },
+  ];
+  data.owner_notifications.push(
+    { id: 'n3', tenant_id: T, appointment_id: 'a4', kind: 'visit_feedback', title: 'דנה כתבה לך משהו פרטי', body: 'חיכיתי חצי שעה' },
+    { id: 'n4', tenant_id: T, appointment_id: null, kind: 'visit_feedback', title: 'דנה כתבה לך משהו פרטי', body: 'הצבע לא יצא טוב' }, // sent before notifications carried the appointment
+    { id: 'n5', tenant_id: T, appointment_id: null, kind: 'visit_feedback', title: 'רחל כתבה לך משהו פרטי', body: 'של רחל' },
+  );
+  const r = await eraseClientData(fakeDb(data) as never, T, 'c1');
+  assert.ok(r.ok, JSON.stringify(r.steps));
+  assert.deepEqual(data.visit_feedback.map((f) => f.id).sort(), ['vf3', 'vf4'], 'her notes (by card and by appointment) are gone; another client and another business stay');
+  const left = JSON.stringify([data.visit_feedback, data.owner_notifications]);
+  for (const s of ['הצבע לא יצא טוב', 'חיכיתי חצי שעה', 'דנה כתבה']) assert.ok(!left.includes(s), `nothing left quotes her: ${s}`);
+  assert.deepEqual(data.owner_notifications.map((n) => n.id).sort(), ['n2', 'n5'], 'the notifications quoting her notes are gone, another client\'s stays');
+  // what /api/reviews/summary reads (visit_feedback by tenant, unhappy) can no longer return her name or words
+  const fbAfter = (data.visit_feedback || []).filter((f) => f.tenant_id === T && f.mood === 'unhappy');
+  assert.ok(!fbAfter.some((f) => f.client_name === 'דנה'));
+}
+// before add_visit_feedback runs: the table is missing, and deletion still succeeds
+{
+  const data = seed();
+  const r = await eraseClientData(fakeDb(data, { missingTables: ['visit_feedback'] }) as never, T, 'c1');
+  assert.ok(r.ok, JSON.stringify(r.steps));
+  assert.ok(!data.clients.some((c) => c.id === 'c1' && c.tenant_id === T));
+  assert.ok(r.steps.some((s) => s.table === 'visit_feedback' && s.action === 'skipped'));
+}
+// a failed note cleanup is a failed deletion: the card is kept
+{
+  const data = seed();
+  data.visit_feedback = [{ id: 'vf1', tenant_id: T, appointment_id: 'a1', client_id: 'c1', client_name: 'דנה', mood: 'unhappy', body: 'x' }];
+  const r = await eraseClientData(fakeDb(data, { failDelete: ['visit_feedback'] }) as never, T, 'c1');
+  assert.ok(!r.ok && data.clients.some((c) => c.id === 'c1' && c.tenant_id === T));
+  assert.ok(r.steps.some((s) => s.table.startsWith('visit_feedback') && s.action === 'failed'));
+}
+assert.ok(fs.readFileSync('app/api/reviews/feedback/route.js', 'utf8').includes('appointmentId: appt.id'), 'a private-note notification carries its appointment, so deletion finds it');
 
 // ── the routes ──
 const exp = fs.readFileSync('app/api/clients/export/route.ts', 'utf8');
