@@ -36,14 +36,22 @@ create index if not exists idx_visit_feedback_tenant_created on public.visit_fee
 -- One private-note notification per visit: two submissions of the same link at the same moment must not reach her twice
 -- (/api/reviews/feedback + lib/ownerNotify onceForAppointment). Duplicates from before this index are removed first, keeping
 -- the earliest, so the index can be created.
+-- Per business (tenant_id in the key): one business's rows can never take another business's place.
 delete from public.owner_notifications a
   using public.owner_notifications b
   where a.kind = 'visit_feedback' and b.kind = 'visit_feedback'
+    and a.tenant_id = b.tenant_id
     and a.appointment_id is not null and a.appointment_id = b.appointment_id
     and (a.created_at, a.id) > (b.created_at, b.id);
 create unique index if not exists uq_owner_notifications_visit_feedback_once
-  on public.owner_notifications (appointment_id, kind)
+  on public.owner_notifications (tenant_id, appointment_id, kind)
   where kind = 'visit_feedback' and appointment_id is not null;
+
+-- The browser may only mark her notifications as read. The RLS policy owner_notifications_update_own (whatsapp-manual-mode.sql)
+-- limits WHICH rows she can update to her own; this limits WHAT she can change to read_at, so a notification's kind, appointment,
+-- tenant, title and body are written by the server only. The app's only browser update sets read_at (app/beautyos.jsx).
+revoke update on public.owner_notifications from authenticated;
+grant update (read_at) on public.owner_notifications to authenticated;
 
 notify pgrst, 'reload schema';
 
@@ -55,4 +63,10 @@ notify pgrst, 'reload schema';
 -- 3. One answer per visit: appointment_id is unique. Expect one row.
 --      select conname from pg_constraint where conrelid = 'public.visit_feedback'::regclass and contype = 'u';
 -- 4. One private-note notification per visit. Expect one row.
---      select indexname from pg_indexes where schemaname = 'public' and indexname = 'uq_owner_notifications_visit_feedback_once';
+--      select indexname, indexdef from pg_indexes where schemaname = 'public' and indexname = 'uq_owner_notifications_visit_feedback_once';
+--    indexdef names (tenant_id, appointment_id, kind).
+-- 5. The browser can update read_at and nothing else. Expect exactly one row: read_at.
+--      select column_name from information_schema.column_privileges
+--       where table_schema = 'public' and table_name = 'owner_notifications' and grantee = 'authenticated' and privilege_type = 'UPDATE';
+--    And no table-wide update. Expect false.
+--      select has_table_privilege('authenticated', 'public.owner_notifications', 'UPDATE');

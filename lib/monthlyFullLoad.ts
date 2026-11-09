@@ -65,7 +65,8 @@ export async function loadMonthFull(db: Db, tenantId: string, settings: MonthlyS
   const ids = (rc.data || []).map((r: { id: unknown }) => r.id);
   let voids: { receipt_id?: unknown; credit_status?: string | null }[] = [];
   for (let i = 0; i < ids.length; i += 200) {
-    const v = await db.from('receipt_voids').select('receipt_id, credit_status').in('receipt_id', ids.slice(i, i + 200));
+    // Her voids only: a void row from another business pointing at her receipt must never take her income away.
+    const v = await db.from('receipt_voids').select('receipt_id, credit_status').eq('tenant_id', tenantId).in('receipt_id', ids.slice(i, i + 200));
     // A failed read is not "nothing voided": voided receipts would count as income.
     if (v.error) throw new Error(`voids read failed: ${v.error.message}`);
     voids = voids.concat(v.data || []);

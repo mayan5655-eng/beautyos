@@ -614,9 +614,85 @@ await ok('race: two submissions at once store one note, notify once, and the los
   const fb = rd('app/api/reviews/feedback/route.js');
   assert.ok(fb.includes('w.noteCommitted') && fb.includes('onceForAppointment: true') && !fb.includes('prev.data?.body || ""'), 'notify only on this request\'s own committed note');
   const on = rd('lib/ownerNotify.js');
-  assert.ok(on.includes('if (error && onceForAppointment && error.code === "23505") return;'), 'a refused duplicate sends no push');
+  assert.ok(on.includes('if (duplicate) return;') && rd('lib/ownerNotifyInsert.js').includes('error.code === "23505"'), 'a refused duplicate (her own row) sends no push');
   const mig = rd('supabase/migrations/add_visit_feedback_2026-11-09.sql');
-  assert.ok(/create unique index if not exists uq_owner_notifications_visit_feedback_once\s+on public\.owner_notifications \(appointment_id, kind\)\s+where kind = 'visit_feedback' and appointment_id is not null;/.test(mig));
+  assert.ok(/create unique index if not exists uq_owner_notifications_visit_feedback_once\s+on public\.owner_notifications \(tenant_id, appointment_id, kind\)\s+where kind = 'visit_feedback' and appointment_id is not null;/.test(mig));
+});
+
+await ok('authz: one feedback alert per visit is keyed per business, and only a real own row silences an alert', async () => {
+  const mig = rd('supabase/migrations/add_visit_feedback_2026-11-09.sql');
+  assert.ok(/create unique index if not exists uq_owner_notifications_visit_feedback_once\s+on public\.owner_notifications \(tenant_id, appointment_id, kind\)\s+where kind = 'visit_feedback' and appointment_id is not null;/.test(mig), 'tenant_id in the key');
+  assert.ok(/a\.tenant_id = b\.tenant_id/.test(mig), 'the duplicate cleanup stays inside one business');
+  assert.ok(mig.includes('revoke update on public.owner_notifications from authenticated;') && mig.includes('grant update (read_at) on public.owner_notifications to authenticated;'), 'the browser may change read_at only');
+  // Every browser update of owner_notifications sets read_at and nothing else.
+  const app = rd('app/beautyos.jsx');
+  const ups = [...app.matchAll(/from\("owner_notifications"\)\.update\((\{[^}]*\})\)/g)].map((m) => m[1]);
+  assert.ok(ups.length >= 3);
+  for (const u of ups) assert.ok(/^\{read_at:[^,]*\}$/.test(u.replace(/\s/g, '')), u);
+
+  const { insertOwnerNotification } = await import('./lib/ownerNotifyInsert.js');
+  const fake = (rows: Row[]) => ({
+    from() {
+      const f: Array<(r: Row) => boolean> = []; let ins: Row | null = null;
+      const q: Record<string, unknown> = {
+        insert(r: Row) { ins = r; return q; },
+        select() { return q; },
+        eq(c: string, v: unknown) { f.push((r) => r[c] === v); return q; },
+        limit() { return q; },
+        async maybeSingle() {
+          // the index: (tenant_id, appointment_id, kind) for visit_feedback; also simulate an OLD index without tenant_id
+          const clash = rows.some((r) => r.kind === ins!.kind && r.appointment_id === ins!.appointment_id && (r.tenant_id === ins!.tenant_id || (globalThis as { __oldIndex?: boolean }).__oldIndex));
+          if (clash) return { data: null, error: { code: '23505', message: 'duplicate key' } };
+          rows.push({ id: `n${rows.length + 1}`, ...ins }); return { data: { id: `n${rows.length}` }, error: null };
+        },
+        then(res: (v: unknown) => unknown) { return Promise.resolve({ data: rows.filter((r) => f.every((g) => g(r))), error: null }).then(res); },
+      };
+      return q;
+    },
+  });
+  const note = { tenantId: 'victim', kind: 'visit_feedback', title: 't', body: 'b', appointmentId: 'ap-v' };
+  // her own earlier alert for this visit: a real duplicate, silenced
+  const own = await insertOwnerNotification(fake([{ id: 'x', tenant_id: 'victim', kind: 'visit_feedback', appointment_id: 'ap-v' }]), note, { onceForAppointment: true });
+  assert.equal(own.duplicate, true);
+  // another business's row on her appointment (even if an index without tenant_id refused the insert): never silences her alert
+  (globalThis as { __oldIndex?: boolean }).__oldIndex = true;
+  const foreign = await insertOwnerNotification(fake([{ id: 'y', tenant_id: 'attacker', kind: 'visit_feedback', appointment_id: 'ap-v' }]), note, { onceForAppointment: true });
+  (globalThis as { __oldIndex?: boolean }).__oldIndex = false;
+  assert.equal(foreign.duplicate, false, 'the alert still goes out');
+  // the per-business key itself: another business's row does not block her insert at all
+  const rowsK: Row[] = [{ id: 'y', tenant_id: 'attacker', kind: 'visit_feedback', appointment_id: 'ap-v' }];
+  const ok1 = await insertOwnerNotification(fake(rowsK), note, { onceForAppointment: true });
+  assert.ok(ok1.row && !ok1.duplicate && rowsK.some((r) => r.tenant_id === 'victim'));
+  const on = rd('lib/ownerNotify.js');
+  assert.ok(on.includes('insertOwnerNotification(supabase,') && on.includes('if (duplicate) return;') && !on.includes('error.code === "23505") return;'));
+});
+
+await ok('authz: a void from another business never removes her income from the reports', async () => {
+  const { loadMonthFull } = await import('./lib/monthlyFullLoad.ts');
+  const base = {
+    receipts: [
+      { id: 'r1', tenant_id: 'tm', amount: 300, created_at: '2026-10-05T08:00:00', service: 'טיפול פנים' },
+      { id: 'r2', tenant_id: 'tm', amount: 200, created_at: '2026-10-06T08:00:00', service: 'פילינג' },
+    ],
+    appointments: [], clients: [],
+  };
+  const clean = await loadMonthFull(makeDb({ ...base, receipt_voids: [] }), 'tm', { automations: {} }, OCT, NOW);
+  const forged = await loadMonthFull(makeDb({ ...base, receipt_voids: [{ id: 'v1', tenant_id: 'evil', receipt_id: 'r1' }] }), 'tm', { automations: {} }, OCT, NOW);
+  assert.equal(forged.income.cur, clean.income.cur, 'a foreign void changes nothing');
+  assert.equal(clean.income.cur, 500);
+  const own = await loadMonthFull(makeDb({ ...base, receipt_voids: [{ id: 'v2', tenant_id: 'tm', receipt_id: 'r2' }] }), 'tm', { automations: {} }, OCT, NOW);
+  assert.equal(own.income.cur, 300, 'her own void still counts');
+  for (const [f, needle] of [
+    ['lib/monthlyFullLoad.ts', ".from('receipt_voids').select('receipt_id, credit_status').eq('tenant_id', tenantId)"],
+    ['lib/weeklyDigestLoad.ts', ".from('receipt_voids').select('receipt_id, credit_status').eq('tenant_id', tenantId)"],
+    ['app/api/send-weekly-report/route.js', '.from("receipt_voids").select("receipt_id, credit_status").eq("tenant_id", tenantId)'],
+  ]) assert.ok(rd(f).includes(needle), `${f}: voids read by tenant`);
+  const mig = rd('supabase/migrations/receipt_voids_same_tenant_2026-11-09.sql');
+  assert.ok(/security definer\s+set search_path = public, pg_temp/.test(mig), 'security definer with a fixed search_path');
+  assert.ok(/before insert or update of receipt_id, tenant_id on public\.receipt_voids/.test(mig), 'on insert and on retargeting');
+  assert.ok(/is distinct from new\.tenant_id/.test(mig) && /raise exception/.test(mig));
+  assert.ok(/where v\.tenant_id is distinct from r\.tenant_id/.test(mig), 'a query to find existing cross-business voids');
+  assert.ok(!/\bdelete\s+from\b/i.test(mig), 'nothing is deleted automatically');
 });
 
 console.log(`\n${n} groups passed`);
