@@ -101,14 +101,20 @@ function harness(db: any, sendResult: any = { ok: true }) {
   };
 }
 
-// Off by default: nothing is read, nothing is sent.
+// Her explicit off (ON by default since 2026-11-09, lib/waitlistFlag.js): nothing is read, nothing is sent. Same for the platform flag.
 {
-  const db = world({ settings: { automations: {} } }); const h = harness(db);
+  const db = world({ settings: { automations: { waitlist_offers: false } } }); const h = harness(db);
   const r = await offerFreedSlot(h.args);
   assert.equal(r.status, 'off'); assert.equal(h.sent.length, 0); assert.ok(!db.log.some((l: string) => l.includes('waitlist')), 'the waiting list is not even read');
 }
-assert.deepEqual(waitlistSettings({}), { enabled: false, paused: false, quiet: false, cap: 6 });
-assert.equal(waitlistSettings({ waitlist_offers: 'true' }).enabled, false, 'only a literal true turns it on');
+assert.deepEqual(waitlistSettings({}), { enabled: true, paused: false, quiet: false, cap: 6 });
+assert.equal(waitlistSettings({ waitlist_offers: false }).enabled, false, 'her explicit false turns it off');
+assert.equal(waitlistSettings({ waitlist_offers: 'false' }).enabled, true, 'only a literal false turns it off');
+assert.equal(waitlistSettings({ feature_flags: { waitlist_offers: false } }).enabled, false, 'the platform flag turns it off');
+{
+  const db = world({ settings: { automations: { feature_flags: { waitlist_offers: false } } } }); const h = harness(db);
+  assert.equal((await offerFreedSlot(h.args)).status, 'off'); assert.equal(h.sent.length, 0);
+}
 assert.equal(waitlistSettings({ waitlist_daily_cap: 10 }).cap, 10);
 assert.equal(waitlistSettings({ waitlist_daily_cap: 999 }).cap, 6);
 

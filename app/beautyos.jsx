@@ -52,6 +52,8 @@ import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, c
 import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
 import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
 import { bufferLookup, businessBufferDefault, cleanBufferMinutes, bufferedRange, clashesWithBuffer, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
+import { suggestedRebookDays, cleanRebookDays, rebookVisible } from "@/lib/reminders/rebookPlan.js";
+import { waitlistOffersOn, waitlistOffersVisible, waitlistOfferToast } from "@/lib/waitlistFlag.js";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
@@ -112,6 +114,8 @@ const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: fals
 const ClientPrivacyPanel = dynamic(() => import("./ClientPrivacyPanel"), { ssr: false });
 const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
+const RebookSetting = dynamic(() => import("./RebookSetting"), { ssr: false });
+const WaitlistActivity = dynamic(() => import("./WaitlistActivity"), { ssr: false });
 const GrowChargePanel = dynamic(() => import("./GrowChargePanel"), { ssr: false });
 const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: false });
 // Gift vouchers (lib/giftVouchers.ts): the cashier list and sale, the till redemption, the settings. Each renders nothing unless the
@@ -4063,8 +4067,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         }
         // Smart waitlist: with her switch on (Settings > הודעות), the people waiting for this treatment whom the slot fits get one offer.
         // The server re-checks that the appointment is still cancelled, so the undo above always wins.
-        if (settings?.automations?.waitlist_offers === true && appt.kind !== "personal") {
-          setTimeout(() => { if (!restored) fetch("/api/waitlist/offer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) }).catch(() => {}); }, UNDO_SETTLE_MS);
+        // On unless she (or the platform flag) turned it off (lib/waitlistFlag.js). What happened is shown in one line
+        // (waitlistOfferToast): who it was offered to, or that it waits for the morning; nothing when nobody fits.
+        if (waitlistOffersOn(settings) && appt.kind !== "personal") {
+          setTimeout(async () => {
+            if (restored) return;
+            try {
+              const r = await fetch("/api/waitlist/offer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) });
+              const j = await r.json().catch(() => ({}));
+              const line = r.ok && j?.success ? waitlistOfferToast(j) : null;
+              if (line) toast(line.text, line.kind);
+            } catch { /* the owner alert still tells her; the slot is free either way */ }
+          }, UNDO_SETTLE_MS);
         }
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
@@ -5100,13 +5114,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // requires_deposit comes from add_grow_cancellation.sql (hand-run): like `field`, a missing column degrades the save instead of breaking it.
   // buffer_minutes comes from add_service_buffer_2026-11-05.sql (hand-run): same degrade, and she is TOLD it was not kept
   // (bufferPending) rather than shown a save that silently dropped it.
-  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes"];
+  // rebook_days comes from add_service_rebook_days_2026-11-09.sql (hand-run): the field is disabled until it has run, and a save
+  // that still meets the missing column drops only that column (the nudge then uses the automatic interval).
+  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes", "rebook_days"];
   const commitServiceDraft = async (tid) => {
     const draft = editServices;
     if (!draft) return { changed: 0, errors: [], bufferPending: false };
     // A save that failed on a column the database does not have yet: retry without THAT column only (lib/pgError
     // missingColumnName), up to three optional columns. Returns null when the error was not a missing optional column.
-    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes"];
+    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes", "rebook_days"];
     const retryWithoutMissing = async (row, firstError, run) => {
       if (!firstError || !isMissingColumnError(firstError)) return null;
       let cur = { ...row }, err = firstError, result = null;
@@ -11341,6 +11357,8 @@ ${MARKETING_FOOTER}`)}`;
                     {w.phone&&<a href={waLink(w.phone)} target="_blank" rel="noreferrer" className="wa-btn" style={{padding:"5px 10px",fontSize:"var(--t-sm)"}}>✆</a>}
  </div>
                 ))}
+ {/* What the smart waitlist does, and did: "הצענו את התור ל..." (lib/waitlistActivity.js). Hidden when the platform flag is off. */}
+ {waitlistOffersVisible(settings)&&<WaitlistActivity onOpenSettings={()=>openSettings("automations")}/>}
  </>)}
  </div>
  </div>
@@ -13211,7 +13229,7 @@ ${MARKETING_FOOTER}`)}`;
  <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc={waCentralConnected===true?"נשלחת אוטומטית בוואטסאפ, יום לפני התור.":"מוכנה לשליחה בלחיצה אחת, כל יום אחר הצהריים, לקראת התורים של מחר."} />
  <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור. את שולחת בלחיצה אחת מהוואטסאפ שלך." />
  <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
- <AutoToggleRow pc={pc} label="תזכורת לקבוע את התור הבא" on={autos.rebook_enabled===true} onChange={()=>setAutos({...autos,rebook_enabled:autos.rebook_enabled!==true})} desc="ללקוחה שאין לה תור עתידי: כשמגיע הזמן לפי הקצב שלה (למשל 3 שבועות אחרי לק ג׳ל), מכינה הודעה עם קישור לקביעת תור, בתור השליחה הידנית שלך. רק ללקוחות שהסכימו לקבל הודעות. כבוי כברירת מחדל." />
+ <RebookSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
  <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, וגם שבועיים לפני שתוקף חבילה עם טיפולים שנותרו נגמר, בתור השליחה הידנית שלך." />
  </div>
 
@@ -13409,6 +13427,9 @@ ${MARKETING_FOOTER}`)}`;
                   // a loaded row without the key means it has not run, and the field says so instead of pretending to save.
                   const bufferColumnReady = services.length===0 || services.some(sv=>Object.prototype.hasOwnProperty.call(sv,"buffer_minutes"));
                   const bufferDefaultHere = businessBufferDefault(editSettings?.branding);
+                  // "להזכיר לחזור אחרי" (lib/reminders/rebookPlan.js), from add_service_rebook_days_2026-11-09.sql: the same "has it run" test.
+                  const rebookColumnReady = services.length===0 || services.some(sv=>Object.prototype.hasOwnProperty.call(sv,"rebook_days"));
+                  const rebookShown = rebookVisible(editSettings);
                   const gone = draft.map((s,i)=>({s,i})).filter(x=>x.s._deleted);
                   return (<>
                   {/* Shown whenever the list is empty and the picker is closed.
@@ -13497,6 +13518,16 @@ ${MARKETING_FOOTER}`)}`;
  <input type="number" inputMode="numeric" min={0} max={120} disabled={!bufferColumnReady} aria-label={SERVICE_BUFFER_LABEL_HE} value={svc.buffer_minutes==null?"":svc.buffer_minutes} placeholder={String(bufferDefaultHere)} onChange={e=>patchDraftService(idx,{buffer_minutes:e.target.value===""?null:cleanBufferMinutes(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:bufferColumnReady?"var(--surface)":"var(--surface-2)"}}/>
  </label>
  {!bufferColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>יופעל אחרי עדכון קטן במערכת. עד אז חל זמן ההפסקה הכללי מ״כללי קביעת תור״.</p>}
+ {/* Days after a visit of this treatment until the "time for the next one" nudge. Empty = automatic (her rhythm, else a
+     suggestion by the name, shown as the placeholder); 0 = never for this treatment. */}
+ {rebookShown&&(()=>{const sug=suggestedRebookDays(svc.name,svc.field);return(<>
+ <label data-testid="service-rebook" style={{display:"flex",alignItems:"center",gap:6,marginTop:7,fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>
+ <span style={{flex:1,minWidth:0}}>להזכיר לחזור אחרי (ימים)</span>
+ <input type="number" inputMode="numeric" min={0} max={365} disabled={!rebookColumnReady} aria-label="להזכיר לחזור אחרי, בימים" value={svc.rebook_days==null?"":svc.rebook_days} placeholder={sug?String(sug):"אוטו׳"} onChange={e=>patchDraftService(idx,{rebook_days:e.target.value===""?null:cleanRebookDays(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:rebookColumnReady?"var(--surface)":"var(--surface-2)"}}/>
+ </label>
+ {rebookColumnReady&&svc.rebook_days===0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>0 = בלי תזכורת לטיפול הזה.</p>}
+ {!rebookColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>יופעל אחרי עדכון קטן במערכת. עד אז התזכורת נקבעת לפי הקצב של כל לקוחה ולפי סוג הטיפול.</p>}
+ </>);})()}
  </div>
                   );})}
                   </>);})()}

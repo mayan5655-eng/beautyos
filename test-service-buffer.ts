@@ -122,7 +122,7 @@ ok(app.includes('const slotIsTaken = (m)=>{ const s=m, e=s+Number(newAppt.durati
 ok(app.includes('e+(apptBuffersApply?apptBufferOf(a):0)'), 'in-app picker: busy until the end plus the buffer');
 ok(app.includes('const newEnd = newStart + Number(newAppt.duration||0) + newApptBuffer;'), 'handleSave: same rule as the picker');
 ok(app.includes('const be = rawEnd + apptBufferOf(a);'), 'isFreeAt (till strip, rebook insert): busy until the end plus the buffer');
-ok(app.includes('"buffer_minutes"]'), 'the service save writes buffer_minutes');
+ok(/"buffer_minutes"(, "rebook_days")?\]/.test(app), 'the service save writes buffer_minutes');
 ok(app.includes('const col = missingColumnName(err);') && app.includes('if (dropped?.cols.includes("buffer_minutes")) bufferPending = true;'), 'a missing column degrades the update, dropping only that column');
 ok(app.includes('SERVICE_BUFFER_PENDING_HE'), 'and she is told the buffer waits for the update');
 ok(app.includes('bufferOf={apptBufferOf}'), 'the rebook sheet gets the buffers');

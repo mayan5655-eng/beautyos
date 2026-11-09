@@ -50,6 +50,8 @@ import { APP_URL } from "../../../lib/appUrl";
 import { tenantIsBlocked } from "../../../lib/tenantActive";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
+// A released hold is a freed slot: offered to the waiting list after this booking is in (its own after(); the offer re-checks the slot is free).
+import { offerFreedHold } from "../../../lib/waitlistRuntime.js";
 import { CARD_CONSENT_TEXT_HE } from "../../../lib/grow/tokenFlow";
 import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
@@ -177,7 +179,7 @@ export async function POST(request) {
     try {
       policyDeps = growUiEnabled(process.env, activeTenantId) ? cancelDeps() : null;
       if (policyDeps) {
-        await releaseExpiredHolds(policyDeps, activeTenantId);
+        await releaseExpiredHolds(policyDeps, activeTenantId, offerFreedHold);
         policy = await activePolicy(policyDeps, activeTenantId);
       }
     } catch (policyErr) {

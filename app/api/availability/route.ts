@@ -45,6 +45,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { releaseExpiredHolds } from '@/lib/grow/cancelFees';
+// A released hold is a freed slot: offered to the waiting list like any cancellation (lib/waitlistOffers.js).
+import { offerFreedHold } from '@/lib/waitlistRuntime';
 import { cancelDeps } from '@/app/api/grow/_cancel';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { resolveLunch, lunchBusy } from '@/lib/lunchBreak';
@@ -109,7 +111,7 @@ export async function GET(request: Request) {
 
     // A deposit hold that ran out frees its slot right here, not only when the cron next runs (lib/grow/cancelFees.releaseExpiredHolds). Best-effort.
     if (growUiEnabled(process.env, tenantId)) {
-      try { const deps = cancelDeps(); if (deps) await releaseExpiredHolds(deps, tenantId); } catch { /* the cron releases it, or the booking route does */ }
+      try { const deps = cancelDeps(); if (deps) await releaseExpiredHolds(deps, tenantId, offerFreedHold); } catch { /* the cron releases it, or the booking route does */ }
     }
 
     const readAppts = (cols: string) => supabase
