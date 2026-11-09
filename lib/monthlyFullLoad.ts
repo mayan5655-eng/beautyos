@@ -12,6 +12,7 @@ import { liveReceipts } from './till.ts';
 import { giftVouchersVisible } from './giftVouchers.ts';
 import { productsVisible } from './products.ts';
 import { previousMonth } from './monthlyReport.ts';
+import { winbackDaysOf } from './clientActivity.ts';
 import { buildMonthFull, monthBounds, type MonthRef, type MonthFull } from './monthlyFull.ts';
 
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -67,5 +68,7 @@ export async function loadMonthFull(db: Db, tenantId: string, settings: MonthlyS
     status: String(settings?.business_tax_status || 'exempt'),
     vatRate: vatRateForYear(month.year),
     showProducts, showVouchers, voucherLedger: ledger,
+    // The win-back button on the page opens a list cut at her win-back period: the same threshold here.
+    lapsedMinDays: winbackDaysOf(settings?.automations),
   });
 }

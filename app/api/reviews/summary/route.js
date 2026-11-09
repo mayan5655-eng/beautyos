@@ -19,6 +19,9 @@ import { isMissingFeedbackTable, feedbackSummaryLine, FEEDBACK_NEEDS_MIGRATION_H
 export const dynamic = "force-dynamic";
 
 const WINDOW_DAYS = 30;
+// Unread notes are never cut by the read ones; this cap is only a safety bound far above any real backlog.
+const UNREAD_NOTES_CAP = 300; // also keeps the .in() lookups below within a safe URL length
+const READ_NOTES_SHOWN = 50;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function sessionTenant() {
@@ -60,16 +63,16 @@ export async function GET() {
     const rv = await admin.from("reviews").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).gte("created_at", sinceIso);
     const inAppReviews = !rv.error && typeof rv.count === "number" ? rv.count : 0;
 
+    // The counts: every answer inside the window (a few columns, a generous cap).
     const fb = await admin.from("visit_feedback")
-      .select("id, appointment_id, client_id, client_name, mood, body, google_clicked_at, read_at, created_at")
-      .eq("tenant_id", tenantId).order("created_at", { ascending: false }).limit(200);
+      .select("id, mood, google_clicked_at, created_at")
+      .eq("tenant_id", tenantId).gte("created_at", sinceIso).order("created_at", { ascending: false }).limit(5000);
     if (fb.error) {
       if (!isMissingFeedbackTable(fb.error)) throw new Error(`feedback read failed: ${fb.error.message}`);
       const counts = { requested: requested || 0, happy: 0, unhappy: 0, googleClicks: 0, inAppReviews };
       return NextResponse.json({ success: true, available: false, needsMigration: FEEDBACK_NEEDS_MIGRATION_HE, counts, line: feedbackSummaryLine(counts), notes: [] }, { headers: { "Cache-Control": "no-store" } });
     }
-    const rows = fb.data || [];
-    const recent = rows.filter((r) => String(r.created_at || "") >= sinceIso);
+    const recent = fb.data || [];
     const counts = {
       requested: requested ?? recent.length,
       happy: recent.filter((r) => r.mood === "happy").length,
@@ -78,8 +81,18 @@ export async function GET() {
       inAppReviews,
     };
 
-    // The private notes (all time, newest first, up to 50), with the visit and a phone so she can answer herself.
-    const notes = rows.filter((r) => r.mood === "unhappy").slice(0, 50);
+    // The private notes, read as notes (mood filtered in the query, so happy taps never push one out): EVERY unread note, all
+    // time, and the newest read ones up to READ_NOTES_SHOWN. Newest first, with the visit and a phone so she can answer herself.
+    const noteCols = "id, appointment_id, client_id, client_name, mood, body, read_at, created_at";
+    const [un, rd] = await Promise.all([
+      admin.from("visit_feedback").select(noteCols).eq("tenant_id", tenantId).eq("mood", "unhappy").is("read_at", null)
+        .order("created_at", { ascending: false }).limit(UNREAD_NOTES_CAP),
+      admin.from("visit_feedback").select(noteCols).eq("tenant_id", tenantId).eq("mood", "unhappy").not("read_at", "is", null)
+        .order("created_at", { ascending: false }).limit(READ_NOTES_SHOWN),
+    ]);
+    if (un.error) throw new Error(`unread notes read failed: ${un.error.message}`);
+    if (rd.error) throw new Error(`read notes read failed: ${rd.error.message}`);
+    const notes = [...(un.data || []), ...(rd.data || [])].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
     const apptIds = [...new Set(notes.map((n) => n.appointment_id).filter(Boolean))];
     const clientIds = [...new Set(notes.map((n) => n.client_id).filter(Boolean))];
     const [ap, cl] = await Promise.all([

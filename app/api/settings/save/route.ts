@@ -35,6 +35,7 @@ import { sendOwnerWelcome } from '@/lib/ownerWelcome';
 import { sanitizeVoucherAutomations } from '@/lib/giftVouchers';
 import { storageHostOf } from '@/lib/giftVoucherDesign';
 import { sanitizeProductAutomations } from '@/lib/products';
+import { googleReviewUrlOf, GOOGLE_LINK_INVALID_HE } from '@/lib/reviewRequests';
 
 function admin() {
   return createClient(
@@ -103,12 +104,23 @@ export async function POST(request: Request) {
   // though the client's copy of them is never trusted.
   const { data: existing, error: readErr } = await db
     .from('settings')
-    .select('id, automations, branding')
+    .select('id, automations, branding, review_url')
     .eq('tenant_id', tenantId)
     .maybeSingle();
   if (readErr) {
     console.error('[settings/save] read failed:', readErr.message);
     return NextResponse.json({ success: false, error: 'שגיאה בקריאת ההגדרות' }, { status: 500 });
+  }
+
+  // Her Google review link (lib/reviewRequests googleReviewUrlOf): /api/reviews/go redirects clients to it, so only https on a
+  // Google host is stored. A link saved before this check and sent back unchanged is left as it is (dropped from the write, so
+  // the rest of her save goes through); the redirect refuses it anyway. Empty clears it.
+  if ('review_url' in payload) {
+    const rawUrl = String(payload.review_url ?? '').trim();
+    if (!rawUrl) payload.review_url = '';
+    else if (googleReviewUrlOf(rawUrl)) payload.review_url = googleReviewUrlOf(rawUrl);
+    else if (rawUrl === String((existing as { review_url?: unknown } | null)?.review_url ?? '').trim()) delete payload.review_url;
+    else return NextResponse.json({ success: false, error: GOOGLE_LINK_INVALID_HE, field: 'review_url' }, { status: 400 });
   }
 
   // Merge into the stored bags so a save from an older copy of the row cannot erase what another screen wrote since.

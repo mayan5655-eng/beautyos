@@ -154,7 +154,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
-import { reviewTimingOf, looksLikeGoogleLink, googleReviewUrlOf, GOOGLE_LINK_HELP } from "@/lib/reviewRequests";
+import { reviewTimingOf, looksLikeGoogleLink, GOOGLE_LINK_HELP, GOOGLE_LINK_INVALID_HE } from "@/lib/reviewRequests";
 import { monthlyPageOn } from "@/lib/monthlyFull";
 import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher, splitVoucherCodes } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
@@ -5243,6 +5243,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
       const saveData = await res.json().catch(() => ({}));
       if (!res.ok || !saveData.success) {
+        // A refused Google review link: her own words, not a generic database error.
+        if (saveData.field === "review_url" && saveData.error) { toast(saveData.error, "error"); return; }
         handleDbError({ message: saveData.error || `HTTP ${res.status}` }, "update settings");
         return;
       }
@@ -12743,7 +12745,7 @@ ${MARKETING_FOOTER}`)}`;
  )}
  {inG("clients")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>אחרי טיפול הלקוחה נשאלת &quot;איך היה?&quot;. מי שנהנתה מקבלת את הקישור הזה לביקורת בגוגל, ומי שמשהו הפריע לה יכולה לכתוב לך בפרטיות (וגם לה מוצע הקישור לגוגל).</p>
- {editSettings.review_url&&!looksLikeGoogleLink(editSettings.review_url)&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:4,lineHeight:1.5}}>{googleReviewUrlOf(editSettings.review_url)?"הקישור לא נראה כמו קישור של גוגל. כדאי לבדוק שהעתקת את הקישור לביקורות.":"הקישור צריך להתחיל ב-https://"}</p>}
+ {String(editSettings.review_url||"").trim()&&!looksLikeGoogleLink(editSettings.review_url)&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:4,lineHeight:1.5}}>{GOOGLE_LINK_INVALID_HE}</p>}
  <details data-testid="google-link-help" style={{marginTop:6}}><summary style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:700,cursor:"pointer",minHeight:32,display:"flex",alignItems:"center"}}>איך מוצאים את הקישור?</summary>
  <ol style={{margin:"6px 0 0",paddingInlineStart:20,fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7}}>{GOOGLE_LINK_HELP.map((t,i)=><li key={i}>{t}</li>)}</ol></details></div>
  </>)}

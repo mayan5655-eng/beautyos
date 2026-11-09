@@ -375,6 +375,147 @@ await ok('the cron and the screen: owner only, in the app, scheduled and watched
   }
 });
 
+// ── 3. security review (Vercel findings on PR #40) ─────────────────────────────────────────────────────────────────────
+
+await ok('security: the Google link is https on a Google host only, so /api/reviews/go cannot become an open redirect', () => {
+  for (const good of ['https://g.page/r/abc/review', 'https://maps.app.goo.gl/xyz', 'https://goo.gl/maps/abc', 'https://search.google.com/local/writereview?placeid=x',
+    'https://www.google.com/maps/place/x', 'https://www.google.co.il/maps/place/x', 'https://G.PAGE/r/abc']) {
+    assert.ok(googleReviewUrlOf(good), good);
+    assert.equal(looksLikeGoogleLink(good), true, good);
+  }
+  for (const bad of ['https://evil.com/r', 'https://google.com.evil.com/x', 'https://evilgoogle.com/x', 'https://evil.com/?u=https://g.page/r',
+    'https://g.page@evil.com/x', 'https://user:pw@g.page/r', 'https://g.page:8443/r', 'http://g.page/r', '//g.page/r', 'javascript:alert(1)',
+    'https://g.page.evil.com/r', 'https://xgoo.gl/r', `https://g.page/${'a'.repeat(2100)}`]) {
+    assert.equal(googleReviewUrlOf(bad), '', bad);
+  }
+  const go = rd('app/api/reviews/go/route.js');
+  const params = [...go.matchAll(/searchParams\.get\("([^"]+)"\)/g)].map((m) => m[1]).sort();
+  assert.deepEqual(params, ['id', 't'], 'the redirect target never comes from the query');
+  assert.ok(go.includes('googleReviewUrlOf(s?.review_url)') && go.includes('.eq("tenant_id", appt.tenant_id)'), 'target = her saved link, validated at redirect time');
+  assert.ok(go.includes('/book?t=${encodeURIComponent(appt.tenant_id)}'), 'no valid Google link: her booking page');
+  assert.ok(!/Response\.redirect\(s\?\.review_url/.test(go), 'the raw stored value is never redirected to');
+  const save = rd('app/api/settings/save/route.ts');
+  assert.ok(save.includes('googleReviewUrlOf(rawUrl)') && save.includes("field: 'review_url'") && save.includes('status: 400'), 'validated at save time too');
+  const get = rd('app/api/reviews/route.js');
+  assert.ok(get.includes('googleReviewUrl: googleReviewUrlOf(s?.review_url)'), 'the stars page links only to a validated Google link');
+});
+
+await ok('security: one private note per visit, bounded, never rewritten by a replayed link', () => {
+  const fb = rd('app/api/reviews/feedback/route.js');
+  assert.ok(fb.includes('if (prev.data?.body) return Response.json({ success: true, already: true });'), 'a written note is final');
+  assert.equal((fb.match(/\.is\("body", null\)/g) || []).length, 2, 'both update paths refuse to overwrite a note');
+  assert.ok(fb.includes('raw.length > MAX_FEEDBACK_BODY_BYTES') && fb.includes('status: 413'), 'oversized bodies are refused before parsing');
+  assert.ok(!/body\??\.tenant_id|searchParams\.get\("tenant/.test(fb), 'the tenant comes from the signed appointment, never the client');
+  assert.ok(cleanFeedback('x'.repeat(5000)).length <= 1000);
+  assert.equal(cleanFeedback('<script>alert(1)</script>'), '<script>alert(1)</script>', 'stored as text; React escapes it on her screen');
+  const panel = rd('app/VisitFeedbackPanel.jsx');
+  assert.ok(!panel.includes('dangerouslySetInnerHTML'), 'the note is rendered as text, never as HTML');
+  const n = feedbackNotice({ clientName: 'רונית', body: 'הצבע לא יצא כמו שרציתי' });
+  assert.ok(!/\d{7,}/.test(n.title + n.body), 'the notification carries no phone number');
+});
+
+await ok('security: the review token is constant-time, expiring, and bound to one appointment', async () => {
+  process.env.REVIEW_LINK_SECRET = process.env.REVIEW_LINK_SECRET || 'test-review-secret-not-real';
+  const { signReview, verifyReview } = await import('./lib/reviewToken.ts');
+  const id = '11111111-2222-4333-8444-555555555555';
+  const other = '11111111-2222-4333-8444-666666666666';
+  const now = Date.UTC(2026, 10, 9, 12);
+  const t = signReview(id, now + 86_400_000);
+  assert.equal(verifyReview(id, t, now), true);
+  assert.equal(verifyReview(other, t, now), false, 'bound to the appointment');
+  assert.equal(verifyReview(id, t, now + 2 * 86_400_000), false, 'expires');
+  assert.equal(verifyReview(id, `${t.slice(0, -2)}xx`, now), false, 'tampered');
+  assert.equal(verifyReview(id, '', now), false);
+  const signed = rd('lib/signedToken.ts');
+  assert.ok(signed.includes('timingSafeEqual'), 'constant-time compare');
+});
+
+await ok('security: owner routes resolve her tenant and plan before any service-role read; the cron checks CRON_SECRET first', () => {
+  for (const f of ['app/api/reviews/summary/route.js', 'app/api/monthly-report/route.ts']) {
+    const src = rd(f);
+    const guard = src.indexOf('requireActiveTenant(session)');
+    const role = src.indexOf('SUPABASE_SERVICE_ROLE_KEY');
+    assert.ok(guard > 0 && src.indexOf('get_user_tenant_id') < guard && role > guard, `${f}: auth and plan gate before the service role`);
+    assert.ok(src.includes('isDemoTenantId(String(tenantId))'), `${f}: demo tenant exception pattern`);
+  }
+  const cron = rd('app/api/send-monthly-report/route.js');
+  const post = cron.slice(cron.indexOf('export async function POST'));
+  assert.ok(post.indexOf('if (!isAuthorizedCron(request)) return cronUnauthorized();') < post.indexOf('markCronRun'), 'auth before anything else');
+  assert.ok(cron.includes('whatsapp: false') && !/phone/.test(post.replace(/business_phone/g, '')), 'no client phone in the note');
+  assert.ok(post.includes('error: "internal"'), 'no error detail in the response');
+});
+
+// ── 4. Vercel Agent Review findings on PR #40 ───────────────────────────────────────────────────────────────────────────
+
+await ok('review finding: private notes are queried as notes, and unread ones never fall off a limit', () => {
+  const sum = rd('app/api/reviews/summary/route.js');
+  assert.ok(!sum.includes('.limit(200)'), 'no shared limit across moods');
+  assert.ok(sum.includes('.eq("mood", "unhappy").is("read_at", null)'), 'unread notes in their own query');
+  assert.ok(sum.includes('.eq("mood", "unhappy").not("read_at", "is", null)'), 'read notes in their own query');
+  assert.ok(/const notes = \[\.\.\.\(un\.data \|\| \[\]\), \.\.\.\(rd\.data \|\| \[\]\)\]/.test(sum), 'every unread note is listed');
+  assert.ok(sum.includes('.gte("created_at", sinceIso)'), 'the counts read the window itself');
+});
+
+await ok('review finding: "לא חזרו" uses her win-back period, the same list the button opens', () => {
+  const extra = [...appts, { id: 'q1', client_id: 'cq', date: '2026-08-26', confirmation_status: 'confirmed' }]; // 75 days before NOW
+  const cls = [...clients, { id: 'cq', name: 'הילה' }];
+  const base = { month: OCT, now: NOW, receipts, appointments: extra, clients: cls, status: 'exempt', vatRate: 0.18 };
+  const at60 = buildMonthFull({ ...base, lapsedMinDays: 60 });
+  const at90 = buildMonthFull({ ...base, lapsedMinDays: 90 });
+  assert.ok(at60.lapsed.clients.some((c) => c.name === 'הילה'), '75 days is lapsed for a 60 day period');
+  assert.ok(!at90.lapsed.clients.some((c) => c.name === 'הילה'), '75 days is not lapsed for the default 90');
+  assert.equal(at90.lapsed.minDays, 90);
+  assert.ok(at90.lapsed.clients.some((c) => c.name === 'נועה'), '100 days is lapsed at 90');
+  const load = rd('lib/monthlyFullLoad.ts');
+  assert.ok(load.includes('lapsedMinDays: winbackDaysOf(settings?.automations)'), 'the loader passes her setting');
+  const screen = rd('app/dashboard/monthly/MonthlyScreen.tsx');
+  assert.ok(screen.includes('r.lapsed.minDays') && !screen.includes('לפני חודשיים עד שנה'), 'the screen says her period');
+  const note = monthlyNotice(at90);
+  assert.ok(!note || !note.body.includes('חודשיים'), 'the note says her period');
+});
+
+await ok('review finding: the unhappy screen offers a public review right away, the note is not a gate', () => {
+  const page = rd('app/review/page.jsx');
+  const unhappy = page.slice(page.indexOf('if (state === "unhappy")'), page.indexOf('if (state === "noted")'));
+  assert.ok(unhappy.includes('review-unhappy-public'), 'public review line on the unhappy screen');
+  assert.ok(unhappy.includes('href={goGoogleHref}'), 'Google is one tap away without writing a note');
+  assert.ok(unhappy.includes('onClick={() => setState("form")}'), 'the stars form is one tap away too');
+});
+
+await ok('review finding: a database without appointments.kind still sends review requests', async () => {
+  const now = new Date('2026-11-09T15:30:00Z');
+  const w: Record<string, Row[]> = {
+    settings: [{ tenant_id: 't2', business_name: 'ע', automations: {} }],
+    clients: [{ id: 'k', name: 'k', phone: '972541234567', tenant_id: 't2', marketing_consent: true }],
+    appointments: [{ id: 'k1', client_id: 'k', tenant_id: 't2', date: '2026-11-07', confirmation_status: 'confirmed', start_minute: 600, duration: 60 }],
+    packages: [], auto_reminders_log: [],
+  };
+  const base = makeDb(w);
+  let kindErrors = 0;
+  const db = {
+    from(table: string) {
+      const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>;
+      if (table !== 'appointments') return c;
+      let cols = '';
+      const sel = c.select; const range = c.range;
+      c.select = (x: unknown, ...rest: unknown[]) => { cols = String(x || ''); sel(x, ...rest); return c; };
+      c.range = (a: unknown, b: unknown) => {
+        if (/\bkind\b/.test(cols)) { kindErrors++; return Promise.resolve({ data: null, error: { code: '42703', message: 'column appointments.kind does not exist' }, count: null }); }
+        return range(a, b);
+      };
+      return c;
+    },
+  };
+  const sent: string[] = [];
+  await runSmartReminders({ db, send: async (_p: string, m: string, o: { type: string }) => { if (o.type === 'auto_review') sent.push(m); return { ok: true }; }, now, reviewLinkFor: (id: string) => `L-${id}` });
+  assert.ok(kindErrors >= 1, 'the fake really refused kind');
+  assert.equal(sent.length, 1, 'the run carried on and asked about the visit');
+  assert.ok(sent[0].includes('L-k1'));
+  // Any other error still stops the run, as before.
+  const broken = { from(table: string) { const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>; if (table === 'appointments') c.range = () => Promise.resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }); return c; } };
+  await assert.rejects(() => runSmartReminders({ db: broken, send: async () => ({ ok: true }), now, reviewLinkFor: () => 'x' }));
+});
+
 console.log(`\n${n} groups passed`);
 
 {

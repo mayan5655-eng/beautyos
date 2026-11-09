@@ -3,8 +3,8 @@
 // POST ?id=<appointment>&t=<signature>  { mood: 'happy' | 'unhappy', text? }
 //
 // The answer to "איך היה?" on the two-step review page (lib/reviewRequests.ts). One row per visit in public.visit_feedback:
-// the first tap writes it, a later tap or a note updates it (a private note is hers to read, not a public review, so there is
-// nothing to protect from an edit). An unhappy note reaches ONLY the business owner: an in-app notification and her
+// the first tap writes it, a later tap or the note updates it, and once a note is written it is final (no rewrite, no second
+// notification from the same link). An unhappy note reaches ONLY the business owner: an in-app notification and her
 // /dashboard/feedback screen. Nothing is published and nothing is sent to anyone else.
 //
 // Before add_visit_feedback_2026-11-09.sql runs this answers 503 { needsMigration: true } and the page falls back to the stars
@@ -15,6 +15,9 @@ import { checkIpLimit } from "@/lib/rateLimit";
 import { resolveReviewVisit } from "@/lib/reviewVisit";
 import { isMood, cleanFeedback, isMissingFeedbackTable, feedbackNotice, reviewTwoStepOn } from "@/lib/reviewRequests";
 import { notifyOwner } from "@/lib/ownerNotify";
+
+// JSON of a 1000 character note, escaped, with room to spare.
+const MAX_FEEDBACK_BODY_BYTES = 16_000;
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -31,8 +34,11 @@ export async function POST(request) {
       return Response.json({ success: false, error: "התור הזה לא התקיים, אז אין עליו מה לספר" }, { status: 409 });
     }
 
+    // A note is at most MAX_FEEDBACK characters; a body far past that is not a note.
+    const raw = await request.text().catch(() => "");
+    if (raw.length > MAX_FEEDBACK_BODY_BYTES) return Response.json({ success: false, error: "ההודעה ארוכה מדי" }, { status: 413 });
     let body = {};
-    try { body = await request.json(); } catch { /* handled below */ }
+    try { body = JSON.parse(raw); } catch { /* handled below */ }
     if (!isMood(body?.mood)) return Response.json({ success: false, error: "איך היה? אפשר לבחור תשובה" }, { status: 400 });
     const mood = body.mood;
     const text = mood === "unhappy" ? cleanFeedback(body?.text) : "";
@@ -47,13 +53,17 @@ export async function POST(request) {
       return Response.json({ success: false, error: "לא הצלחנו לשמור, אפשר לנסות שוב" }, { status: 500 });
     }
 
+    // ONE note per visit. Once she has written, the link cannot rewrite it or send another notification: a forwarded or
+    // leaked link must not be a way to replace her words or to push note after note at the owner.
+    if (prev.data?.body) return Response.json({ success: true, already: true });
+
     const nowIso = new Date().toISOString();
     let error;
     if (prev.data) {
       const patch = { mood, updated_at: nowIso };
-      // A note is never wiped by a second tap without words.
       if (text) patch.body = text;
-      ({ error } = await admin.from("visit_feedback").update(patch).eq("appointment_id", appt.id).eq("tenant_id", appt.tenant_id));
+      // is(body, null): a note written by a parallel request in between is never overwritten.
+      ({ error } = await admin.from("visit_feedback").update(patch).eq("appointment_id", appt.id).eq("tenant_id", appt.tenant_id).is("body", null));
     } else {
       ({ error } = await admin.from("visit_feedback").insert({
         tenant_id: appt.tenant_id, appointment_id: appt.id, client_id: appt.client_id || null,
@@ -61,7 +71,7 @@ export async function POST(request) {
       }));
       // Two taps at the same moment: the second insert meets the unique index. Retry as an update.
       if (error && error.code === "23505") {
-        ({ error } = await admin.from("visit_feedback").update({ mood, updated_at: nowIso, ...(text ? { body: text } : {}) }).eq("appointment_id", appt.id).eq("tenant_id", appt.tenant_id));
+        ({ error } = await admin.from("visit_feedback").update({ mood, updated_at: nowIso, ...(text ? { body: text } : {}) }).eq("appointment_id", appt.id).eq("tenant_id", appt.tenant_id).is("body", null));
       }
     }
     if (error) {

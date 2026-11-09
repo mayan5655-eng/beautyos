@@ -6,8 +6,12 @@
 // which is what lets her see "3 עברו לגוגל". A tap is not a review: Google does not tell anyone who wrote one, and the count is
 // worded as a tap everywhere it is shown.
 //
-// Counting never stands between the client and Google: a missing table or a failed write still redirects. A bad link, or a
-// business without an https Google link, goes back to the review page instead.
+// Counting never stands between the client and Google: a missing table or a failed write still redirects. A bad link goes back
+// to the review page; a business without a valid Google link goes to her own booking page.
+//
+// NOT AN OPEN REDIRECT: the target never comes from the query. It is her saved settings.review_url, looked up server side for
+// the tenant of the appointment the signed token names, and only when lib/reviewRequests googleReviewUrlOf accepts it (https on
+// a Google host). The same check runs when she saves the link (/api/settings/save), so a stored non-Google link never leaves.
 
 import { createClient } from "@supabase/supabase-js";
 import { checkIpLimit } from "@/lib/rateLimit";
@@ -30,7 +34,8 @@ export async function GET(request) {
     const appt = r.appt;
     const { data: s } = await admin.from("settings").select("review_url").eq("tenant_id", appt.tenant_id).maybeSingle();
     const url = googleReviewUrlOf(s?.review_url);
-    if (!url) return Response.redirect(back, 302);
+    // No valid Google link: her booking page on our own host, never the stored value.
+    if (!url) return Response.redirect(new URL(`/book?t=${encodeURIComponent(appt.tenant_id)}`, request.url).toString(), 302);
 
     if (appt.confirmation_status !== "cancelled" && appt.confirmation_status !== "no_show") {
       try {

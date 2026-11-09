@@ -153,7 +153,7 @@ export default function MonthlyScreen() {
 
               <section aria-label="לקוחות שלא חזרו" data-testid="monthly-lapsed" style={{ ...card, marginTop: 14 }}>
                 <h2 style={h2}>לקוחות שלא חזרו</h2>
-                <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', margin: '2px 0 0', lineHeight: 1.6 }}>נכון להיום: הביקור האחרון לפני חודשיים עד שנה, ואין להן תור עתידי.</p>
+                <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', margin: '2px 0 0', lineHeight: 1.6 }}>נכון להיום: הביקור האחרון לפני יותר מ-{r.lapsed.minDays ?? 90} ימים ועד שנה, ואין להן תור עתידי.</p>
                 {r.lapsed.count === 0 ? (
                   <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '8px 0 0' }}>אין כרגע לקוחות כאלה 🌸</p>
                 ) : (

@@ -231,6 +231,14 @@ export default function ReviewPage() {
           <button type="button" onClick={submitNote} disabled={!note.trim() || submitting} className="pub-pill" data-testid="review-note-send" style={{ width: "100%", minHeight: 56 }}>
             {submitting ? <Spinner inline label="שולחת" /> : `שליחה אל ${biz}`}
           </button>
+          {/* Not review gating: the public review is offered right here, before and without the private note. */}
+          <p data-testid="review-unhappy-public" style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginTop: 18 }}>
+            מעדיפה לכתוב ביקורת פומבית?{" "}
+            {info?.googleReviewUrl
+              ? <a href={goGoogleHref} style={{ color: "var(--pc-deep)", fontWeight: 700 }}>אפשר בגוגל</a>
+              : <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>אפשר כאן</button>}
+            {info?.googleReviewUrl && <> או <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>כאן</button></>}
+          </p>
         </div>
       </PublicPage>
     );

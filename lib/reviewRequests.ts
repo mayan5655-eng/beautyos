@@ -147,18 +147,37 @@ export function cleanFeedback(v: unknown): string {
 
 export const isMood = (v: unknown): v is Mood => (MOODS as readonly string[]).includes(String(v));
 
-/** Her Google link, only when it is a real https address. */
-export function googleReviewUrlOf(v: unknown): string {
-  const s = String(v ?? '').trim();
-  if (!/^https:\/\/\S+$/i.test(s)) return '';
-  try { return new URL(s).protocol === 'https:' ? s : ''; } catch { return ''; }
+/**
+ * The hosts a Google review link may live on. /api/reviews/go redirects an unauthenticated visitor to her saved link, so the
+ * link is held to this list at save time (/api/settings/save) AND at redirect time: an open redirect through our domain would
+ * let anyone who controls a settings row (or a pre-allowlist row already stored) bounce a client to any site.
+ * A host matches itself and its subdomains (www.google.com, search.google.com, maps.app.goo.gl).
+ */
+export const GOOGLE_REVIEW_HOSTS = ['google.com', 'google.co.il', 'g.page', 'goo.gl'] as const;
+
+/** Is this hostname one of GOOGLE_REVIEW_HOSTS or a subdomain of one? */
+export function isGoogleReviewHost(host: unknown): boolean {
+  const h = String(host ?? '').toLowerCase().replace(/\.$/, '');
+  return !!h && GOOGLE_REVIEW_HOSTS.some((d) => h === d || h.endsWith(`.${d}`));
 }
 
-/** Looks like a Google review or Maps link (for a gentle hint in Settings, never to block her). */
-export function looksLikeGoogleLink(v: unknown): boolean {
-  const s = googleReviewUrlOf(v);
-  return !!s && /(^https:\/\/(g\.page|maps\.app\.goo\.gl|goo\.gl|search\.google\.|www\.google\.|google\.|maps\.google\.))/i.test(s);
+/** Her Google link, only when it is a real https address on a Google host (no credentials, no port). Anything else is ''. */
+export function googleReviewUrlOf(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!/^https:\/\/\S+$/i.test(s) || s.length > 2000) return '';
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'https:' || u.username || u.password || u.port) return '';
+    return isGoogleReviewHost(u.hostname) ? u.toString() : '';
+  } catch { return ''; }
 }
+
+/** Looks like a Google review or Maps link (the hint in Settings; the save itself refuses anything else). */
+export function looksLikeGoogleLink(v: unknown): boolean {
+  return !!googleReviewUrlOf(v);
+}
+
+export const GOOGLE_LINK_INVALID_HE = 'הקישור לביקורות צריך להיות קישור של גוגל שמתחיל ב-https:// (למשל https://g.page/r/... או https://maps.app.goo.gl/...).';
 
 /** public.visit_feedback has not been created yet (add_visit_feedback_2026-11-09.sql not run). */
 export function isMissingFeedbackTable(e: { code?: string; message?: string } | null | undefined): boolean {

@@ -112,7 +112,8 @@ export type MonthFull = {
   noShows: number;
   avgPerVisit: number | null;
   top: { name: string; income: number }[];
-  lapsed: { count: number; clients: { id: string; name: string; phone: string; lastVisit: string; days: number }[] };
+  /** minDays: her win-back period (lib/clientActivity winbackDaysOf), so this list and the win-back list it opens agree. */
+  lapsed: { count: number; minDays: number; clients: { id: string; name: string; phone: string; lastVisit: string; days: number }[] };
   products: { income: number; units: number } | null;
   vouchers: { soldCount: number; soldAmount: number; redeemedCount: number | null; redeemedAmount: number | null } | null;
   headline: string;
@@ -134,6 +135,7 @@ export function buildMonthFull(i: {
   showProducts?: boolean;
   showVouchers?: boolean;
   voucherLedger?: LedgerRow[] | null; // null = could not be read: "redeemed" is left out, never shown as 0
+  lapsedMinDays?: number;           // her win-back period (winbackDaysOf); LAPSED_MIN_DAYS when not given
 }): MonthFull {
   const today = israelDay(i.now)!;
   const m = i.month;
@@ -197,12 +199,14 @@ export function buildMonthFull(i: {
   // Clients who have not come back, as of today: the win-back list is one tap away on the page.
   const nameOf = new Map<string, FullClient>();
   for (const c of i.clients || []) if (c && c.id != null) nameOf.set(String(c.id), c);
+  const lapsedMin = Number.isFinite(i.lapsedMinDays) && Number(i.lapsedMinDays) > 0 ? Number(i.lapsedMinDays) : LAPSED_MIN_DAYS;
   const lapsedAll: { id: string; name: string; phone: string; lastVisit: string; days: number }[] = [];
   for (const [cid, last] of lastVisit) {
     const c = nameOf.get(cid);
     if (!c || c.status === 'archived' || bookedAhead.has(cid)) continue;
     const ago = today.n - dayN(last);
-    if (ago >= LAPSED_MIN_DAYS && ago <= LAPSED_MAX_DAYS) lapsedAll.push({ id: cid, name: String(c.name || '').trim() || 'לקוחה', phone: String(c.phone || ''), lastVisit: last, days: ago });
+    // More than her win-back period, the same rule as the win-back list (isColdClient: days > period).
+    if (ago > lapsedMin && ago <= LAPSED_MAX_DAYS) lapsedAll.push({ id: cid, name: String(c.name || '').trim() || 'לקוחה', phone: String(c.phone || ''), lastVisit: last, days: ago });
   }
   lapsedAll.sort((a, b) => a.days - b.days || a.name.localeCompare(b.name, 'he'));
 
@@ -248,7 +252,7 @@ export function buildMonthFull(i: {
     prevName, inPrev: isCurrent ? `באותם ימים ב${prevName}` : `ב${prevName}`,
     prevIsPartial: isCurrent, netOfVat, hasData, income,
     visits: compareMonths(visits, prevVisits), newClients, returningClients, noShows, avgPerVisit, top,
-    lapsed: { count: lapsedAll.length, clients: lapsedAll.slice(0, LAPSED_SHOWN) },
+    lapsed: { count: lapsedAll.length, minDays: lapsedMin, clients: lapsedAll.slice(0, LAPSED_SHOWN) },
     products, vouchers, headline,
   };
 }
@@ -258,7 +262,7 @@ export function monthlyNotice(r: MonthFull): { title: string; body: string } | n
   if (!r.hasData) return null;
   const parts = [`ב${r.monthName} הכנסת ${nis(r.income.cur)}${r.netOfVat ? ' (לפני מע"מ)' : ''}, ${r.visits.cur === 1 ? 'ביקור אחד' : `${r.visits.cur} ביקורים`}.`];
   if (r.top[0]) parts.push(`הטיפול שהכניס הכי הרבה: ${r.top[0].name}.`);
-  if (r.lapsed.count > 0) parts.push(r.lapsed.count === 1 ? 'לקוחה אחת לא חזרה כבר חודשיים או יותר.' : `${r.lapsed.count} לקוחות לא חזרו כבר חודשיים או יותר.`);
+  if (r.lapsed.count > 0) parts.push(r.lapsed.count === 1 ? `לקוחה אחת לא חזרה כבר יותר מ-${r.lapsed.minDays} ימים.` : `${r.lapsed.count} לקוחות לא חזרו כבר יותר מ-${r.lapsed.minDays} ימים.`);
   parts.push('הדוח המלא מחכה לך 🌸');
   return { title: `הדוח החודשי שלך: ${r.monthName}`, body: parts.join(' ') };
 }
