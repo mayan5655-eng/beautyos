@@ -9,7 +9,7 @@ import { waitlistOffersOn, waitlistOffersVisible, waitlistOfferToast } from './l
 import { offerFreedSlot, afterWaitlistWin, compatibleServices } from './lib/waitlistOffers.js';
 import { entryFitsSlot, chooseRecipients } from './lib/waitlistMatch.js';
 import { waitlistActivity } from './lib/waitlistActivity.js';
-import { claimAllowed } from './lib/claimGuard.ts';
+import { claimAllowed, claimGate } from './lib/claimGuard.ts';
 import { releaseExpiredHolds } from './lib/grow/cancelFees.ts';
 import {
   rebookOn, rebookVisible, cleanRebookDays, typedRebookDays, suggestedRebookDays, intervalFor, rebookDue, rebookToday, parseRebookRef, rebookRef, rebookText, COOLDOWN_DAYS,
@@ -554,9 +554,12 @@ await ok('security: session first, tenant from the session, rate limited, no pho
     // The route: the check runs before the offer is marked claimed and before any appointment is written, and answers with her link.
     const route = read('app/api/claim/route.ts');
     const post = route.slice(route.indexOf('export async function POST'));
-    const guard = post.indexOf('claimAllowed({');
-    assert.ok(guard > 0 && guard < post.indexOf('.update({ status: "claimed"') && guard < post.indexOf('bookAppointmentSlot('), 'refused before claiming or booking');
-    assert.match(post, /state: "needs_booking", message: NEEDS_BOOKING_HE[^}]*bookUrl: pre\.contact\.bookUrl/);
+    const guard = post.indexOf('claimGate({');
+    assert.ok(guard > 0 && guard < post.indexOf('.update({ status: "claimed"') && guard < post.indexOf('bookAppointmentSlot(') && guard < post.indexOf('.update({ status: "expired" })'), 'the gate runs before ANY write');
+    assert.ok(!/loadOffer\(supabase, token\)[\s\S]*claimGate\(/.test(post), 'no earlier offer read that could error past it');
+    assert.match(post, /if \(gate\.kind === "error"\) return NextResponse\.json\(\{ state: "error", message: TRY_AGAIN_HE \}, \{ status: 503 \}\);/);
+    assert.match(post, /if \(gate\.kind === "needs_booking"\) \{[\s\S]*?state: "needs_booking", message: NEEDS_BOOKING_HE[^}]*bookUrl:/);
+    assert.match(read('lib/claimGuard.ts'), /async function claimAllowed/);
     assert.match(read('app/claim/[token]/page.tsx'), /state === "needs_booking"/);
     // The same predicate as the public booking route, and the runtime always passes the real policy.
     assert.match(read('app/api/book-appointment/route.js'), /policyAppliesToService\(policy\.mode, svcRow\)/);
@@ -564,6 +567,51 @@ await ok('security: session first, tenant from the session, rate limited, no pho
     const cp = read('app/api/grow/_claimPolicy.ts');
     assert.match(cp, /growUiEnabled\(process\.env, tenantId\)/); assert.match(cp, /activePolicy\(deps, tenantId\)/); assert.match(cp, /return \{ ok: false \}/);
     assert.equal((read('lib/waitlistRuntime.js').match(/policyFor: publicBookingPolicy/g) || []).length, 2, 'every runtime offer reads the real policy');
+  });
+
+  await ok('claim gate: an offer read that errors (once) refuses with "try again" and writes nothing; the guard is never skipped', async () => {
+    // A tiny db: slot_offers read fails the first time only; every write is recorded.
+    const offerRow = { tenant_id: DEP, service: 'מניקור ג׳ל', status: 'sent', slot_date: '2026-10-26', slot_hour: 15, slot_start_minute: 900, expires_at: '2099-01-01', client_name: 'B' };
+    const gateDb = (menu: any[], failOfferReads = 1) => {
+      const writes: string[] = []; let offerReads = 0;
+      const db = {
+        writes,
+        from(t: string) {
+          const q: any = {
+            select: () => q, eq: () => q, gt: () => q, in: () => q,
+            update: () => { writes.push(`update ${t}`); return q; }, insert: () => { writes.push(`insert ${t}`); return q; },
+            maybeSingle: () => {
+              if (t === 'slot_offers') { offerReads++; return Promise.resolve(offerReads <= failOfferReads ? { data: null, error: { message: 'timeout' } } : { data: offerRow, error: null }); }
+              return Promise.resolve({ data: null, error: null });
+            },
+            then: (res: any) => Promise.resolve({ data: t === 'service_prices' ? menu : [], error: null }).then(res),
+          };
+          return q;
+        },
+      };
+      return db;
+    };
+    const depositMenu = [{ name: 'מניקור ג׳ל', requires_deposit: true }];
+    // 1st try: the read errors -> error (try again), nothing written, NOT "proceed".
+    const db = gateDb(depositMenu);
+    const first = await claimGate({ db, token: 'wl' + 'a'.repeat(32), policyFor: async () => depositPolicy } as any);
+    assert.equal(first.kind, 'error'); assert.deepEqual(db.writes, [], 'nothing written');
+    // 2nd try: the read works -> the deposit guard runs and refuses.
+    const second = await claimGate({ db, token: 'wl' + 'a'.repeat(32), policyFor: async () => depositPolicy } as any);
+    assert.equal(second.kind, 'needs_booking'); assert.deepEqual(db.writes, []);
+    // Any status: the guard still runs (a stale or odd status never walks past it).
+    offerRow.status = 'claimed';
+    assert.equal((await claimGate({ db: gateDb(depositMenu, 0), token: 't', policyFor: async () => noPolicy } as any)).kind, 'needs_booking');
+    offerRow.status = 'sent';
+    // Policy read throws -> error-safe: refuse (needs_booking), not proceed.
+    assert.equal((await claimGate({ db: gateDb([{ name: 'מניקור ג׳ל' }], 0), token: 't', policyFor: async () => { throw new Error('x'); } } as any)).kind, 'needs_booking');
+    // A db that throws outright -> error.
+    assert.equal((await claimGate({ db: { from() { throw new Error('boom'); } }, token: 't', policyFor: async () => noPolicy } as any)).kind, 'error');
+    // Not found -> invalid. No-deposit service -> proceed (the normal claim still works).
+    const nf: any = { from: () => { const q: any = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: null, error: null }) }; return q; } };
+    assert.equal((await claimGate({ db: nf, token: 't', policyFor: async () => noPolicy } as any)).kind, 'invalid');
+    const okGate = await claimGate({ db: gateDb([{ name: 'מניקור ג׳ל' }], 0), token: 't', policyFor: async () => noPolicy } as any);
+    assert.equal(okGate.kind, 'proceed');
   });
 }
 

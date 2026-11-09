@@ -17,11 +17,11 @@ import { startMinute, fmtTime } from "@/lib/apptTime";
 import { publicAccent } from "@/lib/branding";
 import { runWaitlistWin } from "@/lib/waitlistRuntime";
 import { publicContactFor } from "@/lib/publicContact";
-import { claimAllowed, NEEDS_BOOKING_HE } from "@/lib/claimGuard";
+import { claimGate, NEEDS_BOOKING_HE, TRY_AGAIN_HE } from "@/lib/claimGuard";
 import { publicBookingPolicy } from "../grow/_claimPolicy";
 
 // PR #39 security review: the claim books CONFIRMED in one tap, so a service the public booking page would book only with her
-// cancellation policy or a deposit (lib/claimGuard.ts, the booking route's own predicate) is refused here (claimAllowed), whoever
+// cancellation policy or a deposit (lib/claimGuard.ts, the booking route's own predicate) is refused here (claimGate), whoever
 // sent the link and whenever. Otherwise an expired, unpaid deposit hold could be claimed as a free confirmed booking. Fails closed:
 // a menu or a policy that cannot be read refuses too. The client is sent to her booking link, which takes the consent and deposit.
 
@@ -104,12 +104,18 @@ export async function POST(request: NextRequest) {
 
   // A link lives 4 hours but a slot does not wait: once its start has passed it cannot be claimed (2026-10-20 audit: a 14:00 slot
   // offered at 11:30 was still bookable at 14:40).
+  // The gate (lib/claimGuard.ts claimGate) runs FIRST and on every path: an offer read that errors is "try again" with nothing
+  // written, and the deposit / policy guard runs on every existing offer. Nothing below is reached unless it says "proceed".
   {
-    const pre = await loadOffer(supabase, token);
-    if (pre && pre.offer.status === "sent" && !(await claimAllowed({ db: supabase, tenantId: pre.offer.tenant_id, service: pre.offer.service, policyFor: publicBookingPolicy }))) {
-      return NextResponse.json({ state: "needs_booking", message: NEEDS_BOOKING_HE, service: pre.offer.service, businessName: pre.businessName, bookUrl: pre.contact.bookUrl, whatsapp: pre.contact.whatsapp });
+    const gate = await claimGate({ db: supabase, token, policyFor: publicBookingPolicy });
+    if (gate.kind === "error") return NextResponse.json({ state: "error", message: TRY_AGAIN_HE }, { status: 503 });
+    if (gate.kind === "invalid") return NextResponse.json({ state: "invalid" });
+    if (gate.kind === "needs_booking") {
+      const loaded = await loadOffer(supabase, token).catch(() => null);
+      return NextResponse.json({ state: "needs_booking", message: NEEDS_BOOKING_HE, service: gate.offer.service, businessName: loaded?.businessName || null, bookUrl: loaded?.contact.bookUrl || null, whatsapp: loaded?.contact.whatsapp || null });
     }
-    if (pre && pre.offer.status === "sent") {
+    const pre = { offer: gate.offer };
+    if (pre.offer.status === "sent") {
       const sm = startMinute({ start_minute: pre.offer.slot_start_minute, hour: pre.offer.slot_hour });
       if (sm !== null && minutesUntilIsrael(String(pre.offer.slot_date), Number(sm)) <= 0) {
         await supabase.from("slot_offers").update({ status: "expired" }).eq("token", token).eq("status", "sent");

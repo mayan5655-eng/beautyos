@@ -37,6 +37,35 @@ export const NEEDS_BOOKING_HE = 'כדי לשמור את התור הזה צריך
 type Db = { from: (t: string) => any };
 type PolicyRead = { ok: true; policy: PolicyLike } | { ok: false };
 
+export const TRY_AGAIN_HE = 'לא הצלחנו לבדוק את התור כרגע. נסי שוב בעוד רגע.';
+
+export type OfferRow = { tenant_id: string; service: string | null; status: string; slot_date: string; slot_hour: number | null; slot_start_minute: number | null; expires_at: string };
+export type GateResult =
+  | { kind: 'proceed'; offer: OfferRow }
+  | { kind: 'invalid' }
+  | { kind: 'error' }
+  | { kind: 'needs_booking'; offer: OfferRow };
+
+/**
+ * Everything /api/claim must know BEFORE it may mark an offer claimed or write an appointment, in one place that cannot be skipped
+ * (Vercel review, PR #39): the offer is read, and a read that ERRORS is "error" (try again, nothing written), never "no offer" and
+ * never "go ahead". Then the deposit / policy guard (claimAllowed) runs on every offer that exists, whatever its status, so no error
+ * branch and no stale status can lead past it. Only "proceed" lets the route continue to the claim update.
+ */
+export async function claimGate({ db, token, policyFor }: { db: Db; token: string; policyFor: (t: string) => Promise<PolicyRead> }): Promise<GateResult> {
+  try {
+    const { data: offer, error } = await db.from('slot_offers')
+      .select('tenant_id, slot_date, slot_hour, slot_start_minute, service, client_name, status, expires_at')
+      .eq('token', token).maybeSingle();
+    if (error) return { kind: 'error' };
+    if (!offer) return { kind: 'invalid' };
+    if (!(await claimAllowed({ db, tenantId: offer.tenant_id, service: offer.service, policyFor }))) return { kind: 'needs_booking', offer };
+    return { kind: 'proceed', offer };
+  } catch {
+    return { kind: 'error' };
+  }
+}
+
 /**
  * The claim link's server-side check, at claim time: false when the service must go through her booking page. Fails closed: a menu
  * or a policy that cannot be read is false. `policyFor` is app/api/grow/_claimPolicy.ts publicBookingPolicy in the route.
