@@ -10,16 +10,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeIsraeliMobile } from './phone.ts'
 import { isDemoTenantId } from './demoTenants.ts'
-import { isProspectStatus, isTreatment, isSource, isMissingProspectsTable } from './prospects.ts'
+import { isProspectStatus, isTreatment, isSource, isChannel, isMissingProspectsTable } from './prospects.ts'
 import type { Prospect } from './prospects.ts'
 
 type Db = SupabaseClient
 
-export const PROSPECT_COLUMNS = 'id, name, phone_e164, instagram, city, treatment, source, notes, status, last_contacted_at, contact_count, created_at'
+export const PROSPECT_COLUMNS = 'id, name, phone_e164, instagram, city, treatment, source, notes, status, last_contacted_at, last_channel, contact_count, created_at'
 
 export type ProspectDbRow = {
   id: string; name: string; phone_e164: string | null; instagram: string | null; city: string | null; treatment: string
-  source: string; notes: string | null; status: string; last_contacted_at: string | null; contact_count: number | null; created_at: string
+  source: string; notes: string | null; status: string; last_contacted_at: string | null; last_channel?: string | null; contact_count: number | null; created_at: string
 }
 
 export function toProspect(r: ProspectDbRow, signedUpPhones: Set<string>): Prospect {
@@ -29,7 +29,7 @@ export function toProspect(r: ProspectDbRow, signedUpPhones: Set<string>): Prosp
     source: isSource(r.source) ? r.source : 'whatsapp',
     notes: r.notes || '',
     status: isProspectStatus(r.status) ? r.status : 'new',
-    lastContactedAt: r.last_contacted_at, contactCount: r.contact_count || 0, createdAt: r.created_at,
+    lastContactedAt: r.last_contacted_at, lastChannel: isChannel(r.last_channel) ? r.last_channel : null, contactCount: r.contact_count || 0, createdAt: r.created_at,
     signedUp: !!r.phone_e164 && signedUpPhones.has(r.phone_e164),
   }
 }

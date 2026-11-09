@@ -52,6 +52,10 @@ export const MIGRATION_NEEDED_HE = `צריך להריץ עדכון קטן לפנ
 
 export const isProspectStatus = (v: unknown): v is ProspectStatus => typeof v === 'string' && (PROSPECT_STATUSES as readonly string[]).includes(v)
 export const isTreatment = (v: unknown): v is Treatment => typeof v === 'string' && (TREATMENTS as readonly string[]).includes(v)
+export const CHANNELS = ['whatsapp', 'instagram'] as const
+export type Channel = (typeof CHANNELS)[number]
+export const CHANNEL_HE: Record<Channel, string> = { whatsapp: 'בוואטסאפ', instagram: 'באינסטגרם' }
+export const isChannel = (v: unknown): v is Channel => typeof v === 'string' && (CHANNELS as readonly string[]).includes(v)
 export const isSource = (v: unknown): v is ProspectSource => typeof v === 'string' && (SOURCES as readonly string[]).includes(v)
 
 /** Declined or asked to stop: never offered again, by law and by decency. */
@@ -83,6 +87,8 @@ export type Prospect = {
   notes: string
   status: ProspectStatus
   lastContactedAt: string | null
+  /** How the last message went out (she sends it herself either way). */
+  lastChannel: Channel | null
   contactCount: number
   createdAt: string
   /** Her phone matches a business that signed up to Kalmea (read-only match, computed on the server). */
@@ -120,12 +126,13 @@ export function cleanProspectInput(raw: Record<string, unknown>): InputResult {
   if (!name) return { ok: false, error: 'חסר שם' }
   const phoneRaw = typeof raw.phone === 'string' ? raw.phone.trim() : ''
   let phone: string | null = null
+  if (phoneRaw.length > 40) return { ok: false, error: 'מספר נייד לא תקין' }
   if (phoneRaw) {
     const p = normalizeIsraeliMobile(phoneRaw)
     if (!p.ok) return { ok: false, error: 'מספר נייד לא תקין' }
     phone = p.e164
   }
-  const igRaw = typeof raw.instagram === 'string' ? raw.instagram.trim() : ''
+  const igRaw = typeof raw.instagram === 'string' ? raw.instagram.trim().slice(0, 200) : ''
   const instagram = cleanInstagram(igRaw)
   if (igRaw && !instagram) return { ok: false, error: 'שם משתמש באינסטגרם לא תקין' }
   if (!phone && !instagram) return { ok: false, error: 'צריך טלפון או אינסטגרם' }
@@ -180,22 +187,53 @@ export function parsePastedProspects(text: string): PasteResult {
   return out
 }
 
-/** Splits new prospects into those to add and those whose phone (or handle) is already on the list or earlier in the batch. */
-export function dedupeAgainst<T extends { phone: string | null; instagram?: string | null }>(
-  incoming: T[], existingPhones: Iterable<string>, existingHandles: Iterable<string> = [],
-): { fresh: T[]; duplicates: T[] } {
-  const phones = new Set(existingPhones)
-  const handles = new Set(existingHandles)
-  const fresh: T[] = []
-  const duplicates: T[] = []
+export type ExistingKey = { id: string; phone: string | null; instagram: string | null }
+export type AddPlan<T> = {
+  /** Nobody on the list (or earlier in the batch) shares her phone or handle: a new row, status "חדשה". */
+  fresh: T[]
+  /** Already on the list: the missing phone / handle is filled into HER EXISTING ROW. Status, notes and history are untouched, so
+   *  whoever declined or asked to stop stays that way and never becomes contactable again. */
+  merges: Array<{ id: string; patch: { phone_e164?: string; instagram?: string }; incoming: T }>
+  /** Already on the list (or twice in the batch) with nothing new to add, or matching two different rows: skipped. */
+  duplicates: T[]
+}
+
+/**
+ * The same person = the same phone OR the same Instagram handle. Matching on either key (not on the phone alone) is what stops
+ * "add her phone" from creating a second, contactable row for someone already listed by handle, perhaps as "ביקשה להפסיק".
+ */
+export function planAdd<T extends { phone: string | null; instagram?: string | null }>(incoming: T[], existing: ExistingKey[]): AddPlan<T> {
+  const byPhone = new Map<string, ExistingKey>()
+  const byHandle = new Map<string, ExistingKey>()
+  for (const e of existing) {
+    if (e.phone) byPhone.set(e.phone, e)
+    if (e.instagram) byHandle.set(e.instagram, e)
+  }
+  const batchPhones = new Set<string>()
+  const batchHandles = new Set<string>()
+  const merged = new Set<string>()
+  const out: AddPlan<T> = { fresh: [], merges: [], duplicates: [] }
   for (const p of incoming) {
     const ig = p.instagram || null
-    if ((p.phone && phones.has(p.phone)) || (!p.phone && ig && handles.has(ig))) { duplicates.push(p); continue }
-    if (p.phone) phones.add(p.phone)
-    if (ig) handles.add(ig)
-    fresh.push(p)
+    const a = p.phone ? byPhone.get(p.phone) : undefined
+    const b = ig ? byHandle.get(ig) : undefined
+    if ((p.phone && batchPhones.has(p.phone)) || (ig && batchHandles.has(ig))) { out.duplicates.push(p); continue }
+    if (p.phone) batchPhones.add(p.phone)
+    if (ig) batchHandles.add(ig)
+    if (!a && !b) { out.fresh.push(p); continue }
+    // Phone matches one row and handle another: two rows already, never merge them by guess.
+    if (a && b && a.id !== b.id) { out.duplicates.push(p); continue }
+    const row = (a || b)!
+    const patch: { phone_e164?: string; instagram?: string } = {}
+    if (!row.phone && p.phone && !byPhone.has(p.phone)) patch.phone_e164 = p.phone
+    if (!row.instagram && ig && !byHandle.has(ig)) patch.instagram = ig
+    if (Object.keys(patch).length === 0 || merged.has(row.id)) { out.duplicates.push(p); continue }
+    merged.add(row.id)
+    if (patch.phone_e164) byPhone.set(patch.phone_e164, row)
+    if (patch.instagram) byHandle.set(patch.instagram, row)
+    out.merges.push({ id: row.id, patch, incoming: p })
   }
-  return { fresh, duplicates }
+  return out
 }
 
 // ── the numbers at the top ────────────────────────────────────────────────────

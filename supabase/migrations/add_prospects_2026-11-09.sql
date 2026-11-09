@@ -35,6 +35,8 @@ create table if not exists public.prospects (
   status             text not null default 'new'
                        check (status in ('new', 'messaged', 'replied', 'trial', 'paying', 'not_interested', 'opted_out')),
   last_contacted_at  timestamptz,
+  -- how the last message went out; she sends it herself from her own phone either way
+  last_channel       text check (last_channel in ('whatsapp', 'instagram')),
   contact_count      integer not null default 0 check (contact_count >= 0),
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
@@ -43,6 +45,8 @@ create table if not exists public.prospects (
 );
 
 create unique index if not exists prospects_phone_key on public.prospects (phone_e164) where phone_e164 is not null;
+-- one row per Instagram handle too: the same person is the same phone OR the same handle (lib/prospects.ts planAdd)
+create unique index if not exists prospects_instagram_key on public.prospects (instagram) where instagram is not null;
 create index if not exists prospects_status_idx on public.prospects (status);
 
 alter table public.prospects enable row level security;

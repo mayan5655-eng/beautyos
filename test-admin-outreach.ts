@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  PROSPECT_STATUSES, TREATMENTS, SOURCES, canSend, statusAfterSend, contactedRecently, parsePastedProspects, dedupeAgainst,
+  PROSPECT_STATUSES, TREATMENTS, SOURCES, canSend, statusAfterSend, contactedRecently, parsePastedProspects, planAdd, isChannel,
   cleanProspectInput, cleanInstagram, firstName, outreachCounts, sentToday, sortProspects, isMissingProspectsTable, DAILY_LIMIT_HE,
   MIGRATION_NEEDED_HE,
 } from './lib/prospects.ts'
@@ -25,7 +25,7 @@ const NOW = new Date('2026-11-09T10:00:00Z')
 const day = (d: number) => new Date(NOW.getTime() - d * 86_400_000).toISOString()
 const p = (id: string, o: Partial<Prospect> = {}): Prospect => ({
   id, name: `שם ${id}`, phone: null, instagram: null, city: null, treatment: 'other', source: 'whatsapp', notes: '', status: 'new',
-  lastContactedAt: null, contactCount: 0, createdAt: day(30), signedUp: false, ...o,
+  lastContactedAt: null, lastChannel: null, contactCount: 0, createdAt: day(30), signedUp: false, ...o,
 })
 
 // ── templates ────────────────────────────────────────────────────────────────
@@ -102,17 +102,48 @@ ok('paste: one per line, any separator, either order; phones normalized; repeats
   assert.deepEqual(r.invalid.map((x) => [x.line, x.error]), [[6, 'מספר נייד לא תקין'], [7, 'לא נמצא מספר טלפון'], [8, 'חסר שם']])
 })
 
-ok('dedupe: a phone already on the list (or earlier in the batch) is skipped; Instagram-only rows dedupe by handle', () => {
+ok('dedupe: the same person is the same phone OR the same handle; a repeat inside the batch is skipped', () => {
+  const existing = [{ id: 'A', phone: '972501234567', instagram: null }, { id: 'B', phone: null, instagram: 'noa.brows' }]
   const incoming = [
-    { name: 'a', phone: '972501234567', instagram: null },
-    { name: 'b', phone: '972521112233', instagram: null },
-    { name: 'c', phone: '972521112233', instagram: null },
-    { name: 'd', phone: null, instagram: 'noa.brows' },
-    { name: 'e', phone: null, instagram: 'new.one' },
+    { name: 'a', phone: '972501234567', instagram: null }, // same phone as A, nothing new
+    { name: 'b', phone: '972521112233', instagram: null }, // new
+    { name: 'c', phone: '972521112233', instagram: null }, // repeat of b in the batch
+    { name: 'd', phone: null, instagram: 'noa.brows' }, // same handle as B, nothing new
+    { name: 'e', phone: null, instagram: 'new.one' }, // new
   ]
-  const { fresh, duplicates } = dedupeAgainst(incoming, ['972501234567'], ['noa.brows'])
-  assert.deepEqual(fresh.map((x) => x.name), ['b', 'e'])
-  assert.deepEqual(duplicates.map((x) => x.name), ['a', 'c', 'd'])
+  const r = planAdd(incoming, existing)
+  assert.deepEqual(r.fresh.map((x) => x.name), ['b', 'e'])
+  assert.deepEqual(r.duplicates.map((x) => x.name), ['a', 'c', 'd'])
+  assert.deepEqual(r.merges, [])
+})
+
+ok('Vercel review #1: adding a phone to someone listed by handle merges into HER row, never a new contactable one', () => {
+  // she is on the list by Instagram only, and asked to stop
+  const existing = [{ id: 'B', phone: null, instagram: 'noa.brows' }]
+  const r = planAdd([{ name: 'נועה', phone: '972541234567', instagram: 'noa.brows' }], existing)
+  assert.equal(r.fresh.length, 0, 'no new row: a new row would be status "new" and contactable again')
+  assert.deepEqual(r.merges.map((m) => [m.id, m.patch]), [['B', { phone_e164: '972541234567' }]])
+  // and the other way: a handle added to someone listed by phone
+  const r2 = planAdd([{ name: 'x', phone: '972501234567', instagram: 'x.handle' }], [{ id: 'A', phone: '972501234567', instagram: null }])
+  assert.deepEqual(r2.merges.map((m) => [m.id, m.patch]), [['A', { instagram: 'x.handle' }]])
+  // a merge never carries a status (or anything but the two keys)
+  for (const m of [...r.merges, ...r2.merges]) for (const k of Object.keys(m.patch)) assert.ok(['phone_e164', 'instagram'].includes(k), k)
+  // phone matches one row, handle another: two people already, never merged by guess and never a third row
+  const r3 = planAdd([{ name: 'y', phone: '972501234567', instagram: 'noa.brows' }], [{ id: 'A', phone: '972501234567', instagram: null }, ...existing])
+  assert.deepEqual([r3.fresh.length, r3.merges.length, r3.duplicates.length], [0, 0, 1])
+  // a phone that already belongs to another row is never copied onto this one
+  const r4 = planAdd([{ name: 'z', phone: '972501234567', instagram: 'noa.brows' }], [{ id: 'A', phone: '972501234567', instagram: 'other' }, { id: 'B', phone: null, instagram: 'noa.brows' }])
+  assert.equal(r4.merges.length, 0)
+})
+
+ok('Vercel review #1, server side: a merge updates only the keys; insert only for fresh rows; one row per handle in SQL too', () => {
+  const route = strip(rd('app/api/admin/prospects/route.ts'))
+  assert.match(route, /planAdd\(valid, \[\.\.\.existing\.values\(\)\]\)/)
+  assert.match(route, /\.update\(\{ \.\.\.m\.patch, updated_at: new Date\(\)\.toISOString\(\) \}\)/)
+  assert.match(route, /\.insert\(fresh\.map/)
+  assert.match(route, /select\(KEY_COLUMNS\)\.in\('phone_e164', phones\)/)
+  assert.match(route, /select\(KEY_COLUMNS\)\.in\('instagram', handles\)/)
+  assert.match(rd('supabase/migrations/add_prospects_2026-11-09.sql'), /unique index if not exists prospects_instagram_key on public\.prospects \(instagram\) where instagram is not null/)
 })
 
 ok('one prospect: Israeli mobile normalized, phone or Instagram required, unknown types fall back', () => {
@@ -186,7 +217,7 @@ ok('the page and the route are gated first with the platform-admin check; non-ad
   assert.doesNotMatch(route, /export async function (GET|PUT|PATCH|DELETE)/)
   const post = route.slice(route.indexOf('export async function POST'))
   assert.ok(post.indexOf('requirePlatformAdmin()') > -1 && post.indexOf('requirePlatformAdmin()') < post.indexOf('createAdminClient()'))
-  assert.ok(post.indexOf('requirePlatformAdmin()') < post.indexOf('request.json()'), 'the body is read only after the check')
+  assert.ok(post.indexOf('requirePlatformAdmin()') < post.indexOf('request.text()'), 'the body is read only after the check')
   assert.match(post, /if \(!admin\.ok\) return notFound\(\)/)
 })
 
@@ -215,6 +246,35 @@ ok('the client only links out and posts to its own route; no server module or te
   for (const f of walk('app').filter((x) => /\.(tsx|jsx)$/.test(x) && /['"]use client['"]/.test(rd(x)))) {
     assert.doesNotMatch(rd(f), /outreach\/loader|prospectsData/, f)
   }
+})
+
+ok('Vercel review #2: an Instagram send can be recorded for anyone sendable, phone or not; the channel is stored', () => {
+  const c = strip(rd('app/dashboard/admin/outreach/OutreachClient.tsx'))
+  const i = c.indexOf('data-testid="mark-instagram-sent"')
+  assert.ok(i > 0)
+  const before = c.slice(Math.max(0, c.lastIndexOf('</button>', i)), i)
+  assert.doesNotMatch(before, /!wa &&/, 'not hidden when a WhatsApp link exists')
+  assert.match(c.slice(i, i + 200), /if \(confirmRecent\(\)\) void save\(\{ action: 'sent', channel: 'instagram' \}\)/)
+  // it lives inside the sendable branch only (the opted-out branch renders no buttons)
+  assert.ok(c.indexOf('available && (sendable ?') < i && i < c.indexOf("'ביקשה להפסיק' : 'לא מעוניינת'"))
+  const route = strip(rd('app/api/admin/prospects/route.ts'))
+  assert.match(route, /const channel = isChannel\(body\.channel\) \? body\.channel : 'whatsapp'/)
+  assert.match(route, /last_channel: channel/)
+  assert.ok(route.indexOf('if (!canSend(status))') < route.indexOf('last_channel: channel'))
+  assert.equal(isChannel('instagram'), true)
+  assert.equal(isChannel('sms'), false)
+  assert.match(rd('supabase/migrations/add_prospects_2026-11-09.sql'), /last_channel\s+text check \(last_channel in \('whatsapp', 'instagram'\)\)/)
+})
+
+ok('security: bounded body read only after the admin check; raw phone length capped; no rows to a non-admin', () => {
+  const route = strip(rd('app/api/admin/prospects/route.ts'))
+  const post = route.slice(route.indexOf('export async function POST'))
+  assert.ok(post.indexOf('requirePlatformAdmin()') < post.indexOf('request.text()'))
+  assert.match(post, /if \(text\.length > BODY_MAX\) return NextResponse\.json\([^)]*\{ status: 413 \}/)
+  assert.doesNotMatch(post, /request\.json\(\)/)
+  assert.deepEqual(cleanProspectInput({ name: 'x', phone: '0'.repeat(41) }), { ok: false, error: 'מספר נייד לא תקין' })
+  // the 404 for a non-admin carries nothing but "Not found"
+  assert.match(route, /function notFound\(\) \{\s*return NextResponse\.json\(\{ error: 'Not found' \}, \{ status: 404 \}\)/)
 })
 
 ok('the admin page and the owner hub link to the screen', () => {

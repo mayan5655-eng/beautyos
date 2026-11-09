@@ -12,13 +12,15 @@
 import { NextResponse } from 'next/server'
 import { requirePlatformAdmin, createAdminClient } from '@/lib/adminGuard'
 import {
-  cleanProspectInput, dedupeAgainst, isProspectStatus, canSend, statusAfterSend, isMissingProspectsTable,
+  cleanProspectInput, planAdd, isProspectStatus, isChannel, canSend, statusAfterSend, isMissingProspectsTable,
   ADD_MAX, NOTES_MAX, MIGRATION_NEEDED_HE, isTreatment,
 } from '@/lib/prospects'
 import type { ProspectInput } from '@/lib/prospects'
 import { PROSPECT_COLUMNS, readSignedUpPhones, toProspect } from '@/lib/prospectsData'
 import type { ProspectDbRow } from '@/lib/prospectsData'
 
+/** The largest request body accepted (characters). */
+const BODY_MAX = 200_000
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function notFound() {
@@ -35,7 +37,12 @@ export async function POST(request: Request) {
   const admin = await requirePlatformAdmin()
   if (!admin.ok) return notFound()
 
-  const body = await request.json().catch(() => ({}))
+  // A bounded body: a paste of ADD_MAX lines is far under this.
+  const text = await request.text().catch(() => '')
+  if (text.length > BODY_MAX) return NextResponse.json({ error: 'הבקשה גדולה מדי' }, { status: 413 })
+  let body: Record<string, unknown> & { prospects?: unknown; status?: unknown; notes?: unknown; treatment?: unknown; channel?: unknown }
+  try { body = text ? JSON.parse(text) : {} } catch { body = {} }
+  if (!body || typeof body !== 'object') body = {}
   const action = body?.action
   const db = createAdminClient()
 
@@ -53,17 +60,28 @@ export async function POST(request: Request) {
     }
     const phones = valid.map((v) => v.phone).filter((p): p is string => !!p)
     const handles = valid.map((v) => v.instagram).filter((h): h is string => !!h)
+    // The same person = the same phone OR the same handle: read every existing row matching either key.
+    const KEY_COLUMNS = 'id, phone_e164, instagram'
     const [byPhone, byHandle] = await Promise.all([
-      phones.length ? db.from('prospects').select('phone_e164').in('phone_e164', phones) : Promise.resolve({ data: [], error: null }),
-      handles.length ? db.from('prospects').select('instagram').in('instagram', handles) : Promise.resolve({ data: [], error: null }),
+      phones.length ? db.from('prospects').select(KEY_COLUMNS).in('phone_e164', phones) : Promise.resolve({ data: [], error: null }),
+      handles.length ? db.from('prospects').select(KEY_COLUMNS).in('instagram', handles) : Promise.resolve({ data: [], error: null }),
     ])
     if (byPhone.error) return dbError(byPhone.error, 'duplicate check')
     if (byHandle.error) return dbError(byHandle.error, 'duplicate check')
-    const { fresh, duplicates } = dedupeAgainst(
-      valid,
-      ((byPhone.data || []) as Array<{ phone_e164: string }>).map((r) => r.phone_e164),
-      ((byHandle.data || []) as Array<{ instagram: string }>).map((r) => r.instagram),
-    )
+    const existing = new Map<string, { id: string; phone: string | null; instagram: string | null }>()
+    for (const r of [...(byPhone.data || []), ...(byHandle.data || [])] as Array<{ id: string; phone_e164: string | null; instagram: string | null }>) {
+      existing.set(r.id, { id: r.id, phone: r.phone_e164, instagram: r.instagram })
+    }
+    const { fresh, merges, duplicates } = planAdd(valid, [...existing.values()])
+    // A merge only fills a missing phone / handle on her existing row. Status, notes and history never change here, so someone
+    // who declined or asked to stop stays exactly that.
+    const updated: ProspectDbRow[] = []
+    for (const m of merges) {
+      const { data, error } = await db.from('prospects').update({ ...m.patch, updated_at: new Date().toISOString() })
+        .eq('id', m.id).select(PROSPECT_COLUMNS).maybeSingle()
+      if (error) return dbError(error, 'merge')
+      if (data) updated.push(data as ProspectDbRow)
+    }
     let added: ProspectDbRow[] = []
     if (fresh.length) {
       const now = new Date().toISOString()
@@ -78,6 +96,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       added: added.map((r) => toProspect(r, signed)),
+      updated: updated.map((r) => toProspect(r, signed)),
       duplicates: duplicates.map((d) => d.name),
       invalid,
     })
@@ -97,7 +116,8 @@ export async function POST(request: Request) {
   if (action === 'sent') {
     // The law and her word: whoever declined or asked to stop is never messaged again.
     if (!canSend(status)) return NextResponse.json({ error: 'היא ביקשה לא לקבל הודעות, אז לא שולחים לה שוב.' }, { status: 409 })
-    patch = { status: statusAfterSend(status), last_contacted_at: now, contact_count: (row.contact_count || 0) + 1, updated_at: now }
+    const channel = isChannel(body.channel) ? body.channel : 'whatsapp'
+    patch = { status: statusAfterSend(status), last_contacted_at: now, last_channel: channel, contact_count: (row.contact_count || 0) + 1, updated_at: now }
   } else if (action === 'update') {
     patch = { updated_at: now }
     if (body.status !== undefined) {

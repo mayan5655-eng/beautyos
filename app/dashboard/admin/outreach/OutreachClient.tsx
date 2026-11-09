@@ -12,7 +12,7 @@ import { useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode, ChangeEvent, FormEvent } from 'react'
 import {
   PROSPECT_STATUSES, PROSPECT_STATUS_HE, TREATMENTS, TREATMENT_HE, SOURCES, SOURCE_HE, DAILY_SOFT_LIMIT, DAILY_LIMIT_HE,
-  MIGRATION_NEEDED_HE, MIGRATION_FILE, NAME_MAX, CITY_MAX, NOTES_MAX, RECENT_DAYS,
+  MIGRATION_NEEDED_HE, MIGRATION_FILE, CHANNEL_HE, NAME_MAX, CITY_MAX, NOTES_MAX, RECENT_DAYS,
   canSend, contactedRecently, outreachCounts, sentToday, parsePastedProspects, sortProspects,
 } from '@/lib/prospects'
 import type { Prospect, ProspectStatus, Treatment, ProspectSource } from '@/lib/prospects'
@@ -91,7 +91,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function AddForm({ onAdded }: { onAdded: (rows: Prospect[], msg: string) => void }) {
+type OnAdded = (added: Prospect[], updated: Prospect[], msg: string) => void
+
+function AddForm({ onAdded }: { onAdded: OnAdded }) {
   const [f, setF] = useState({ name: '', phone: '', instagram: '', city: '', treatment: 'brows' as Treatment, source: 'whatsapp' as ProspectSource, notes: '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
@@ -101,11 +103,13 @@ function AddForm({ onAdded }: { onAdded: (rows: Prospect[], msg: string) => void
     setBusy(true); setErr('')
     const r = await post({ action: 'add', prospects: [f] })
     setBusy(false)
-    const d = r.data as { added?: Prospect[]; duplicates?: string[]; invalid?: Array<{ error: string }>; error?: string }
+    const d = r.data as { added?: Prospect[]; updated?: Prospect[]; duplicates?: string[]; invalid?: Array<{ error: string }>; error?: string }
     if (!r.ok) { setErr(d.error || 'השמירה נכשלה'); return }
     if (d.invalid?.length) { setErr(d.invalid[0].error); return }
-    if (d.duplicates?.length) { setErr('היא כבר ברשימה (אותו מספר או אותו אינסטגרם)'); return }
-    onAdded(d.added || [], `${f.name} נוספה לרשימה`)
+    if (d.updated?.length) {
+      onAdded([], d.updated, `${d.updated[0].name} כבר ברשימה. הוספתי לה את הפרטים החדשים, הסטטוס שלה לא השתנה.`)
+    } else if (d.duplicates?.length) { setErr('היא כבר ברשימה (אותו מספר או אותו אינסטגרם)'); return }
+    else onAdded(d.added || [], [], `${f.name} נוספה לרשימה`)
     setF({ ...f, name: '', phone: '', instagram: '', city: '', notes: '' })
   }
   return (
@@ -129,7 +133,7 @@ function AddForm({ onAdded }: { onAdded: (rows: Prospect[], msg: string) => void
   )
 }
 
-function PasteForm({ onAdded }: { onAdded: (rows: Prospect[], msg: string) => void }) {
+function PasteForm({ onAdded }: { onAdded: OnAdded }) {
   const [text, setText] = useState('')
   const [treatment, setTreatment] = useState<Treatment>('other')
   const [source, setSource] = useState<ProspectSource>('whatsapp')
@@ -141,10 +145,11 @@ function PasteForm({ onAdded }: { onAdded: (rows: Prospect[], msg: string) => vo
     setBusy(true); setErr('')
     const r = await post({ action: 'add', prospects: parsed.rows.map((p) => ({ ...p, treatment, source })) })
     setBusy(false)
-    const d = r.data as { added?: Prospect[]; duplicates?: string[]; error?: string }
+    const d = r.data as { added?: Prospect[]; updated?: Prospect[]; duplicates?: string[]; error?: string }
     if (!r.ok) { setErr(d.error || 'השמירה נכשלה'); return }
     const dup = d.duplicates?.length || 0
-    onAdded(d.added || [], `נוספו ${d.added?.length || 0}${dup ? `, ${dup} כבר היו ברשימה ודילגתי עליהן` : ''}`)
+    const upd = d.updated?.length || 0
+    onAdded(d.added || [], d.updated || [], `נוספו ${d.added?.length || 0}${upd ? `, ל-${upd} שכבר ברשימה נוספו פרטים` : ''}${dup ? `, ${dup} כבר היו ברשימה ודילגתי עליהן` : ''}`)
     setText('')
   }
   return (
@@ -211,7 +216,7 @@ function ProspectCard({ p, now, available, onChange }: { p: Prospect; now: Date;
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px', marginTop: 6, fontSize: 13, color: ink2 }}>
         {p.phone && <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{displayPhone(p.phone)}</span>}
         {p.instagram && <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>@{p.instagram}</span>}
-        <span>{ago ? `פנייה אחרונה: ${ago}` : 'עוד לא פניתי'}</span>
+        <span>{ago ? `פנייה אחרונה: ${ago}${p.lastChannel ? ` ${CHANNEL_HE[p.lastChannel]}` : ''}` : 'עוד לא פניתי'}</span>
       </div>
 
       {sendable && recent && (
@@ -231,9 +236,9 @@ function ProspectCard({ p, now, available, onChange }: { p: Prospect; now: Date;
             {copied ? 'הועתק ✓' : 'העתקה לאינסטגרם'}
           </button>
           {dm && <a href={dm} target="_blank" rel="noopener noreferrer" style={secondary}>פתיחה באינסטגרם</a>}
-          {!wa && (
-            <button type="button" style={secondary} onClick={() => { if (confirmRecent()) void save({ action: 'sent', channel: 'instagram' }) }}>סימון שנשלחה</button>
-          )}
+          {/* Instagram has no prefilled link, so she records the DM herself, phone or no phone. Same rules as WhatsApp. */}
+          <button type="button" style={secondary} data-testid="mark-instagram-sent"
+            onClick={() => { if (confirmRecent()) void save({ action: 'sent', channel: 'instagram' }) }}>סימון שנשלחה באינסטגרם</button>
         </div>
       ) : (
         <p style={{ ...muted, marginTop: 10, color: ink3 }}>{p.status === 'opted_out' ? 'ביקשה להפסיק' : 'לא מעוניינת'}, לא פונים אליה שוב.</p>
@@ -284,8 +289,9 @@ export default function OutreachClient({ rows: initialRows, available, nowIso }:
       || (digits.length >= 3 && (r.phone || '').includes(digits.replace(/^0/, ''))))
   }, [rows, filter, query])
 
-  const onAdded = (added: Prospect[], msg: string) => {
-    setRows((prev) => sortProspects([...prev, ...added]))
+  const onAdded: OnAdded = (added, updated, msg) => {
+    const byId = new Map(updated.map((u) => [u.id, u]))
+    setRows((prev) => sortProspects([...prev.map((r) => byId.get(r.id) || r), ...added]))
     setToast(msg)
     setTimeout(() => setToast(''), 4000)
   }
