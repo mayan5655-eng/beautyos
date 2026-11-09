@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { openGrowWallet, preloadGrowSdk, growSdkLoaded, growWalletVisible } from '@/lib/grow/walletClient';
-import { uaClass, osOf, fallbackDecision, androidIntentUrl, buildDiagPayload, sdkFailureText } from '@/lib/grow/walletDiag';
+import { uaClass, osOf, fallbackDecision, androidIntentUrl, iosSafariUrl, iosChromeUrl, buildDiagPayload, sdkFailureText } from '@/lib/grow/walletDiag';
 import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from '@/lib/paymentTerms';
 import { contrastOn, readableAccentText, DEFAULT_ACCENT } from '@/lib/theme';
 
@@ -215,13 +215,22 @@ export default function PayClient({ token }) {
                 {os === 'android' ? (
                   <a data-testid="pay-open-chrome" href={androidIntentUrl(typeof window !== 'undefined' ? window.location.href : '')} style={{ display: 'block', textAlign: 'center', minHeight: 52, lineHeight: '52px', borderRadius: 'var(--r-sm)', background: accent, color: onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, textDecoration: 'none' }}>פתיחה ב-Chrome</a>
                 ) : (
+                  <>
+                  {os === 'ios' && iosSafariUrl(typeof window !== 'undefined' ? window.location.href : '') && (
+                    <a data-testid="pay-open-safari" href={iosSafariUrl(window.location.href)} style={{ display: 'block', textAlign: 'center', minHeight: 52, lineHeight: '52px', borderRadius: 'var(--r-sm)', background: accent, color: onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, textDecoration: 'none', marginBottom: 12 }}>פתיחה בספארי</a>
+                  )}
+                  {os === 'ios' && iosChromeUrl(typeof window !== 'undefined' ? window.location.href : '') && (
+                    <a data-testid="pay-open-chrome-ios" href={iosChromeUrl(window.location.href)} style={{ display: 'block', textAlign: 'center', margin: '0 0 12px', color: accentText, fontSize: 'var(--t-md)', fontWeight: 700 }}>משתמשת בכרום? פתיחה בכרום</a>
+                  )}
+                  {os === 'ios' && <p style={{ fontSize: 'var(--t-md)', color: '#656A56', margin: '0 0 4px', textAlign: 'center' }}>לא נפתח? כך עושים את זה ידנית:</p>}
                   <ol data-testid="pay-ios-steps" style={{ margin: '0 0 12px', paddingInlineStart: 0, listStyle: 'decimal inside', fontSize: 'var(--t-lg)', lineHeight: 1.9 }}>
                     <li>לוחצים על <b>⋯</b> בפינת המסך</li>
                     <li>בוחרים <b>פתיחה בספארי</b></li>
                     <li>מסמנים את האישור ומשלמים</li>
                   </ol>
+                  </>
                 )}
-                <button type="button" data-testid="pay-copy-link" onClick={copyLink} style={{ width: '100%', minHeight: 48, marginTop: 10, borderRadius: 'var(--r-sm)', border: `1.5px solid ${accent}`, background: os === 'android' ? '#fff' : accent, color: os === 'android' ? accentText : onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
+                <button type="button" data-testid="pay-copy-link" onClick={copyLink} style={{ width: '100%', minHeight: 48, marginTop: 10, borderRadius: 'var(--r-sm)', border: `1.5px solid ${accent}`, background: os === 'android' || os === 'ios' ? '#fff' : accent, color: os === 'android' || os === 'ios' ? accentText : onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
                   {copied ? 'הקישור הועתק. מדביקים אותו בדפדפן 🌸' : 'העתקת הקישור לדפדפן'}
                 </button>
                 <button type="button" data-testid="pay-retry-here" onClick={() => { setPhase('ready'); setCopied(false); }} style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: '#656A56', fontSize: 'var(--t-lg)', textDecoration: 'underline', fontFamily: 'inherit', cursor: 'pointer' }}>לנסות שוב כאן</button>
