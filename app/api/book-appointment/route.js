@@ -296,7 +296,9 @@ export async function POST(request) {
       );
     }
     // Saving the card is its own required tick (Grow's rule): the policy tick is not enough. Refused here, whatever the page sent.
-    if (policy && (policy.mode === "saved_card" || policy.mode === "deposit") && acceptedCardSave !== true) {
+    // A deposit paid on the wallet page keeps no card (no GROW_PAGE_CODE: lib/grow/wallet.ts depositsOnWallet), so there is no card to agree to.
+    const depositKeepsCard = !(policyDeps && policyDeps.depositWallet === true);
+    if (policy && (policy.mode === "saved_card" || (policy.mode === "deposit" && depositKeepsCard)) && acceptedCardSave !== true) {
       return Response.json(
         { success: false, error: "כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי" },
         { status: 400 }

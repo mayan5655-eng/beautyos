@@ -7,6 +7,8 @@ import { randomBytes } from 'node:crypto';
 import { after } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
+import { walletAsCreds } from '@/lib/grow/wallet';
+import { createLiveOps } from '@/lib/grow/ops';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { supabaseCancelRepo, onDepositPaid, onDepositCardToken } from '@/lib/grow/cancelFees';
 import { readCardTokenNotification } from '@/lib/grow/tokenFlow';
@@ -23,7 +25,9 @@ import { VOUCHER_SERVICE_PREFIX } from '@/lib/giftVouchers';
 
 export function cancelDeps(): Deps | null {
   const grow = resolveGrow(process.env, APP_URL);
-  if (!grow.configured || !grow.creds || !grow.ops) return null;
+  // Without the card page code (GROW_PAGE_CODE) the deposit page is the wallet (grow.depositWallet), so the wallet credentials stand in.
+  const creds = grow.creds || (grow.depositWallet ? walletAsCreds(grow.wallet) : null);
+  if (!grow.configured || !creds || !grow.ops) return null;
   const db = admin();
   const growRepo = supabaseGrowRepo(db);
   return {
@@ -33,7 +37,9 @@ export function cancelDeps(): Deps | null {
     // Card tokens are stored sealed (AES-256-GCM with TOKEN_ENCRYPTION_KEY, like the other secrets) and Grow posts the first token to the platform webhook.
     seal: { encrypt: encryptToken, decrypt: decryptToken },
     notifyUrl: `${APP_URL.replace(/\/+$/, '')}/api/grow/webhook`,
-    chargeDeps: { repo: growRepo, creds: grow.creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
+    depositWallet: grow.depositWallet === true,
+    depositRefundOps: grow.depositWallet && grow.wallet ? createLiveOps(grow.wallet) : undefined,
+    chargeDeps: { repo: growRepo, creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   };
 }
 

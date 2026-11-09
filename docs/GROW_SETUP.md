@@ -9,7 +9,7 @@ below exist, `GROW_MODE=live` is set and a cosmetician opts in. Nothing here was
 |---|---|
 | `GROW_UI_ENABLED` | `true` shows every Grow screen and enables the signed-in Grow routes. **Default off** (everything answers {success:false, hidden:true} and renders nothing). The callback routes Grow itself calls are never behind it: a real payment is always recorded. |
 | `GROW_MODE` | `mock` (default): no network; the payment page is `/api/grow/mock-pay` on our own origin with "paid" / "failed" buttons, and it feeds the same callback logic as the real thing, including a sample receipt. `live`: the real API. Mock is **refused on the Vercel production deployment** (`VERCEL_ENV=production`). |
-| `GROW_API_KEY`, `GROW_PAGE_CODE` | Live only. The platform `apiKey` (sent as `x-api-key`) and the card payment-page code. |
+| `GROW_API_KEY`, `GROW_PAGE_CODE` | Live only. The platform `apiKey` (sent as `x-api-key`) and the card payment-page code. `GROW_PAGE_CODE` is optional: without it every client payment, booking deposits included, uses the wallet page (`GROW_WALLET_PAGE_CODE`, `/pay/<token>`). |
 | `GROW_ENV`, `GROW_API_BASE` | Live only. `production` needs `GROW_API_BASE` (given by Grow, not in the public docs). The sandbox default is `https://sandbox.meshulam.co.il/api/light/server/1.0`. |
 | `GROW_WEBHOOK_IPS`, `GROW_WEBHOOK_IP_CHECK` | Optional. Addresses ADDED to Grow's published webhook IP list (comma-separated); the check can only be relaxed outside production. |
 
@@ -131,7 +131,7 @@ Built in mock mode, ready to switch to the real API. Source for every call: deve
 
 | Variable | Method |
 |---|---|
-| `GROW_PAGE_CODE` | credit card, or Grow's generic "card or Bit" page (required) |
+| `GROW_PAGE_CODE` | credit card, or Grow's generic "card or Bit" page (optional when `GROW_WALLET_PAGE_CODE` is set: the wallet then serves every payment) |
 | `GROW_PAGE_CODE_BIT` | Bit (up to ₪5,000, one payment: refused before asking) |
 | `GROW_PAGE_CODE_APPLE_PAY` | Apple Pay |
 | `GROW_PAGE_CODE_GOOGLE_PAY` | Google Pay (Chrome on Android only) |

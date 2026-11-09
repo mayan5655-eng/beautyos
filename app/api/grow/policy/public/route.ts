@@ -27,10 +27,14 @@ export async function GET(request: Request) {
       db.from('grow_cancel_policies').select('policy').eq('tenant_id', t).maybeSingle(),
     ]);
     if (acc.error || !acc.data || acc.data.enabled !== true) return off();
-    const card = resolveGrow(process.env, APP_URL).configured;
+    const grow = resolveGrow(process.env, APP_URL);
+    const card = grow.configured;
+    // Whether this policy keeps the client's card, so the page asks for the card-save tick only then: a deposit paid on the wallet page
+    // (no GROW_PAGE_CODE, lib/grow/wallet.ts depositsOnWallet) keeps none.
+    const cardSave = (mode: string) => mode === 'saved_card' || (mode === 'deposit' && grow.depositWallet !== true);
     const p = row.error || !row.data ? null : sanitizePolicy(row.data.policy);
     if (!p || p.mode === 'off') return card ? answer({ mode: 'off', card }) : off();
-    return answer({ mode: p.mode, text: p.text, windowHours: p.windowHours, lateFee: p.lateFee, noShowFee: p.noShowFee, deposit: p.deposit, timelyCancel: p.timelyCancel, card });
+    return answer({ mode: p.mode, text: p.text, windowHours: p.windowHours, lateFee: p.lateFee, noShowFee: p.noShowFee, deposit: p.deposit, timelyCancel: p.timelyCancel, card, cardSave: cardSave(p.mode) });
   } catch {
     return off();
   }
