@@ -12,6 +12,10 @@ import { supabaseBillingRepo } from './lib/billing/repo.ts';
 import { createMockAdapters } from './lib/billing/adapter.ts';
 import type { PaymentsAdapter, ChargeInput, ChargeResult, LookupResult } from './lib/billing/adapter.ts';
 
+// moneyAlert only logs (never writes to a database) off Vercel; this file asserts on that log line, so it runs as off Vercel under
+// VERCEL=1 npm test too (the same as test-money-hardening-2026-11-03.ts).
+delete process.env.VERCEL;
+
 let n = 0;
 const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
 
