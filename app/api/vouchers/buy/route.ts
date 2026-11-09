@@ -82,6 +82,7 @@ export async function POST(request: Request) {
       appointmentId: null,
       wallet: !!grow.wallet,
       returnUrl: `${APP_URL.replace(/\/+$/, '')}/v/${token}?b=1`,
+      origin: 'gift_voucher',
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );

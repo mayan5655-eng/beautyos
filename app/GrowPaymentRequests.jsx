@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { METHOD_LABEL_HE, methodProblem } from '@/lib/grow/methods';
 import { isPaymentRequest, isDepositRequest, REQUEST_STATUS_HE } from '@/lib/grow/paymentRequest';
+import { originLabelHe } from '@/lib/grow/paymentOrigin';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 
@@ -18,6 +19,7 @@ export default function GrowPaymentRequests({ clients, pc, pcTint, toast }) {
   const [q, setQ] = useState('');
   const [form, setForm] = useState({ clientId: '', amount: '', kind: 'deposit', method: 'card', note: '' });
   const [made, setMade] = useState(null); // { url, waLink, message }
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -29,6 +31,8 @@ export default function GrowPaymentRequests({ clients, pc, pcTint, toast }) {
   useEffect(() => { load(); }, [load]);
 
   const requests = useMemo(() => (s?.payments || []).filter((p) => isPaymentRequest(p.description)).slice(0, 8), [s]);
+  // Every recent Grow payment, whatever page opened it (booking page, voucher, till link...), each with where it came from.
+  const recent = useMemo(() => (s?.payments || []).slice(0, 10), [s]);
   const waiting = requests.some((p) => p.status === 'created');
   // While a request waits for its client, look again every 15 seconds so "שולמה" appears without a reload.
   useEffect(() => {
@@ -145,6 +149,33 @@ export default function GrowPaymentRequests({ clients, pc, pcTint, toast }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {recent.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <button type="button" data-testid="grow-recent-toggle" aria-expanded={showAll} style={{ ...btn, minHeight: 36, padding: '6px 12px' }} onClick={() => setShowAll((v) => !v)}>
+            {showAll ? 'הסתרת התשלומים האחרונים' : 'כל התשלומים האחרונים ב-Grow'}
+          </button>
+          {showAll && (
+            <div data-testid="grow-recent" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {recent.map((p) => {
+                const origin = originLabelHe(p);
+                return (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
+                    <span>
+                      {p.client_name || 'לקוחה'} · {money(p.amount)}
+                      {origin && <span data-testid="grow-origin" style={{ display: 'block', fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{origin}</span>}
+                    </span>
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <b style={{ color: p.status === 'paid' ? 'var(--success)' : 'var(--ink-3)' }}>{REQUEST_STATUS_HE[p.status] || p.status}</b>
+                      {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>מסמך Grow</a>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
