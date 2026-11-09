@@ -13,7 +13,7 @@ import { createMockAdapters } from './lib/billing/adapter.ts';
 import type { PaymentsAdapter, ChargeInput, ChargeResult, LookupResult } from './lib/billing/adapter.ts';
 
 // moneyAlert only logs (never writes to a database) off Vercel; this file asserts on that log line, so it runs as off Vercel under
-// VERCEL=1 npm test too (the same as test-money-hardening-2026-11-03.ts).
+// VERCEL=1 npm test too (the same as test-money-hardening-2026-11-03.ts). Vercel's build runs npm test with VERCEL=1.
 delete process.env.VERCEL;
 
 let n = 0;
