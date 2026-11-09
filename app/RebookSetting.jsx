@@ -1,6 +1,6 @@
 "use client";
 // Settings > הודעות: "תזכורת לקבוע את התור הבא" (lib/reminders/rebookPlan.js). Her switch lives in automations.rebook_enabled (the
-// settings JSON, no migration): ON unless she turned it off. The platform flag (automations.feature_flags.rebook_nudges === false)
+// settings JSON, no migration): OFF unless she turns it on. The platform flag (automations.feature_flags.rebook_nudges === false)
 // hides the whole row. Under the switch, "מי תקבל תזכורת היום": the same rules as the daily run, read from /api/rebook/today,
 // so she sees who is going to get one before it goes. Read only: nothing here sends anything.
 import { useState } from "react";
@@ -13,7 +13,7 @@ export default function RebookSetting({ autos, setAutos, pc, Row }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState({ status: "idle", data: null });
   if (flags.rebook_nudges === false) return null;
-  const on = autos.rebook_enabled !== false;
+  const on = autos.rebook_enabled === true;
 
   const load = async () => {
     setState({ status: "loading", data: null });
@@ -30,7 +30,7 @@ export default function RebookSetting({ autos, setAutos, pc, Row }) {
   return (
     <div data-testid="rebook-setting">
       <Row pc={pc} label="תזכורת לקבוע את התור הבא" on={on} onChange={() => setAutos({ ...autos, rebook_enabled: !on })}
-        desc="ללקוחה שאין לה תור עתידי, כשמגיע הזמן לטיפול הבא: לפי מה שהגדרת לכל שירות (״להזכיר לחזור אחרי״ בשירותים), ואם לא הגדרת, לפי הקצב שלה או לפי סוג הטיפול (למשל 3 שבועות אחרי לק ג׳ל). מכינה הודעה חמה עם הקישור לקביעת תור. רק ללקוחות שהסכימו לקבל הודעות, ולא יותר מפעם ב-3 שבועות לכל לקוחה." />
+        desc="ללקוחה שאין לה תור עתידי, כשמגיע הזמן לטיפול הבא: לפי מה שהגדרת לכל שירות (״להזכיר לחזור אחרי״ בשירותים), ואם לא הגדרת, לפי הקצב שלה או לפי סוג הטיפול (למשל 3 שבועות אחרי לק ג׳ל). מכינה הודעה חמה עם הקישור לקביעת תור. רק ללקוחות שהסכימו לקבל הודעות, ולא יותר מפעם ב-3 שבועות לכל לקוחה. כבוי כברירת מחדל." />
       {on && (
         <div style={{ marginTop: -4, marginBottom: 12 }}>
           <button type="button" data-testid="rebook-today-toggle" onClick={toggleList} aria-expanded={open}

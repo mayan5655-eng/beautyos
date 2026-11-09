@@ -1,5 +1,5 @@
 // The two newer smart-reminder passes through the REAL engine (lib/reminders/smartReminders.js):
-//   rebook            - on unless she turned it off, never to a booked client, consent required
+//   rebook            - opt-in only, never to a booked client, consent required
 //   package_expiring  - two weeks before a package with sessions left runs out
 // In-memory database and a stub sender, as in test-smart-reminders.js. Nothing here reaches anyone.
 import assert from 'node:assert/strict';
@@ -29,8 +29,7 @@ const client = (id: string, tenant: string, extra = {}) => ({ id, name: `לקו�
 function world(rebookEnabled: boolean) {
   return {
     settings: [
-      // ON by default since 2026-11-09 (lib/reminders/rebookPlan.js rebookOn): only her explicit false turns it off.
-      { tenant_id: 'T', business_name: 'סטודיו', business_fields: ['nails'], automations: rebookEnabled ? {} : { rebook_enabled: false } },
+      { tenant_id: 'T', business_name: 'סטודיו', business_fields: ['nails'], automations: rebookEnabled ? { rebook_enabled: true } : {} },
     ],
     clients: [client('a', 'T'), client('b', 'T'), client('c', 'T', { marketing_consent: false }), client('p', 'T')],
     appointments: [
@@ -59,7 +58,7 @@ function sender() {
   return { calls, send: async (phone: string, message: string, opts: any) => { calls.push({ phone, message, ...opts }); return { ok: false, queued: true }; } };
 }
 
-// Her explicit "off": no rebook message at all.
+// Off by default: no rebook message at all.
 {
   const s = sender();
   await runSmartReminders({ db: makeDb(world(false)), send: s.send, now } as any);

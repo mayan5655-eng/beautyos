@@ -54,6 +54,7 @@ import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
 import { bufferLookup, businessBufferDefault, cleanBufferMinutes, bufferedRange, clashesWithBuffer, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
 import { suggestedRebookDays, cleanRebookDays, rebookVisible } from "@/lib/reminders/rebookPlan.js";
 import { waitlistOffersOn, waitlistOffersVisible, waitlistOfferToast } from "@/lib/waitlistFlag.js";
+import { DISMISS_KEY as SUGGEST_DISMISS_KEY } from "@/lib/automationSuggest.js";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
@@ -116,6 +117,7 @@ const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
 const RebookSetting = dynamic(() => import("./RebookSetting"), { ssr: false });
 const WaitlistActivity = dynamic(() => import("./WaitlistActivity"), { ssr: false });
+const AutomationSuggestCard = dynamic(() => import("./AutomationSuggestCard"), { ssr: false });
 const GrowChargePanel = dynamic(() => import("./GrowChargePanel"), { ssr: false });
 const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: false });
 // Gift vouchers (lib/giftVouchers.ts): the cashier list and sale, the till redemption, the settings. Each renders nothing unless the
@@ -4067,7 +4069,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         }
         // Smart waitlist: with her switch on (Settings > הודעות), the people waiting for this treatment whom the slot fits get one offer.
         // The server re-checks that the appointment is still cancelled, so the undo above always wins.
-        // On unless she (or the platform flag) turned it off (lib/waitlistFlag.js). What happened is shown in one line
+        // Only when she turned it on, and the platform flag allows it (lib/waitlistFlag.js). What happened is shown in one line
         // (waitlistOfferToast): who it was offered to, or that it waits for the morning; nothing when nobody fits.
         if (waitlistOffersOn(settings) && appt.kind !== "personal") {
           setTimeout(async () => {
@@ -9176,6 +9178,11 @@ ${MARKETING_FOOTER}`)}`;
  {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads==="loading"||deferred.history==="loading"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0} noHistory={historyReady&&appointments.length===0}
               pc={pc} pcTint={pcTint} style={{order:1}}
               onRemind={handleSendConfirmation} onPay={handleOpenCashier} onNewAppt={openNewAppt} onOpen={handleApptClick}/>}
+ {/* Two opt-in automations, offered once with the exact client message (lib/automationSuggest.js). "להפעיל" stores her own switch as true;
+     "לא עכשיו" hides the question for good. Nothing turns on and nothing is sent without her tap. */}
+ <AutomationSuggestCard settings={settings} services={services} style={{order:1}}
+              onEnable={async (key)=>{ const ok = await saveAutomationsKey(key, true); if (ok) toast(key==="waitlist_offers"?"הופעל: תורים שהתפנו יוצעו לרשימת ההמתנה":"הופעל: תזכורת לטיפול הבא"); }}
+              onDismiss={(key)=>{ const a=(settings.automations&&typeof settings.automations==="object")?settings.automations:{}; const cur=(a[SUGGEST_DISMISS_KEY]&&typeof a[SUGGEST_DISMISS_KEY]==="object")?a[SUGGEST_DISMISS_KEY]:{}; saveAutomationsKey(SUGGEST_DISMISS_KEY,{...cur,[key]:true}); }}/>
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number
                 itself is not new data: todayTotals is the exact computation
                 the Insights tab's own "היום" card already uses (lib/till's

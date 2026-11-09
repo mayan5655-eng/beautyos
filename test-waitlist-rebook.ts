@@ -1,7 +1,7 @@
 // Smart waitlist + rebook nudges (2026-11-09). Offline: fake databases and fake senders; nothing real is ever sent.
-//   waitlist: on by default behind a platform flag and her switch; compatible (shorter) treatments; "any treatment" entries;
+//   waitlist: OFF by default (opt-in: her switch true), never while the platform flag is false; compatible (shorter) treatments; "any treatment" entries;
 //             the toast she sees after cancelling; the "what happened" history; a deposit hold that ran out is offered too.
-//   rebook:   per-service "return after N days" (with name-based suggestions), no future booking, once per visit, a cooldown,
+//   rebook:   opt-in the same way; per-service "return after N days" (with name-based suggestions), no future booking, once per visit, a cooldown,
 //             consent; the daily engine and the "who gets a reminder today" list agree.
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -15,19 +15,21 @@ import {
 } from './lib/reminders/rebookPlan.js';
 import { runSmartReminders } from './lib/reminders/smartReminders.js';
 import { canMarket } from './lib/marketingConsent.js';
+import { automationSuggestions } from './lib/automationSuggest.js';
+import { offerMessage } from './lib/waitlistText.js';
 
 let n = 0;
 const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
 const read = (p: string) => readFileSync(p, 'utf8');
 
 // ── the switch ──────────────────────────────────────────────────────────────
-await ok('waitlist offers: on by default, off by her false or the platform flag', () => {
-  assert.equal(waitlistOffersOn({}), true);
-  assert.equal(waitlistOffersOn(null), true);
-  assert.equal(waitlistOffersOn({ automations: { waitlist_offers: false } }), false);
-  assert.equal(waitlistOffersOn({ automations: { waitlist_offers: 'false' } }), true, 'only a literal false');
-  assert.equal(waitlistOffersOn({ automations: { feature_flags: { waitlist_offers: false } } }), false);
-  assert.equal(waitlistOffersOn({ feature_flags: { waitlist_offers: false } }), false, 'the dedicated column too');
+await ok('waitlist offers: off by default, on only by her literal true, never with the platform flag off', () => {
+  assert.equal(waitlistOffersOn({}), false);
+  assert.equal(waitlistOffersOn(null), false);
+  assert.equal(waitlistOffersOn({ automations: { waitlist_offers: 'true' } }), false, 'only a literal true');
+  assert.equal(waitlistOffersOn({ automations: { waitlist_offers: true } }), true);
+  assert.equal(waitlistOffersOn({ automations: { waitlist_offers: true, feature_flags: { waitlist_offers: false } } }), false);
+  assert.equal(waitlistOffersOn({ automations: { waitlist_offers: true }, feature_flags: { waitlist_offers: false } }), false, 'the dedicated column too');
   assert.equal(waitlistOffersVisible({ automations: { waitlist_offers: false } }), true, 'her off still shows the switch');
   assert.equal(waitlistOffersVisible({ automations: { feature_flags: { waitlist_offers: false } } }), false);
 });
@@ -73,7 +75,7 @@ const appt = { id: 'a1', date: '2026-10-26', start_minute: 14 * 60, duration: 60
 const waiter = (id: string, name: string, phone: string, service: string | null, extra: any = {}) => ({ id, tenant_id: T, status: 'waiting', client_name: name, phone, service, created_at: `2026-10-0${id}T10:00:00Z`, ...extra });
 function wlWorld(over: any = {}) {
   return makeDb({
-    settings: [{ tenant_id: T, business_name: 'סטודיו נועה', automations: over.automations ?? {} }],
+    settings: [{ tenant_id: T, business_name: 'סטודיו נועה', automations: over.automations ?? { waitlist_offers: true } }],
     appointments: [{ tenant_id: T, date: '2026-10-26', start_minute: 14 * 60, duration: 60, confirmation_status: 'cancelled' }],
     service_prices: [
       { tenant_id: T, name: 'טיפול פנים', duration: 60, active: true },
@@ -122,7 +124,7 @@ await ok('compatible treatments: shorter ones that fit with their buffer, active
   assert.deepEqual(chosen.map((c: any) => c.id), ['y', 'x'], 'exact treatment first, then compatible');
 });
 
-await ok('a freed slot is offered by default, exact first, compatible ones with their own treatment', async () => {
+await ok('with her switch on, a freed slot is offered, exact first, compatible ones with their own treatment', async () => {
   const db = wlWorld(); const h = harness(db);
   const r: any = await offerFreedSlot(h.args);
   assert.equal(r.status, 'offered');
@@ -138,8 +140,8 @@ await ok('a freed slot is offered by default, exact first, compatible ones with 
   assert.ok(!h.sent.some((s) => s.phone === '0500000023' || s.phone === '0500000024'));
 });
 
-await ok('her off, or the platform flag off: nothing read, nothing sent', async () => {
-  for (const automations of [{ waitlist_offers: false }, { feature_flags: { waitlist_offers: false } }]) {
+await ok('never switched on, switched off, or the platform flag off: nothing read, nothing sent', async () => {
+  for (const automations of [{}, { waitlist_offers: false }, { waitlist_offers: true, feature_flags: { waitlist_offers: false } }]) {
     const h = harness(wlWorld({ automations }));
     assert.equal((await offerFreedSlot(h.args)).status, 'off'); assert.equal(h.sent.length, 0);
   }
@@ -212,7 +214,7 @@ await ok('every way a slot frees reaches the offer', () => {
   assert.match(read('app/api/availability/route.ts'), /releaseExpiredHolds\(deps, tenantId, offerFreedHold\)/);
   assert.match(read('app/api/book-appointment/route.js'), /releaseExpiredHolds\(policyDeps, activeTenantId, offerFreedHold\)/);
   const app = read('app/beautyos.jsx');
-  assert.match(app, /if \(waitlistOffersOn\(settings\) && appt\.kind !== "personal"\)/, 'her own cancel, on by default');
+  assert.match(app, /if \(waitlistOffersOn\(settings\) && appt\.kind !== "personal"\)/, 'her own cancel, when she turned it on');
   assert.match(app, /waitlistOfferToast\(j\)/, 'and she is told what happened');
   assert.ok(!/automations\?\.waitlist_offers === true/.test(app), 'no opt-in check left behind');
   assert.match(read('lib/cancelNotify.js'), /autoOffer: waitlistOffersOn\(settingsRow\)/);
@@ -221,11 +223,12 @@ await ok('every way a slot frees reaches the offer', () => {
 });
 
 // ── rebook: the per-service number ──────────────────────────────────────────
-await ok('rebook: on by default, her false or the platform flag turns it off', () => {
-  assert.equal(rebookOn({}), true);
+await ok('rebook: off by default, on only by her literal true, never with the platform flag off', () => {
+  assert.equal(rebookOn({}), false);
+  assert.equal(rebookOn({ automations: { rebook_enabled: 'true' } }), false);
   assert.equal(rebookOn({ automations: { rebook_enabled: false } }), false);
   assert.equal(rebookOn({ automations: { rebook_enabled: true } }), true);
-  assert.equal(rebookOn({ automations: { feature_flags: { rebook_nudges: false } } }), false);
+  assert.equal(rebookOn({ automations: { rebook_enabled: true, feature_flags: { rebook_nudges: false } } }), false);
   assert.equal(rebookVisible({ automations: { rebook_enabled: false } }), true);
   assert.equal(rebookVisible({ feature_flags: { rebook_nudges: false } }), false);
 });
@@ -308,7 +311,7 @@ await ok('the nudge text: her voice, her link, the opt-out line, no em dash', ()
 });
 
 // ── the engine and the list agree ───────────────────────────────────────────
-function rbWorld(automations: any = {}) {
+function rbWorld(automations: any = { rebook_enabled: true }) {
   const client = (id: string, extra: any = {}) => ({ id, tenant_id: RT, name: `לקוחה ${id}`, phone: `05000001${id.charCodeAt(0)}`, marketing_consent: true, ...extra });
   return {
     settings: [{ tenant_id: RT, business_name: 'סטודיו', business_fields: ['nails'], automations }],
@@ -335,10 +338,12 @@ await ok('the daily engine: per service, consent, logged with the new key, then 
   const s2 = sender();
   await runSmartReminders({ db: makeDb(w as any), send: s2.send, now: new Date('2026-11-10T10:00:00Z') } as any);
   assert.deepEqual(s2.calls.filter((c) => c.type === 'auto_rebook').map((c) => c.name), ['לקוחה b']);
-  // Her switch off: nothing at all.
-  const s3 = sender();
-  await runSmartReminders({ db: makeDb(rbWorld({ rebook_enabled: false }) as any), send: s3.send, now } as any);
-  assert.equal(s3.calls.filter((c) => c.type === 'auto_rebook').length, 0);
+  // Never switched on, or switched off: nothing at all.
+  for (const automations of [{}, { rebook_enabled: false }]) {
+    const s3 = sender();
+    await runSmartReminders({ db: makeDb(rbWorld(automations) as any), send: s3.send, now } as any);
+    assert.equal(s3.calls.filter((c) => c.type === 'auto_rebook').length, 0);
+  }
 });
 
 await ok('"who gets a reminder today" is the same list, with the reasons', () => {
@@ -374,6 +379,28 @@ await ok('settings, services and the migration', () => {
     const src = read(f).split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
     assert.ok(!src.includes('—'), `no em dash in ${f}`);
   }
+});
+
+await ok('the suggestion card: only for a switch never stored, with the exact message, dismissible', () => {
+  const settings = { tenant_id: 'tid', business_name: 'סטודיו נועה', automations: {} };
+  const now = new Date('2026-11-09T10:00:00Z');
+  const items = automationSuggestions(settings, { services: [{ name: 'עיצוב גבות', active: true }], origin: 'https://app.example', now });
+  assert.deepEqual(items.map((i: any) => i.switchKey), ['waitlist_offers', 'rebook_enabled']);
+  assert.equal(items[0].question, 'להציע אוטומטית תורים שהתפנו לרשימת ההמתנה?');
+  assert.equal(items[1].question, 'לשלוח ללקוחות תזכורת כשמגיע הזמן לטיפול הבא?');
+  // The preview IS the message the feature sends.
+  assert.equal(items[0].preview, offerMessage({ name: 'רונית', clinic: 'סטודיו נועה', service: 'עיצוב גבות', date: '2026-11-12', minute: 840, url: 'https://app.example/claim/…' }));
+  assert.equal(items[1].preview, rebookText({ name: 'רונית', businessName: 'סטודיו נועה', service: 'עיצוב גבות', daysSince: 21, url: 'https://app.example/book?t=tid' }));
+  const keys = (automations: any, extra: any = {}) => automationSuggestions({ ...extra, automations }, { now }).map((i: any) => i.key);
+  assert.deepEqual(keys({ waitlist_offers: true }), ['rebook'], 'already on: not asked');
+  assert.deepEqual(keys({ waitlist_offers: false, rebook_enabled: false }), [], 'she turned them off in Settings: not asked again');
+  assert.deepEqual(keys({ automation_suggest_dismissed: { waitlist: true } }), ['rebook'], 'לא עכשיו hides it for good');
+  assert.deepEqual(keys({ feature_flags: { waitlist_offers: false, rebook_nudges: false } }), [], 'platform flag off: no card');
+  for (const i of items) { assert.ok(!(i.question + i.body + i.preview).includes('—'), 'no em dash'); }
+  const app = read('app/beautyos.jsx');
+  assert.match(app, /<AutomationSuggestCard settings=\{settings\}/);
+  assert.match(app, /saveAutomationsKey\(key, true\)/, 'one tap stores her switch as true');
+  assert.match(read('app/AutomationSuggestCard.jsx'), /להפעיל/);
 });
 
 console.log(`waitlist + rebook: ${n} ok`);
