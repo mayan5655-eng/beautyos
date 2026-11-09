@@ -53,8 +53,10 @@ and go nowhere else (never in code, chat or the repository).
 
 1. `GROW_API_KEY`: the platform API key.
 2. `GROW_WALLET_PAGE_CODE`: the wallet page code (card, Bit, Apple Pay, Google Pay on one page).
-3. `GROW_PAGE_CODE`: set it to the **wallet page code** (the same value as `GROW_WALLET_PAGE_CODE`) unless Grow issued a separate
-   card page code; then use that. The platform's card status (`lib/grow/config.ts`) counts as configured only when this is set.
+3. `GROW_PAGE_CODE`: the **card (redirect) payment-page code**. This is NOT the wallet page code: booking deposits and other
+   redirect payments need a page that answers with a URL, and the wallet page answers with an SDK authCode, so a wallet code here
+   makes those payments fail. Ask Grow for the live card page code if it was not sent. The platform's card status
+   (`lib/grow/config.ts`) counts as configured only when this is set.
 4. `GROW_TOKEN_API_KEY`: the saved-card (token) API key.
 5. `GROW_TOKEN_PAGE_CODE`: the credit-card token page code.
 6. `GROW_ENV` = `production` (Grow's secure base `https://secure.meshulam.co.il`, and the wallet SDK in `PRODUCTION`).
