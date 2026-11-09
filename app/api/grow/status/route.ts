@@ -10,7 +10,7 @@
 //   methods   ['card', 'bit', ...]  the ways a client can pay on this deployment (lib/grow/methods.ts)
 //   registrationAvailable           the registration link can be opened here (live when GROW_REGISTER_API_KEY_TEST/_LIVE is set, else the mock)
 //   registrationFrame               the one Grow origin whose form may be shown inside the card, or null (then: SMS / new tab)
-//   payments  her last 20 Grow payments (status, amount, receipt link) - read through her session, so RLS applies
+//   payments  her last 20 Grow payments (status, amount, receipt link, kind and origin when those columns exist)
 //   tableReady false while add_grow_payments.sql has not been run
 import { NextResponse } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
@@ -20,6 +20,7 @@ import { availableMethods } from '@/lib/grow/methods';
 import { registrationOps } from '@/lib/grow/registration';
 import { growRegisterFrameOrigin } from '@/lib/securityHeaders';
 import { admin, caller, tableMissing } from '../_shared';
+import { isMissingColumnError } from '@/lib/pgError';
 
 export async function GET() {
   const c = await caller();
@@ -65,8 +66,10 @@ export async function GET() {
   }
   const COLS = 'id, status, amount, client_name, description, invoice_url, receipt_id, paid_at, created_at, error';
   const read = (cols: string) => admin().from('grow_payments').select(cols).eq('tenant_id', c.tenantId).order('created_at', { ascending: false }).limit(20);
-  // kind (charge / deposit / fee) is a column of add_grow_cancellation.sql: without it the list still loads.
-  let pay = await read(`${COLS}, kind`);
+  // kind (charge / deposit / fee) is a column of add_grow_cancellation.sql, origin (which page opened it) of
+  // add_grow_payment_origin_2026-11-09.sql: without either the list still loads, and the panel infers the origin (lib/grow/paymentOrigin.ts).
+  let pay = await read(`${COLS}, kind, origin`);
+  if (pay.error && isMissingColumnError(pay.error)) pay = await read(`${COLS}, kind`);
   if (pay.error) pay = await read(COLS);
   if (!pay.error) out.payments = pay.data || [];
   return NextResponse.json(out);

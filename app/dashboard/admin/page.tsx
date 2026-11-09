@@ -25,6 +25,7 @@ import AdminClient, { type AdminTenantRow } from './AdminClient'
 import OpsEvents from './OpsEvents'
 import SystemHealth from './SystemHealth'
 import GrowOnboarding from './GrowOnboarding'
+import GrowUnmatched from './GrowUnmatched'
 import GrowRequests from './GrowRequests'
 import BillingAdmin from './BillingAdmin'
 import ReferralsAdmin from './ReferralsAdmin'
@@ -156,6 +157,8 @@ export default async function AdminPage() {
       <OpsEvents db={db} />
       {/* Grow merchant-onboarding updates from /api/grow/webhook: read-only, masked ids. */}
       <GrowOnboarding db={db} />
+      {/* The unmatched ones, each attachable to a business picked by search (/api/admin/grow-onboarding). */}
+      <GrowUnmatched db={db} />
       <GrowRequests db={db} />
       <BillingAdmin db={db} />
       {/* "חברה מביאה חברה": renders nothing while NEXT_PUBLIC_REFERRALS is off. */}

@@ -3,10 +3,18 @@
 // SERVER ONLY. The service-role implementation of OnboardingRepo (lib/grow/webhook.ts). Both tables are written and
 // read only through the service role: add_grow_onboarding.sql grants nothing to anon or authenticated.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { OnboardingRepo } from './webhook.ts';
+import type { AdminAttachRepo, StoredOnboardingRow } from './webhook.ts';
 
-export function supabaseOnboardingRepo(db: SupabaseClient): OnboardingRepo {
+const UPDATE_COLS = 'id, user_id, tracking_code, business_title, name, package_id, package_name, tracking_status_id, tracking_status_message, grow_status, grow_error, had_api_key, match_state, matched_tenant_id';
+
+export function supabaseOnboardingRepo(db: SupabaseClient): AdminAttachRepo {
   return {
+    async getUpdate(id) {
+      // Used only by the admin attach (/api/admin/grow-onboarding), after requirePlatformAdmin(). No api_key column exists to read.
+      const { data, error } = await db.from('grow_onboarding_updates').select(UPDATE_COLS).eq('id', id).maybeSingle();
+      if (error) throw new Error(error.message);
+      return (data || null) as StoredOnboardingRow | null;
+    },
     async insertUpdate(row) {
       const { data, error } = await db.from('grow_onboarding_updates').insert(row).select('id').single();
       if (error || !data) throw new Error(error?.message || 'insert failed');
@@ -46,6 +54,17 @@ export function supabaseOnboardingRepo(db: SupabaseClient): OnboardingRepo {
       );
       // add_grow_register.sql not run yet: say so, without the key.
       if (error) throw new Error(/schema cache|does not exist|42P01|PGRST205/i.test(`${error.code} ${error.message}`) ? 'grow_account_secrets missing' : error.message);
+    },
+    async ensurePending(tenantId, trackingCode, fallbackCode) {
+      const have = await db.from('grow_onboarding_pending').select('tenant_id').eq('tenant_id', tenantId).maybeSingle();
+      if (have.error) throw new Error(have.error.message);
+      if (have.data) return;
+      let r = await db.from('grow_onboarding_pending').insert({ tenant_id: tenantId, tracking_code: trackingCode });
+      // The tracking code already belongs to another business's pending row (unique): keep that one and use the admin code here.
+      if (r.error && /23505|duplicate/i.test(`${r.error.code} ${r.error.message}`) && trackingCode !== fallbackCode) {
+        r = await db.from('grow_onboarding_pending').insert({ tenant_id: tenantId, tracking_code: fallbackCode });
+      }
+      if (r.error && !/23505|duplicate/i.test(`${r.error.code} ${r.error.message}`)) throw new Error(r.error.message);
     },
     async clearPending(tenantId) {
       const { error } = await db.from('grow_onboarding_pending').update({ consumed_at: new Date().toISOString() }).eq('tenant_id', tenantId).is('consumed_at', null);

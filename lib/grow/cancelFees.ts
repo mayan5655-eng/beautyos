@@ -217,7 +217,7 @@ export async function recordConsentAndStart(
   const wallet = d.depositWallet === true;
   const saveCard = !wallet && (i.via || 'booking_page') !== 'owner' && !!i.cardConsentText;
   const charge = await createCharge(
-    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard, wallet },
+    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard, wallet, origin: (i.via || 'booking_page') === 'owner' ? 'owner_deposit' : 'booking_deposit' },
     d.chargeDeps,
   );
   if (!charge.ok) return fail('deposit', charge.message);
@@ -284,7 +284,7 @@ export async function freshDepositLink(
   // The card-save tick was given (and stored) with the first page; a fresh page keeps the same choice. The wallet keeps no card.
   const saveCard = !wallet && (consent.snapshot.via || 'booking_page') !== 'owner';
   const charge = await createCharge(
-    { tenantId: i.tenantId, userId: account.user_id, amount, description: `מקדמה ל${appt.service || 'טיפול'}`, clientName: appt.name || consent.client_name || '', phone: String(appt.client_phone || ''), clientId: consent.client_id, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard, wallet },
+    { tenantId: i.tenantId, userId: account.user_id, amount, description: `מקדמה ל${appt.service || 'טיפול'}`, clientName: appt.name || consent.client_name || '', phone: String(appt.client_phone || ''), clientId: consent.client_id, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard, wallet, origin: (consent.snapshot.via || 'booking_page') === 'owner' ? 'owner_deposit' : 'booking_deposit' },
     d.chargeDeps,
   );
   if (!charge.ok) return { ok: false, code: 'step-failed', error: 'לא הצלחנו לפתוח את דף התשלום, נסי שוב' };
@@ -533,7 +533,7 @@ export async function decide(d: Deps, i: { tenantId: string; feeId: string; deci
 
   const label = item.kind === 'no_show' ? 'אי הגעה' : 'ביטול מאוחר';
   const payment = await d.grow.insertPayment({
-    tenant_id: i.tenantId, status: 'created', amount: item.amount, kind: 'fee', description: `${label}${item.service ? ` - ${item.service}` : ''}`.slice(0, 100),
+    tenant_id: i.tenantId, status: 'created', amount: item.amount, kind: 'fee', origin: 'cancel_fee', description: `${label}${item.service ? ` - ${item.service}` : ''}`.slice(0, 100),
     client_id: item.client_id, client_name: item.client_name, appointment_id: item.appointment_id, notify_token: d.chargeDeps.newToken(),
   });
 

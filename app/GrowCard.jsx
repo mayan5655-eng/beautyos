@@ -22,6 +22,7 @@ import CancelPolicyCard from './CancelPolicyCard';
 import GrowRegistration from './GrowRegistration';
 import GrowCostNote from './GrowCostNote';
 import { METHOD_LABEL_HE } from '@/lib/grow/methods';
+import { originLabelHe } from '@/lib/grow/paymentOrigin';
 
 // Grow's customer service, for connecting an account she already has (Grow, 2026-11).
 const GROW_SUPPORT = { email: 'support@grow.business', whatsapp: '052-7773144', whatsappUrl: 'https://wa.me/972527773144' };
@@ -119,7 +120,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {s.payments.map((p) => (
               <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: pcTint, borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                <span>{p.client_name || 'לקוחה'} · {money(p.amount)}</span>
+                <span>{p.client_name || 'לקוחה'} · {money(p.amount)}{originLabelHe(p) && <span data-testid="grow-origin" style={{ display: 'block', fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{originLabelHe(p)}</span>}</span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   <b style={{ color: p.status === 'paid' ? 'var(--success)' : 'var(--ink-3)' }}>{STATUS_HE[p.status] || p.status}</b>
                   {/^second_tx:/.test(p.error || '') && <b data-testid="grow-paid-twice" style={{ color: 'var(--danger)' }}>שולם פעמיים · צריך להחזיר אחד בלוח הבקרה של Grow</b>}

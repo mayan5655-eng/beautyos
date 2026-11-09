@@ -120,7 +120,7 @@ export async function POST(request: Request) {
       const seal = () => { const k = readOnboardingApiKey(raw); return k ? encryptToken(k) : null; };
       const r = await applyOnboarding(update, supabaseOnboardingRepo(db), undefined, seal);
       // Every onboarding update leaves a line in ops_events, so "did Grow's update arrive?" is one query, whatever it matched.
-      await moneyAlert('grow:onboarding-received', `Grow onboarding update received: ${String(r.status)}`, { status: String(r.status) }, { severity: 'warning', key: `onboarding-${String(r.status)}-${Date.now()}` });
+      await moneyAlert('grow:onboarding-received', `Grow onboarding update received: ${String(r.status)}`, { status: String(r.status), updateId: r.updateId, trackingCode: update.trackingCode ? 'yes' : 'no' }, { severity: 'warning', key: `onboarding-${String(r.status)}-${Date.now()}` });
       return NextResponse.json({ success: true, kind, status: r.status });
     }
 
