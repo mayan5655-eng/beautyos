@@ -199,18 +199,26 @@ await ok('hidden: alerts with the tenant and writes "not done" on her voided rec
   }, { tenantId: T1, receiptId: R('a') });
   assert.equal(got.length, 1);
   assert.equal(got[0].source, 'grow:void-refund');
-  assert.deepEqual(got[0].details, { tenantId: T1, receiptId: R('a'), reason: 'hidden', voided: true });
+  assert.deepEqual(got[0].details, { tenantId: T1, receiptId: R('a'), reason: 'hidden' });
+  assert.equal(got[0].opts?.severity, 'warning', 'a warning: never a push to the operator phone per tap');
   assert.equal(lines[0], FAILED_LINE);
   assert.match(String(r.note), /ההחזר דרך Grow לא בוצע/);
 });
 
-await ok('hidden: a receipt that is not hers or not voided still alerts, but nothing is written', async () => {
+await ok('hidden: a receipt that is not hers or not voided alerts nothing and writes nothing (no alert flood from random ids)', async () => {
   const got: A[] = [];
   let wrote = false;
   const r = await recordHiddenVoidRefund({ isVoided: async () => false, appendReceiptNote: async () => { wrote = true; return 'x'; }, alert: alertsInto(got) }, { tenantId: T2, receiptId: R('a') });
-  assert.equal(got.length, 1);
+  assert.equal(got.length, 0);
   assert.equal(wrote, false);
   assert.equal(r.note, null);
+});
+
+await ok('hidden: the "not done" line is written once, not on every tap', async () => {
+  const got: A[] = [];
+  let wrote = 0;
+  const r = await recordHiddenVoidRefund({ isVoided: async () => true, hasFailedNote: async () => true, appendReceiptNote: async () => { wrote++; return 'x'; }, alert: alertsInto(got) }, { tenantId: T1, receiptId: R('a') });
+  assert.equal(wrote, 0); assert.equal(r.note, null);
 });
 
 await ok('hidden: the route knows the tenant before answering hidden; every other Grow route keeps caller()', () => {
@@ -219,7 +227,10 @@ await ok('hidden: the route knows the tenant before answering hidden; every othe
   assert.match(post, /const c = await callerTenant\(\);/);
   const hid = post.indexOf('if (c.hidden)');
   assert.ok(hid > post.indexOf('isDemoTenantId(c.tenantId)'), 'the demo is refused first');
-  assert.match(post.slice(hid), /recordHiddenVoidRefund\(.*alert: moneyAlert.*\{ tenantId: c\.tenantId, receiptId \}/);
+  assert.match(post.slice(hid), /recordHiddenVoidRefund\(.*hasFailedNote, alert: moneyAlert.*\{ tenantId: c\.tenantId, receiptId \}/);
+  assert.ok(post.indexOf("checkIpLimit(request, 'void-refund')") >= 0 && post.indexOf("checkTenantLimit(c.tenantId, 'void-refund')") >= 0, 'POST is rate-limited');
+  const getFn = r.slice(r.indexOf('export async function GET'));
+  assert.ok(getFn.includes("checkIpLimit(request, 'void-refund')") && getFn.includes("checkTenantLimit(c.tenantId, 'void-refund')"), 'GET is rate-limited');
   assert.match(post.slice(hid), /hidden: true/);
   const sh = src('app/api/grow/_shared.ts');
   assert.match(sh, /export async function caller\(\) \{\n  const off = uiOff\(\);/);

@@ -17,17 +17,22 @@ import { isDemoTenantId } from '@/lib/demoTenants';
 import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { createLiveOps } from '@/lib/grow/ops';
-import { refundVoidedGrowReceipt, supabaseVoidRefundRepo, VOID_REFUND_HE } from '@/lib/grow/voidRefund';
+import { refundVoidedGrowReceipt, supabaseVoidRefundRepo, VOID_REFUND_HE, VOID_REFUND_FAILED_NOTE } from '@/lib/grow/voidRefund';
 import { recordHiddenVoidRefund, refundStatesFor, supabaseRefundStatesRepo } from '@/lib/grow/refundFollowups';
 import { moneyAlert } from '@/lib/moneyAlert.js';
+import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { admin, caller, callerTenant, DEMO_NOTE } from '../_shared';
 
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
+  const ipLimited = checkIpLimit(request, 'void-refund');
+  if (ipLimited) return ipLimited;
   // Not caller(): it answers "hidden" before the tenant is known, and a refund asked for while Grow is off must still alert.
   const c = await callerTenant();
   if ('error' in c) return c.error;
+  const tenantLimited = checkTenantLimit(c.tenantId, 'void-refund');
+  if (tenantLimited) return tenantLimited;
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, status: 'demo', error: DEMO_NOTE, message: DEMO_NOTE }, { status: 403 });
 
   const b = (await request.json().catch(() => ({}))) as { receiptId?: unknown };
@@ -38,7 +43,11 @@ export async function POST(request: Request) {
   if (c.hidden) {
     // Grow is off for her business: nothing is sent to Grow, but the operator hears about it and the receipt says it was not done.
     const repo = supabaseVoidRefundRepo(db);
-    const h = await recordHiddenVoidRefund({ isVoided: repo.isVoided, appendReceiptNote: repo.appendReceiptNote, alert: moneyAlert }, { tenantId: c.tenantId, receiptId }).catch(() => ({ note: null }));
+    const hasFailedNote = async (t: string, id: string) => {
+      const { data } = await db.from('receipts').select('note').eq('id', id).eq('tenant_id', t).maybeSingle();
+      return String((data as { note?: unknown } | null)?.note || '').includes(VOID_REFUND_FAILED_NOTE);
+    };
+    const h = await recordHiddenVoidRefund({ isVoided: repo.isVoided, appendReceiptNote: repo.appendReceiptNote, hasFailedNote, alert: moneyAlert }, { tenantId: c.tenantId, receiptId }).catch(() => ({ note: null }));
     return NextResponse.json({ success: false, hidden: true, error: 'off', status: 'failed', refunded: false, message: VOID_REFUND_HE.failed(''), note: h.note });
   }
   const grow = resolveGrow(process.env, APP_URL);
@@ -61,8 +70,12 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const ipLimited = checkIpLimit(request, 'void-refund');
+  if (ipLimited) return ipLimited;
   const c = await caller();
   if ('error' in c) return c.error;
+  const tenantLimited = checkTenantLimit(c.tenantId, 'void-refund');
+  if (tenantLimited) return tenantLimited;
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: true, states: {} });
   const ids = (new URL(request.url).searchParams.get('ids') || '').split(',').map((x) => x.trim()).filter(Boolean);
   try {

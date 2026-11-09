@@ -175,16 +175,23 @@ export function supabaseStuckRefunds(db: any) {
 export type HiddenRefundDeps = {
   isVoided(tenantId: string, receiptId: string): Promise<boolean>;
   appendReceiptNote(tenantId: string, receiptId: string, line: string): Promise<string | null>;
+  /** Whether the receipt's note already says the refund was not done (then it is not written again). */
+  hasFailedNote?(tenantId: string, receiptId: string): Promise<boolean>;
   alert: Alert;
   now?: () => Date;
 };
 
-/** The till asked for the refund but Grow is switched off for this tenant: alert, and record it on the receipt (her own, voided). */
+/**
+ * The till asked for the refund but Grow is switched off for this tenant: alert, and record it on the receipt (her own, voided).
+ * Only for a receipt she really voided: any other id (anyone signed in can post one) writes nothing and alerts nothing, so the route
+ * cannot be used to flood the operator's alerts or a receipt's note. The note line is written once, not on every tap.
+ */
 export async function recordHiddenVoidRefund(d: HiddenRefundDeps, i: { tenantId: string; receiptId: string }): Promise<{ note: string | null }> {
   const { tenantId, receiptId } = i;
   const voided = await d.isVoided(tenantId, receiptId).catch(() => false);
-  await d.alert('grow:void-refund', 'refund on void asked while Grow is off for this business (hidden), not sent', { tenantId, receiptId, reason: 'hidden', voided }, { key: `${receiptId}:hidden` });
   if (!voided) return { note: null };
+  await d.alert('grow:void-refund', 'refund on void asked while Grow is off for this business (hidden), not sent', { tenantId, receiptId, reason: 'hidden' }, { key: `${receiptId}:hidden`, severity: 'warning' });
+  if (d.hasFailedNote && (await d.hasFailedNote(tenantId, receiptId).catch(() => false))) return { note: null };
   const day = (d.now ? d.now() : new Date()).toISOString().slice(0, 10);
   const note = await d.appendReceiptNote(tenantId, receiptId, `${VOID_REFUND_FAILED_NOTE} ב-${day}, להחזיר בלוח הבקרה של Grow`).catch(() => null);
   return { note };
