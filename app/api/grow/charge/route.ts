@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       method: isPayMethod(b.method) ? b.method : undefined,
       wallet: !!grow.wallet,
       loyalty,
+      origin: 'till',
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );

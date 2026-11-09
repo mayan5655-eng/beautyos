@@ -465,6 +465,15 @@ export const RATE_POLICIES = {
       `נשלחו יותר מדי בקשות ברצף. אפשר לנסות שוב ${m}.`,
   },
 
+  // The platform admin attaching an unmatched Grow onboarding update to a business (app/api/admin/grow-onboarding). A handful a
+  // day at most; perTenant is keyed by the ADMIN's user id. This stops a stuck loop from rewriting Grow connections.
+  'admin-grow-attach': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות שיוך ברצף. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות שיוך ברצף. אפשר לנסות שוב ${m}.`,
+  },
+
 } as const;
 
 export type PolicyName = keyof typeof RATE_POLICIES;

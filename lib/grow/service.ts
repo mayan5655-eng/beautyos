@@ -23,6 +23,8 @@ import type { Notification } from './payload.ts';
 import { walletLink, paymentMethodLabel } from './wallet.ts';
 import { moneyAlert } from '../moneyAlert.js';
 import { loyaltyMarker, parseLoyaltyIntent } from '../loyalty.js';
+import { isPaymentOrigin } from './paymentOrigin.ts';
+import type { PaymentOrigin } from './paymentOrigin.ts';
 
 export type GrowPayment = {
   id: string;
@@ -97,6 +99,8 @@ export type ChargeInput = {
   wallet?: boolean;
   /** The loyalty reward applied to this visit at the till, validated by the charge route (its client_id is clientId, checked as hers). */
   loyalty?: LoyaltyIntent | null;
+  /** Which page opened this payment (lib/grow/paymentOrigin.ts). Stored in grow_payments.origin; dropped by the repo until that column exists. */
+  origin?: PaymentOrigin;
 };
 
 type Deps = {
@@ -129,6 +133,7 @@ export async function createCharge(i: ChargeInput, d: Deps): Promise<ChargeResul
     payer_phone: phone,
     notify_token: d.newToken(),
     ...(i.kind ? { kind: i.kind } : {}),
+    ...(isPaymentOrigin(i.origin) ? { origin: i.origin } : {}),
     // The reward is consumed by the server when this payment is paid (createReceiptFor), not by her browser. Only for the payment's own
     // client: an intent naming anyone else is never stored.
     ...(i.loyalty && i.clientId && i.loyalty.client_id === i.clientId ? { loyalty_redemption: i.loyalty } : {}),

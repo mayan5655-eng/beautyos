@@ -80,6 +80,7 @@ export async function POST(request: Request) {
       wallet: !!grow.wallet,
       // Back to her booking page: the client has no dashboard.
       returnUrl: `${APP_URL.replace(/\/+$/, '')}/book?t=${t}`,
+      origin: 'booking_visit',
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );

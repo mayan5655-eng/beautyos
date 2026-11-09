@@ -5,6 +5,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GrowRepo, GrowPayment } from './service.ts';
 import { isMissingLoyaltyTable } from '../loyalty.js';
+import { missingColumnName } from '../pgError.ts';
+
+/** grow_payments columns that come from hand-run migrations and may be dropped from an insert until they exist. */
+const OPTIONAL_INSERT_COLUMNS: readonly string[] = ['loyalty_redemption', 'origin'];
 
 const SELECT = 'id, tenant_id, status, amount, process_id, receipt_id, client_id, client_name, appointment_id, description, notify_token, updated_at, payer_phone, created_at, transaction_id, invoice_url';
 // Codes only: a NOT NULL violation (23502, "null value in column ...") also says "column" and must not take the reduced-insert path.
@@ -14,11 +18,20 @@ export function supabaseGrowRepo(db: SupabaseClient): GrowRepo {
   return {
     async insertPayment(row) {
       let { data, error } = await db.from('grow_payments').insert(row).select(SELECT).single();
-      if (error && isMissingColumn(error) && 'loyalty_redemption' in row) {
-        // loyalty_redemption is a column of add_loyalty_2026-11-05.sql. Until it runs the charge is still created, without the reward
-        // intent: the server then cannot consume the reward when the link is paid, so the receipt gets no 🎁 mark and the till's
-        // onPaid remains its only record (today's behaviour; the loyalty_redemptions table it writes comes with the same file).
-        const { loyalty_redemption: _l, ...rest } = row;
+      // Optional columns from hand-run migrations. Until one runs the charge is still created without it, dropping ONLY the column the
+      // error names (lib/pgError.ts missingColumnName), or, when the error names none, the first optional one present:
+      //   loyalty_redemption  add_loyalty_2026-11-05.sql. Without it the server cannot consume the reward when the link is paid, so the
+      //                       receipt gets no 🎁 mark and the till's onPaid remains its only record.
+      //   origin              add_grow_payment_origin_2026-11-09.sql: which page opened the payment. Without it the panel infers it
+      //                       from kind and description (lib/grow/paymentOrigin.ts), so nothing is lost but the exact label.
+      let rest: Record<string, unknown> = row;
+      for (let i = 0; i < OPTIONAL_INSERT_COLUMNS.length && error && isMissingColumn(error); i++) {
+        const named = missingColumnName(error);
+        // A named column that is not optional is never worked around (and never costs an optional column instead).
+        const drop = named ? (OPTIONAL_INSERT_COLUMNS.includes(named) ? named : null) : OPTIONAL_INSERT_COLUMNS.find((c) => c in rest);
+        if (!drop || !(drop in rest)) break;
+        const { [drop]: _dropped, ...next } = rest;
+        rest = next;
         ({ data, error } = await db.from('grow_payments').insert(rest).select(SELECT).single());
       }
       if (error || !data) throw new Error(error?.message || 'insert failed');

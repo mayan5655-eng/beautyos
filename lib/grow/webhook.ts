@@ -182,7 +182,15 @@ export async function applyOnboarding(u: OnboardingUpdate, repo: OnboardingRepo,
   if (!u.trackingCode) return { status: 'unmatched', updateId };
   const pending = await repo.findPendingByTrackingCode(u.trackingCode);
   if (!pending) return { status: 'unmatched', updateId };
-  const tenantId = pending.tenant_id;
+  return attachOnboardingToTenant(updateId, u, pending.tenant_id, repo, sealApiKey);
+}
+
+/**
+ * What a matched onboarding update writes, once a tenant is known. ONE code path for both ways a tenant becomes known: the
+ * webhook's exact tracking-code match above, and the platform admin attaching an unmatched update by hand (adminAttachOnboarding
+ * below, /api/admin/grow-onboarding). Nothing here guesses a tenant.
+ */
+export async function attachOnboardingToTenant(updateId: string, u: OnboardingUpdate, tenantId: string, repo: OnboardingRepo, sealApiKey?: () => string | null): Promise<OnboardingResult> {
   const registration = registrationStatusOf(u);
   const why = u.trackingStatusMessage || u.err || '';
 
@@ -215,6 +223,62 @@ export async function applyOnboarding(u: OnboardingUpdate, repo: OnboardingRepo,
   await repo.setMatch(updateId, 'matched', tenantId);
   await repo.clearPending(tenantId);
   return { status: 'matched', updateId, registration: 'approved' };
+}
+
+// ── admin attach (an update that arrived without a way to match it) ──────────────
+
+/** A stored grow_onboarding_updates row, as the admin attach reads it back. It never carries an api_key: none is ever stored. */
+export type StoredOnboardingRow = {
+  id: string;
+  user_id: string | null;
+  tracking_code: string | null;
+  business_title: string | null;
+  name: string | null;
+  package_id: string | null;
+  package_name: string | null;
+  tracking_status_id: string | null;
+  tracking_status_message: string | null;
+  grow_status: string | null;
+  grow_error: string | null;
+  had_api_key: boolean | null;
+  match_state: MatchState;
+  matched_tenant_id: string | null;
+};
+
+/** The stored row back in the shape attachOnboardingToTenant works on, through the same bounds readOnboarding applies. */
+export function onboardingFromRow(r: StoredOnboardingRow): OnboardingUpdate {
+  const uid = clip(r.user_id, 80);
+  return {
+    userId: USER_ID_RE.test(uid) ? uid : null,
+    trackingCode: clip(r.tracking_code, 100),
+    businessTitle: clip(r.business_title, 120),
+    name: clip(r.name, 120),
+    packageId: clip(r.package_id, 40),
+    packageName: clip(r.package_name, 80),
+    trackingStatusId: clip(r.tracking_status_id, 40),
+    trackingStatusMessage: clip(r.tracking_status_message, 200),
+    status: clip(r.grow_status, 20),
+    err: clip(r.grow_error, 200),
+    hadApiKey: r.had_api_key === true,
+  };
+}
+
+export type AdminAttachRepo = OnboardingRepo & { getUpdate(id: string): Promise<StoredOnboardingRow | null> };
+
+export type AdminAttachResult =
+  | { ok: true; result: OnboardingResult }
+  | { ok: false; code: 'not-found' | 'not-unmatched' };
+
+/**
+ * The platform admin attaches an UNMATCHED stored update to a tenant she picked. Only an unmatched row can be attached: a matched or
+ * conflicting one already names a tenant. The api_key is not available here (it is never stored with the update), so only her
+ * userId is connected; the business can still paste her key on her card as before.
+ */
+export async function adminAttachOnboarding(updateId: string, tenantId: string, repo: AdminAttachRepo): Promise<AdminAttachResult> {
+  const row = await repo.getUpdate(updateId);
+  if (!row) return { ok: false, code: 'not-found' };
+  if (row.match_state !== 'unmatched') return { ok: false, code: 'not-unmatched' };
+  return { ok: true, result: await attachOnboardingToTenant(row.id, onboardingFromRow(row), tenantId, repo) };
 }
 
 /** Reads a webhook body whatever it was sent as: JSON, or a form. Bounded, never throws. */

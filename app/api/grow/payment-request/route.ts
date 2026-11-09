@@ -61,6 +61,7 @@ export async function POST(request: Request) {
       wallet: !!grow.wallet,
       // Back to HER booking page, as a booking deposit does: the client has no dashboard.
       returnUrl: `${APP_URL.replace(/\/+$/, '')}/book?t=${c.tenantId}`,
+      origin: 'client_link',
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );
