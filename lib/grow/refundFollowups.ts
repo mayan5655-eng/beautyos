@@ -101,7 +101,8 @@ export function supabaseRefundStatesRepo(db: any): RefundStatesRepo {
   return {
     async voidedOf(tenantId, receiptIds) {
       const { data, error } = await db.from('receipt_voids').select('receipt_id').eq('tenant_id', tenantId).in('receipt_id', receiptIds);
-      if (error) return [];
+      // A read error is never "nothing voided" or "no payment": it throws, and the route answers no states (no line beats a wrong one).
+      if (error) throw new Error(`voidedOf: ${error.message || 'failed'}`);
       return [...new Set(((data || []) as { receipt_id: unknown }[]).map((r) => String(r.receipt_id)))];
     },
     async paymentsOf(tenantId, receiptIds) {
@@ -109,12 +110,14 @@ export function supabaseRefundStatesRepo(db: any): RefundStatesRepo {
       const cols = 'id, tenant_id, status, amount, description, receipt_id, error, updated_at';
       let r = await db.from('grow_payments').select(`${cols}, refunded_at`).eq('tenant_id', tenantId).in('receipt_id', receiptIds).order('created_at', { ascending: false });
       if (r.error) r = await db.from('grow_payments').select(cols).eq('tenant_id', tenantId).in('receipt_id', receiptIds).order('created_at', { ascending: false });
-      return r.error ? [] : (r.data || []);
+      if (r.error) throw new Error(`paymentsOf: ${r.error.message || 'failed'}`);
+      return r.data || [];
     },
     async notesOf(tenantId, receiptIds) {
       const { data, error } = await db.from('receipts').select('id, note').eq('tenant_id', tenantId).in('id', receiptIds);
+      if (error) throw new Error(`notesOf: ${error.message || 'failed'}`);
       const out: Record<string, string | null> = {};
-      if (!error) for (const r of (data || []) as { id: unknown; note: unknown }[]) out[String(r.id)] = r.note == null ? null : String(r.note);
+      for (const r of (data || []) as { id: unknown; note: unknown }[]) out[String(r.id)] = r.note == null ? null : String(r.note);
       return out;
     },
   };

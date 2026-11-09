@@ -5576,17 +5576,24 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return receipts.filter(r => r.legal_provider === "grow" && v.has(String(r.id)))
       .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).slice(0, 100).map(r => String(r.id)).join(",");
   }, [receipts, receiptVoids]);
+  // When a refund POST last answered for each receipt: a history GET that started before it never overwrites that newer answer.
+  const growRefundAnsweredAt = useRef({});
   const loadGrowRefundStates = useCallback(async (key) => {
     if (!key) { setGrowRefundStates({}); return; }
+    const startedAt = Date.now();
     try {
       const res = await fetch(`/api/grow/void-refund?ids=${encodeURIComponent(key)}`);
       const j = await res.json().catch(() => null);
-      if (j && j.states && !j.hidden) setGrowRefundStates(prev => ({ ...prev, ...j.states }));
+      if (j && j.states && !j.hidden) {
+        const fresh = Object.fromEntries(Object.entries(j.states).filter(([id]) => !((growRefundAnsweredAt.current[id] || 0) >= startedAt)));
+        setGrowRefundStates(prev => ({ ...prev, ...fresh }));
+      }
     } catch { /* the history shows no refund line rather than a wrong one */ }
   }, []);
   useEffect(() => { loadGrowRefundStates(growVoidedKey); }, [growVoidedKey, loadGrowRefundStates]);
   // The answer of POST /api/grow/void-refund, applied to the till: the receipt's note line and the refund state shown in the history.
   const applyGrowRefundAnswer = (receiptId, answer) => {
+    growRefundAnsweredAt.current[String(receiptId)] = Date.now();
     if (answer && answer.note) {
       const note = answer.note;
       setReceipts(prev => prev.map(r => String(r.id) === String(receiptId) ? { ...r, note } : r));
@@ -5617,7 +5624,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         answer = await res.json().catch(() => null);
       } catch { answer = null; }
       finally { setBusyKey("growRefundRetry", false); }
-      if (!answer || answer.hidden || !answer.message) answer = { ...(answer || {}), refunded: false, status: "failed", message: VOID_REFUND_HE.failed("") };
+      // As on the void itself: "hidden" is a known no-send; a lost answer may hide a done refund, so "check Grow first".
+      if (answer && answer.hidden) answer = { ...answer, refunded: false, status: "failed", message: VOID_REFUND_HE.failed("") };
+      else if (!answer || !answer.message) answer = { refunded: false, status: "unknown", message: VOID_REFUND_HE.unknown };
       applyGrowRefundAnswer(receipt.id, answer);
       if (answer.refunded || answer.status === "already_refunded") toast(answer.message);
       else toast(answer.message, "error");

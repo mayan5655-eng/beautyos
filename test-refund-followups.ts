@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  supabaseRefundStatesRepo,
   refundStateOf, refundStatesFor, stateFromVoidRefundAnswer, alertStuckRefunds, recordHiddenVoidRefund,
   REFUND_STATE_HE, REFUND_STUCK_HE, REFUND_STUCK_MS, MAX_STATE_IDS,
 } from './lib/grow/refundFollowups.ts';
@@ -242,6 +243,23 @@ await ok('till: refund state next to the voided receipt, retry on the failed one
   assert.match(retry, /runOnce\("growRefundRetry"/, 'a double tap sends one request');
   assert.match(b, /st\.state==="failed"&&st\.canRetry&&<button data-testid="grow-refund-retry"/);
   assert.match(b, /retryGrowRefund\(r\);/);
+});
+
+await ok('the states repo: a read error throws (never "no payment", which would show a refunded sale as failed)', async () => {
+  const failing = { from() { const q: Record<string, unknown> = {}; for (const m of ['select', 'eq', 'in', 'order']) q[m] = () => q; q.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: 'boom' } }).then(res); return q; } };
+  const repo = supabaseRefundStatesRepo(failing);
+  await assert.rejects(() => repo.voidedOf('t', ['a']), /voidedOf: boom/);
+  await assert.rejects(() => repo.paymentsOf('t', ['a']), /paymentsOf: boom/);
+  await assert.rejects(() => repo.notesOf('t', ['a']), /notesOf: boom/);
+});
+
+await ok('the till: a history load that started before a refund answer never overwrites it; a lost retry answer reads unknown', () => {
+  const page = readFileSync(new URL('./app/beautyos.jsx', import.meta.url), 'utf8');
+  assert.match(page, /growRefundAnsweredAt\.current\[String\(receiptId\)\] = Date\.now\(\)/);
+  assert.match(page, /!\(\(growRefundAnsweredAt\.current\[id\] \|\| 0\) >= startedAt\)/);
+  const retry = page.slice(page.indexOf('const retryGrowRefund'), page.indexOf('const retryGrowRefund') + 2000);
+  assert.match(retry, /else if \(!answer \|\| !answer\.message\) answer = \{ refunded: false, status: "unknown", message: VOID_REFUND_HE\.unknown \}/);
+  assert.doesNotMatch(retry, /if \(!answer \|\| answer\.hidden \|\| !answer\.message\)/);
 });
 
 console.log(`\n${n} refund follow-up tests passed`);
