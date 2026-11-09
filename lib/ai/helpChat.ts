@@ -27,7 +27,8 @@ import { MODELS, EFFORT } from './models.ts';
 import { mapAiError, userMessageForAiError } from './aiErrorResponse.ts';
 import { AiCapExceededError, AiCapUnavailableError, DemoBlockedError } from './callCaps.ts';
 import { capNoticeOf } from './capMessages.ts';
-import { helpSectionsFor, TUTORIAL_TITLES, tutorialIdsFor, type HelpSection } from '../helpSections.ts';
+import { helpSectionsFor, TUTORIAL_TITLES, tutorialIdsFor, type HelpSection, type TutorialFlag } from '../helpSections.ts';
+import { tutorialFlagsOn } from '../tutorialFlags.ts';
 import { businessFieldsOf } from '../businessFields.ts';
 import { isMissingColumnError } from '../pgError.ts';
 import { checkIpLimit, checkTenantLimit } from '../rateLimit.ts';
@@ -57,11 +58,12 @@ function renderSections(sections: HelpSection[]): string {
 }
 
 /** The system prompt: the rules, the video list and the help text for HER business type. Pure, so it is tested. */
-export function buildHelpPrompt(fields: unknown): string {
+export function buildHelpPrompt(fields: unknown, on?: Partial<Record<TutorialFlag, boolean>>): string {
   const sections = helpSectionsFor(fields);
   const nailsOnly = Array.isArray(fields) && fields.includes('nails') && !fields.includes('cosmetics');
   // Only the videos this business may be pointed to: a nails-only business never hears about the skin scanner.
-  const videos = tutorialIdsFor(fields).map((id) => `${id}: ${TUTORIAL_TITLES[id]}`).join('\n');
+  // And only videos of features this deployment has switched on (lib/tutorialFlags.ts): no Grow video while Grow is off.
+  const videos = tutorialIdsFor(fields, on).map((id) => `${id}: ${TUTORIAL_TITLES[id]}`).join('\n');
   return `את העוזרת של קלמיה, מערכת לניהול עסק יופי. בעלת העסק שואלת איך עושים משהו במערכת, ואת עונה לה.
 
 החומר היחיד שמותר לך לענות ממנו הוא מדריך העזרה ורשימת הסרטונים שלמטה. אין לך שום מידע אחר על המערכת ואין לך גישה לנתונים של העסק שלה.
@@ -204,7 +206,7 @@ export async function handleHelpChat(request: Request, deps: HelpChatDeps): Prom
     const tab = tabOf(body?.tab);
 
     const fields = await loadFields(session, tenantId);
-    const system: any[] = [{ type: 'text', text: buildHelpPrompt(fields), cache_control: { type: 'ephemeral' } }];
+    const system: any[] = [{ type: 'text', text: buildHelpPrompt(fields, tutorialFlagsOn()), cache_control: { type: 'ephemeral' } }];
     if (tab) system.push({ type: 'text', text: `היא שואלת מתוך המסך: ${tab}` });
 
     const msg = await deps.track(deps.anthropic, {

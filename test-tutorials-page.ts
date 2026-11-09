@@ -11,16 +11,48 @@ const page = raw('app/tutorials/page.tsx');
 // Grouped by topic (2026-11-04): each topic's heading, then its videos in order.
 const topics = [...page.matchAll(/key: "([a-z]+)",\s*title: "([^"]+)",\s*videos: \[([\s\S]*?)\],\s*\}/g)]
   .map((m) => ({ title: m[2], ids: [...m[3].matchAll(/\{ id: "([a-z-]+)"/g)].map((v) => v[1]) }));
+// 2026-11-09 (features frozen): every feature has a video, in the order she meets them: getting started, the calendar, clients, the
+// till and payments (card clearing included), marketing and growth, reports.
 assert.deepEqual(topics, [
-  { title: 'להתחיל', ids: ['welcome', 'tour', 'home'] },
-  { title: 'יומן ותורים', ids: ['booking', 'appointment-actions', 'reminders'] },
-  { title: 'לקוחות', ids: ['clients'] },
-  { title: 'תשלומים וקבלות', ids: ['till', 'morning'] },
-  { title: 'AI בעסק', ids: ['ai', 'skin-scan'] },
-  { title: 'הדף שלי והגדרות', ids: ['my-page', 'services-hours'] },
-], 'thirteen videos in six topics, the welcome explainer first, the AI topic (with the skin scan after the advisor) before the settings');
+  { title: 'להתחיל', ids: ['welcome', 'tour', 'home', 'services-hours', 'my-page', 'help-chat'] },
+  { title: 'יומן ותורים', ids: ['booking', 'appointment-actions', 'reminders', 'waitlist-rebook'] },
+  { title: 'לקוחות', ids: ['clients', 'forms', 'skin-scan', 'loyalty', 'client-page'] },
+  { title: 'קופה ותשלומים', ids: ['till', 'grow-connect', 'grow-till', 'pay-page', 'deposits', 'grow-refunds', 'gift-vouchers', 'products', 'morning'] },
+  { title: 'שיווק וצמיחה', ids: ['ai', 'reviews', 'booking-button', 'referral'] },
+  { title: 'דוחות', ids: ['monthly'] },
+], 'twenty-nine videos in six topics, the welcome explainer first, reports last');
 const ids = [...page.matchAll(/\{ id: "([a-z-]+)"/g)].map((m) => m[1]);
-assert.equal(ids.length, 13, 'every video on the page is in a topic');
+assert.equal(ids.length, 29, 'every video on the page is in a topic');
+// Every video's title is the one the in-app help and the help chat use (lib/helpSections.ts), and every one of those is on the page.
+{
+  const { TUTORIAL_TITLES, TUTORIAL_FLAG, tutorialOn } = await import('./lib/helpSections.ts');
+  assert.deepEqual([...ids].sort(), Object.keys(TUTORIAL_TITLES).sort(), 'the page and the help list the same videos');
+  // Grow and the referral are switched on per deployment: their videos are hidden while the switch is off, never deleted.
+  for (const id of ['grow-connect', 'grow-till', 'pay-page', 'deposits', 'grow-refunds']) assert.equal(TUTORIAL_FLAG[id], 'grow', `${id} follows the Grow switch`);
+  assert.equal(TUTORIAL_FLAG.referral, 'referral');
+  assert.equal(tutorialOn('grow-till', { grow: false, referral: true }), false, 'Grow off: no Grow video');
+  assert.equal(tutorialOn('grow-till', { grow: true }), true, 'Grow on: shown');
+  assert.equal(tutorialOn('till', { grow: false, referral: false }), true, 'a video with no switch always shows');
+  assert.equal(tutorialOn('referral'), true, 'no switches given (the browser): shown');
+  const { tutorialFlagsOn } = await import('./lib/tutorialFlags.ts');
+  assert.deepEqual(tutorialFlagsOn({}), { grow: false, referral: false }, 'nothing set: both off');
+  assert.deepEqual(tutorialFlagsOn({ GROW_UI_ENABLED: '1', NEXT_PUBLIC_ANNUAL_PLAN: '1' }), { grow: true, referral: true });
+  assert.ok(/tutorialOn\(v\.id, on\)/.test(page) && /tutorialFlagsOn\(\)/.test(page), 'the page filters by the switches');
+}
+// The steps under a video: three short lines, warm, with no dash (owner's copy rule) and no digit at the start of a line.
+{
+  const steps = [...page.matchAll(/steps: \[([^\]]*)\]/g)].map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  assert.ok(steps.length >= 25, `most videos have steps (${steps.length})`);
+  for (const st of steps) {
+    assert.equal(st.length, 3, `three steps: ${st[0]}`);
+    for (const line of st) {
+      assert.ok(!/[\u2013\u2014]/.test(line), `no dash: ${line}`);
+      assert.ok(line.length <= 60, `short: ${line}`);
+    }
+  }
+  assert.ok(/<ol style=\{stepsStyle\}/.test(page), 'the steps render as a numbered list');
+}
+assert.ok(!/[\u2013\u2014]/.test(page.slice(page.indexOf('const TOPICS'), page.indexOf('export default'))), 'no en or em dash in the tutorial copy');
 assert.equal(new Set(ids).size, ids.length, 'no video twice');
 for (const id of ids) {
   assert.ok(fs.existsSync(`public/tutorials/kalmea-${id}.mp4`), `public/tutorials/kalmea-${id}.mp4 exists`);
@@ -63,6 +95,22 @@ assert.ok(skinCode.includes('הסורק מלא לחודש הזה'), 'the monthly
 assert.ok(!/<img[^>]+(presenter|face|avatar)/i.test(skinCode) && !/PRESENTER/.test(skinPart), 'no photo of a person in the skin video');
 assert.ok(!/הצעות מעקב|באישור/.test(skinCode), 'no skin follow-up suggestions (off by default)');
 assert.ok(!/[–—]/.test(skinPart), 'no en or em dash in the skin video');
+// Section 9 (2026-11-09): the videos of the features added since, drawn like the others.
+{
+  const more = topicsScript.slice(topicsScript.indexOf('// 9. the features added since'), topicsScript.indexOf('// 7. ai:'));
+  const code = more.replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(more.length > 5000, 'section 9 is found');
+  for (const id of ['grow-connect', 'grow-till', 'pay-page', 'deposits', 'grow-refunds', 'gift-vouchers', 'loyalty', 'products', 'waitlist-rebook', 'reviews', 'monthly', 'referral', 'forms', 'help-chat', 'booking-button', 'client-page']) {
+    assert.ok(new RegExp(`'?${id}'?: video`).test(code), `${id} is built by the topic script`);
+  }
+  assert.ok(!/[\u2013\u2014]/.test(more), 'no en or em dash in section 9');
+  // Honest about money and messages: nothing paid is shown before it is paid, and a deposit hold is said in minutes.
+  assert.ok(code.includes('אל תלחצי ״רשמי תשלום״'), 'the till video says not to record a Grow payment twice');
+  assert.ok(code.includes('התור שמור עבורך ל-30 דקות'), 'the deposit hold is shown');
+  assert.ok(code.includes('תשובה לדוגמה'), 'the help chat answer is labelled as an example');
+  assert.ok(code.includes('כבוי כברירת מחדל'), 'the waitlist and rebook automations are said to be off by default');
+  assert.ok(!/<img[^>]+(presenter|face|avatar)/i.test(code), 'no photo of a person');
+}
 assert.ok(/preload="none"/.test(page), 'nothing is downloaded before she presses play');
 assert.ok(/playsInline/.test(page), 'plays inside the page on iPhone, not full screen on load');
 assert.ok(/robots: \{ index: false/.test(page), 'not indexed (it is a link for signups, not a landing page)');

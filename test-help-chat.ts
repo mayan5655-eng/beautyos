@@ -168,12 +168,16 @@ for (const id of Object.keys(TUTORIAL_TITLES)) assert.deepEqual(validVideoIds([i
   // the route uses the session tenant's fields
   const c = newCalls();
   await handleHelpChat(req({ message: 'q' }), deps(c, 'a', { fields: ['nails'] }));
-  assert.equal(c.track[0].params.system[0].text, nails);
+  // ...and only the videos of features this deployment switched on (lib/tutorialFlags.ts): with Grow off, no Grow video.
+  const { tutorialFlagsOn } = await import('./lib/tutorialFlags.ts');
+  assert.equal(c.track[0].params.system[0].text, buildHelpPrompt(['nails'], tutorialFlagsOn()));
+  assert.equal(buildHelpPrompt(['nails'], { grow: false, referral: false }).includes('grow-till:'), false, 'Grow off: the Grow videos are not offered');
+  assert.ok(buildHelpPrompt(['nails'], { grow: true, referral: true }).includes('grow-till:'), 'Grow on: they are');
   // a missing business_fields column falls back to the cosmetics text, never fails
   const c2 = newCalls();
   const r2 = await handleHelpChat(req({ message: 'q' }), deps(c2, 'a', { settingsError: { code: '42703', message: 'column settings.business_fields does not exist' } }));
   assert.equal(r2.status, 200);
-  assert.equal(c2.track[0].params.system[0].text, cos);
+  assert.equal(c2.track[0].params.system[0].text, buildHelpPrompt(['cosmetics'], tutorialFlagsOn()));
 }
 
 // ── bounded history ────────────────────────────────────────────────────────

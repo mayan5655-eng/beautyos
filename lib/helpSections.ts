@@ -24,8 +24,39 @@ export const TUTORIAL_TITLES: Record<string, string> = {
   "skin-scan": "סריקת עור AI",
   "my-page": "הדף שלך ללקוחות",
   "services-hours": "טיפולים ושעות פעילות",
+  // 2026-11-09, features frozen: one video for every feature added since (marketing/topics-motion.mjs section 9).
+  "help-chat": "שאלי את העוזרת",
+  "waitlist-rebook": "רשימת המתנה ותור הבא",
+  forms: "טופס אנמנזה וחתימה",
+  loyalty: "כרטיסיית נאמנות",
+  "client-page": "הדף האישי של הלקוחה",
+  "grow-connect": "חיבור סליקת אשראי (Grow)",
+  "grow-till": "תשלום באשראי מהקופה ובקישור",
+  "pay-page": "דף התשלום של הלקוחה",
+  deposits: "מקדמה בקביעת תור",
+  "grow-refunds": "ביטול תשלום והחזר כסף",
+  "gift-vouchers": "שוברי מתנה",
+  products: "מוצרים ומלאי בקופה",
+  reviews: "ביקורות ומה הלקוחות אמרו",
+  "booking-button": "כפתור קביעת תור באינסטגרם ובגוגל",
+  referral: "חודש במתנה ומנוי שנתי",
+  monthly: "הדוח החודשי והסיכום השבועי",
 };
 export const tutorialHref = (id: string) => `/tutorials#t-${id}`;
+
+/** The deployment switch a video's feature lives behind (lib/tutorialFlags.ts reads them). A video with none is always shown. */
+export type TutorialFlag = "grow" | "referral";
+export const TUTORIAL_FLAG: Record<string, TutorialFlag> = {
+  "grow-connect": "grow",
+  "grow-till": "grow",
+  "pay-page": "grow",
+  deposits: "grow",
+  "grow-refunds": "grow",
+  referral: "referral",
+};
+/** Is this video's feature switched on? `on` omitted: every video counts as on (the browser cannot read the server's switches). */
+export const tutorialOn = (id: string, on?: Partial<Record<TutorialFlag, boolean>>): boolean =>
+  !on || !TUTORIAL_FLAG[id] || on[TUTORIAL_FLAG[id]] === true;
 
 // Help page (nav "עזרה"). The text of help-content.md, one entry per "##"
 // heading, embedded verbatim rather than fetched: the page must work offline
@@ -35,12 +66,13 @@ export const tutorialHref = (id: string) => `/tutorials#t-${id}`;
 export const HELP_TITLE = "עזרה: איך המערכת עובדת";
 export const HELP_INTRO = "מדריך קצר לכל מסך במערכת. אפשר לפתוח כל חלק בנפרד, ולרוב יש בו גם סרטון קצר שמראה איך.";
 export const HELP_SECTIONS: HelpSection[] = [
-  { key:"start", icon:"home", title:"מתחילות", videos:["welcome","tour","home"], body:[
+  { key:"start", icon:"home", title:"מתחילות", videos:["welcome","tour","home","help-chat"], body:[
     "שלושה סרטונים קצרים שכדאי לראות ביום הראשון: מה יש בקלמיה, סיור בכל המסכים, ואיך מוסיפים את קלמיה למסך הבית של הטלפון כמו אפליקציה.",
     "- במסך **היום** רואים את התורים של היום ב\"היום שלי\". לחיצה על תור פותחת אותו, והכפתור **✦ תור חדש** קובע תור מהר.",
     "- **דורש תשומת לב**: מה מחכה לך, למשל תזכורות לתורי מחר.",
+    "- נתקעת? הכפתור **תקועה?** למטה פותח את **שאלי את העוזרת**: כותבים שאלה ומקבלים תשובה מהמדריך, לרוב עם סרטון. **לא עזר?** מעביר את השאלה אלינו.",
   ]},
-  { key:"calendar", icon:"calendar", title:"יומן", videos:["booking","appointment-actions"], body:[
+  { key:"calendar", icon:"calendar", title:"יומן", videos:["booking","appointment-actions","waitlist-rebook"], body:[
     "היומן הוא המסך הראשי שלך. כאן את רואה את כל התורים, קובעת חדשים, ומנהלת את הזמן שלך.",
     "- מעבר בין תצוגת **יום** ל**שבוע**, וקפיצה מהירה ל**היום**",
     "- **✦ תור חדש**: או פשוט לחיצה על משבצת ריקה ביומן, והשעה כבר מוכנה",
@@ -65,7 +97,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     "- לכל שורה כפתור **✆ הודעה** לוואטסאפ",
     "- לחיצה על לקוחה פותחת את כרטיס הלקוחה",
   ]},
-  { key:"client-card", icon:"id", title:"כרטיס הלקוחה", videos:["clients","skin-scan"], body:[
+  { key:"client-card", icon:"id", title:"כרטיס הלקוחה", videos:["clients","forms","loyalty","client-page","skin-scan"], body:[
     "לחיצה על לקוחה פותחת חלון צד עם הכל עליה. למעלה, שם, טלפון, סוג עור, וכמה הוציאה אצלך בסך הכל. לפעמים יופיע שם גם רמז אוטומטי, כמו \"לא ביקרה 60 ימים, שווה הודעת התחדשות\".",
     "ארבעה כפתורים בראש הכרטיס: **וואטסאפ**, **✎ עריכה**, **✦ קביעת תור**, ו־**✦ סריקת עור AI**.",
     "### הלשוניות",
@@ -115,14 +147,50 @@ export const HELP_SECTIONS: HelpSection[] = [
     "יש ארבע שאלות מוכנות להתחלה: איך להעלות הכנסות החודש, מה כדאי לתמחר מחדש, איך להחזיר לקוחות רדומות, ורעיון לקמפיין לחודש חלש.",
     "הרבה פעמים התשובה תכלול גם הודעה מוכנה לשליחה ללקוחות. השיחה נשמרת, אפשר לחזור אליה בכל זמן.",
   ]},
-  { key:"payments", icon:"receipt", title:"תשלומים ואישורי תשלום", videos:["till","morning"], body:[
+  { key:"payments", icon:"receipt", title:"תשלומים ואישורי תשלום", videos:["till","morning","grow-refunds"], body:[
     "כשתור מסתיים, בלשונית **קופה** רושמים את התשלום, ומקבלים אישור תשלום. אפשר להגיע לשם גם ישר מהתור, בכפתור **₪ לתשלום**.",
     "- בוחרים לקוחה וטיפול, ואפשר להוסיף **הנחה** (בשקלים או באחוזים) ו**טיפ**",
     "- בוחרים איך שילמה: מזומן, אשראי, ביט, פייבוקס או העברה",
     "אישור תשלום הוא לא קבלה חוקית. קבלה או חשבונית חוקית יוצאת מתוכנה רשומה, כמו מורנינג. אפשר לחבר אחת בהגדרות, תחת **חיבורים**.",
     "אם ביטלת תשלום בטעות, אפשר לבטל אותו מתוך האישור, והמקור נשמר ברישום.",
   ]},
-  { key:"booking-link", icon:"share", title:"הקישור לקביעת תור", videos:["my-page"], body:[
+  { key:"grow", icon:"receipt", title:"סליקת אשראי (Grow)", videos:["grow-connect","grow-till","pay-page","deposits","grow-refunds"], body:[
+    "הלקוחות משלמות באשראי, בביט, ב-Apple Pay או ב-Google Pay, והכסף נכנס לחשבון ה-Grow שלך. Grow מפיקה את הקבלה החוקית.",
+    "- **חיבור**: בהגדרות, תחת **חיבורים**, בכרטיס **סליקת אשראי (Grow)**. אין לך Grow? בוחרים מסלול, ממלאים תעודת זהות או מספר עוסק ונייד, ו-Grow שולחת SMS עם טופס קצר. יש לך Grow? פונים לשירות הלקוחות של Grow ומדביקים את קוד העסק שמגיע במייל.",
+    "- **בקופה**: אחרי שבוחרים לקוחה וטיפול, לוחצים **בקשת תשלום** בתיבה של Grow. דף התשלום נפתח, ואפשר לשלוח אותו בוואטסאפ או להראות קוד QR. כשהלקוחה משלמת, אישור התשלום נרשם לבד, אז לא לוחצים גם **רשמי תשלום**.",
+    "- **בקשת תשלום בקישור**: בקופה, למקדמה או לסכום מלא, גם בלי תור פתוח. מקדמה ששולמה נשמרת כקרדיט ויורדת בקופה בלחיצה.",
+    "- **מקדמה בקביעת תור**: בהגדרות, תחת **תשלומים**, בוחרים **מקדמה בקביעת התור**, ומסמנים **דורש מקדמה** ליד כל טיפול שצריך. התור נשמר ללקוחה 30 דקות עד התשלום.",
+    "- **ביטול והחזר**: בקופה פותחים את התשלום, **ביטול התשלום**, כותבים סיבה. **גם להחזיר את הכסף ללקוחה ב-Grow** מסומן מראש. בהיסטוריה כתוב אם הכסף הוחזר, ואם נכשל יש **לנסות שוב להחזיר ב-Grow**.",
+    "- **כל התשלומים האחרונים ב-Grow**: בקופה, ומתחת לכל תשלום כתוב מאיפה הגיע: מהקופה, מדף ההזמנה, משובר מתנה או מבקשת תשלום.",
+    "- הלקוחה פותחת את הקישור מוואטסאפ והחלון לא נפתח? הדף מסביר לה לפתוח אותו בדפדפן של הטלפון, והיא לא חויבה.",
+  ]},
+  { key:"vouchers-products", icon:"receipt", title:"שוברי מתנה ומוצרים", videos:["gift-vouchers","products"], body:[
+    "### 🎁 שוברי מתנה",
+    "השוברים כבר פועלים: מוכרים ומממשים בקופה, בלשונית **שוברי מתנה**. אם Grow מחובר, אפשר לקנות שובר גם אונליין מהדף שלך, והקונה שולחת אותו בעצמה בוואטסאפ. סכומים, תוקף ועיצוב משנים בהגדרות, תחת **העסק שלי**.",
+    "- **מימוש**: בקופה מקלידים את קוד השובר, והסכום יורד מהתשלום. היתרה נשארת בשובר.",
+    "- שובר נספר בהכנסות ביום שנמכר, ובמימוש לא נספר שוב.",
+    "### 🧴 מוצרים ומלאי",
+    "בקופה, בלשונית **מוצרים**: מוסיפים מוצר עם מחיר, מחיר עלות (רק את רואה) וכמה יש במלאי. בתשלום לוחצים **+ הוסיפי מוצר** ליד הטיפול, והמלאי יורד לבד.",
+    "- **עדכון מלאי**: כשמגיע משלוח, נזק או ספירה, עם סיבה שנשמרת ביומן המלאי.",
+    "- מלאי נמוך מסומן, ומכירה לא נחסמת גם כשהמלאי נגמר.",
+  ]},
+  { key:"waitlist-rebook", icon:"calendar", title:"רשימת המתנה ותור הבא", videos:["waitlist-rebook"], body:[
+    "שתי עזרות שמפעילים בהגדרות, תחת **הודעות**. שתיהן כבויות עד שתפעילי.",
+    "- **הצעה אוטומטית לרשימת ההמתנה**: לקוחה שלא מצאה שעה בדף שלך נרשמת לרשימת ההמתנה. כשתור מתבטל, מי שהתור מתאים לה מקבלת הצעה עם קישור, והראשונה שלוחצת מקבלת. ביומן רואים מה קרה.",
+    "- **תזכורת לקבוע את התור הבא**: לקוחה בלי תור עתידי מקבלת תזכורת חמה כשמגיע הזמן, רק אם הסכימה לקבל הודעות. רואים מראש **מי תקבל תזכורת היום?**",
+    "- **↻ קבעי לה שוב**: מכרטיס הלקוחה או מתור שהסתיים, התור הבא לפי הקצב שלה בלחיצה, וההודעה אליה מוכנה בוואטסאפ שלך.",
+    "אם השליחה מהמספר המרכזי לא פעילה, ההודעות מחכות לך ב**הודעות מוכנות לשליחה**.",
+  ]},
+  { key:"reviews-reports", icon:"megaphone", title:"ביקורות ודוחות", videos:["reviews","monthly"], body:[
+    "### ביקורות בשני צעדים",
+    "אחרי טיפול מוכנה לך בקשה קצרה ללקוחה: **איך היה?** מי שנהנתה מוזמנת לכתוב ביקורת בגוגל, ומי שמשהו הפריע לה כותבת לך הערה פרטית. גם לה מוצעת ביקורת בגוגל.",
+    "- **מה הלקוחות אמרו**: כמה בקשות יצאו, כמה עברו לגוגל, הביקורות בעמוד שלך וההערות הפרטיות, עם תשובה בוואטסאפ. מגיעים מההתראה או מההגדרות, תחת **הודעות**.",
+    "### הדוח החודשי והסיכום השבועי",
+    "- **הדוח החודשי**: בתחילת כל חודש מחכה לך במסך **היום** סיכום קצר, ו**לדוח החודשי המלא** מראה הכנסות מול החודש הקודם, ביקורים, לקוחות חדשות, הטיפולים שהכניסו הכי הרבה ומי לא חזרה.",
+    "- **הסיכום השבועי**: בכל יום ראשון, ארבעה מספרים של השבוע שעבר ועד שלושה דברים שכדאי לעשות.",
+    "- את ההתראות אפשר לכבות בהגדרות, תחת **העסק שלי**.",
+  ]},
+  { key:"booking-link", icon:"share", title:"הקישור לקביעת תור", videos:["my-page","booking-button"], body:[
     "ללקוחות יש קישור משלך שבו הן קובעות תור לבד, בלי לשלוח הודעה.",
     "- **להעתקה**: בהגדרות, תחת **לקוחות ופניות**, או מהכפתור בכרטיס הפתיחה. אפשר להדביק אותו בוואטסאפ, באינסטגרם ובביו.",
     "- **כתובת קצרה**: בהגדרות, תחת **הדף שלי**, אפשר לבחור כתובת עם שם העסק במקום הקישור הארוך.",
@@ -135,9 +203,10 @@ export const HELP_SECTIONS: HelpSection[] = [
     "- **מחיקה**: מוחקת את כרטיס הלקוחה, הטפסים, התמונות וההודעות שלה. התורים והתשלומים נשארים בחשבון בלי שם ובלי טלפון, כי חובה לשמור רישומי חשבונאות.",
     "- אם היא רק רוצה להפסיק לקבל הודעות שיווק, אין צורך למחוק: אפשר לסמן **הסירה את עצמה מדיוור**. כך גם כשהיא כותבת לך \"הסר\" בוואטסאפ האישי: המערכת לא רואה את ההודעות שם, אז מסמנים בכרטיס שלה.",
   ]},
-  { key:"settings", icon:"settings", title:"הגדרות", videos:["services-hours","morning"], body:[
+  { key:"settings", icon:"settings", title:"הגדרות", videos:["services-hours","morning","grow-connect","referral"], body:[
     "כאן מגדירים את המערכת פעם אחת, ואחר כך כמעט לא נוגעים.",
     "- **העסק שלי**: שם העסק, שם המטפלת, טלפון העסק (גם לביט), סוג העסק (פטור, מורשה או חברה), תחומי העיסוק, יעדים, שוברי מתנה ומוצרים",
+    "- **חברה מביאה חברה** ו**המנוי שלך** (גם ב״העסק שלי״, כשהם פעילים בחשבון): קישור אישי להזמנת בעלת עסק אחרת, וכשהיא משלמת בפעם הראשונה שתיכן מקבלות חודש מנוי במתנה. במנוי אפשר לעבור לתשלום שנתי, חודשיים במתנה, והמעבר נכנס לתוקף בחידוש הבא.",
     "- **הדף שלי**: הדף הציבורי שלך: תמונות, צבעים, טקסטים, גלריה ורשתות",
     "- **יומן ושירותים**: הטיפולים והמחירים שלך, ושעות הפתיחה לכל יום",
     "- **תשלומים**: כל מה שקשור למקדמה בקביעת תור, במקום אחד: סכום המקדמה ואיך משלמים אותה (למשל בביט). הלקוחה רואה אותה בדף ההזמנה ומאשרת לפני שהתור נקבע",
@@ -172,12 +241,13 @@ const NAILS_HELP_DROP: string[] = [
   "⚠️ טיפולים רפואיים כמו בוטוקס",
 ];
 /** Videos about facial cosmetics only: a nails-only business is never pointed to them (help page and help chat alike). */
-export const COSMETICS_ONLY_VIDEOS: readonly string[] = ["skin-scan"];
+// "forms" shows the skin anamnesis form and names the plasma, laser and peel forms, which a nails-only business does not have.
+export const COSMETICS_ONLY_VIDEOS: readonly string[] = ["skin-scan", "forms"];
 export const isNailsOnly = (fields: unknown): boolean =>
   Array.isArray(fields) && fields.includes("nails") && !fields.includes("cosmetics");
 /** The tutorial videos this business may be pointed to. */
-export const tutorialIdsFor = (fields: unknown): string[] =>
-  Object.keys(TUTORIAL_TITLES).filter((id) => !(isNailsOnly(fields) && COSMETICS_ONLY_VIDEOS.includes(id)));
+export const tutorialIdsFor = (fields: unknown, on?: Partial<Record<TutorialFlag, boolean>>): string[] =>
+  Object.keys(TUTORIAL_TITLES).filter((id) => !(isNailsOnly(fields) && COSMETICS_ONLY_VIDEOS.includes(id)) && tutorialOn(id, on));
 export const helpSectionsFor = (fields: unknown): HelpSection[] => {
   if (!Array.isArray(fields) || fields.includes("cosmetics") || !fields.includes("nails")) return HELP_SECTIONS;
   return HELP_SECTIONS.map((sec) => ({...sec, videos: sec.videos?.filter((v) => !COSMETICS_ONLY_VIDEOS.includes(v)), body: sec.body
