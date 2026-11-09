@@ -376,3 +376,10 @@ await ok('the cron and the screen: owner only, in the app, scheduled and watched
 });
 
 console.log(`\n${n} groups passed`);
+
+{
+  // The client sees "29.10", not "2026-10-29", under the question.
+  const src = (await import('node:fs')).readFileSync('app/review/page.jsx', 'utf8');
+  if (!/const heDate = /.test(src) || /\$\{info\.date\}/.test(src)) throw new Error('review page shows a raw ISO date');
+  console.log('ok - review page shows the visit date as day.month');
+}

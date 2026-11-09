@@ -27,6 +27,9 @@ import { GOOGLE_REVIEW_NOTE } from "@/lib/reviewCopy";
 import { ICON_QUESTION } from "@/lib/brand";
 import { PublicPage, BusinessHeader, LineIcon } from "../PublicChrome";
 
+// "2026-10-29" -> "29.10": the client reads a date, not an ISO string. Anything else is shown as it came.
+const heDate = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? `${Number(m[3])}.${Number(m[2])}` : (d || ''); };
+
 export default function ReviewPage() {
   const [state, setState] = useState("loading"); // loading | choose | happy | unhappy | noted | form | sent | already | error
   const [info, setInfo] = useState(null);
@@ -185,7 +188,7 @@ export default function ReviewPage() {
         <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-choose">
           <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
           <h1 className="pub-h1">{info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}</h1>
-          <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${info.date}` : info?.date}</p>
+          <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${heDate(info.date)}` : heDate(info?.date)}</p>
           {/* Two big answers, nothing else competing for the tap. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <button type="button" onClick={chooseHappy} className="pub-pill" data-testid="review-happy" style={{ width: "100%", minHeight: 56 }}>היה מעולה 😍</button>
@@ -259,7 +262,7 @@ export default function ReviewPage() {
         {/* Her logo and name first, large: this page is hers. */}
         <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
         <h1 className="pub-h1">{info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}</h1>
-        <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${info.date}` : info?.date}</p>
+        <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${heDate(info.date)}` : heDate(info?.date)}</p>
 
         {/* Big targets. This is read one-handed, on a phone, by someone who is
             doing something else - so the stars are big and there is nothing
