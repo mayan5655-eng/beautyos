@@ -109,7 +109,7 @@ ok('loyalty: voiding the reward sale gives the reward back (till mark or Grow ta
   assert.equal(rewardGivenOn(grow, red), true);
   assert.equal(rewardGivenOn(five[0], red), false);
   const v = app.indexOf('const handleVoidReceipt = async (receipt) => {');
-  const body = app.slice(v, v + 6000);
+  const body = app.slice(v, v + 9000);
   assert.match(body, /const rewardBack = loyaltyCfg\.enabled && rewardGivenOn\(receipt, loyaltyDb\.redemptions\) \? "\. המתנה חזרה לכרטיסיית הנאמנות של הלקוחה" : "";/);
   assert.match(body, /\+ \(voucherBack > 0 \? `\. ₪\$\{voucherBack\} חזרו לשובר המתנה` : ""\) \+ rewardBack\);/);
 });
