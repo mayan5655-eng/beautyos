@@ -27,4 +27,10 @@ ok('these lines are warnings (no push) and log field names, not values', () => {
   assert.match(src, /function fieldNames\(raw: Record<string, unknown>\): string \{\n  const keys = Object\.keys\(raw\);/);
 });
 
+ok('no fixed throttle key: every ignored or stored update gets its own line', () => {
+  for (const k of ['bad-body', 'onboarding-unreadable', 'unknown-kind', 'onboarding-${String(r.status)}']) {
+    assert.ok(src.includes('key: `' + k + '-${Date.now()}`'), k);
+  }
+});
+
 console.log(`\n${n} checks passed`);
