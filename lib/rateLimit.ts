@@ -342,6 +342,14 @@ export const RATE_POLICIES = {
   // twice; erasing is rarer still. The limits only stop a loop, never a real use.
   // The payment page's failure report (app/api/grow/wallet/diag): token-bound, writes one ops_events row. A client whose wallet fails
   // reports a handful of times; perTenant is used as the PER-PAYMENT cap (keyed by the payment's id), so one link cannot flood the log.
+  // The till's refund on void (app/api/grow/void-refund): signed-in, one voided sale at a time, plus the history's refund states.
+  // An owner voids a handful of sales a day; the limits only stop a loop or a script, never a real use.
+  'void-refund': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
   'wallet-diag': {
     perIp: { limit: 20, windowMs: 10 * MINUTE },
     perTenant: { limit: 8, windowMs: 10 * MINUTE },

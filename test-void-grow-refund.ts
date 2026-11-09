@@ -216,7 +216,7 @@ await ok('a payment refunded before add_grow_wallet.sql (paid + error "refunded"
 // ── wiring ───────────────────────────────────────────────────────────────────
 await ok('route: signed-in caller, her tenant from the session (never the body), demo refused, moneyAlert wired', () => {
   const r = src('app/api/grow/void-refund/route.ts');
-  assert.match(r, /const c = await caller\(\);/);
+  assert.match(r, /const c = await callerTenant\(\);/, "POST: the tenant first, so a hidden answer can still alert (test-refund-followups.ts)");
   assert.match(r, /isDemoTenantId\(c\.tenantId\)/);
   assert.match(r, /\{ tenantId: c\.tenantId, receiptId \}/);
   assert.doesNotMatch(r, /b\.tenant|body\.tenant|tenantId: b\./);

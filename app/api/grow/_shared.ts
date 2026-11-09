@@ -21,12 +21,25 @@ export function uiOff() {
 export async function caller() {
   const off = uiOff();
   if (off) return { error: off } as const;
+  const c = await callerTenant();
+  if ('error' in c) return c;
+  // GROW_ALLOWED_TENANTS: a business that is not on the list sees the same "hidden" answer as when the switch is off.
+  if (c.hidden) return { error: hiddenAnswer() } as const;
+  return { session: c.session, tenantId: c.tenantId } as const;
+}
+
+export const hiddenAnswer = () => NextResponse.json({ success: false, hidden: true, error: 'off' });
+
+/**
+ * The signed-in caller's tenant WITHOUT the Grow switch deciding first, plus whether Grow is off for her (`hidden`).
+ * For a route that must still act on "hidden" once it knows whose business it is (the till's refund on void raises moneyAlert);
+ * every other route uses caller(). A route using this must answer hiddenAnswer() itself when `hidden` is true.
+ */
+export async function callerTenant() {
   const session = await createSession();
   const { data: { user } } = await session.auth.getUser();
   if (!user) return { error: NextResponse.json({ success: false, error: 'לא מחוברת' }, { status: 401 }) } as const;
   const tenantId = await callerTenantId(session);
   if (!tenantId) return { error: NextResponse.json({ success: false, error: 'לא זוהה עסק' }, { status: 403 }) } as const;
-  // GROW_ALLOWED_TENANTS: a business that is not on the list sees the same "hidden" answer as when the switch is off.
-  if (!growUiEnabled(process.env, tenantId)) return { error: NextResponse.json({ success: false, hidden: true, error: 'off' }) } as const;
-  return { session, tenantId } as const;
+  return { session, tenantId, hidden: !growUiEnabled(process.env, tenantId) } as const;
 }
