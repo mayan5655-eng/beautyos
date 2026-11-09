@@ -253,4 +253,10 @@ await ok('copy: Hebrew, no em dashes, feminine forms', () => {
   assert.doesNotMatch(label, /—|–/);
 });
 
+await ok('the till: a lost or unreadable refund answer says "check Grow first", never "refund by hand"', () => {
+  const page = src('app/beautyos.jsx');
+  assert.match(page, /else if \(!growRefund \|\| !growRefund\.message\) growRefund = \{ refunded: false, status: "unknown", message: VOID_REFUND_HE\.unknown \}/);
+  assert.doesNotMatch(page, /if \(!growRefund \|\| growRefund\.hidden \|\| !growRefund\.message\)/);
+});
+
 console.log(`\npassed ${n} failed 0`);
