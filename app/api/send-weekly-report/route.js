@@ -65,7 +65,8 @@ async function reportFor(row, now) {
   const ids = (rc.data || []).map((r) => r.id);
   let voids = [];
   if (ids.length) {
-    const v = await supabase.from("receipt_voids").select("receipt_id, credit_status").in("receipt_id", ids);
+    // Her voids only: another business's void row naming her receipt never removes her income.
+    const v = await supabase.from("receipt_voids").select("receipt_id, credit_status").eq("tenant_id", tenantId).in("receipt_id", ids);
     // A failed read is not "nothing voided": voided receipts would count as income in her numbers.
     if (v.error) throw new Error(`voids read failed: ${v.error.message}`);
     voids = v.data || [];

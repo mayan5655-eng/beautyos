@@ -2,8 +2,15 @@
 //
 // /review?id=<appointment>&t=<signature>
 //
-// One screen: stars, an optional sentence, done. Reached from the WhatsApp two
-// days after a visit that smartReminders already sends.
+// One screen: stars, an optional sentence, done. Reached from the WhatsApp
+// after a visit that smartReminders already sends.
+//
+// TWO STEPS when the business has them (lib/reviewRequests.ts, GET answers
+// twoStep): first "איך היה?" with two big answers. "היה מעולה" offers her
+// Google link first (through /api/reviews/go, which counts the tap) and these
+// stars second. "משהו היה פחות טוב" opens a private note that reaches only the
+// business owner. The Google link is offered after the note too: offering it
+// only to happy clients would be review gating, which Google prohibits.
 //
 // NO ACCOUNT, no password, no app. A client who has just had a facial will not
 // create a login to say it was nice, and every step between the tap and the
@@ -20,13 +27,19 @@ import { GOOGLE_REVIEW_NOTE } from "@/lib/reviewCopy";
 import { ICON_QUESTION } from "@/lib/brand";
 import { PublicPage, BusinessHeader, LineIcon } from "../PublicChrome";
 
+// "2026-10-29" -> "29.10": the client reads a date, not an ISO string. Anything else is shown as it came.
+const heDate = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? `${Number(m[3])}.${Number(m[2])}` : (d || ''); };
+
 export default function ReviewPage() {
-  const [state, setState] = useState("loading"); // loading | form | sent | already | error
+  const [state, setState] = useState("loading"); // loading | choose | happy | unhappy | noted | form | sent | already | error
   const [info, setInfo] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [rating, setRating] = useState(0);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [note, setNote] = useState("");
+  // The Google button's href, set with the query string once it is read (a ref cannot be read during render).
+  const [goGoogleHref, setGoGoogleHref] = useState("/api/reviews/go");
   // A ref, not state: the query string never changes and nothing renders from
   // it, so putting it in state would only add a render and a synchronous
   // setState inside the effect below.
@@ -48,9 +61,12 @@ export default function ReviewPage() {
       .then((d) => {
         if (!d?.success) throw new Error(d?.error || "הקישור אינו תקין");
         setInfo(d);
+        setGoGoogleHref(`/api/reviews/go${search}`);
         // Already reviewed is not a failure and must not read like one: she
         // tapped a link she used before, which is an ordinary thing to do.
         if (d.existing) { setRating(d.existing.rating || 0); setText(d.existing.body || ""); setState("already"); }
+        else if (d.twoStep && d.feedback?.mood === "unhappy" && d.feedback?.body) { setNote(d.feedback.body); setState("noted"); }
+        else if (d.twoStep) setState("choose");
         else setState("form");
       })
       .catch((err) => {
@@ -76,6 +92,43 @@ export default function ReviewPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // The answer to "איך היה?". Best effort for the tap itself: a failure never keeps her from the next step. A 503 means the
+  // private notes are not switched on yet (the migration), so the stars form is the honest place to go.
+  const sendFeedback = async (mood, body = "") => {
+    try {
+      const res = await fetch(`/api/reviews/feedback${qsRef.current}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mood, text: body }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 503 || d?.needsMigration) return "unavailable";
+      return d?.success ? "ok" : (d?.error || "לא הצלחנו לשמור. נא לנסות שוב.");
+    } catch {
+      return "לא הצלחנו לשמור. נא לנסות שוב.";
+    }
+  };
+
+  const chooseHappy = () => {
+    setErrorMsg("");
+    sendFeedback("happy"); // the Google button works whether or not the tap was stored
+    setState(info?.googleReviewUrl ? "happy" : "form");
+  };
+  const chooseUnhappy = () => {
+    setErrorMsg("");
+    sendFeedback("unhappy").then((r) => { if (r === "unavailable") setState("form"); });
+    setState("unhappy");
+  };
+  const submitNote = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    const r = await sendFeedback("unhappy", note);
+    setSubmitting(false);
+    if (r === "ok") { setState("noted"); return; }
+    if (r === "unavailable") { setState("form"); return; }
+    setErrorMsg(r);
   };
 
   const pc = "var(--pc)";
@@ -119,9 +172,93 @@ export default function ReviewPage() {
           {info?.googleReviewUrl && (
             <div style={{ marginTop: 22 }}>
               <p style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 12 }}>{GOOGLE_REVIEW_NOTE}</p>
-              <a href={info.googleReviewUrl} target="_blank" rel="noreferrer" className="pub-pill">ביקורת בגוגל</a>
+              <a href={info.twoStep ? goGoogleHref : info.googleReviewUrl} target="_blank" rel="noreferrer" className="pub-pill">ביקורת בגוגל</a>
             </div>
           )}
+        </div>
+      </PublicPage>
+    );
+  }
+
+  const biz = info?.businessName || "העסק";
+
+  if (state === "choose") {
+    return (
+      <PublicPage primary={info?.primaryColor || null}>
+        <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-choose">
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
+          <h1 className="pub-h1">{info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}</h1>
+          <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${heDate(info.date)}` : heDate(info?.date)}</p>
+          {/* Two big answers, nothing else competing for the tap. */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <button type="button" onClick={chooseHappy} className="pub-pill" data-testid="review-happy" style={{ width: "100%", minHeight: 56 }}>היה מעולה 😍</button>
+            <button type="button" onClick={chooseUnhappy} className="pub-pill pub-pill-quiet" data-testid="review-unhappy" style={{ width: "100%", minHeight: 56 }}>משהו היה פחות טוב</button>
+          </div>
+        </div>
+      </PublicPage>
+    );
+  }
+
+  if (state === "happy") {
+    return (
+      <PublicPage primary={info?.primaryColor || null}>
+        <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-happy-screen">
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
+          <h1 className="pub-h1">איזה כיף לשמוע! 🌸</h1>
+          <p className="pub-p" style={{ marginBottom: 20 }}>{GOOGLE_REVIEW_NOTE} זה לוקח פחות מדקה.</p>
+          <a href={goGoogleHref} className="pub-pill" data-testid="review-google" style={{ width: "100%", minHeight: 56, boxSizing: "border-box" }}>כתיבת ביקורת בגוגל</a>
+          <button type="button" onClick={() => setState("form")} style={{ display: "block", margin: "16px auto 0", background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-md)", fontWeight: 600, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", minHeight: 44 }}>
+            או דירוג קצר כאן, בעמוד של {biz}
+          </button>
+        </div>
+      </PublicPage>
+    );
+  }
+
+  if (state === "unhappy") {
+    return (
+      <PublicPage primary={info?.primaryColor || null}>
+        <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-unhappy-screen">
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
+          <h1 className="pub-h1">תודה שאת מספרת</h1>
+          <p className="pub-p" style={{ marginBottom: 16 }}>מה היה פחות טוב? מה שתכתבי כאן מגיע רק אל {biz}, ולא מתפרסם בשום מקום.</p>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={5} maxLength={1000}
+            aria-label="מה היה פחות טוב" placeholder="אפשר לכתוב בחופשיות"
+            style={{ width: "100%", boxSizing: "border-box", border: "1px solid var(--pc-tint-2)", borderRadius: "var(--r-md)",
+                     padding: "12px 14px", fontSize: "var(--t-lg)", fontFamily: "inherit", outline: "none",
+                     background: "var(--brand-surface, #fff)", color: "var(--ink)", resize: "vertical", marginBottom: 14 }} />
+          {errorMsg && <p role="alert" style={{ fontSize: "var(--t-md)", color: "var(--danger, #E05B6F)", fontWeight: 600, marginBottom: 12 }}>{errorMsg}</p>}
+          <button type="button" onClick={submitNote} disabled={!note.trim() || submitting} className="pub-pill" data-testid="review-note-send" style={{ width: "100%", minHeight: 56 }}>
+            {submitting ? <Spinner inline label="שולחת" /> : `שליחה אל ${biz}`}
+          </button>
+          {/* Not review gating: the public review is offered right here, before and without the private note. */}
+          <p data-testid="review-unhappy-public" style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginTop: 18 }}>
+            מעדיפה לכתוב ביקורת פומבית?{" "}
+            {info?.googleReviewUrl
+              ? <a href={goGoogleHref} style={{ color: "var(--pc-deep)", fontWeight: 700 }}>אפשר בגוגל</a>
+              : <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>אפשר כאן</button>}
+            {info?.googleReviewUrl && <> או <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>כאן</button></>}
+          </p>
+        </div>
+      </PublicPage>
+    );
+  }
+
+  if (state === "noted") {
+    return (
+      <PublicPage primary={info?.primaryColor || null}>
+        <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-noted">
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
+          <h1 className="pub-h1">תודה, זה הגיע אליה</h1>
+          <p className="pub-p">מה שכתבת הגיע רק אל {biz}. חשוב לה לשמוע, גם כשמשהו לא היה מושלם.</p>
+          {/* Not review gating: a public review stays one tap away for her too. */}
+          <p style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginTop: 22 }}>
+            רוצה לכתוב גם ביקורת פומבית?{" "}
+            {info?.googleReviewUrl
+              ? <a href={goGoogleHref} style={{ color: "var(--pc-deep)", fontWeight: 700 }}>אפשר בגוגל</a>
+              : <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>אפשר כאן</button>}
+            {info?.googleReviewUrl && <> או <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>כאן</button></>}
+          </p>
         </div>
       </PublicPage>
     );
@@ -133,7 +270,7 @@ export default function ReviewPage() {
         {/* Her logo and name first, large: this page is hers. */}
         <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
         <h1 className="pub-h1">{info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}</h1>
-        <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${info.date}` : info?.date}</p>
+        <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${heDate(info.date)}` : heDate(info?.date)}</p>
 
         {/* Big targets. This is read one-handed, on a phone, by someone who is
             doing something else - so the stars are big and there is nothing

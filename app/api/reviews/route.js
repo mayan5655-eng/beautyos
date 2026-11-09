@@ -21,6 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 import { verifyReview } from "../../../lib/reviewToken";
 import { checkIpLimit } from "../../../lib/rateLimit";
 import { publicAccent } from "@/lib/branding";
+import { reviewTwoStepOn, googleReviewUrlOf, isMissingFeedbackTable } from "@/lib/reviewRequests";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -71,12 +72,23 @@ export async function GET(request) {
     .maybeSingle();
 
   // business_name and review_url only, and never more: this response goes to
-  // an unauthenticated browser, so the column list is the enforcement.
+  // an unauthenticated browser, so the response fields are the enforcement
+  // (automations is read for the feature flag and never returned).
   const { data: s } = await admin
     .from("settings")
-    .select("business_name, review_url, branding, primary_color")
+    .select("business_name, review_url, branding, primary_color, automations")
     .eq("tenant_id", appt.tenant_id)
     .maybeSingle();
+
+  // The two-step question ("היה מעולה" / "משהו היה פחות טוב", lib/reviewRequests.ts) needs public.visit_feedback. Until
+  // add_visit_feedback_2026-11-09.sql runs, or with the platform flag off, the page is the stars form exactly as before.
+  let twoStep = false;
+  let feedback = null;
+  if (reviewTwoStepOn(s) && appt.confirmation_status !== "cancelled" && appt.confirmation_status !== "no_show") {
+    const fb = await admin.from("visit_feedback").select("mood, body").eq("appointment_id", appt.id).maybeSingle();
+    if (!fb.error) { twoStep = true; feedback = fb.data ? { mood: fb.data.mood, body: fb.data.body || "" } : null; }
+    else if (!isMissingFeedbackTable(fb.error)) console.error("[reviews] feedback read failed:", fb.error.message);
+  }
 
   return Response.json({
     success: true,
@@ -87,7 +99,9 @@ export async function GET(request) {
     // Offered AFTER she has written something here, and offered to everyone
     // regardless of what she wrote. Showing it only to people who left four or
     // five stars is review gating, which Google's policy prohibits outright.
-    googleReviewUrl: String(s?.review_url || "").trim(),
+    googleReviewUrl: googleReviewUrlOf(s?.review_url),
+    twoStep,
+    feedback,
     clientName: appt.name || "",
     service: appt.service || "",
     date: appt.date || "",
