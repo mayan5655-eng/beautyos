@@ -6,11 +6,15 @@
 // settings.automations.goals / automations.weekly_report (no migration). An empty field clears that goal.
 
 import { resolveGoals, goalsForSave } from '@/lib/goals';
+import { monthlyPageOn } from '@/lib/monthlyFull';
 
 export default function GoalsEditor({ automations, onChange, pc, pcTint }) {
   const a = automations && typeof automations === 'object' ? automations : {};
   const goals = resolveGoals(a);
   const weekly = a.weekly_report === true;
+  // The note on the 1st (app/api/send-monthly-report): ON unless she switches it off. Hidden with the platform flag.
+  const monthlyShown = monthlyPageOn({ automations: a });
+  const monthly = a.monthly_report !== false;
   const inp = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 12px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', outline: 'none', direction: 'rtl', background: 'var(--surface-2)' };
   const setGoal = (key, raw) => {
     const next = goalsForSave({ revenue: goals.revenue, bookings: goals.bookings, [key]: raw });
@@ -43,6 +47,18 @@ export default function GoalsEditor({ automations, onChange, pc, pcTint }) {
           </span>
         </span>
       </label>
+      {monthlyShown && (
+        <label data-testid="monthly-report-switch" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 10, cursor: 'pointer', background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
+          <input type="checkbox" checked={monthly} onChange={(e) => onChange({ ...a, monthly_report: e.target.checked })} style={{ marginTop: 3, accentColor: pc }} />
+          <span>
+            <span style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>הדוח החודשי שלי</span>
+            <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+              בתחילת כל חודש: הכנסות לעומת החודש שעבר, ביקורים, לקוחות חדשות וחוזרות, הטיפולים שהכניסו הכי הרבה ומי שלא חזרה. נשלח רק אלייך, בהתראה באפליקציה. לא בשבת ולא בחג.
+            </span>
+            <a href="/dashboard/monthly" style={{ display: 'inline-block', marginTop: 4, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', fontWeight: 700 }}>לדוח החודשי ←</a>
+          </span>
+        </label>
+      )}
     </div>
   );
 }

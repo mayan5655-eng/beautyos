@@ -87,6 +87,10 @@
     {
       "path": "/api/content/publish-due",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/send-monthly-report",
+      "schedule": "0 7 1-3 * *"
     }
   ]
 }

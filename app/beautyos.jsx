@@ -104,6 +104,7 @@ const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: fa
 const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
+const VisitFeedbackPanel = dynamic(() => import("./VisitFeedbackPanel"), { ssr: false });
 const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: false });
@@ -153,6 +154,8 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
+import { reviewTimingOf, looksLikeGoogleLink, googleReviewUrlOf, GOOGLE_LINK_HELP } from "@/lib/reviewRequests";
+import { monthlyPageOn } from "@/lib/monthlyFull";
 import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher, splitVoucherCodes } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
@@ -8393,7 +8396,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       {showMonthlyReport && (
         <Sheet open onClose={() => setShowMonthlyReport(false)} width={460} zIndex={1000} ariaLabel="הדוח החודשי שלי">
-          <MonthlyReportCard variant="sheet" needsStatus={!settings?.business_tax_status} onChooseStatus={()=>{setShowMonthlyReport(false);openSettings("general");}} report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast}/>
+          <MonthlyReportCard variant="sheet" needsStatus={!settings?.business_tax_status} onChooseStatus={()=>{setShowMonthlyReport(false);openSettings("general");}} report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast} fullHref={monthlyPageOn(settings)?"/dashboard/monthly":null}/>
         </Sheet>
       )}
 
@@ -9190,7 +9193,7 @@ ${MARKETING_FOOTER}`)}`;
  </button>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
- {fbView!=="active"&&<MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} style={{order:5}}/>}
+ {fbView!=="active"&&<MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} fullHref={monthlyPageOn(settings)?"/dashboard/monthly":null} style={{order:5}}/>}
  <MonthValueCard appointments={appointments} receipts={liveRcpts} clients={clients} ready={historyReady} style={{order:5}}/>
  {fbView!=="active"&&<MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
@@ -9530,11 +9533,13 @@ ${MARKETING_FOOTER}`)}`;
                         if(ls)q.push({key:ls.key,icon:"🧴",accent:"var(--warning)",source:"מלאי",what:"מלאי נמוך",who:ls.count===1?"מוצר אחד":`${ls.count} מוצרים`,why:ls.names,primaryLabel:"למוצרים ומלאי",run:()=>{const ids=ownerNotifs.filter(n=>n.kind==="low_stock").map(n=>n.id);if(ids.length){supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs(prev=>prev.filter(n=>n.kind!=="low_stock"));}setActiveTab("cashier");}});
                       }
                       const listedNotifs=ownerNotifs.filter(n=>n.kind!=="low_stock");
-                      listedNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      listedNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.kind==="monthly_report"?"לדוח החודשי":n.kind==="visit_feedback"?"לקריאה":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
                         if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
                         if(n.kind==="weekly_report"){router.push("/dashboard/digest");return;}
+                        if(n.kind==="monthly_report"){router.push("/dashboard/monthly");return;}
+                        if(n.kind==="visit_feedback"){router.push("/dashboard/feedback");return;}
                         if(n.appointment_id){
                           const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
                           if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
@@ -12737,7 +12742,10 @@ ${MARKETING_FOOTER}`)}`;
    onChange={(next)=>setEditSettings(prev=>({...prev,automations:{...((prev.automations&&typeof prev.automations==="object")?prev.automations:{}),loyalty:next}}))}/>
  )}
  {inG("clients")&&(<>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הקישור הזה מוצג ללקוחה אחרי שכתבה לך ביקורת בטופס שלנו, כדי שתוכל גם לכתוב בגוגל. בקשת הביקורת עצמה (יומיים אחרי הטיפול) מפנה לטופס.</p></div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>אחרי טיפול הלקוחה נשאלת &quot;איך היה?&quot;. מי שנהנתה מקבלת את הקישור הזה לביקורת בגוגל, ומי שמשהו הפריע לה יכולה לכתוב לך בפרטיות (וגם לה מוצע הקישור לגוגל).</p>
+ {editSettings.review_url&&!looksLikeGoogleLink(editSettings.review_url)&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:4,lineHeight:1.5}}>{googleReviewUrlOf(editSettings.review_url)?"הקישור לא נראה כמו קישור של גוגל. כדאי לבדוק שהעתקת את הקישור לביקורות.":"הקישור צריך להתחיל ב-https://"}</p>}
+ <details data-testid="google-link-help" style={{marginTop:6}}><summary style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:700,cursor:"pointer",minHeight:32,display:"flex",alignItems:"center"}}>איך מוצאים את הקישור?</summary>
+ <ol style={{margin:"6px 0 0",paddingInlineStart:20,fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7}}>{GOOGLE_LINK_HELP.map((t,i)=><li key={i}>{t}</li>)}</ol></details></div>
  </>)}
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (חובה לבחור)</p>
@@ -13090,11 +13098,12 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="star" size={14}/> ביקורות מלקוחות</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>נכתבות על ידי לקוחות אחרי הטיפול, דרך קישור שנשלח בוואטסאפ. אפשר להסתיר ביקורת, אבל לא לערוך אותה, וזה מה שנותן להן ערך.</p>
+ <div style={{marginBottom:12}}><VisitFeedbackPanel variant="compact"/></div>
                     {clientReviewsError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,marginBottom:8}}>לא הצלחנו לטעון את הביקורות.</p>}
                     {!clientReviewsError&&clientReviews.length===0&&(
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_HEART} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. יומיים אחרי כל טיפול מוכנה בשבילך בקשת ביקורת בתור ההודעות, ושולחים אותה בלחיצה.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. אחרי כל טיפול מוכנה בשבילך בקשת ביקורת בתור ההודעות, ושולחים אותה בלחיצה.</p>
  </div>
                     )}
                     {clientReviews.map(rv=>(
@@ -13209,7 +13218,7 @@ ${MARKETING_FOOTER}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
  <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc={waCentralConnected===true?"נשלחת אוטומטית בוואטסאפ, יום לפני התור.":"מוכנה לשליחה בלחיצה אחת, כל יום אחר הצהריים, לקראת התורים של מחר."} />
- <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור. את שולחת בלחיצה אחת מהוואטסאפ שלך." />
+ <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה שאלה קצרה (איך היה?) בתור השליחה הידנית שלך, לפי התזמון שבחרת למטה. מי שנהנתה מוזמנת לגוגל, ומי שלא, כותבת לך בפרטיות. את שולחת בלחיצה אחת מהוואטסאפ שלך." />
  <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
  <AutoToggleRow pc={pc} label="תזכורת לקבוע את התור הבא" on={autos.rebook_enabled===true} onChange={()=>setAutos({...autos,rebook_enabled:autos.rebook_enabled!==true})} desc="ללקוחה שאין לה תור עתידי: כשמגיע הזמן לפי הקצב שלה (למשל 3 שבועות אחרי לק ג׳ל), מכינה הודעה עם קישור לקביעת תור, בתור השליחה הידנית שלך. רק ללקוחות שהסכימו לקבל הודעות. כבוי כברירת מחדל." />
  <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, וגם שבועיים לפני שתוקף חבילה עם טיפולים שנותרו נגמר, בתור השליחה הידנית שלך." />
@@ -13362,14 +13371,17 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>מתי יוצאות בקשת הביקורת והחזרת הלקוחות הרדומות. כשההודעות לא יוצאות אוטומטית, הן מחכות ב&quot;הודעות מוכנות לשליחה&quot;.</p>
  {(()=>{
    const t=(autos.timing&&typeof autos.timing==="object")?autos.timing:{};
-   const rv=Number(t.review_delay_days)>=1&&Number(t.review_delay_days)<=14?Number(t.review_delay_days):2;
+   const {delayDays:rv,everyMonths:rvEvery}=reviewTimingOf(autos);
    const wb=Number(t.winback_days)>=30&&Number(t.winback_days)<=365?Number(t.winback_days):90;
    const setT=(patch)=>setAutos({...autos,timing:{...t,...patch}});
    const sel={border:"1px solid var(--line-2)",borderRadius:"var(--r-xs)",padding:"7px 8px",fontSize:"var(--t-sm)",fontFamily:"inherit",background:"var(--surface)"};
    return(
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>בקשת ביקורת אחרי הטיפול</span>
- <select aria-label="בקשת ביקורת אחרי הטיפול" value={rv} onChange={e=>setT({review_delay_days:Number(e.target.value)})} style={sel}>{[[1,"יום אחרי"],[2,"יומיים אחרי"],[3,"3 ימים אחרי"],[5,"5 ימים אחרי"],[7,"שבוע אחרי"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <select aria-label="בקשת ביקורת אחרי הטיפול" value={rv} onChange={e=>setT({review_delay_days:Number(e.target.value)})} style={sel}>{[[0,"באותו יום, כמה שעות אחרי"],[1,"יום אחרי"],[2,"יומיים אחרי"],[3,"3 ימים אחרי"],[5,"5 ימים אחרי"],[7,"שבוע אחרי"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>לשאול כל לקוחה לכל היותר</span>
+ <select aria-label="לשאול כל לקוחה לכל היותר" value={rvEvery} onChange={e=>setT({review_every_months:Number(e.target.value)})} style={sel}>{[[1,"פעם בחודש"],[2,"פעם בחודשיים"],[3,"פעם ב-3 חודשים"],[4,"פעם ב-4 חודשים"],[6,"פעם בחצי שנה"],[12,"פעם בשנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ {rv===0&&<span style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>הבקשה מוכנה בערב, לפחות שעתיים אחרי שהטיפול נגמר. טיפול שנגמר מאוחר מקבל אותה למחרת. לא בשבת ולא בחג, ואף פעם לא למי שביקשה להסיר אותה מהודעות.</span>}
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>החזרת לקוחה שלא ביקרה</span>
  <select aria-label="החזרת לקוחה שלא ביקרה" value={wb} onChange={e=>setT({winback_days:Number(e.target.value)})} style={sel}>{[[60,"אחרי 60 יום"],[90,"אחרי 90 יום"],[120,"אחרי 120 יום"],[180,"אחרי חצי שנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
  <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>מתנת יום הולדת בהודעה</span>
