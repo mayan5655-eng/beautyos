@@ -18,11 +18,20 @@
 //   WA_CLOUD_API_VERSION      Graph API version, default below
 //   WA_CLOUD_TENANT_DAILY_CAP template sends per business per Israel calendar day, default below
 //   WA_CLOUD_UTILITY_COST_USD estimated price of one billable utility template to an Israeli number (Meta rate card)
+//   WA_CLOUD_TENANT_MONTHLY_CAP  template sends per business per Israel calendar month (every Cloud route), default below
+//   WA_CLOUD_GLOBAL_DAILY_CAP    template sends for ALL businesses together per Israel calendar day, default below
+//
+// The automatic reminders and confirmations (lib/waCloud/auto.ts) have their own switch and settings in autoConfig.ts.
 
 export type WaCloudEnv = Record<string, string | undefined>;
 
 export const DEFAULT_API_VERSION = 'v21.0';
 export const DEFAULT_TENANT_DAILY_CAP = 150;
+// A busy cosmetician has ~150 appointments a month: a confirmation and a reminder each is ~300. 400 leaves room and caps one
+// business at about $2 a month at the utility estimate below.
+export const DEFAULT_TENANT_MONTHLY_CAP = 400;
+// Every business together, per Israel day. A runaway loop stops here at about $10 for the day.
+export const DEFAULT_GLOBAL_DAILY_CAP = 2000;
 // Estimate only, for the cost log: Meta's rate card for utility templates to Israel (+972), per delivered message.
 // The real number arrives on every status webhook (pricing.billable / pricing.category) and is what the admin shows
 // as "billable"; this is only the multiplier for the estimate column. Update it from Meta's current rate card.
@@ -45,6 +54,19 @@ export function waCloudAppSecret(env: WaCloudEnv = process.env): string {
 export function tenantDailyCap(env: WaCloudEnv = process.env): number {
   const n = Number(env.WA_CLOUD_TENANT_DAILY_CAP);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_TENANT_DAILY_CAP;
+}
+
+const posInt = (v: string | undefined, dflt: number) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : dflt;
+};
+
+export function tenantMonthlyCap(env: WaCloudEnv = process.env): number {
+  return posInt(env.WA_CLOUD_TENANT_MONTHLY_CAP, DEFAULT_TENANT_MONTHLY_CAP);
+}
+
+export function globalDailyCap(env: WaCloudEnv = process.env): number {
+  return posInt(env.WA_CLOUD_GLOBAL_DAILY_CAP, DEFAULT_GLOBAL_DAILY_CAP);
 }
 
 export function utilityCostUsd(env: WaCloudEnv = process.env): number {

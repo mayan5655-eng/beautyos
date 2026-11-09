@@ -27,7 +27,7 @@ export function verifySubscription(params: URLSearchParams, verifyToken: string 
   return params.get('hub.challenge');
 }
 
-export type InboundText = { from: string; text: string; id: string; name: string | null };
+export type InboundText = { from: string; text: string; id: string; name: string | null; payload?: string | null };
 export type StatusUpdate = {
   id: string;
   status: 'sent' | 'delivered' | 'read' | 'failed' | string;
@@ -40,7 +40,7 @@ export type StatusUpdate = {
 
 type Value = {
   contacts?: { wa_id?: string; profile?: { name?: string } }[];
-  messages?: { from?: string; id?: string; type?: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string } } }[];
+  messages?: { from?: string; id?: string; type?: string; text?: { body?: string }; button?: { text?: string; payload?: string }; interactive?: { button_reply?: { id?: string; title?: string } } }[];
   statuses?: { id?: string; status?: string; recipient_id?: string; pricing?: { billable?: boolean; category?: string; pricing_model?: string }; errors?: { code?: number; title?: string; message?: string }[] }[];
 };
 
@@ -57,7 +57,9 @@ export function parseWebhook(body: unknown): { inbound: InboundText[]; statuses:
       for (const m of v.messages || []) {
         const text = m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? '';
         if (!m.from || !m.id) continue;
-        out.inbound.push({ from: String(m.from), text: String(text), id: String(m.id), name: names.get(String(m.from)) ?? null });
+        // A quick-reply tap on a template carries the payload we set at send time (lib/waCloud/autoTemplates.ts).
+        const payload = m.button?.payload ?? m.interactive?.button_reply?.id ?? null;
+        out.inbound.push({ from: String(m.from), text: String(text), id: String(m.id), name: names.get(String(m.from)) ?? null, ...(payload != null ? { payload: String(payload) } : {}) });
       }
       for (const s of v.statuses || []) {
         if (!s.id || !s.status) continue;

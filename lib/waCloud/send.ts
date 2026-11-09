@@ -26,6 +26,7 @@ import { waCloudEnabled, waCloudMode, tenantDailyCap, utilityCostUsd, type WaClo
 import { templateForType, buildTemplate } from './templates.ts';
 import { allowedNow, israelDayStartIso } from './policy.ts';
 import { resolveWaCloudAdapter, type WaCloudAdapter } from './adapter.ts';
+import { checkCaps } from './caps.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = { from: (table: string) => any };
@@ -111,6 +112,9 @@ export async function routeThroughCloud(p: {
   const count = await sendsToday(p.db, p.tenantId, mode, now);
   if (count === null) return refuse('cap_unreadable', `${LOG_TABLE} could not be read (has add_wa_cloud.sql run?)`);
   if (count >= cap) return refuse('tenant_capped', `daily Cloud cap reached (${count}/${cap})`);
+  // The monthly per-business and the global daily ceilings (lib/waCloud/caps.ts), shared with the automatic messages.
+  const caps = await checkCaps(p.db, { tenantId: p.tenantId, mode, now, env, skipTenantDaily: true });
+  if (!caps.ok) return refuse(caps.reason, caps.detail);
 
   const adapter = p.adapter || resolveWaCloudAdapter(env);
   const res = await adapter.sendTemplate(p.digits, built.payload);

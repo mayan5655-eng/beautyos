@@ -116,6 +116,7 @@ const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: fals
 const ClientPrivacyPanel = dynamic(() => import("./ClientPrivacyPanel"), { ssr: false });
 const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
+const WaAutoMessagesSetting = dynamic(() => import("./WaAutoMessagesSetting"), { ssr: false });
 const RebookSetting = dynamic(() => import("./RebookSetting"), { ssr: false });
 const WaitlistActivity = dynamic(() => import("./WaitlistActivity"), { ssr: false });
 const AutomationSuggestCard = dynamic(() => import("./AutomationSuggestCard"), { ssr: false });
@@ -13531,6 +13532,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
  <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל ומתבטל תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
  <WaitlistOfferSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
+ <WaAutoMessagesSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
  {/* Sent automatically only through the central number: hidden until it is connected (owner, 2026-11-03). A stored "on" is kept. */}
  {waCentralConnected===true&&(<AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל, האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי, רק לחיצה ידנית מכינה אותו." />)}
  </div>

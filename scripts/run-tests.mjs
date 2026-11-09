@@ -64,6 +64,8 @@ const FAKE_ENV = {
   WA_CLOUD_PHONE_NUMBER_ID: '',
   WA_CLOUD_APP_SECRET: '',
   WA_CLOUD_VERIFY_TOKEN: '',
+  // The automatic reminders' kill switch: off for tests, whatever the machine has. A test that needs it sets it in its env object.
+  WA_AUTO_ENABLED: '',
   NEXT_PUBLIC_SUPPORT_WHATSAPP: '',
   SENTRY_AUTH_TOKEN: '',
   NEXT_PUBLIC_SENTRY_DSN: '',
