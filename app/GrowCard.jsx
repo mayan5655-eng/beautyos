@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import CancelPolicyCard from './CancelPolicyCard';
 import GrowRegistration from './GrowRegistration';
+import GrowCostNote from './GrowCostNote';
 import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 
 const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל', refunded: 'הוחזר' };
@@ -226,6 +227,8 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
     <div data-testid="grow-card" style={box}>
       <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>סליקת אשראי (Grow)</p>
       {s.mode === 'mock' && <p data-testid="grow-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
+      {/* What Grow charges her, before she connects and after: never a surprise (lib/growPricing.ts). */}
+      <GrowCostNote style={{ marginBottom: 10 }} />
       {body}
     </div>
   );

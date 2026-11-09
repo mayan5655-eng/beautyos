@@ -70,7 +70,8 @@ await ok('9: the public pages get her booking link and WhatsApp only after their
   assert.ok(!route.includes('התור אושר בהצלחה') && !route.includes('התור בוטל בהצלחה'));
   assert.ok(route.indexOf('if (!verifyConfirm(') < route.indexOf('publicContactFor(supabase'), 'contact only after the signature check');
   const peek = route.slice(route.indexOf('if (body.peek === true)'), route.indexOf('// Idempotent'));
-  assert.ok(!peek.includes('contact'), 'the peek answer is unchanged');
+  // The peek carries her public contact only alongside a refusal (2026-11-09: the cancel page shows the refusal up front).
+  assert.ok(peek.includes("...(action === 'cancel' && refusal ? { refusal:") && (peek.match(/contact/g) || []).length === 1, 'contact only with a refusal');
   assert.ok(!/const reject = \(\) =>[^;]*contact/.test(route), 'the 404 carries nothing');
   const page = src('./app/confirm/page.jsx');
   assert.match(page, /data-testid="confirm-next"/);
