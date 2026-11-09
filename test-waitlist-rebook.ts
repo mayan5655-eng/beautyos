@@ -9,6 +9,7 @@ import { waitlistOffersOn, waitlistOffersVisible, waitlistOfferToast } from './l
 import { offerFreedSlot, afterWaitlistWin, compatibleServices } from './lib/waitlistOffers.js';
 import { entryFitsSlot, chooseRecipients } from './lib/waitlistMatch.js';
 import { waitlistActivity } from './lib/waitlistActivity.js';
+import { claimAllowed } from './lib/claimGuard.ts';
 import { releaseExpiredHolds } from './lib/grow/cancelFees.ts';
 import {
   rebookOn, rebookVisible, cleanRebookDays, typedRebookDays, suggestedRebookDays, intervalFor, rebookDue, rebookToday, parseRebookRef, rebookRef, rebookText, COOLDOWN_DAYS,
@@ -483,5 +484,87 @@ await ok('security: session first, tenant from the session, rate limited, no pho
   // the platform flag cannot be set from the browser
   assert.match(read('lib/settingsColumns.ts'), /AUTOMATIONS_PROTECTED_KEYS = \['feature_flags'/);
 });
+
+// ── security review: an expired deposit hold must not become a free, confirmed booking ──────────────────────────────────────
+{
+  const DEP = 'tenant-dep';
+  const depositPolicy = { ok: true as const, policy: { mode: 'deposit' as const } };
+  const savedCard = { ok: true as const, policy: { mode: 'saved_card' as const } };
+  const noPolicy = { ok: true as const, policy: null };
+  // A (0500000041) booked "מניקור ג׳ל" with a deposit and never paid; the 30-minute hold expired and was released (cancelled,
+  // cancelled_by system_hold). B (0500000042, another phone of the same person) waits on the list for the same treatment.
+  const heldAppt = { id: 'held-1', date: '2026-10-26', start_minute: 15 * 60, duration: 60, service: 'מניקור ג׳ל', client_id: 'client-A', client_phone: '0500000041', confirmation_status: 'cancelled', cancelled_by: 'system_hold' };
+  const depWorld = (menuRows: any[], waitlist: any[]) => makeDb({
+    settings: [{ tenant_id: DEP, business_name: 'סטודיו', automations: { waitlist_offers: true } }],
+    appointments: [{ tenant_id: DEP, ...heldAppt }],
+    service_prices: menuRows.map((r) => ({ tenant_id: DEP, active: true, ...r })),
+    waitlist: waitlist.map((w, i) => ({ tenant_id: DEP, status: 'waiting', id: `d${i}`, created_at: `2026-10-0${i + 1}T10:00:00Z`, ...w })),
+    clients: [], slot_offers: [], whatsapp_messages: [],
+  });
+  const run = (db: any, policy: any, sent: any[]) => offerFreedSlot({
+    db, tenantId: DEP, appt: heldAppt, baseUrl: 'https://k.example', now: NOW, policyFor: async () => policy,
+    send: async (phone: string, text: string) => { sent.push({ phone, text }); return { ok: true }; }, notify: async () => {}, newToken: () => 'wl' + 'f'.repeat(32),
+  } as any);
+
+  await ok('finding path: B is NOT offered the expired deposit slot; no claim token exists', async () => {
+    const db = depWorld([{ name: 'מניקור ג׳ל', duration: 60, requires_deposit: true }], [{ client_name: 'B', phone: '0500000042', service: 'מניקור ג׳ל' }]);
+    const sent: any[] = [];
+    const r: any = await run(db, depositPolicy, sent);
+    assert.equal(r.status, 'needs_booking'); assert.equal(sent.length, 0); assert.equal(db.tables.slot_offers.length, 0, 'no claim link was created');
+    // Fail closed: the deposit flag alone blocks it even if the policy reads as off; so do an unreadable policy and an unreadable menu.
+    assert.equal((await run(depWorld([{ name: 'מניקור ג׳ל', duration: 60, requires_deposit: true }], [{ client_name: 'B', phone: '0500000042', service: 'מניקור ג׳ל' }]), noPolicy, [])).status, 'needs_booking');
+    assert.equal((await run(depWorld([{ name: 'מניקור ג׳ל', duration: 60 }], [{ client_name: 'B', phone: '0500000042', service: 'מניקור ג׳ל' }]), { ok: false }, [])).status, 'policy_unreadable');
+    const broken = depWorld([], [{ client_name: 'B', phone: '0500000042', service: 'מניקור ג׳ל' }]); const realFrom = broken.from.bind(broken);
+    broken.from = (t: string) => (t === 'service_prices' ? { select: () => ({ eq: () => Promise.resolve({ data: null, error: { message: 'down' } }) }) } : realFrom(t));
+    assert.equal((await run(broken, noPolicy, [])).status, 'menu_unreadable');
+    // A saved-card / fee policy applies to every service: nothing goes through the one-tap link.
+    assert.equal((await run(depWorld([{ name: 'מניקור ג׳ל', duration: 60 }], [{ client_name: 'B', phone: '0500000042', service: 'מניקור ג׳ל' }]), savedCard, [])).status, 'needs_booking');
+  });
+
+  await ok('only services the public page books with no conditions are offered; the no-deposit path still works', async () => {
+    const db = depWorld(
+      [{ name: 'מניקור ג׳ל', duration: 60, requires_deposit: true }, { name: 'עיצוב גבות', duration: 30, requires_deposit: false }],
+      [{ client_name: 'B', phone: '0500000042', service: 'מניקור ג׳ל' }, { client_name: 'C', phone: '0500000043', service: 'עיצוב גבות' }],
+    );
+    const sent: any[] = [];
+    const r: any = await run(db, depositPolicy, sent);
+    assert.equal(r.status, 'offered'); assert.deepEqual(sent.map((s) => s.phone), ['0500000043'], 'only the no-deposit treatment');
+    assert.equal(r.skipped.needs_booking, 1);
+    assert.deepEqual(db.tables.slot_offers.map((o: any) => o.service), ['עיצוב גבות']);
+    // No Grow policy and no deposit flag: offered exactly as before.
+    const plain = depWorld([{ name: 'מניקור ג׳ל', duration: 60 }], [{ client_name: 'B', phone: '0500000042', service: 'מניקור ג׳ל' }]);
+    const s2: any[] = [];
+    assert.equal((await run(plain, noPolicy, s2)).status, 'offered'); assert.equal(s2.length, 1);
+  });
+
+  await ok('claim time: the server re-checks and never confirms a deposit / policy service in one tap', async () => {
+    const menuDb = (rows: any[] | null, error: any = null) => ({ from: () => { const q: any = { select: () => q, eq: () => q, then: (res: any) => Promise.resolve({ data: rows, error }).then(res) }; return q; } });
+    const args = (db: any, policy: any, service = 'מניקור ג׳ל') => ({ db, tenantId: DEP, service, policyFor: async () => policy });
+    // The finding: an offer already sent (before this fix) for the deposit service is refused at claim time.
+    assert.equal(await claimAllowed(args(menuDb([{ name: 'מניקור ג׳ל', requires_deposit: true }]), depositPolicy) as any), false);
+    assert.equal(await claimAllowed(args(menuDb([{ name: 'מניקור ג׳ל', requires_deposit: true }]), noPolicy) as any), false, 'the deposit flag alone');
+    assert.equal(await claimAllowed(args(menuDb([{ name: 'מניקור ג׳ל' }]), savedCard) as any), false, 'a policy that applies to all services');
+    assert.equal(await claimAllowed(args(menuDb(null, { message: 'down' }), noPolicy) as any), false, 'menu unreadable: refuse');
+    assert.equal(await claimAllowed(args(menuDb([{ name: 'מניקור ג׳ל' }]), { ok: false }) as any), false, 'policy unreadable: refuse');
+    // An archived namesake with the flag does not hide the active row, and vice versa.
+    assert.equal(await claimAllowed(args(menuDb([{ name: 'מניקור ג׳ל', active: false }, { name: 'מניקור ג׳ל', requires_deposit: true }]), noPolicy) as any), false);
+    // The no-deposit path: allowed.
+    assert.equal(await claimAllowed(args(menuDb([{ name: 'מניקור ג׳ל' }]), noPolicy) as any), true);
+    assert.equal(await claimAllowed(args(menuDb([{ name: 'מניקור ג׳ל' }]), depositPolicy) as any), true, 'deposit mode covers only services marked for a deposit');
+    // The route: the check runs before the offer is marked claimed and before any appointment is written, and answers with her link.
+    const route = read('app/api/claim/route.ts');
+    const post = route.slice(route.indexOf('export async function POST'));
+    const guard = post.indexOf('claimAllowed({');
+    assert.ok(guard > 0 && guard < post.indexOf('.update({ status: "claimed"') && guard < post.indexOf('bookAppointmentSlot('), 'refused before claiming or booking');
+    assert.match(post, /state: "needs_booking", message: NEEDS_BOOKING_HE[^}]*bookUrl: pre\.contact\.bookUrl/);
+    assert.match(read('app/claim/[token]/page.tsx'), /state === "needs_booking"/);
+    // The same predicate as the public booking route, and the runtime always passes the real policy.
+    assert.match(read('app/api/book-appointment/route.js'), /policyAppliesToService\(policy\.mode, svcRow\)/);
+    assert.match(read('lib/claimGuard.ts'), /policyAppliesToService\(policy\.mode, service\)/);
+    const cp = read('app/api/grow/_claimPolicy.ts');
+    assert.match(cp, /growUiEnabled\(process\.env, tenantId\)/); assert.match(cp, /activePolicy\(deps, tenantId\)/); assert.match(cp, /return \{ ok: false \}/);
+    assert.equal((read('lib/waitlistRuntime.js').match(/policyFor: publicBookingPolicy/g) || []).length, 2, 'every runtime offer reads the real policy');
+  });
+}
 
 console.log(`waitlist + rebook: ${n} ok`);

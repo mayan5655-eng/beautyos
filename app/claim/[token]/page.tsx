@@ -131,13 +131,19 @@ export default function ClaimPage() {
             body="נראה שהקישור שגוי או ישן. אם קיבלת אותו בוואטסאפ, נסי ללחוץ שוב על הקישור המקורי." />
         )}
 
+        {/* A service with a deposit or her cancellation policy is booked on her booking page, never in one tap (lib/claimGuard.ts). */}
+        {state === "needs_booking" && (
+          <Result icon={ICON_CALENDAR} title="עוד צעד קטן"
+            body="כדי לשמור את התור הזה צריך לקבוע אותו דרך דף ההזמנות, שם מאשרים את תנאי ההזמנה (ולפעמים משלמים מקדמה). זה לוקח דקה." />
+        )}
+
         {state === "error" && (
           <Result icon={ICON_QUESTION} title="משהו השתבש"
             body="לא הצלחנו להשלים את הפעולה. נסי שוב עוד רגע, או פני אלינו בוואטסאפ." />
         )}
 
         {/* The slot went to someone else or ran out: another time on her booking page, or a word with her (lib/publicContact.ts). */}
-        {(state === "taken" || state === "expired" || state === "error") && (
+        {(state === "taken" || state === "expired" || state === "error" || state === "needs_booking") && (
           <NextSteps bookUrl={details.bookUrl} whatsapp={details.whatsapp} businessName={details.businessName} />
         )}
       </div>
