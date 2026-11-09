@@ -48,10 +48,11 @@ export type ChatTurn = { role: 'user' | 'assistant'; content: string };
 /** Help body lines carry "**bold**" and "### " markup for the help page; the model gets plain words. */
 const plain = (s: string) => s.replace(/\*\*/g, '').replace(/^###\s*/, '').trim();
 
-function renderSections(sections: HelpSection[]): string {
+function renderSections(sections: HelpSection[], allowed: Set<string>): string {
   return sections
     .map((s) => {
-      const vids = (s.videos || []).filter((v) => TUTORIAL_TITLES[v]);
+      // Only videos she may be pointed to: a switched-off feature's video id never reaches the model (PR #49 review).
+      const vids = (s.videos || []).filter((v) => TUTORIAL_TITLES[v] && allowed.has(v));
       return `## ${s.title}${vids.length ? ` (סרטונים: ${vids.join(', ')})` : ''}\n${s.body.map(plain).join('\n')}`;
     })
     .join('\n\n');
@@ -63,7 +64,8 @@ export function buildHelpPrompt(fields: unknown, on?: Partial<Record<TutorialFla
   const nailsOnly = Array.isArray(fields) && fields.includes('nails') && !fields.includes('cosmetics');
   // Only the videos this business may be pointed to: a nails-only business never hears about the skin scanner.
   // And only videos of features this deployment has switched on (lib/tutorialFlags.ts): no Grow video while Grow is off.
-  const videos = tutorialIdsFor(fields, on).map((id) => `${id}: ${TUTORIAL_TITLES[id]}`).join('\n');
+  const allowedIds = tutorialIdsFor(fields, on);
+  const videos = allowedIds.map((id) => `${id}: ${TUTORIAL_TITLES[id]}`).join('\n');
   return `את העוזרת של קלמיה, מערכת לניהול עסק יופי. בעלת העסק שואלת איך עושים משהו במערכת, ואת עונה לה.
 
 החומר היחיד שמותר לך לענות ממנו הוא מדריך העזרה ורשימת הסרטונים שלמטה. אין לך שום מידע אחר על המערכת ואין לך גישה לנתונים של העסק שלה.
@@ -86,16 +88,16 @@ export function buildHelpPrompt(fields: unknown, on?: Partial<Record<TutorialFla
 ${videos}
 
 מדריך העזרה:
-${renderSections(sections)}`;
+${renderSections(sections, new Set(allowedIds))}`;
 }
 
 /** Only real tutorial ids survive, each once, at most MAX_VIDEOS. */
-export function validVideoIds(ids: unknown): string[] {
+export function validVideoIds(ids: unknown, allowed?: readonly string[]): string[] {
   if (!Array.isArray(ids)) return [];
   const out: string[] = [];
   for (const raw of ids) {
     const id = String(raw ?? '').trim();
-    if (Object.prototype.hasOwnProperty.call(TUTORIAL_TITLES, id) && !out.includes(id)) out.push(id);
+    if (Object.prototype.hasOwnProperty.call(TUTORIAL_TITLES, id) && (!allowed || allowed.includes(id)) && !out.includes(id)) out.push(id);
     if (out.length >= MAX_VIDEOS) break;
   }
   return out;
@@ -105,7 +107,7 @@ export function validVideoIds(ids: unknown): string[] {
  * The model's text -> { answer, videos }. The "[[videos: ...]]" line is taken off the answer; markup the screen does
  * not render (**, #) is removed, and long dashes become a plain hyphen (the copy rule). Unknown video ids are dropped.
  */
-export function parseHelpAnswer(raw: string): { answer: string; videos: string[] } {
+export function parseHelpAnswer(raw: string, allowed?: readonly string[]): { answer: string; videos: string[] } {
   let text = String(raw || '');
   const ids: string[] = [];
   text = text.replace(/\[\[\s*videos?\s*:([^\]]*)\]\]/gi, (_m, list: string) => {
@@ -118,7 +120,7 @@ export function parseHelpAnswer(raw: string): { answer: string; videos: string[]
     .replace(/\s*[—–]\s*/g, ' - ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  return { answer, videos: validVideoIds(ids) };
+  return { answer, videos: validVideoIds(ids, allowed) };
 }
 
 /** What the browser sent as history, made safe to send on: roles checked, turns cut, the last few kept, alternating. */
@@ -206,7 +208,8 @@ export async function handleHelpChat(request: Request, deps: HelpChatDeps): Prom
     const tab = tabOf(body?.tab);
 
     const fields = await loadFields(session, tenantId);
-    const system: any[] = [{ type: 'text', text: buildHelpPrompt(fields, tutorialFlagsOn()), cache_control: { type: 'ephemeral' } }];
+    const flags = tutorialFlagsOn();
+    const system: any[] = [{ type: 'text', text: buildHelpPrompt(fields, flags), cache_control: { type: 'ephemeral' } }];
     if (tab) system.push({ type: 'text', text: `היא שואלת מתוך המסך: ${tab}` });
 
     const msg = await deps.track(deps.anthropic, {
@@ -219,7 +222,8 @@ export async function handleHelpChat(request: Request, deps: HelpChatDeps): Prom
     }, { tenantId, callSite: HELP_CHAT_CALL_SITE });
 
     const raw = (msg?.content || []).map((b: any) => (b?.type === 'text' ? b.text : '')).join('');
-    const { answer, videos } = parseHelpAnswer(raw);
+    // A video id the page hides (its feature is switched off) is dropped even if the model names it.
+    const { answer, videos } = parseHelpAnswer(raw, tutorialIdsFor(fields, flags));
     if (!answer) {
       console.error('[help-chat] empty answer, stop_reason:', msg?.stop_reason);
       return json({ error: 'לא הצלחתי לענות הפעם. אפשר לנסות שוב, או לשלוח לנו הודעה למטה.', reason: 'busy' }, 502);
