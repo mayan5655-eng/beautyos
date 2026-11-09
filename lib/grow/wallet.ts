@@ -45,6 +45,7 @@ export function walletCredentials(env: Env = process.env): WalletCreds | null {
   const t = (k: string) => String(env[k] || '').trim();
   const production = t('GROW_ENV').toLowerCase() === 'production';
   const override = t('GROW_API_BASE').replace(/\/+$/, '');
+  if (override && !/^https:\/\//i.test(override)) return null; // the same rule as config.ts and tokenFlow.ts: never an insecure base
   if (production) {
     const apiKey = t('GROW_API_KEY'); const pageCode = t('GROW_WALLET_PAGE_CODE');
     if (!apiKey || !pageCode) return null;

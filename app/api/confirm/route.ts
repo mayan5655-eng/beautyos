@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
 import { notifyOwnerOfCancellation } from '@/lib/cancelNotify';
-import { askGapFillAfterClientCancel, minutesUntilIsrael } from '@/lib/ownerQuestions';
-import { resolveBookingRules, isInsideCancelWindow } from '@/lib/bookingPolicy';
+import { askGapFillAfterClientCancel } from '@/lib/ownerQuestions';
+import { resolveBookingRules, clientLinkRefusal } from '@/lib/bookingPolicy';
 import { growUiEnabled } from '@/lib/grow/adapter';
 import { detect } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '@/app/api/grow/_cancel';
@@ -112,6 +112,27 @@ export async function POST(request: NextRequest) {
       };
     } catch { /* unbranded, not broken */ }
 
+    // Her cancellation window: inside it the client's own link no longer cancels. She can still cancel in the
+    // app, and the client is told to contact her. Only the CLIENT path is restricted; confirming is never blocked.
+    // A booking made under a Grow cancellation policy is different: the client agreed that a late cancel has a fee, so the link must let her
+    // cancel at any time (the fee, not a refusal, is the consequence) and the late cancel becomes a pending question for the cosmetician.
+    let growDeps: ReturnType<typeof cancelDeps> = null;
+    let underPolicy = false;
+    if (action === 'cancel' && growUiEnabled(process.env, appt.tenant_id)) {
+      try {
+        growDeps = cancelDeps();
+        underPolicy = !!growDeps && !!(await growDeps.repo.getConsent(appt.tenant_id, appointmentId));
+      } catch { underPolicy = false; }
+    }
+    // What the link cannot do, from the same rule the cancel page is shown up front (lib/bookingPolicy.ts clientLinkRefusal).
+    const startMin = appt.start_minute ?? (appt.hour != null ? Number(appt.hour) * 60 : null);
+    const refusal = clientLinkRefusal({
+      action, status: appt.confirmation_status, date: String(appt.date), startMinute: startMin,
+      cancelWindowHours, underPolicy, businessName: brand.businessName,
+    });
+    // Her booking link and WhatsApp: only past the signature check (lib/publicContact.ts), for a refusal or a done cancel.
+    const contact = await publicContactFor(supabase, appt.tenant_id, settingsRow);
+
     // { peek: true }: the cancel page asks WHICH appointment before she taps "cancel", and changes nothing.
     // Only after the signature check, and only what her own message already told her - treatment, day and
     // time. No name, phone, price or ids (point 3 above still holds). 2026-10-23 pass: the page asked
@@ -123,6 +144,9 @@ export async function POST(request: NextRequest) {
         ...brand,
         status: appt.confirmation_status,
         appointment: { service: appt.service || '', date: appt.date ? hebrewDate(appt.date) : '', time: fmtApptTime(appt) },
+        // Read-only and advisory: a cancel the link could not do is shown as the calm refusal straight away, with how to reach
+        // her, instead of a "yes, cancel" button that would only be refused after the tap. The real request below still decides.
+        ...(action === 'cancel' && refusal ? { refusal: { error: refusal.error, ...(refusal.tooLate ? { tooLate: true } : {}) }, ...contact } : {}),
       });
     }
 
@@ -132,7 +156,6 @@ export async function POST(request: NextRequest) {
     // (The day and time, and where she can book again: past the signature check and after the peek, which stays
     // treatment, day and time only. Used by the answers below.)
     const when = appt.date ? `ב${hebrewDate(appt.date)}${fmtApptTime(appt) ? `, בשעה ${fmtApptTime(appt)}` : ''}` : '';
-    const contact = await publicContactFor(supabase, appt.tenant_id, settingsRow);
 
     if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true, brand, when, contact);
     if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand, when, contact);
@@ -149,44 +172,24 @@ export async function POST(request: NextRequest) {
     // A link only moves a booking that is still ahead and still open (2026-10-20 audit): a no-show stays a no-show, a visit that
     // already happened is not cancelled afterwards (which also opened a gap-fill question for a slot in the past), and a booking
     // held for an unpaid deposit is confirmed by paying, not by tapping "confirm".
-    if (appt.confirmation_status && !['pending', 'confirmed'].includes(String(appt.confirmation_status))) {
-      return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: `התור הזה כבר עודכן אצל ${brand.businessName || 'העסק'}. לכל שינוי אפשר ליצור קשר ישירות.` }, { status: 409 });
-    }
-    {
-      const sm = appt.start_minute ?? (appt.hour != null ? Number(appt.hour) * 60 : null);
-      if (sm !== null && minutesUntilIsrael(String(appt.date), Number(sm)) <= 0) {
-        return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: 'מועד התור כבר עבר, אז אי אפשר לשנות אותו דרך הקישור.' }, { status: 409 });
-      }
+    // A changed status, a slot already past, and (cancel only) her cancellation window: one rule, clientLinkRefusal
+    // (`action === 'cancel' && cancelWindowHours > 0` and not underPolicy, via isInsideCancelWindow).
+    // The window restricts only the CLIENT path; she can still cancel in the app. A booking under a Grow cancellation
+    // policy is never refused by the window: the client agreed that a late cancel has a fee, and the late cancel becomes a
+    // pending question for the cosmetician.
+    if (refusal) {
+      return NextResponse.json({
+        success: false,
+        ...(refusal.tooLate ? { tooLate: true } : {}),
+        businessName: brand.businessName || '',
+        ...contact,
+        error: refusal.error,
+      }, { status: 409 });
     }
     if (action === 'confirm' && appt.confirmation_status === 'pending') {
       const { data: hold } = await supabase.from('appointment_policy_consents').select('status').eq('appointment_id', appointmentId).eq('tenant_id', appt.tenant_id).maybeSingle();
       if (hold && hold.status === 'awaiting_deposit') {
         return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: 'התור שמור עבורך עד שהמקדמה משולמת. אחרי התשלום הוא מאושר מעצמו.' }, { status: 409 });
-      }
-    }
-
-    // Her cancellation window: inside it the client's own link no longer cancels. She can still cancel in the
-    // app, and the client is told to contact her. Only the CLIENT path is restricted; confirming is never blocked.
-    // A booking made under a Grow cancellation policy is different: the client agreed that a late cancel has a fee, so the link must let her
-    // cancel at any time (the fee, not a refusal, is the consequence) and the late cancel becomes a pending question for the cosmetician.
-    let growDeps: ReturnType<typeof cancelDeps> = null;
-    let underPolicy = false;
-    if (action === 'cancel' && growUiEnabled(process.env, appt.tenant_id)) {
-      try {
-        growDeps = cancelDeps();
-        underPolicy = !!growDeps && !!(await growDeps.repo.getConsent(appt.tenant_id, appointmentId));
-      } catch { underPolicy = false; }
-    }
-    if (action === 'cancel' && cancelWindowHours > 0 && !underPolicy) {
-      const startMin = appt.start_minute ?? (appt.hour != null ? Number(appt.hour) * 60 : null);
-      if (startMin !== null && isInsideCancelWindow(String(appt.date), Number(startMin), cancelWindowHours)) {
-        return NextResponse.json({
-          success: false,
-          tooLate: true,
-          businessName: brand.businessName || '',
-          ...contact,
-          error: `אפשר לבטל דרך הקישור עד ${cancelWindowHours} שעות לפני התור. כדי לבטל עכשיו, אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`,
-        }, { status: 409 });
       }
     }
 

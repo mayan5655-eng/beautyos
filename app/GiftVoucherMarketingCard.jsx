@@ -8,6 +8,7 @@
 //   * ready texts for holidays, birthdays and "just because", to copy;
 //   * a button to sell one at the till right now.
 // Nothing is posted or sent by us. Renders nothing until gift vouchers are installed (useVouchersReady).
+import GrowCostNote from './GrowCostNote';
 import { useEffect, useMemo, useState } from 'react';
 import { voucherConfig } from '@/lib/giftVouchers';
 import { voucherLook, storageHostOf } from '@/lib/giftVoucherDesign';
@@ -78,6 +79,7 @@ export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAt
             <a style={btn} data-testid="gv-story" href={`/api/vouchers/image?shop=${encodeURIComponent(tenantId)}&f=story`} download="gift-voucher-story.png" target="_blank" rel="noreferrer">תמונה לסטורי</a>
           </div>
           {online === false && <p style={{ margin: '8px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>Grow עוד לא מחובר, אז בדף כתוב שקונים שובר אצלך בעסק. אחרי החיבור הקונה תוכל לשלם אונליין, בלי לשנות כלום.</p>}
+          {online === false && <GrowCostNote style={{ marginTop: 4 }} />}
         </div>
       ) : null}
 

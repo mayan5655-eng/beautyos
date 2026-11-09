@@ -37,10 +37,10 @@ assert.ok(/const upgrade = upgradeOn && canPay/.test(notices), 'upgrade needs th
 assert.equal((notices.match(/data-testid="upgrade-cta"/g) || []).length, 1);
 assert.ok(/onClick=\{onOpenBilling\}\s*\n\s*data-testid="upgrade-cta"/.test(notices), 'the quiet button opens the billing screen');
 
-// the annual plan: 10 monthly prices, PENDING the owner's confirmation, and its copy reads the constant
+// the annual plan: 10 monthly prices, confirmed by the owner 2026-11-09, and its copy reads the constant
 assert.equal(ANNUAL_PLAN_PRICES.regular, PLAN_PRICES.regular * 10);
 assert.equal(ANNUAL_PLAN_PRICES.launch, PLAN_PRICES.launch * 10);
-assert.ok(/PENDING THE OWNER'S CONFIRMATION/.test(fs.readFileSync('lib/pricing.ts', 'utf8')), 'the annual price is marked as pending her confirmation');
+assert.ok(/CONFIRMED by the owner 2026-11-09/.test(fs.readFileSync('lib/pricing.ts', 'utf8')), 'the annual price records her confirmation');
 assert.equal(annualOfferHe(PLAN_PRICES.regular), `תשלום שנתי: ${priceHe(ANNUAL_PLAN_PRICES.regular)} לשנה, חודשיים מתנה`);
 assert.ok(!/[–—]/.test(annualOfferHe(PLAN_PRICES.launch)));
 
