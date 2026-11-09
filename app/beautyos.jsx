@@ -52,7 +52,7 @@ import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, c
 import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
 import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
 import { bufferLookup, businessBufferDefault, cleanBufferMinutes, bufferedRange, clashesWithBuffer, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
-import { suggestedRebookDays, cleanRebookDays, rebookVisible } from "@/lib/reminders/rebookPlan.js";
+import { suggestedRebookDays, cleanRebookDays, typedRebookDays, rebookVisible } from "@/lib/reminders/rebookPlan.js";
 import { waitlistOffersOn, waitlistOffersVisible, waitlistOfferToast } from "@/lib/waitlistFlag.js";
 import { DISMISS_KEY as SUGGEST_DISMISS_KEY } from "@/lib/automationSuggest.js";
 import { firstFreeStart } from "@/lib/apptFirstFree";
@@ -5120,7 +5120,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // that still meets the missing column drops only that column (the nudge then uses the automatic interval).
   const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes", "rebook_days"];
   const commitServiceDraft = async (tid) => {
-    const draft = editServices;
+    // rebook_days is typed freely (typedRebookDays) and only validated here and on blur: clamping each keystroke turned "21" into 71.
+    const draft = editServices ? editServices.map(s => (s && Object.prototype.hasOwnProperty.call(s, "rebook_days") ? { ...s, rebook_days: cleanRebookDays(s.rebook_days) } : s)) : editServices;
     if (!draft) return { changed: 0, errors: [], bufferPending: false };
     // A save that failed on a column the database does not have yet: retry without THAT column only (lib/pgError
     // missingColumnName), up to three optional columns. Returns null when the error was not a missing optional column.
@@ -13530,7 +13531,7 @@ ${MARKETING_FOOTER}`)}`;
  {rebookShown&&(()=>{const sug=suggestedRebookDays(svc.name,svc.field);return(<>
  <label data-testid="service-rebook" style={{display:"flex",alignItems:"center",gap:6,marginTop:7,fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>
  <span style={{flex:1,minWidth:0}}>להזכיר לחזור אחרי (ימים)</span>
- <input type="number" inputMode="numeric" min={0} max={365} disabled={!rebookColumnReady} aria-label="להזכיר לחזור אחרי, בימים" value={svc.rebook_days==null?"":svc.rebook_days} placeholder={sug?String(sug):"אוטו׳"} onChange={e=>patchDraftService(idx,{rebook_days:e.target.value===""?null:cleanRebookDays(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:rebookColumnReady?"var(--surface)":"var(--surface-2)"}}/>
+ <input type="number" inputMode="numeric" min={0} max={365} disabled={!rebookColumnReady} aria-label="להזכיר לחזור אחרי, בימים" value={svc.rebook_days==null?"":svc.rebook_days} placeholder={sug?String(sug):"אוטו׳"} onChange={e=>patchDraftService(idx,{rebook_days:typedRebookDays(e.target.value)})} onBlur={e=>{const v=cleanRebookDays(e.target.value);if(v!==svc.rebook_days)patchDraftService(idx,{rebook_days:v});}} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:rebookColumnReady?"var(--surface)":"var(--surface-2)"}}/>
  </label>
  {rebookColumnReady&&svc.rebook_days===0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>0 = בלי תזכורת לטיפול הזה.</p>}
  {!rebookColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>יופעל אחרי עדכון קטן במערכת. עד אז התזכורת נקבעת לפי הקצב של כל לקוחה ולפי סוג הטיפול.</p>}

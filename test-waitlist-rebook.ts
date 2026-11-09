@@ -11,7 +11,7 @@ import { entryFitsSlot, chooseRecipients } from './lib/waitlistMatch.js';
 import { waitlistActivity } from './lib/waitlistActivity.js';
 import { releaseExpiredHolds } from './lib/grow/cancelFees.ts';
 import {
-  rebookOn, rebookVisible, cleanRebookDays, suggestedRebookDays, intervalFor, rebookDue, rebookToday, parseRebookRef, rebookRef, rebookText, COOLDOWN_DAYS,
+  rebookOn, rebookVisible, cleanRebookDays, typedRebookDays, suggestedRebookDays, intervalFor, rebookDue, rebookToday, parseRebookRef, rebookRef, rebookText, COOLDOWN_DAYS,
 } from './lib/reminders/rebookPlan.js';
 import { runSmartReminders } from './lib/reminders/smartReminders.js';
 import { canMarket } from './lib/marketingConsent.js';
@@ -401,6 +401,87 @@ await ok('the suggestion card: only for a switch never stored, with the exact me
   assert.match(app, /<AutomationSuggestCard settings=\{settings\}/);
   assert.match(app, /saveAutomationsKey\(key, true\)/, 'one tap stores her switch as true');
   assert.match(read('app/AutomationSuggestCard.jsx'), /להפעיל/);
+});
+
+// ── PR #39 review ───────────────────────────────────────────────────────────
+await ok('review 1: typing "21" into the empty field stays 21; the range applies on blur and on save', () => {
+  // Keystroke by keystroke, as the input reports it.
+  let field: number | null = null;
+  for (const typed of ['2', '21']) field = typedRebookDays(typed);
+  assert.equal(field, 21, 'the first digit is not clamped to 7');
+  assert.equal(typedRebookDays(''), null); assert.equal(typedRebookDays('4x5'), 45); assert.equal(typedRebookDays('12345'), 123);
+  assert.equal(cleanRebookDays(typedRebookDays('3')), 7, 'on blur / save: below the minimum becomes 7');
+  assert.equal(cleanRebookDays(typedRebookDays('900')), 365);
+  const app = read('app/beautyos.jsx');
+  assert.match(app, /onChange=\{e=>patchDraftService\(idx,\{rebook_days:typedRebookDays\(e\.target\.value\)\}\)\}/, 'no clamp per keystroke');
+  assert.match(app, /onBlur=\{e=>\{const v=cleanRebookDays\(e\.target\.value\)/, 'clamped on blur');
+  assert.match(app, /rebook_days: cleanRebookDays\(s\.rebook_days\)/, 'and on save, even without a blur');
+});
+
+await ok('review 2: a service menu that cannot be read stops the rebook nudges (fail closed)', async () => {
+  const w: any = rbWorld();
+  w.service_prices = [...menu, { tenant_id: RT, name: 'לק ג׳ל', duration: 60, active: true, rebook_days: 0 }].filter((r) => r.name !== 'לק ג׳ל' || r.rebook_days === 0);
+  // With the menu readable, gel is "never" (0): nobody gets a gel nudge.
+  const s0 = sender();
+  await runSmartReminders({ db: makeDb(w), send: s0.send, now } as any);
+  assert.equal(s0.calls.filter((c) => c.type === 'auto_rebook' && /לק ג׳ל/.test(c.message)).length, 0);
+  // The menu read fails: the run must NOT fall back to automatic days (which would nudge gel). No rebook nudge at all.
+  for (const failure of [{ data: null, error: { message: 'down' }, count: null }, null]) {
+    const db = makeDb(rbWorld() as any); const real = db.from.bind(db);
+    db.from = (t: string) => {
+      if (t !== 'service_prices') return real(t);
+      const q: any = real(t);
+      // null = a read that does not finish: a page shorter than the count it claims.
+      q.range = () => Promise.resolve(failure || { data: [{ id: 'x1', tenant_id: RT, name: 'x', duration: 30 }], error: null, count: 5 });
+      return q;
+    };
+    const s = sender();
+    const { stats } = await runSmartReminders({ db, send: s.send, now } as any) as any;
+    assert.equal(s.calls.filter((c) => c.type === 'auto_rebook').length, 0, 'no nudge from a menu we could not read');
+    assert.ok(stats.incomplete.includes('service_prices'), 'and the run says so (the route raises its ops alert)');
+  }
+  const route = read('app/api/rebook/today/route.js');
+  assert.match(route, /sv\.error \|\| !cl\.complete/); assert.match(route, /!sv\.complete\)/);
+  assert.ok(!/sv\.error \? \[\]/.test(route), 'the today list no longer falls back either');
+});
+
+await ok('review 3: a compatible treatment with no buffer of its own uses the business default', () => {
+  const menu3 = [{ name: 'קצר', duration: 50, buffer_minutes: null }, { name: 'אפס', duration: 55, buffer_minutes: 0 }];
+  assert.deepEqual([...compatibleServices(menu3, { service: 'X', duration: 60 }).keys()], ['קצר', 'אפס'], 'no default: both fit');
+  assert.deepEqual([...compatibleServices(menu3, { service: 'X', duration: 60, businessDefault: 15 }).keys()], ['אפס'], '50 + 15 > 60; her own 0 stays 0');
+  assert.match(read('lib/waitlistOffers.js'), /businessDefault: businessBufferDefault\(settingsRow\?\.branding\)/);
+});
+
+// ── security audit of the routes this branch added or changed ──────────────
+await ok('security: session first, tenant from the session, rate limited, no phone numbers to the browser', () => {
+  for (const f of ['app/api/waitlist/activity/route.js', 'app/api/rebook/today/route.js', 'app/api/waitlist/offer/route.js']) {
+    const src = read(f);
+    const body = src.slice(src.indexOf('export async function'));
+    const auth = body.indexOf('auth.getUser()');
+    const tenant = body.indexOf('get_user_tenant_id');
+    const firstAdmin = body.search(/admin\.from\(|readAllRows\(admin|runWaitlistOffer\(/);
+    assert.ok(auth > 0 && tenant > auth && firstAdmin > tenant, `${f}: auth and tenant before any service-role query`);
+    assert.ok(body.indexOf('checkTenantLimit(tenantId') > tenant && body.indexOf('checkTenantLimit(tenantId') < firstAdmin, `${f}: rate limited before the work`);
+    assert.ok(!/searchParams|body\.tenant|tenant_id:\s*body/.test(src), `${f}: the tenant never comes from the request`);
+    // every service-role query names the session tenant (or, for the offer, the appointment it read under it)
+    for (const m of body.matchAll(/admin\.from\("(\w+)"\)[^;]*/g)) assert.match(m[0], /tenant/, `${f}: ${m[1]} is tenant scoped`);
+  }
+  assert.match(read('app/api/waitlist/offer/route.js'), /requireActiveTenant\(supabase\)/, 'the write keeps the plan guard');
+  const offer = read('app/api/waitlist/offer/route.js');
+  assert.match(offer, /return Response\.json\(\{ success: true, status: r\.status, offered: r\.offered \|\| 0, counts: r\.counts \|\| null, names:/, 'only the toast fields leave');
+  assert.ok(!/\.\.\.r \}/.test(offer));
+  assert.ok(!/phone/.test(read('app/api/waitlist/activity/route.js').match(/\.select\("([^"]+)"\)/g)!.join(' ')), 'activity never reads phones');
+  const today = read('app/api/rebook/today/route.js');
+  assert.ok(!/phone/.test(today.slice(today.indexOf('const pick'))), 'today list: no phones');
+  // first names only in the history lines
+  const items = waitlistActivity([{ token: 'wl1', slot_date: '2026-10-26', slot_start_minute: 600, client_name: 'דנה כהן', phone: '0500000000', status: 'sent', expires_at: '2099-01-01', created_at: 'x' }]);
+  assert.ok(!/כהן|0500000000/.test(JSON.stringify(items)));
+  // the hold-release hook acts only on a hold the database really released (a conditional update): a public caller of
+  // availability cannot make it offer the same slot twice, and it re-reads the appointment by id AND tenant
+  const rt = read('lib/waitlistRuntime.js');
+  assert.match(rt, /\.eq\("id", appointmentId\)\.eq\("tenant_id", tenantId\)/);
+  // the platform flag cannot be set from the browser
+  assert.match(read('lib/settingsColumns.ts'), /AUTOMATIONS_PROTECTED_KEYS = \['feature_flags'/);
 });
 
 console.log(`waitlist + rebook: ${n} ok`);

@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
 import { waitlistActivity } from "../../../../lib/waitlistActivity.js";
 import { waitlistOffersOn } from "../../../../lib/waitlistFlag.js";
+import { checkTenantLimit } from "../../../../lib/rateLimit";
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -19,6 +20,8 @@ export async function GET() {
     if (!user) return Response.json({ success: false, error: "לא מחובר" }, { status: 401 });
     const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
     if (!tenantId) return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
+    const limited = checkTenantLimit(tenantId, "owner-lists");
+    if (limited) return limited;
 
     const since = new Date(Date.now() - 14 * 86400000).toISOString();
     const [{ data: settingsRow }, { data: rows, error }] = await Promise.all([

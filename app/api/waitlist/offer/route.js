@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../../lib/planGuard";
 import { runWaitlistOffer } from "../../../../lib/waitlistRuntime.js";
+import { checkTenantLimit } from "../../../../lib/rateLimit";
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -22,6 +23,9 @@ export async function POST(request) {
     if (!tenantId) return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
     const guard = await requireActiveTenant(supabase);
     if (!guard.ok) return guard.response;
+    // Each call can send WhatsApp messages in her name: a loop is stopped here, on top of the feature's own daily cap.
+    const limited = checkTenantLimit(tenantId, "waitlist-offer");
+    if (limited) return limited;
 
     const body = await request.json().catch(() => ({}));
     const appointmentId = String(body.appointmentId || "");
@@ -33,7 +37,8 @@ export async function POST(request) {
     if (appt.confirmation_status !== "cancelled") return Response.json({ success: true, status: "not_cancelled", offered: 0 });
 
     const r = await runWaitlistOffer({ tenantId, appt: { ...appt, client_phone: appt.client_phone || null }, db: admin });
-    return Response.json({ success: true, ...r });
+    // Only what the toast needs (lib/waitlistFlag.js waitlistOfferToast): the status, the counts and first names. Never a phone.
+    return Response.json({ success: true, status: r.status, offered: r.offered || 0, counts: r.counts || null, names: Array.isArray(r.names) ? r.names : [] });
   } catch (err) {
     console.error("[waitlist/offer] failed:", err?.message || String(err));
     return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע" }, { status: 500 });

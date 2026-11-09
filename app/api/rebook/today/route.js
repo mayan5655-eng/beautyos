@@ -13,6 +13,7 @@ import { businessFieldsOf } from "../../../../lib/businessFields.ts";
 import { REBOOK_TYPE, defaultRebookDays } from "../../../../lib/reminders/rebook.js";
 import { rebookToday } from "../../../../lib/reminders/rebookPlan.js";
 import { DEFAULT_CAPS } from "../../../../lib/reminders/smartReminders.js";
+import { checkTenantLimit } from "../../../../lib/rateLimit";
 
 const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -23,6 +24,8 @@ export async function GET() {
     if (!user) return Response.json({ success: false, error: "לא מחובר" }, { status: 401 });
     const { data: tenantId } = await supabase.rpc("get_user_tenant_id");
     if (!tenantId) return Response.json({ success: false, error: "לא זוהה עסק" }, { status: 400 });
+    const limited = checkTenantLimit(tenantId, "owner-lists");
+    if (limited) return limited;
 
     const byTenant = (q) => q.eq("tenant_id", tenantId);
     const [st, cl, ap, sv, lg] = await Promise.all([
@@ -33,7 +36,8 @@ export async function GET() {
       readAllRows(admin, "auto_reminders_log", { columns: "tenant_id, client_id, reminder_type, reference_id", order: ["client_id", "reference_id"], filter: (q) => q.eq("tenant_id", tenantId).eq("reminder_type", REBOOK_TYPE) }),
     ]);
     // A list built from a partial read would name the wrong people: say so instead.
-    if (st.error || cl.error || ap.error || lg.error || !cl.complete || !ap.complete || !lg.complete) {
+    // The menu too (PR #39 review): without it a treatment she set to 0 ("never") could be listed, so no menu means no list.
+    if (st.error || cl.error || ap.error || lg.error || sv.error || !cl.complete || !ap.complete || !lg.complete || !sv.complete) {
       return Response.json({ success: false, error: "לא הצלחנו לקרוא את כל הנתונים כרגע, אפשר לנסות שוב בעוד רגע" }, { status: 503 });
     }
     const settings = st.data || {};
@@ -42,7 +46,7 @@ export async function GET() {
       settings,
       clients: cl.data,
       appointments: ap.data,
-      services: sv.error ? [] : sv.data, // no service table read: the rhythm and the suggestions still apply
+      services: sv.data,
       logRows: lg.data,
       today,
       canMarket,
