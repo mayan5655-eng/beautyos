@@ -3,7 +3,7 @@
 // what createPaymentProcess's answer is reduced to. Fake fetch and in-memory repos: nothing reaches Grow or a database.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { uaClass, isInApp, osOf, fallbackDecision, androidIntentUrl, buildDiagPayload, cleanDiagBody, sdkFailureText, safeHostedUrl } from './lib/grow/walletDiag.js';
+import { uaClass, isInApp, osOf, fallbackDecision, androidIntentUrl, iosSafariUrl, iosChromeUrl, buildDiagPayload, cleanDiagBody, sdkFailureText, safeHostedUrl } from './lib/grow/walletDiag.js';
 import { recordWalletDiag, sessionReportOf, reportWalletSession } from './lib/grow/walletDiagServer.ts';
 import { startWalletSession } from './lib/grow/wallet.ts';
 import type { GrowPayment } from './lib/grow/service.ts';
@@ -234,6 +234,20 @@ await ok('diag body: huge strings are cut before any regex runs (no CPU burn), a
   assert.equal(c.message.length, 200); assert.ok(c.code.length <= 40);
   const r = src('app/api/grow/wallet/diag/route.ts');
   assert.match(r, /DIAG_MAX_BYTES/); assert.match(r, /status: 413/); assert.doesNotMatch(r, /request\.json\(/);
+});
+
+await ok('iPhone: one tap opens the same link in Safari (x-safari-https), the manual steps stay as the fallback', () => {
+  assert.equal(iosSafariUrl('https://kalmea.app/pay/abc?x=1'), 'x-safari-https://kalmea.app/pay/abc?x=1');
+  assert.equal(iosSafariUrl('http://kalmea.app/pay/abc'), '', 'https only');
+  assert.equal(iosSafariUrl('javascript:alert(1)'), '');
+  assert.equal(iosChromeUrl('https://kalmea.app/pay/abc'), 'googlechromes://kalmea.app/pay/abc');
+  assert.equal(iosChromeUrl('javascript:x'), '');
+  assert.match(src('app/pay/[token]/PayClient.jsx'), /data-testid="pay-open-chrome-ios"/);
+  const page = src('app/pay/[token]/PayClient.jsx');
+  assert.match(page, /data-testid="pay-open-safari"/);
+  assert.match(page, /פתיחה בספארי<\/a>/);
+  assert.match(page, /data-testid="pay-ios-steps"/);
+  assert.match(page, /data-testid="pay-open-chrome"/);
 });
 
 console.log(`\npassed ${n} failed 0`);
