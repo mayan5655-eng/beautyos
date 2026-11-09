@@ -586,7 +586,7 @@ await ok('per service: the toggle is in the services settings (default off, degr
   assert.ok(/<ServiceDepositToggle checked=\{svc\.requires_deposit===true\}/.test(app), 'off unless true');
   // Before the migration a save still works, dropping ONLY the missing column (2026-11-08: dropping the whole optional set lost
   // requires_deposit when only buffer_minutes was missing). test-service-save-missing-column.ts covers the retry itself.
-  assert.ok(/const OPTIONAL_SERVICE_COLS = \["field", "requires_deposit", "buffer_minutes"\]/.test(app) && (app.match(/retryWithoutMissing\(/g) || []).length >= 2 && /patch\.requires_deposit === true/.test(app), 'a service save still works before the migration, without losing the deposit');
+  assert.ok(/const OPTIONAL_SERVICE_COLS = \["field", "requires_deposit", "buffer_minutes"(, "rebook_days")?\]/.test(app) && (app.match(/retryWithoutMissing\(/g) || []).length >= 2 && /patch\.requires_deposit === true/.test(app), 'a service save still works before the migration, without losing the deposit');
   assert.ok(/!state\.connected|!connected\) return null/.test(read('app/ServiceDepositToggle.jsx')), 'visible only when connected to Grow');
   assert.ok(/alter table public\.service_prices add column if not exists requires_deposit boolean not null default false/.test(read('supabase/migrations/add_grow_cancellation.sql')));
 });
@@ -765,12 +765,12 @@ await ok('the hold is wired: the booking route holds as pending and defers the c
   const book = read('app/api/book-appointment/route.js');
   assert.ok(/heldForDeposit \? "pending" : "confirmed"/.test(book), 'a held booking is inserted as pending');
   assert.ok(/if \(!heldForDeposit\) after\(/.test(book), 'the client confirmation waits for the deposit');
-  assert.ok(book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId)') > 0 && book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId)') < book.indexOf('const [\n      { data: svcRows'), 'expired holds are released BEFORE the calendar is read');
+  assert.ok(book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId') > 0 && book.indexOf('releaseExpiredHolds(policyDeps, activeTenantId') < book.indexOf('const [\n      { data: svcRows'), 'expired holds are released BEFORE the calendar is read');
   const cron = read('app/api/grow/release-holds/route.ts');
   assert.ok(cron.indexOf('isAuthorizedCron(request)') > 0 && cron.indexOf('isAuthorizedCron(request)') < cron.indexOf('growUiEnabled()'), 'the cron is protected');
   // Parsed, not pattern-matched: Vercel rewrites vercel.json as minified JSON inside its build, so a formatting-sensitive pin fails there.
   assert.equal(((JSON.parse(read('vercel.json')).crons || []) as { path: string; schedule: string }[]).find((c) => c.path === '/api/grow/release-holds')?.schedule, '*/5 * * * *', 'every 5 minutes');
-  assert.ok(/releaseExpiredHolds\(deps, tenantId\)/.test(read('app/api/availability/route.ts')), 'availability frees an expired slot at once');
+  assert.ok(/releaseExpiredHolds\(deps, tenantId(, offerFreedHold)?\)/.test(read('app/api/availability/route.ts')), 'availability frees an expired slot at once');
   for (const f of ['notify', 'webhook', 'mock-pay']) assert.ok(/afterPaid: afterPaidHook\(\)/.test(read(`app/api/grow/${f}/route.ts`)), `${f} confirms the booking when the deposit is paid`);
   assert.ok(/התור שמור עבורך ל-30 דקות/.test(read('app/BookingPage.jsx')), 'the client is told about the 30 minutes');
   const mig = read('supabase/migrations/add_grow_cancellation.sql');

@@ -558,14 +558,17 @@ export async function decide(d: Deps, i: { tenantId: string; feeId: string; deci
  * payment page is closed, and the consent is marked. A deposit that was paid in the meantime confirms the booking instead. Safe to run often
  * and from several places at once (the cron, the booking route and the availability route all call it); each release is a conditional update.
  */
-export async function releaseExpiredHolds(d: Deps, tenantId?: string): Promise<{ released: number; confirmed: number; errors: number }> {
+// onReleased (optional): told about each appointment this released, so the freed slot can go to the waiting list
+// (lib/waitlistRuntime.js). Called after the release is committed; whatever it does or throws never changes the release.
+export async function releaseExpiredHolds(d: Deps, tenantId?: string, onReleased?: (tenantId: string, appointmentId: string) => unknown): Promise<{ released: number; confirmed: number; errors: number }> {
   const out = { released: 0, confirmed: 0, errors: 0 };
   const expired = await d.repo.listExpiredHolds(clock(d).toISOString(), tenantId);
   for (const c of expired) {
     // One bad row must not stop every other business's holds from being released (the loop used to throw out on the first error,
     // so the 5-minute cron failed for everyone, every run). Each hold is its own try; the caller is told how many failed.
     try {
-      await releaseOneHold(d, c, out);
+      const released = await releaseOneHold(d, c, out);
+      if (released && onReleased) { try { await onReleased(c.tenant_id, c.appointment_id); } catch (e) { console.warn('[grow] after-release hook failed', (e as Error)?.message); } }
     } catch (e) {
       out.errors++;
       console.error('[grow] releasing hold failed for consent', c.id, (e as Error)?.message);
@@ -574,7 +577,7 @@ export async function releaseExpiredHolds(d: Deps, tenantId?: string): Promise<{
   return out;
 }
 
-async function releaseOneHold(d: Deps, c: ConsentRow, out: { released: number; confirmed: number; errors: number }) {
+async function releaseOneHold(d: Deps, c: ConsentRow, out: { released: number; confirmed: number; errors: number }): Promise<boolean> {
   {
     const dep = await d.repo.getDepositPayment(c.tenant_id, c.appointment_id);
     if (dep && dep.status === 'paid') {
@@ -582,13 +585,14 @@ async function releaseOneHold(d: Deps, c: ConsentRow, out: { released: number; c
       await d.repo.confirmAppointment(c.tenant_id, c.appointment_id);
       await d.repo.updateConsent(c.id, { status: 'deposit_paid', hold_expires_at: null });
       out.confirmed++;
-      return;
+      return false;
     }
     const released = await d.repo.releaseAppointment(c.tenant_id, c.appointment_id);
     if (released) out.released++;
     // Whatever happened to the appointment (she may have cancelled it herself), the hold is over and the unpaid page must not take money later.
     if (dep && dep.status === 'created') await d.grow.updatePayment(dep.id, { status: 'cancelled', error: 'deposit hold expired', updated_at: clock(d).toISOString() });
     await d.repo.updateConsent(c.id, { status: 'hold_expired', hold_expires_at: null });
+    return released;
   }
 }
 

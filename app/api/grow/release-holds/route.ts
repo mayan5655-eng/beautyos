@@ -11,6 +11,7 @@ import { growUiEnabled } from '@/lib/grow/adapter';
 import { releaseExpiredHolds } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '../_cancel';
 import { moneyAlert } from '@/lib/moneyAlert.js';
+import { offerFreedHold } from '@/lib/waitlistRuntime';
 
 export const maxDuration = 60;
 
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
   const deps = cancelDeps();
   if (!deps) return NextResponse.json({ success: true, skipped: 'not-configured' });
   try {
-    const r = await releaseExpiredHolds(deps);
+    // Each released hold is a freed slot: offered to the waiting list (lib/waitlistOffers.js), scheduled after the response.
+    const r = await releaseExpiredHolds(deps, undefined, offerFreedHold);
     if (r.released || r.confirmed || r.errors) console.log(`[grow] holds: ${JSON.stringify(r)}`);
     if (r.errors) await moneyAlert('grow:release-holds', 'some deposit holds could not be released', r, { key: 'errors' });
     return NextResponse.json({ success: true, ...r });

@@ -397,6 +397,23 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
   },
 
+  // Her cancel in the app offers the freed slot to the waiting list (app/api/waitlist/offer): each call can send WhatsApp messages.
+  // A busy day of cancellations is a handful; 30 in ten minutes is a loop. The feature's own daily cap still applies on top.
+  'waitlist-offer': {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 30, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Her read-only lists that walk her whole client and appointment tables (app/api/rebook/today, app/api/waitlist/activity).
+  'owner-lists': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
   // Monthly / yearly choice (app/api/billing/period): she taps it once; this only stops a loop.
   'billing-period': {
     perIp: { limit: 20, windowMs: 10 * MINUTE },
