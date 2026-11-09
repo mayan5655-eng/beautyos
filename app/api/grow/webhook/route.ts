@@ -33,6 +33,15 @@ import { moneyAlert } from '@/lib/moneyAlert.js';
 
 export const maxDuration = 30;
 
+// Keys carry the time so the hourly throttle never hides one: only Grow's addresses reach these lines (the IP gate above), so there
+// is no flood to guard against, and each one is the evidence of what Grow sent.
+/** Top-level field names only (no values): enough to see a payload shape we do not read, without logging anyone's data. */
+function fieldNames(raw: Record<string, unknown>): string {
+  const keys = Object.keys(raw);
+  const data = raw.data && typeof raw.data === 'object' ? Object.keys(raw.data as Record<string, unknown>).map((k) => `data.${k}`) : [];
+  return [...keys, ...data].slice(0, 40).join(',').slice(0, 600);
+}
+
 async function readBody(request: Request): Promise<Record<string, unknown> | null> {
   const ct = request.headers.get('content-type') || '';
   try {
@@ -56,7 +65,11 @@ export async function POST(request: Request) {
   }
 
   const raw = await readBody(request);
-  if (!raw) return NextResponse.json({ success: false, error: 'bad-body' }, { status: 400 });
+  if (!raw) {
+    // Seen nowhere before 2026-11-09: a Grow update that did not parse left no trace at all. Field names and types only, never values.
+    await moneyAlert('grow:webhook-unreadable', 'Grow webhook body could not be read', { ip: ip || null, contentType: (request.headers.get('content-type') || '').slice(0, 80) }, { severity: 'warning', key: `bad-body-${Date.now()}` });
+    return NextResponse.json({ success: false, error: 'bad-body' }, { status: 400 });
+  }
 
   const kind = classifyWebhook(raw);
   const token = new URL(request.url).searchParams.get('t') || '';
@@ -99,14 +112,20 @@ export async function POST(request: Request) {
 
     if (kind === 'onboarding') {
       const update = readOnboarding(raw);
-      if (!update) return NextResponse.json({ success: true, kind, status: 'ignored' });
+      if (!update) {
+        await moneyAlert('grow:onboarding-ignored', 'Grow onboarding update arrived but was not readable', { fields: fieldNames(raw) }, { severity: 'warning', key: `onboarding-unreadable-${Date.now()}` });
+        return NextResponse.json({ success: true, kind, status: 'ignored' });
+      }
       // Her api_key is sealed only if this update is matched and approved (applyOnboarding decides); bank_account is never read.
       const seal = () => { const k = readOnboardingApiKey(raw); return k ? encryptToken(k) : null; };
       const r = await applyOnboarding(update, supabaseOnboardingRepo(db), undefined, seal);
+      // Every onboarding update leaves a line in ops_events, so "did Grow's update arrive?" is one query, whatever it matched.
+      await moneyAlert('grow:onboarding-received', `Grow onboarding update received: ${String(r.status)}`, { status: String(r.status) }, { severity: 'warning', key: `onboarding-${String(r.status)}-${Date.now()}` });
       return NextResponse.json({ success: true, kind, status: r.status });
     }
 
-    // A well-formed object we do not recognise: acknowledged, not stored, not retried.
+    // A well-formed object we do not recognise: acknowledged, not stored, not retried. Its field names are logged so a new Grow format is visible.
+    await moneyAlert('grow:webhook-unknown', 'Grow webhook of an unknown kind was ignored', { fields: fieldNames(raw) }, { severity: 'warning', key: `unknown-kind-${Date.now()}` });
     return NextResponse.json({ success: true, kind: 'unknown', status: 'ignored' });
   } catch (e) {
     console.error('[grow] webhook storage failed:', kind, (e as Error)?.message); await moneyAlert('grow:webhook', 'Grow webhook storage failed; answered 503 so Grow retries', { kind }, { key: String(kind) });
