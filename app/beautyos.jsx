@@ -31,6 +31,7 @@ import { addonPackForMessage, openAddons, OPEN_ADDONS_EVENT } from "@/lib/addonO
 import { addonButtonHe } from "@/lib/pricing";
 import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
+const BusinessReferralCard = dynamic(() => import("./BusinessReferralCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
 import { installDemoOutboundGuard } from "@/lib/demoOutbound";
@@ -51,14 +52,17 @@ import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, c
 import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
 import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
 import { bufferLookup, businessBufferDefault, cleanBufferMinutes, bufferedRange, clashesWithBuffer, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
+import { suggestedRebookDays, cleanRebookDays, typedRebookDays, rebookVisible } from "@/lib/reminders/rebookPlan.js";
+import { waitlistOffersOn, waitlistOffersVisible, waitlistOfferToast } from "@/lib/waitlistFlag.js";
+import { DISMISS_KEY as SUGGEST_DISMISS_KEY } from "@/lib/automationSuggest.js";
 import { firstFreeStart } from "@/lib/apptFirstFree";
 import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
 import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
 import { apptBufferField, writeWithApptBuffer } from "@/lib/apptBuffer";
-import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
+import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, rewardGivenOn, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
 import LoyaltySettings from "./LoyaltySettings";
 import LoyaltyClientCard from "./LoyaltyClientCard";
-import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD } from "@/lib/till";
+import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD, mostUsedMethod } from "@/lib/till";
 import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
 import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
 import { monthlyReport } from "@/lib/monthlyReport";
@@ -103,15 +107,34 @@ const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: fa
 const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
 import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
+const VisitFeedbackPanel = dynamic(() => import("./VisitFeedbackPanel"), { ssr: false });
 const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
+const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: false });
 // Panels that open only inside Settings, the till or a sheet: loaded when first shown, not in the dashboard's first download (2026-11-02
 // audit; the app chunk was ~311 KB gzipped). Same pattern as GrowCard.
 const ClientPrivacyPanel = dynamic(() => import("./ClientPrivacyPanel"), { ssr: false });
 const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
+const RebookSetting = dynamic(() => import("./RebookSetting"), { ssr: false });
+const WaitlistActivity = dynamic(() => import("./WaitlistActivity"), { ssr: false });
+const AutomationSuggestCard = dynamic(() => import("./AutomationSuggestCard"), { ssr: false });
 const GrowChargePanel = dynamic(() => import("./GrowChargePanel"), { ssr: false });
 const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: false });
+// Gift vouchers (lib/giftVouchers.ts): the cashier list and sale, the till redemption, the settings. Each renders nothing unless the
+// platform flag automations.feature_flags.gift_vouchers is on.
+const GiftVouchersPanel = dynamic(() => import("./GiftVouchersPanel"), { ssr: false });
+const VoucherRedeemTill = dynamic(() => import("./VoucherRedeemTill"), { ssr: false });
+const GiftVoucherSettings = dynamic(() => import("./GiftVoucherSettings"), { ssr: false });
+const GiftVoucherMarketingCard = dynamic(() => import("./GiftVoucherMarketingCard"), { ssr: false });
+// Products and inventory (lib/products.ts): the catalog screen in the till tab, the till picker and its stock warnings. On by default;
+// each renders nothing when products are switched off (platform flag or her own switch) or before the migration has run.
+const ProductsPanel = dynamic(() => import("./ProductsPanel"), { ssr: false });
+const ProductSettings = dynamic(() => import("./ProductSettings"), { ssr: false });
+import { ProductTillPicker, ProductTillWarnings } from "./ProductsTill";
+import useProducts from "./useProducts";
+import { lowStockAttention, productsConfig } from "@/lib/products";
+import { tillTabsOf, activeTillTab } from "@/lib/tillTabs";
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -136,7 +159,10 @@ import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
-import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL } from "@/lib/featureFlags";
+import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
+import { reviewTimingOf, looksLikeGoogleLink, GOOGLE_LINK_HELP, GOOGLE_LINK_INVALID_HE } from "@/lib/reviewRequests";
+import { monthlyPageOn } from "@/lib/monthlyFull";
+import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher, splitVoucherCodes } from "@/lib/giftVouchers";
 import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
@@ -741,7 +767,7 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
-import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
+import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, withServiceDefaults, countExistingServices, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
 import { vcardImportText, isVcardFile, VCARD_ACCEPT } from "@/lib/vcard";
 
 // Manually added leads start at "new", the same entry status the Facebook
@@ -792,6 +818,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [showWaQueue, setShowWaQueue] = useState(false);
   const [waQueueDone, setWaQueueDone] = useState({}); // {[row.id]: true} - optimistic, mirrors composeDone
   const liveRcpts = useMemo(() => liveReceipts(receipts, receiptVoids), [receipts, receiptVoids]);
+  const voidedReceiptIdSet = useMemo(() => new Set((receiptVoids || []).map((v) => String(v.receipt_id))), [receiptVoids]);
   // The payment already recorded for this visit, by the same test the till's quick-pay list uses ("✓ שולם"), or null.
   const receiptForAppt = (a) => (a ? liveRcpts.find(r => String(r.appointment_id) === String(a.id)) || null : null);
   const [expenses,     setExpenses]     = useState([]);
@@ -898,6 +925,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [apptMoreOpen,      setApptMoreOpen]       = useState(false);
   // Services show as chips, most-used first. This opens the long tail.
   const [apptAllServices,   setApptAllServices]    = useState(false);
+  // The till (UX pass 2026-11-08): the same one-tap service chips, and discount, tip and note behind one line.
+  const [cashierAllServices, setCashierAllServices] = useState(false);
+  const [cashierExtrasOpen,  setCashierExtrasOpen]  = useState(false);
+  // New client form: name and phone first, the rest behind "פרטים נוספים" (UX pass 2026-11-08). Editing opens it.
+  const [clientMoreOpen,     setClientMoreOpen]     = useState(false);
   const [rebookDone,        setRebookDone]         = useState(null);
   // The receipt just recorded at the till, for which the one-time "did she agree to updates?" prompt may show. Opening an old receipt from the list never asks.
   const [consentAskFor,     setConsentAskFor]      = useState(null);
@@ -1293,6 +1325,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [drawFromPackage, setDrawFromPackage] = useState(false);
   // Grow cancellation policy in the cashier: a deposit already paid for this appointment and client credit (app/GrowCashierCredit.jsx).
   const [growAdj, setGrowAdj] = useState({ deposit: 0, creditAvail: 0, creditOn: false });
+  // A gift voucher used on this sale (app/VoucherRedeemTill.jsx): { ledgerId, voucherId, code, amount, balanceAfter, receiptId? }.
+  const [voucherAdj, setVoucherAdj] = useState(null);
+  // Her products (app/useProducts.js): loads nothing when products are switched off. Stock only ever moves on the server.
+  const productsApi = useProducts(settings);
+  // The till (קופה) in tabs: "pay" | "vouchers" | "products" (lib/tillTabs.ts). A tab for a feature that is off is not shown.
+  const [tillTab, setTillTab] = useState("pay");
+  // false once the vouchers panel says it has nothing to show (before its migration, or selling off with nothing sold).
+  const [vouchersAvail, setVouchersAvail] = useState(true);
+  // A request to open the voucher sale form, from "תשלום חדש" (a counter: each tap is a new request). The panel opens the SAME sale
+  // form as its own "מכירת שובר" button (app/GiftVouchersPanel.jsx), so no sale logic lives here.
+  const [voucherSellReq, setVoucherSellReq] = useState(0);
+  const openVoucherSale = () => { setShowCashier(false); setActiveTab("cashier"); setTillTab("vouchers"); setVoucherSellReq(n=>n+1); };
   const [newPackage,  setNewPackage]  = useState({client_id:"",client_name:"",service:"",total_sessions:5,price:0,payment_method:PAYMENT_METHODS[0].key});
   // What she SELLS, as opposed to what someone has bought. Loaded lazily on the
   // packages tab rather than in loadAll: every read there is a CORE read, and a
@@ -1466,7 +1510,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleLogout = useCallback(() => {
     askConfirm({
       title: "התנתקות",
-      message: authEmail ? `את מחוברת כ-${authEmail}. להתנתק?` : "האם להתנתק מהמערכת?",
+      // The address is isolated (U+2068..U+2069): in the RTL sentence its dot and the "?" jumped to the wrong side (2026-11-08 QA).
+      message: authEmail ? `את מחוברת כ-\u2068${authEmail}\u2069. להתנתק?` : "האם להתנתק מהמערכת?",
       confirmText: "התנתקי",
       onConfirm: async () => {
         try {
@@ -1713,9 +1758,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     { key:"services", done: services.length>0, label:"שירותים ומחירים", hint:"רשימת הטיפולים והמחירים", onClick:()=>openSetupTab("services","newService") },
     { key:"hours",    done: !!(settings.business_hours && typeof settings.business_hours==="object" && Object.keys(settings.business_hours).length>0) || (settings.working_hours_start!=null && settings.working_hours_end!=null), label:"שעות פעילות", hint:"מתי העסק פתוח", onClick:()=>openSetupTab("hours") },
     { key:"link",     done: linkShared||!!settings?.automations?.link_shared_at||appointments.length>0, label:"שליחת הקישור לקביעת תור ללקוחה", hint:"כך התור הראשון נקבע לבד", cta:"העתקת הקישור", onClick:()=>copyPublicLink("book") },
-    { key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
-    { key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
-    { key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
+    { optional:true, key:"branding", done: !!_sb.logo_url && !!settings.primary_color && !!(_sb.welcome_headline||_sb.welcome_message), label:"מיתוג", hint:"לוגו, צבעים וטקסט פתיחה", onClick:()=>openSetupTab("branding") },
+    { optional:true, key:"gallery",  done: Array.isArray(_sb.gallery) && _sb.gallery.length>0, label:"גלריית תמונות", hint:"תמונות לעמוד העסק", onClick:()=>openSetupTab("branding") },
+    { optional:true, key:"social",   done: !!(_sb.whatsapp_number||_sb.instagram||_sb.facebook||_sb.tiktok||_sb.website), label:"רשתות חברתיות וקישורים", hint:"וואטסאפ, אינסטגרם, אתר ועוד", onClick:()=>openSetupTab("branding") },
     // Was: settings.green_api_token, which the browser no longer receives.
   ];
   // Guided, one step at a time - deliberately NOT an accordion. Only the next
@@ -1723,7 +1768,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // and the ones beyond the next are visible but not yet actionable. Everything
   // starts collapsed, so the card is a short list of single lines instead of
   // seven expanded blocks.
-  const nextSetupKey = (setupSteps.find(s=>!s.done)||{}).key || null;
+  // UX pass 2026-11-08: five core steps count; branding, gallery and social are "לא חובה, אבל עוזר" and live only
+  // in the Settings checklist, so "הגדרת המערכת" leaves Today once the core five are done.
+  const coreSetupSteps = setupSteps.filter(s=>!s.optional);
+  const extraSetupSteps = setupSteps.filter(s=>s.optional);
+  const nextSetupKey = (coreSetupSteps.find(s=>!s.done)||extraSetupSteps.find(s=>!s.done)||{}).key || null;
   // Holds the key she expanded, not a boolean. Once that step is completed the
   // key stops matching nextSetupKey on its own, so the following step arrives
   // collapsed and no effect is needed to reset anything.
@@ -1731,10 +1780,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Help page accordion: the key she opened; null = the first section.
   const [expandedHelpKey, setExpandedHelpKey] = useState(null);
 
-  const setupDone = setupSteps.filter(s=>s.done).length;
-  const setupTotal = setupSteps.length;
+  const setupDone = coreSetupSteps.filter(s=>s.done).length;
+  const setupTotal = coreSetupSteps.length;
   const setupPct = Math.round((setupDone/setupTotal)*100);
-  const renderSetupBody = () => (
+  const renderSetupBody = (withExtras = false) => (
     <>
       <div style={{marginBottom:10}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:5}}>
@@ -1748,9 +1797,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       {setupDone===setupTotal && (
         <div style={{textAlign:"center",padding:"6px 0 14px"}}>
           <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:pcDeep,marginBottom:3}}>הכל מוכן! ✨</p>
-          <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת במלואה. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
+          <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המערכת שלך מוגדרת. אפשר לחזור לכאן בכל עת כדי לעדכן.</p>
         </div>
       )}
+      {renderSetupRows(coreSetupSteps)}
+      {withExtras && extraSetupSteps.length>0 && (<>
+        <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink-2)",margin:"16px 2px 6px"}}>לא חובה, אבל עוזר</p>
+        {renderSetupRows(extraSetupSteps)}
+      </>)}
+    </>
+  );
+  const renderSetupRows = (list) => (
+    <>
       {/* ONE bordered box with hairline-separated rows, not seven cards each
           with its own border, radius and 8px gap - that per-card chrome was
           most of the height. A row is now a single ~34px line: small ring,
@@ -1761,7 +1819,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           (accent ring, bold label) but every incomplete step is tappable, so
           the arrow on each line does what it looks like it does. */}
       <div style={{border:"1px solid var(--line)",borderRadius:"var(--r-sm)",overflow:"hidden"}}>
-        {setupSteps.map((s,i)=>{
+        {list.map((s,i)=>{
           const isNext = !s.done && s.key===nextSetupKey;
           const open   = !s.done && expandedSetupKey===s.key;
           return (
@@ -1959,7 +2017,20 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const growBase = Math.max(0, cashierSubtotal - cashierDiscountIls - packageCredit);
   const growDepositUsed = Math.min(Number(growAdj.deposit) || 0, growBase);
   const growCreditUsed = growAdj.creditOn ? Math.min(Number(growAdj.creditAvail) || 0, Math.max(0, growBase - growDepositUsed)) : 0;
-  const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit - growDepositUsed - growCreditUsed) * 100) / 100);
+  // A gift voucher comes off last, like credit: it was paid for (and counted as income) the day it was sold.
+  const voucherDue = Math.max(0, Math.round((growBase - growDepositUsed - growCreditUsed) * 100) / 100);
+  const voucherUsed = voucherAdj ? Math.min(Number(voucherAdj.amount) || 0, voucherDue) : 0;
+  const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit - growDepositUsed - growCreditUsed - voucherUsed) * 100) / 100);
+  // The voucher belongs to one sale: a till that opens starts without it. A till closed after the voucher was used but before the
+  // payment was recorded says so (the amount is already off the voucher; the vouchers list can give it back).
+  const voucherOpenRef = useRef(false);
+  useEffect(() => {
+    if (showCashier) { if (!voucherOpenRef.current) { voucherOpenRef.current = true; setVoucherAdj(null); } return; }
+    if (!voucherOpenRef.current) return;
+    voucherOpenRef.current = false;
+    if (voucherAdj && !voucherAdj.receiptId) toast("השובר מומש אבל התשלום לא נרשם. אפשר להחזיר את הסכום לשובר מרשימת שוברי המתנה בקופה.", "error");
+    setVoucherAdj(null);
+  }, [showCashier, voucherAdj, toast]);
   // Two lines: the first is what she types, the second is whatever is left.
   const splitResolved = useMemo(() => {
     const first = { method: splitLines[0]?.method || "ביט", amount: Number(splitLines[0]?.amount) || 0 };
@@ -2181,7 +2252,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const approveSkinFollowup = (it) => {
     if(queueApproved.has(it.key)) return; // double-click / repeated-approval guard
     const c = clients.find(x=>String(x.id)===String(it.clientId));
-    if(!c){ toast("הלקוחה כבר לא קיימת — הפעולה בוטלה","error"); return; }
+    if(!c){ toast("הלקוחה כבר לא קיימת, הפעולה בוטלה. אפשר לרענן את המסך.","error"); return; }
     if(!(c.phone&&String(c.phone).trim())){ toast("אין ללקוחה מספר טלפון, אז אי אפשר לשלוח לה","error"); return; }
     const text = String(it.message||"").trim();
     if(!text){ toast("אין הודעה מוכנה לכרטיס הזה","error"); return; }
@@ -2189,7 +2260,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if(!link){ toast("מספר הטלפון של הלקוחה לא תקין","error"); return; }
     window.open(link, "_blank", "noopener");
     setQueueApproved(prev=>{const n=new Set(prev);n.add(it.key);return n;});
-    toast("נפתחה שיחת וואטסאפ עם ההודעה מוכנה — שלחי משם ✓","success");
+    toast("נפתחה שיחת וואטסאפ עם ההודעה מוכנה, שלחי משם ✓","success");
   };
 
   // Connect a free-text Advisor reply to ONE existing next action. The Advisor
@@ -2242,7 +2313,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           no_tenant: "לא זוהה עסק לחשבון הזה",
           no_pages: "לא נמצאו דפי פייסבוק בחשבון",
           save_failed: "לא הצלחנו לשמור את הדף, אפשר לנסות שוב",
-          subscribe_failed: "הדף נשמר אך הרישום להתראות לידים נכשל — נסי להתחבר שוב ולאשר את כל ההרשאות",
+          subscribe_failed: "הדף נשמר, אבל ההתראות על פניות חדשות לא הופעלו. נסי להתחבר שוב ולאשר את כל ההרשאות",
           missing_parameters: "פייסבוק החזיר תשובה חסרה, נסי שוב",
         };
         const base = labels[code] || "החיבור לא הושלם, אפשר לנסות שוב";
@@ -2717,6 +2788,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const lastMonthRevenue = useMemo(() => monthSummary(liveRcpts, lastMonth, lastMonthYear).total, [liveRcpts, lastMonth, lastMonthYear]);
   // Today, for the till: what she took, by method, with tips beside it.
   const todayTotals = useMemo(() => totalsOf(receiptsOnDay(liveRcpts, today)), [liveRcpts, today]);
+  // The till opens on the method she uses most (UX pass 2026-11-08), counted from her own receipts. None yet: מזומן.
+  const favoritePaymentMethod = useMemo(() => mostUsedMethod(liveRcpts, SELECTABLE_PAYMENT_METHODS.map(m=>m.key), "מזומן"), [liveRcpts]);
   // Two lists per day, on purpose. *Entries are what she sees - her whole day,
   // her own commitments included. *Appts are what gets counted, because a count
   // labelled תורים that includes her accountant is a lie about her workload.
@@ -3166,6 +3239,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const entryTime = (a) => isAllDay(a) ? "כל היום" : fmtApptTime(a);
   // The second line. An appointment says what treatment; a personal event has
   // no service, so it says whatever she wrote, or names itself.
+  // "רשימת המתנה (N)" in the calendar (UX pass 2026-11-08): the list lives on the packages screen; when that screen is
+  // switched off, the chip opens "add to the waitlist" instead, so it never leads nowhere.
+  // Gated like every waitlist reader: no number until the list has loaded (a 0 would be a lie).
+  const waitingCount = deferred.waitlist==="ok" ? waitlist.filter(w=>w.status==="waiting").length : null;
+  const waitlistChipLabel = waitingCount===null ? "רשימת המתנה" : `רשימת המתנה (${waitingCount})`;
+  const openWaitlist = () => {
+    if (!isTabVisible(settings, "packages")) { setShowWaitlistModal(true); return; }
+    setActiveTab("packages");
+    setTimeout(() => { try { document.getElementById("waitlist-card")?.scrollIntoView({ behavior: "smooth", block: "start" }); } catch { /* old browser: the screen still opened */ } }, 250);
+  };
   const entrySubtitle = (a) => isPersonal(a) ? (String(a.note||"").trim() || "אירוע אישי") : a.service;
 
   // ============================================================
@@ -3564,7 +3647,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           // A database error ended the series part-way: never end on a success toast that overstates what was saved.
           toast(`נקבעו ${saved.length} מתוך ${dates.length} תורים. השאר לא נשמרו, אפשר לנסות שוב.`, "error");
         } else {
-          toast(`נקבעו ${saved.length} תורים — כל ${apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`}`);
+          toast(`נקבעו ${saved.length} תורים, כל ${apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`}`);
         }
       } else {
         const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField,...apptBufferField(newApptBuffer)};
@@ -3721,7 +3804,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
             // The slot was booked between the card rendering and her yes. Not
             // a yes and not a no - she never really answered; 'stale'.
             console.log("[one-question] gap_fill went STALE at yes - slot rebooked");
-            toast("התור הזה כבר נתפס בינתיים — אין צורך להציע אותו 🎉");
+            toast("התור הזה כבר נתפס בינתיים, אין צורך להציע אותו 🎉");
             const { error: stErr } = await supabase.from("owner_questions")
               .update({ status: "stale", answered_at: new Date().toISOString() })
               .eq("id", q.id);
@@ -3814,7 +3897,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.success && data.sent > 0) toast(`הצעה למילוי התור מוכנה ל-${data.sent} לקוחות — אפשר לשלוח מהתור הממתין בלוח הבקרה ✦`);
+      if (data.success && data.sent > 0) toast(`הצעה למילוי התור מוכנה ל-${data.sent} לקוחות, אפשר לשלוח מהתור הממתין בלוח הבקרה ✦`);
     } catch { /* non-fatal: the cancellation already succeeded */ }
   };
 
@@ -3989,8 +4072,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         }
         // Smart waitlist: with her switch on (Settings > הודעות), the people waiting for this treatment whom the slot fits get one offer.
         // The server re-checks that the appointment is still cancelled, so the undo above always wins.
-        if (settings?.automations?.waitlist_offers === true && appt.kind !== "personal") {
-          setTimeout(() => { if (!restored) fetch("/api/waitlist/offer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) }).catch(() => {}); }, UNDO_SETTLE_MS);
+        // Only when she turned it on, and the platform flag allows it (lib/waitlistFlag.js). What happened is shown in one line
+        // (waitlistOfferToast): who it was offered to, or that it waits for the morning; nothing when nobody fits.
+        if (waitlistOffersOn(settings) && appt.kind !== "personal") {
+          setTimeout(async () => {
+            if (restored) return;
+            try {
+              const r = await fetch("/api/waitlist/offer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appointmentId: appt.id }) });
+              const j = await r.json().catch(() => ({}));
+              const line = r.ok && j?.success ? waitlistOfferToast(j) : null;
+              if (line) toast(line.text, line.kind);
+            } catch { /* the owner alert still tells her; the slot is free either way */ }
+          }, UNDO_SETTLE_MS);
         }
         // Fire gap-fill only AFTER the undo window closes, and only if it wasn't
         // undone — so a quick "ביטול" never lets a real WhatsApp offer go out for
@@ -4111,6 +4204,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setLeads(prev=>prev.filter(l=>!same(l.client_id)));
   };
   const saveClientDupOk = useRef(false);
+  // Every new-client form opens short again (name and phone), whichever button opened it.
+  useEffect(() => { if (!showClientModal) setClientMoreOpen(false); }, [showClientModal]);
   const handleSaveClient = async () => {
     if (guardWrite()) return;
     if(!newClient.name.trim()){toast("חסר שם, אפשר להוסיף אותו","error");return;}
@@ -4140,7 +4235,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if(error){handleDbError(error, "create client"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setClients(prev=>[...prev,data[0]]);
-        toast("הלקוחה נוספה");
+        // The next step, one tap away (UX pass 2026-11-08): book her first visit with the client already filled in.
+        const nc=data[0];
+        toast("נוספה ✓ · לקבוע לה תור?", "success", { label:"קביעת תור", onClick:()=>{ openNewAppt(); setNewAppt(prev=>({...prev,clientId:nc.id,name:nc.name})); } });
       }
       setShowClientModal(false);setEditingClient(null);setNewClient(emptyClient);
     } finally {
@@ -4201,7 +4298,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Open the device contact picker (works on Chrome/Android only)
   const pickFromContacts = async () => {
     if (!(navigator.contacts && navigator.contacts.select)) {
-      toast("המכשיר לא תומך בבחירה מאנשי קשר — השתמשי בהדבקה ידנית", "error");
+      toast("המכשיר לא תומך בבחירה מאנשי קשר, השתמשי בהדבקה ידנית", "error");
       return;
     }
     try {
@@ -4276,9 +4373,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     () => new Set(services.map(s => String(s.name||"").trim()).filter(Boolean)),
     [services]
   );
-  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>buildApptRows(g,c,h,today,now.getHours()*60+now.getMinutes(),knownServiceNames))
+  // Appointments: a row with no duration or price in the paste takes her treatment's own (lib/importMapping withServiceDefaults).
+  const importBuilder = importTarget === "appts"    ? ((g,c,h)=>{ const b=buildApptRows(g,c,h,today,now.getHours()*60+now.getMinutes(),knownServiceNames); return { ...b, rows: withServiceDefaults(b.rows, services) }; })
                       : importTarget === "services" ? buildServiceRows
-                      : buildImportRows;
+                      : ((g,c,h)=>buildImportRows(g,c,h,knownServiceNames));
 
   // `text` is passed when the list did not come from the paste box (a .vcf file): the state update has not landed yet.
   const goToImportMapping = (text) => {
@@ -4338,7 +4436,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
 
       if (inserted.length) setServices(prev => [...prev, ...inserted]);
-      setImportResult({ added: inserted.length, dupes, noName, failed,
+      setImportResult({ added: inserted.length, dupes, noName, nameIsService: 0, failed,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
     } finally {
@@ -4355,7 +4453,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (importing) return;
 
     const grid = parseImportGrid(importText);
-    const built = buildApptRows(grid, importCols, importHasHeader, today, now.getHours()*60+now.getMinutes(), knownServiceNames);
+    const built0 = buildApptRows(grid, importCols, importHasHeader, today, now.getHours()*60+now.getMinutes(), knownServiceNames);
+    // Duration and price from her own treatment when the paste has none, BEFORE the overlap check below uses the duration.
+    const built = { ...built0, rows: withServiceDefaults(built0.rows, services) };
     if (built.rows.length === 0) { toast("לא נמצאו תורים עתידיים להוספה", "error"); return; }
 
     setImporting(true);
@@ -4481,7 +4581,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (importing) return;
 
     const grid = parseImportGrid(importText);
-    const { rows, noName } = buildImportRows(grid, importCols, importHasHeader);
+    const { rows, noName, nameIsService } = buildImportRows(grid, importCols, importHasHeader, knownServiceNames);
     if (rows.length === 0) { toast("לא נמצאו לקוחות להוספה", "error"); return; }
 
     setImporting(true);
@@ -4525,7 +4625,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Only rows the database actually returned go into local state, so the
       // list on screen always matches what was really written.
       if (inserted.length) setClients(prev => [...prev, ...inserted]);
-      setImportResult({ added: inserted.length, dupes, noName, failed,
+      setImportResult({ added: inserted.length, dupes, noName, nameIsService, failed,
                         error: firstError ? firstError.message : null });
       setImportStage("done");
     } finally {
@@ -4572,13 +4672,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         if(error){handleDbError(error, "update lead"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>prev.map(l=>l.id===editingLead.id?data[0]:l));setSelectedLead(data[0]);
-        toast("הליד עודכן");
+        toast("הפנייה עודכנה");
       }else{
         const {data,error}=await supabase.from("leads").insert([{...newLead,source:newLead.source||null}]).select();
         if(error){handleDbError(error, "create lead"); return;}
         if(!data||!data[0]){toast(SAVE_FAILED_HE,"error");return;}
         setLeads(prev=>[...prev,data[0]]);
-        toast("הליד נוסף");
+        toast("הפנייה נוספה");
       }
       setShowLeadModal(false);setEditingLead(null);setNewLead(emptyLead);
     } finally {
@@ -4723,7 +4823,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleConvertLead = (lead) => {
     if (guardWrite()) return;
     askConfirm({
-      title: "המרת ליד ללקוחה",
+      title: "המרת פנייה ללקוחה",
       message: `להמיר את ${lead.name} ללקוחה רשומה?`,
       confirmText: "המרה",
       onConfirm: async () => {
@@ -4744,7 +4844,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const tid = rpcTenant || settings?.tenant_id || null;
         const tenantField = tid ? { tenant_id: tid } : {};
         console.log(`[convert-lead] TENANT FILTER: tenant_id = ${tid ?? "(omitted — DB default)"} | lead ${lead.id}`);
-        const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הומר מליד — מקור: ${sourceLabelHe(lead.source)}`,status:"active",...tenantField}]).select();
+        const {data:cd,error:ce}=await supabase.from("clients").insert([{name:lead.name,phone:lead.phone||"",skinType:"",notes:`הגיעה מפנייה. מקור: ${sourceLabelHe(lead.source)}`,status:"active",...tenantField}]).select();
         if(ce){handleDbError(ce, "convert lead -> create client"); return;}
         if(!cd||!cd[0]){toast(couldNotHe("להמיר את זה"),"error");return;}
         const {data:ld, error:le}=await supabase.from("leads").update({status:"closed",converted_at:new Date().toISOString(),client_id:cd[0].id}).eq("id",lead.id).select();
@@ -4822,7 +4922,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // The file uploaded but the row did not take it. Clean the orphan up
         // rather than leaving a paid-for object nothing points at.
         await supabase.storage.from(PRIVATE_BUCKET).remove([fileName]);
-        toast("התמונה לא נשמרה בכרטיס — נסי שוב","error");
+        toast("התמונה לא נשמרה בכרטיס, נסי שוב","error");
         return;
       }
       setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);
@@ -4845,7 +4945,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // pointing at a file that is already gone.
         const {data,error}=await supabase.from("clients").update({images:newImages}).eq("id",client.id).select();
         if(error){handleDbError(error, "delete image"); return;}
-        if(!data||!data[0]){ toast("המחיקה לא נשמרה — נסי שוב","error"); return; }
+        if(!data||!data[0]){ toast("המחיקה לא נשמרה, נסי שוב","error"); return; }
         setClients(prev=>prev.map(c=>c.id===client.id?data[0]:c));setSelectedClient(data[0]);
         // Through toStoragePath, which normalises both shapes the column
         // holds: bare paths written since the private-bucket move, and full
@@ -4917,7 +5017,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
 
       setEditSettings(prev=>({...prev, branding:{...((prev?.branding&&typeof prev.branding==="object")?prev.branding:{}), ...patch }}));
-      toast("התמונה הועלתה — לחצי שמירה");
+      toast("התמונה הועלתה, לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
 
@@ -4939,7 +5039,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(up.skipped) return;
       const url = up.url;
       if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const ph=Array.isArray(b.clinic_photos)?b.clinic_photos:[]; if(ph.length>=3){ toast("עד 3 תמונות של העסק","error"); return prev; } return {...prev, branding:{...b, clinic_photos:[...ph, url]}}; });
-      toast("התמונה נוספה — לחצי שמירה");
+      toast("התמונה נוספה, לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
 
@@ -4958,7 +5058,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(up.error){ handleDbError(up.error, "upload service photo"); return; }
       if(up.skipped) return;
       if(up.url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const m=(b.service_images&&typeof b.service_images==="object"&&!Array.isArray(b.service_images))?b.service_images:{}; return {...prev, branding:{...b, service_images:{...m,[serviceId]:up.url}}}; });
-      toast("התמונה נוספה — לחצי שמירה");
+      toast("התמונה נוספה, לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
 
@@ -4975,7 +5075,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(up.skipped) return;
       const url = up.url;
       if(url) setEditSettings(prev=>{ const b=(prev?.branding&&typeof prev.branding==="object")?prev.branding:{}; const gal=Array.isArray(b.gallery)?b.gallery:[]; return {...prev, branding:{...b, gallery:[...gal, url]}}; });
-      toast("התמונה נוספה לגלריה — לחצי שמירה");
+      toast("התמונה נוספה לגלריה, לחצי שמירה");
     } finally { setBrandUploading(""); }
   };
 
@@ -4989,7 +5089,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const link=`${origin}/form?id=${data[0].id}`;
     try {
       await navigator.clipboard.writeText(link);
-      toast("הקישור הועתק — מוכן לשליחה");
+      toast("הקישור הועתק, מוכן לשליחה");
     } catch {
       toast(`הקישור: ${link}`, "info");
     }
@@ -5019,13 +5119,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // requires_deposit comes from add_grow_cancellation.sql (hand-run): like `field`, a missing column degrades the save instead of breaking it.
   // buffer_minutes comes from add_service_buffer_2026-11-05.sql (hand-run): same degrade, and she is TOLD it was not kept
   // (bufferPending) rather than shown a save that silently dropped it.
-  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes"];
+  // rebook_days comes from add_service_rebook_days_2026-11-09.sql (hand-run): the field is disabled until it has run, and a save
+  // that still meets the missing column drops only that column (the nudge then uses the automatic interval).
+  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes", "rebook_days"];
   const commitServiceDraft = async (tid) => {
-    const draft = editServices;
+    // rebook_days is typed freely (typedRebookDays) and only validated here and on blur: clamping each keystroke turned "21" into 71.
+    const draft = editServices ? editServices.map(s => (s && Object.prototype.hasOwnProperty.call(s, "rebook_days") ? { ...s, rebook_days: cleanRebookDays(s.rebook_days) } : s)) : editServices;
     if (!draft) return { changed: 0, errors: [], bufferPending: false };
     // A save that failed on a column the database does not have yet: retry without THAT column only (lib/pgError
     // missingColumnName), up to three optional columns. Returns null when the error was not a missing optional column.
-    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes"];
+    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes", "rebook_days"];
     const retryWithoutMissing = async (row, firstError, run) => {
       if (!firstError || !isMissingColumnError(firstError)) return null;
       let cur = { ...row }, err = firstError, result = null;
@@ -5159,6 +5262,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
       const saveData = await res.json().catch(() => ({}));
       if (!res.ok || !saveData.success) {
+        // A refused Google review link: her own words, not a generic database error.
+        if (saveData.field === "review_url" && saveData.error) { toast(saveData.error, "error"); return; }
         handleDbError({ message: saveData.error || `HTTP ${res.status}` }, "update settings");
         return;
       }
@@ -5166,7 +5271,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (!savedRow) {
         // Both paths returned 0 rows - this is an RLS / permissions problem,
         // not a success. Tell the truth instead of toasting "saved".
-        toast("השמירה נכשלה — אין הרשאה לעדכן את ההגדרות", "error");
+        toast("השמירה נכשלה, אין הרשאה לעדכן את ההגדרות. אפשר להתנתק ולהתחבר שוב.", "error");
         return;
       }
       setSettings(savedRow);
@@ -5260,7 +5365,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
     const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
     const tid = rpcTenant || settings?.tenant_id || null;
-    if (!tid) { toast("לא זוהה עסק — נסי לרענן", "error"); return; }
+    if (!tid) { toast("לא זוהה עסק, נסי לרענן", "error"); return; }
 
     setBusyKey("deleteService", true);
     try {
@@ -5269,7 +5374,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         ["appointments", "service",          "תורים"],
         ["receipts",     "service",          "תשלומים"],
         ["packages",     "service",          "חבילות"],
-        ["leads",        "service_interest", "לידים"],
+        ["leads",        "service_interest", "פניות"],
       ];
       const results = await Promise.all(
         checks.map(([table, col]) =>
@@ -5362,8 +5467,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setShowTemplatePicker(false);
     toast(
       skipped > 0
-        ? `${fresh.length} טיפולים נוספו · ${skipped} כבר היו ברשימה — לחצי שמירה`
-        : `${fresh.length} טיפולים נוספו — לחצי שמירה`
+        ? `${fresh.length} טיפולים נוספו · ${skipped} כבר היו ברשימה, לחצי שמירה`
+        : `${fresh.length} טיפולים נוספו, לחצי שמירה`
     );
   };
 
@@ -5453,7 +5558,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (d && d.receipt) cur = { ...rec, ...d.receipt };
       if (autoSend) {
         const ok = await sendReceiptToClient(cur, { silent: true }).catch(() => false);
-        if (!ok) toast("התשלום נרשם, אך השליחה האוטומטית נכשלה — שלחי ידנית מהאישור", "error");
+        if (!ok) toast("התשלום נרשם, אבל השליחה האוטומטית נכשלה. אפשר לשלוח ידנית מהאישור", "error");
       }
     })();
   };
@@ -5500,13 +5605,27 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         handleDbError(error, "void receipt"); return;
       }
       if (data && data[0]) setReceiptVoids(prev => [...prev, data[0]]);
+      // Products on the voided receipt go back to stock, once (the database refuses a second time).
+      if (data && data[0]) productsApi.afterVoid(receipt);
+      // A gift voucher that paid this sale gets its amount back (app/api/vouchers reverse_receipt). It stayed spent before.
+      let voucherBack = 0;
+      if (data && data[0] && paidByVoucher(receipt)) {
+        try {
+          const vr = await fetch("/api/vouchers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reverse_receipt", receiptId: receipt.id }) }).then((r) => r.json()).catch(() => null);
+          if (vr && vr.returned > 0) voucherBack = vr.returned;
+          else if (!vr || vr.success === false) toast("התשלום בוטל, אבל הסכום עוד לא חזר לשובר. אפשר לנסות שוב ממסך שוברי המתנה, או לכתוב לנו.", "error");
+        } catch { /* the void itself stands; the message above covers a refusal */ }
+      }
       setVoidOpen(false); setVoidReason("");
+      // A loyalty reward given on this sale comes back to her client's card by itself (lib/loyalty.js loyaltyState drops a
+      // voided receipt's redemption). Said out loud, so she does not think the gift is gone or re-add the stamps by hand.
+      const rewardBack = loyaltyCfg.enabled && rewardGivenOn(receipt, loyaltyDb.redemptions) ? ". המתנה חזרה לכרטיסיית הנאמנות של הלקוחה" : "";
       if (legal && data && data[0]) {
         const d = await requestCredit(data[0]);
-        if (d && d.status === "issued") toast("מסמך זיכוי מספר " + (d.number || "") + " הונפק, והתשלום ירד מהסיכומים ✦");
+        if (d && d.status === "issued") toast("מסמך זיכוי מספר " + (d.number || "") + " הונפק, והתשלום ירד מהסיכומים" + rewardBack + " ✦");
         else toast(((d && d.error) || "מסמך הזיכוי עוד לא הונפק") + " התשלום ממשיך להיספר עד שהוא יונפק.", "error");
       } else {
-        toast("התשלום בוטל — המקור נשמר, והסכום ירד מהסיכומים");
+        toast("התשלום בוטל, המקור נשמר, והסכום ירד מהסיכומים" + (voucherBack > 0 ? `. ₪${voucherBack} חזרו לשובר המתנה` : "") + rewardBack);
       }
     } finally { setBusyKey("voidReceipt", false); }
   };
@@ -5521,7 +5640,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const svc=activeServices.find(s=>s.name===appt.service);
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
-    setPaymentMethod("מזומן");setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setLoyaltyApplied(null);setShowCashier(true);
+    setPaymentMethod(favoritePaymentMethod);setCashierAllServices(false);setCashierExtrasOpen(false);setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setLoyaltyApplied(null);setShowCashier(true);
     // A loyalty ledger read that failed shows no card at the till (see loyaltyFor): opening the till tries it again.
     if (loyaltyCfg.enabled && loyaltyDb.ready === "error") loadLoyaltyRows();
   };
@@ -5656,6 +5775,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     const growMark = (url, body, what) => fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
       .then(async r=>{const j=await r.json().catch(()=>null); if(!r.ok||!j?.success) throw new Error(j?.error||"");})
       .catch(()=>toast(`אישור התשלום נשמר, אבל לא הצלחנו לסמן ש${what} נוצל. בדקי לפני שמנכים אותו שוב בתור הבא.`,"error"));
+    // A gift voucher used on this sale: its redemption names this receipt (once; the route refuses a second link).
+    if (voucherAdj?.ledgerId && !voucherAdj.receiptId) {
+      setVoucherAdj((v) => (v && v.ledgerId === voucherAdj.ledgerId ? { ...v, receiptId } : v));
+      growMark("/api/vouchers", { action: "attach", ledgerId: voucherAdj.ledgerId, receiptId }, "השובר");
+    }
     // Grow: the deposit was deducted once (and any part above this visit becomes client credit); credit that was ticked is marked used.
     if (snap.depositUsed > 0 && snap.appt?.id) growMark("/api/grow/deposit",{appointmentId:String(snap.appt.id),receiptId,used:snap.depositUsed},"המקדמה");
     if (snap.creditUsed > 0 && snap.client?.id) growMark("/api/grow/credit",{clientId:String(snap.client.id),amount:snap.creditUsed,receiptId},"הקרדיט");
@@ -5675,6 +5799,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const handleSaveReceipt = async () => {
     if (guardWrite()) return;
     if(!cashierItems.length){toast("הוסיפי לפחות פריט אחד כדי להמשיך","error");return;}
+    // The voucher balance taken must equal what this receipt credits (Vercel review on PR #25): a till whose total dropped below the
+    // amount already taken off the voucher is not saved until she gives the redemption back and applies it again.
+    if (voucherOverUsed(voucherAdj, voucherDue)) { toast(VOUCHER_OVER_USED_HE, "error"); return; }
     // Paying the same visit twice (from the calendar after the home list, or after a Grow payment) doubled her income.
     if(cashierAppt && !dupPayOk.current && liveRcpts.some(r=>r.appointment_id && String(r.appointment_id)===String(cashierAppt.id))){
       askConfirm({
@@ -5710,6 +5837,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Anything ambiguous stays unlinked, as before.
       const linkedApptId = cashierAppt?.id || (() => {
         if (!cashierClient?.id) return null;
+        // A products-only sale is not that visit's payment: never auto-link it, or her treatment would show as paid with only a
+        // cream bought (Vercel review 2026-11-08). Only a sale that has at least one treatment line is matched to today's visit.
+        if (!cashierItems.some(i => i && i.kind !== "product")) return null;
         const c = appointments.filter(a => String(a.client_id) === String(cashierClient.id) && a.date === today
           && a.confirmation_status !== "cancelled" && a.kind !== "personal"
           && !receipts.some(r => String(r.appointment_id) === String(a.id)));
@@ -5735,6 +5865,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         discount_pct: cashierDiscountMode==="pct" ? Math.min(100, Math.max(0, Number(cashierDiscount)||0)) : null,
         payments: useSplit ? splitResolved : null,
       };
+      // A gift voucher used on this sale (its amount is already off the voucher, app/VoucherRedeemTill.jsx): named on the receipt.
+      if (voucherUsed > 0 && voucherAdj) receipt.note = [receipt.note, voucherRedeemNote(voucherAdj.code, voucherUsed)].filter(Boolean).join(" · ");
       let {data,error}=await supabase.from("receipts").insert([receipt]).select();
       if (error && isMissingColumnError(error)) {
         // The migration has not run. Write the receipt without the three new
@@ -5752,6 +5884,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if(error){handleDbError(error, "save receipt"); return;}
       if(!data||!data[0]){toast(couldNotHe("לרשום את התשלום"),"error");return;}
       setReceipts(prev=>[...prev,data[0]]);
+      // Products on this receipt: the server moves their stock, once per line (app/useProducts.js). Never blocks the sale.
+      productsApi.afterReceipt(data[0], toast);
       const loyaltyUsed = loyaltyRewardLive;
       await applyCashierAdjustments(String(data[0].id), { depositUsed: growDepositUsed, creditUsed: growCreditUsed, appt: cashierAppt, client: cashierClient, pkg: drewFromPackage ? cashierPackage : null, loyalty: loyaltyUsed, loyaltyMarked: loyaltyUsed, loyaltyEvery: loyaltyUsed ? loyaltyApplied.marker?.loyalty_every : null });
       setLoyaltyApplied(null);
@@ -5764,7 +5898,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // No business type means the legal document is SKIPPED (lib/legalReceipts/service.js, tax_status_missing): say so now, never
       // "מפיקה מסמך…" for a document that will not come (2026-10-21 audit).
       const legalBlocked=legalAccount?.connected&&needsLegalDoc(data[0])&&(!settings.business_tax_status||taxStatusUnconfirmed(settings));
-      toast(`התשלום נרשם — ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalBlocked?" · לא יופק מסמך חוקי עד שתבחרי או תאשרי את סוג העסק בהגדרות (העסק שלי)":legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`, legalBlocked?"error":undefined);
+      toast(`התשלום נרשם, ₪${cashierTotal}${tip>0?` + טיפ ₪${tip}`:""}${legalBlocked?" · לא יופק מסמך חוקי עד שתבחרי או תאשרי את סוג העסק בהגדרות (העסק שלי)":legalAccount?.connected&&needsLegalDoc(data[0])?" · מפיקה מסמך…":""}`, legalBlocked?"error":undefined);
     } finally {
       setBusyKey("saveReceipt", false);
     }
@@ -5931,7 +6065,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // that may be a few minutes old, and the exclusion constraint would reject it anyway - this just turns that into a
     // sentence she can act on.
     if (!isFreeAt(date, minute, svc.duration, newApptBufferFor(svc.name))) {
-      toast("השעה נתפסה בינתיים — בחרי שעה אחרת", "error");
+      toast("השעה נתפסה בינתיים, בחרי שעה אחרת", "error");
       return null;
     }
     const { data: rpcTenant } = await supabase.rpc("get_user_tenant_id");
@@ -6003,7 +6137,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // old, and the exclusion constraint would reject it anyway — this just
       // turns that into a sentence she can act on.
       if (!isFreeAt(slot.date, minute, svc.duration, newApptBufferFor(svc.name))) {
-        toast("השעה נתפסה בינתיים — בחרי שעה אחרת", "error");
+        toast("השעה נתפסה בינתיים, בחרי שעה אחרת", "error");
         return;
       }
 
@@ -6261,11 +6395,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // just not automatic. The silent auto-send path leaves it in her
         // WhatsApp queue rather than popping a tab she didn't ask for right
         // now; a direct button tap opens it immediately.
-        if (!silent) { toast("מוכן לשליחה — נפתח וואטסאפ"); openQueuedWa(data.waLink, data.messageId); }
+        if (!silent) { toast("מוכן לשליחה, נפתח וואטסאפ"); openQueuedWa(data.waLink, data.messageId); }
         return true;
       }
       if (!res.ok || !data.success) {
-        if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית — אפשר לשלוח בקישור הישיר למטה", "error");
+        if (!silent) toast("לא הצלחנו להכין שליחה אוטומטית, אפשר לשלוח בקישור הישיר למטה", "error");
         return false;
       }
       if (!silent) toast("ההודעה הועברה לשליחה בוואטסאפ ✦");
@@ -6291,12 +6425,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       ["לקוחה", esc(receipt.client_name || "לקוחה")],
       ["תאריך", esc(fmtDateHe(localDayKey(receipt.created_at)))],
       ["שירות", esc(receipt.service || "")],
-      ["אמצעי תשלום", esc(receipt.payment_method || "")],
+      ["אמצעי תשלום", esc(receiptMethodLabel(receipt))],
     ];
     if (isSplit(receipt)) for (const ln of paymentsOf(receipt)) rows.push(["· " + esc(ln.method), "₪" + esc(ln.amount)]);
     if (Number(receipt.discount) > 0) rows.push(["הנחה" + (receipt.discount_pct ? ` (${esc(receipt.discount_pct)}%)` : ""), "−₪" + esc(receipt.discount)]);
     if (Number(receipt.tip) > 0) rows.push(["טיפ", "₪" + esc(receipt.tip)]);
-    if (receipt.note) rows.push(["הערה", esc(receipt.note)]);
+    // Voucher codes as LTR isolates that never wrap, as on the screen (lib/giftVouchers.ts splitVoucherCodes).
+    if (receipt.note) rows.push(["הערה", splitVoucherCodes(receipt.note).map((seg) => seg.code ? `<bdi dir="ltr" style="white-space:nowrap">${esc(seg.text)}</bdi>` : esc(seg.text)).join("")]);
     const vd = voidOf(receipt, receiptVoids);
     if (vd) rows.push(["מבוטלת", esc(vd.reason || "") + " · " + esc(localDayKey(vd.created_at))]);
     const rowsHtml = rows.map(([k, v]) => `<div class="row"><span class="k">${k}:</span><span class="v">${v}</span></div>`).join("");
@@ -6334,7 +6469,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   <script>window.onafterprint=function(){window.close()}<\/script>
 </body></html>`;
     const w = window.open("", "_blank", "width=760,height=900");
-    if (!w) { toast("החלון נחסם — אפשרי חלונות קופצים ונסי שוב", "error"); return; }
+    if (!w) { toast("החלון נחסם, אפשרי חלונות קופצים ונסי שוב", "error"); return; }
     w.document.write(html);
     w.document.close();
   };
@@ -6396,18 +6531,18 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // success, just not automatic - the honest copy says so, and opens
         // the one tap that replaces it, with the exact message already
         // composed server-side.
-        toast("מוכן לשליחה — נפתח וואטסאפ");
+        toast("מוכן לשליחה, נפתח וואטסאפ");
         openQueuedWa(data.waLink, data.messageId);
         return;
       }
       // A real failure (e.g. an unusable phone) - fall back to building the
       // link client-side so the send still has a path.
-      toast("לא הצלחנו להכין שליחה אוטומטית — נפתחת שליחה ידנית", "error");
+      toast("לא הצלחנו להכין שליחה אוטומטית, נפתחת שליחה ידנית", "error");
       const text = await reminderText(appt);
       const link = text && waMsg(phone, text);
       if (link) window.open(link, "_blank", "noopener");
     } catch {
-      toast("לא הצלחנו להכין שליחה אוטומטית — נפתחת שליחה ידנית", "error");
+      toast("לא הצלחנו להכין שליחה אוטומטית, נפתחת שליחה ידנית", "error");
       const text = await reminderText(appt);
       const link = text && waMsg(phone, text);
       if (link) window.open(link, "_blank", "noopener");
@@ -6424,7 +6559,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     return `שלום ${receipt.client_name || "לקוחה"}! ✦\n` +
       `${docLabelHe(receipt)} מ${businessName}\n\n` +
       `💰 סכום: ₪${receipt.amount}\n` +
-      `💳 אמצעי תשלום: ${receipt.payment_method || "מזומן"}\n` +
+      `💳 אמצעי תשלום: ${receiptMethodLabel(receipt, "מזומן")}\n` +
       `📅 תאריך: ${fmtDateHe(localDayKey(receipt.created_at))}\n\n` +
       (receipt.legal_status === "issued" && receipt.legal_doc_url ? `🧾 המסמך: ${receipt.legal_doc_url}\n\n` : `(אישור תשלום, לא מסמך מס)\n\n`) +
       `תודה ונתראה בקרוב! 😊`;
@@ -6868,7 +7003,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }
 
       setShowPackageModal(false);
-      toast(price > 0 ? "החבילה נמכרה — ₪" + price : "החבילה נוספה");
+      toast(price > 0 ? "החבילה נמכרה, ₪" + price : "החבילה נוספה");
     } finally {
       setBusyKey("savePackage", false);
     }
@@ -6934,7 +7069,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     if (Number(pkg.used_sessions) <= 0) { toast("אין טיפול לבטל", "error"); return; }
     const fresh = await writePackageEntry(pkg, 1, { reason: "ביטול ניכוי" });
     if (!fresh) return;
-    toast(`הניכוי בוטל — ${fresh.used_sessions}/${fresh.total_sessions}`);
+    toast(`הניכוי בוטל, ${fresh.used_sessions}/${fresh.total_sessions}`);
   };
 
   const handleSaveWaitlist = async () => {
@@ -7095,7 +7230,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     setPhotoUploading(true);
     try {
       const tid = settings?.tenant_id;
-      if (!tid) { toast("לא זוהה עסק — לא ניתן להעלות", "error"); return; }
+      if (!tid) { toast("לא זוהה עסק. אפשר לרענן את המסך ולנסות שוב.", "error"); return; }
       // Store tenant-scoped PATHS (private bucket); display signs them on demand.
       let beforeUrl = null, afterUrl = null;
       // An upload that failed used to be ignored, and the row was saved pointing at a photo that does not exist. Now
@@ -7226,7 +7361,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const d = await res.json().catch(() => null);
       if (!res.ok || !d || !d.success) { toast((d && d.error) || "לא הצלחנו לעדכן את הדף", "error"); return; }
       await loadFbConnection();
-      toast(active ? "קבלת לידים מהדף הופעלה" : "קבלת לידים מהדף הופסקה");
+      toast(active ? "קבלת פניות מהדף הופעלה" : "קבלת פניות מהדף הופסקה");
     } catch { toast("לא הצלחנו לעדכן את הדף. בדקי את החיבור.", "error"); }
     finally { setFbPageBusy(""); }
   };
@@ -7522,7 +7657,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       if (error) { handleDbError(error, "create community post"); return; }
       // Zero rows back is a refusal, not a success. Saying "published" here and
       // leaving the composer empty would lose what she wrote.
-      if (!data || !data[0]) { toast("הפוסט לא פורסם — נסי שוב", "error"); return; }
+      if (!data || !data[0]) { toast("הפוסט לא פורסם. נסי שוב", "error"); return; }
       setCommunityPosts(prev => [data[0], ...prev]);
       setNewPost({ title:"", body:"", post_type:"update", cta_label:"", image_url:"" });
       setShowPostModal(false);
@@ -7768,7 +7903,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     {id:"whatsapp", label:"הודעות"},
     {id:"campaigns",label:"תוכן"},
     {id:"community",label:"קהילה"},
-    {id:"packages", label:"מנויים"},
+    {id:"packages", label:"חבילות"},
     {id:"protocols",label:"פרוטוקולים"},
     {id:"advisor",  label:"יועץ AI"},
     {id:"help",     label:"עזרה"},
@@ -7942,8 +8077,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         @keyframes shimmer{0%{background-position:-360px 0}100%{background-position:360px 0}}
         .skel{background:linear-gradient(90deg,#EFE7F3 25%,#F8F2FB 50%,#EFE7F3 75%);background-size:720px 100%;animation:shimmer 1.3s infinite linear;border-radius:10px}
         @keyframes fade-in-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        .fade-in{animation:fade-in-up 0.4s cubic-bezier(.2,.7,.3,1) both}
-        @keyframes pop-in{0%{opacity:0;transform:scale(0.96)}100%{opacity:1;transform:scale(1)}}
+        /* backwards, not both: a kept transform:translateY(0) made every tab a containing block for position:fixed, and a sheet opened
+           from inside a tab (תבניות רילס, רילס מהצילומים שלי) rendered far below the screen behind a dim backdrop (2026-11-08 QA). */
+        .fade-in{animation:fade-in-up 0.4s cubic-bezier(.2,.7,.3,1) backwards}
+        @keyframes pop-in{0%{opacity:0;transform:scale(0.96)}100%{opacity:1;transform:none}}
         .pop-in{animation:pop-in 0.24s cubic-bezier(.2,.7,.3,1) both}
         @keyframes voice-pulse{0%{box-shadow:0 0 0 0 var(--pc-shadow)}70%{box-shadow:0 0 0 16px rgba(122,90,136,0)}100%{box-shadow:0 0 0 0 rgba(122,90,136,0)}}
         .voice-pulse{animation:voice-pulse 1.4s infinite}
@@ -8280,7 +8417,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       {showMonthlyReport && (
         <Sheet open onClose={() => setShowMonthlyReport(false)} width={460} zIndex={1000} ariaLabel="הדוח החודשי שלי">
-          <MonthlyReportCard variant="sheet" needsStatus={!settings?.business_tax_status} onChooseStatus={()=>{setShowMonthlyReport(false);openSettings("general");}} report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast}/>
+          <MonthlyReportCard variant="sheet" needsStatus={!settings?.business_tax_status} onChooseStatus={()=>{setShowMonthlyReport(false);openSettings("general");}} report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast} fullHref={monthlyPageOn(settings)?"/dashboard/monthly":null}/>
         </Sheet>
       )}
 
@@ -8321,7 +8458,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                   <div style={{marginTop:10,padding:"11px 12px",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FBF8F1)",border:"1px solid var(--line-2)"}}>
                     <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)",marginBottom:4}}>ההודעה לא נשלחה</p>
                     <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:9}}>
-                      לא הצלחנו לשלוח אותה מכאן. מה שכתבת עדיין כאן{supportWhatsAppUrl()?", ואפשר לשלוח אותו ישירות בוואטסאפ":" — אפשר לנסות שוב עוד רגע"}.
+                      לא הצלחנו לשלוח אותה מכאן. מה שכתבת עדיין כאן{supportWhatsAppUrl()?", ואפשר לשלוח אותו ישירות בוואטסאפ":", אפשר לנסות שוב עוד רגע"}.
                     </p>
                     {supportWhatsAppUrl(helpText.trim() || SUPPORT_WHATSAPP_MESSAGE) && (
                     <a
@@ -8419,7 +8556,7 @@ ${MARKETING_FOOTER}`)}`;
         const doneCount=composeSend.candidates.filter(c=>composeDone[c.phone]).length;
         return (
  <Sheet open onClose={()=>setComposeSend(null)} width={440} zIndex={4000} title={composeSend.title}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>ההודעה נשלחת מהוואטסאפ שלך — לחיצה על לקוחה פותחת את השיחה עם ההודעה מוכנה, ואת רק שולחת.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>ההודעה נשלחת מהוואטסאפ שלך. לחיצה על לקוחה פותחת את השיחה עם ההודעה מוכנה, ואת רק שולחת.</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>ההודעה (אפשר לערוך)</p>
  <textarea value={composeSend.messageTemplate} onChange={e=>setComposeSend({...composeSend,messageTemplate:e.target.value})} rows={3} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"10px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none",marginBottom:4}}/>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:12}}>הקישור האישי של כל לקוחה מתווסף אוטומטית בסוף.</p>
@@ -8511,11 +8648,12 @@ ${MARKETING_FOOTER}`)}`;
  </Sheet>
       )}
 
-      {/* BEAUTY VOICE — floating mic button (accessible from every screen) */}
- <button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית" title="שליטה קולית" className="fab-voice"
+      {/* BEAUTY VOICE: floating mic button. Hidden unless automations.feature_flags.voice_booking is true
+          (UX pass 2026-11-08): it cannot book yet, so it only confused her. Hidden, not deleted. */}
+ {voiceBookingVisible(settings)&&<button onClick={()=>{ showVoice ? closeVoice() : startVoice(); }} aria-label="שליטה קולית" title="שליטה קולית" className="fab-voice"
         style={{position:"fixed",bottom:22,left:22,zIndex:3500,width:56,height:56,borderRadius:"50%",border:"none",cursor:"pointer",background:pcGrad,color:"var(--pc-contrast)",boxShadow:"var(--shadow-accent)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit"}}>
  <svg viewBox="0 0 24 24" width="24" height="24" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
- </button>
+ </button>}
 
       {/* BEAUTY VOICE — modal */}
       {showVoice&&(
@@ -8551,19 +8689,19 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10}}>שמעתי: "{voiceIntent.raw||voiceTranscript}"</p>
                 {voiceIntent.action==="book_appointment"?(
  <div style={{background:pcTint,border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"14px 16px"}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pc,marginBottom:8}}>הבנתי — קביעת תור:</p>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pc,marginBottom:8}}>הבנתי, קביעת תור:</p>
                     {[["לקוחה",voiceIntent.client_name],["תאריך",voiceIntent.date],["שעה",voiceIntent.time],["שירות",voiceIntent.service]].map(([l,v])=>(
  <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid rgba(212,175,55,0.16)"}}>
  <span style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{l}</span>
- <span style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{v||"— לא צוין —"}</span>
+ <span style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{v||"לא צוין"}</span>
  </div>
                     ))}
  </div>
                 ):(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,textAlign:"center",padding:"8px 0"}}>לא זיהיתי פעולה נתמכת. כרגע נתמכת קביעת תור — נסי לומר "קבעי תור ל...".</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,textAlign:"center",padding:"8px 0"}}>לא זיהיתי פעולה נתמכת. כרגע נתמכת קביעת תור, נסי לומר "קבעי תור ל...".</p>
                 )}
                 {voiceIntent.clarification&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:10}}><Icon name="info" size={14}/> {voiceIntent.clarification}</p>}
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:12,textAlign:"center"}}>שלב 2 — הצגת ההבנה בלבד. יצירת התור בפועל תיווסף בשלב הבא.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:12,textAlign:"center"}}>התור עוד לא נקבע. כדי לקבוע אותו, פתחי "תור חדש" ביומן.</p>
  <div style={{display:"flex",gap:8,marginTop:14}}>
  <button onClick={startVoice} className="primary-btn" style={{flex:1,padding:"10px 0",border:"1px solid var(--line)",background:"var(--surface)",color:"var(--ink-2)",fontSize:"var(--t-sm)"}}><Icon name="mic" size={14}/> נסי שוב</button>
  <button onClick={closeVoice} className="primary-btn" style={{flex:1,padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>סגירה</button>
@@ -8591,7 +8729,7 @@ ${MARKETING_FOOTER}`)}`;
 
                 {/* service picker */}
  <div style={{marginBottom:10}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:4}}>שירות {voiceBooking.service?"":"— בחרי:"}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:4}}>שירות {voiceBooking.service?"":"בחרי:"}</p>
                 {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                     {activeServices.map(s=>{
@@ -8655,7 +8793,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}"</p>
                 {!voiceCancel.selected?(
  <div>
- <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:10}}>נמצאו כמה תורים — בחרי איזה לבטל:</p>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:10}}>נמצאו כמה תורים, בחרי איזה לבטל:</p>
                     {voiceCancel.matches.map(a=>(
  <button key={a.id} onClick={()=>setVoiceCancel({...voiceCancel,selected:a})} style={{display:"flex",alignItems:"center",gap:12,width:"100%",textAlign:"right",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:6,cursor:"pointer",fontFamily:"inherit"}}>
  <span className="serif" style={{fontSize:"var(--t-lg)",fontWeight:600,color:pc,width:78,flexShrink:0}}>{(a.date||"").split("-").reverse().slice(0,2).join("/")} · {fmtApptTime(a)}</span>
@@ -8685,7 +8823,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12}}>שמעתי: "{voiceIntent?.raw||voiceTranscript}"</p>
                 {!voiceCall.selected?(
  <div>
- <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:10}}>נמצאו כמה לקוחות — בחרי למי לחייג:</p>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:10}}>נמצאו כמה לקוחות, בחרי למי לחייג:</p>
                     {voiceCall.matches.map(c=>(
  <button key={c.id} onClick={()=>setVoiceCall({...voiceCall,selected:c})} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,width:"100%",textAlign:"right",background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:6,cursor:"pointer",fontFamily:"inherit"}}>
  <span style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{c.name}</span>
@@ -8783,7 +8921,9 @@ ${MARKETING_FOOTER}`)}`;
                     the logo blends the same way it does on login. */}
  <header className="app-header" style={{background:"var(--pc-chrome)",borderBottom:"1px solid var(--line)",padding:"0 22px",display:"flex",alignItems:"center",justifyContent:"space-between",height:88,flexShrink:0,gap:8,flexWrap:"nowrap",overflow:"visible"}}>
  <div className="hdr-brand" style={{display:"flex",alignItems:"center",gap:11,flexShrink:0}}>
- <button className="mobile-only icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט"><Icon name="menu" size={20}/></button>
+ {/* UX pass 2026-11-08: the phone header keeps the logo, the gear and one badge. The menu button is hidden there (kept,
+     not deleted); the same drawer, with search, opens from "עוד" › "חיפוש". Logout moved to Settings › מתקדם. */}
+ <button className="icon-btn" onClick={()=>setShowMobileSidebar(true)} style={{display:"none"}} aria-label="תפריט ניווט"><Icon name="menu" size={20}/></button>
                 {/* Compact Kalmea lockup: florals + wordmark, no tagline.
                     Brand tier, so it never takes the tenant accent. Intrinsic
                     520x177 with the height capped, so the ratio holds. */}
@@ -8848,7 +8988,7 @@ ${MARKETING_FOOTER}`)}`;
                 {/* Same reason as the gear above: U+23FB renders as a colour
                     emoji on iOS. Fixing one and leaving its neighbour is worse
                     than leaving both. */}
- <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn" title={authEmail ? `התנתקות (מחוברת כ-${authEmail})` : "התנתקות"} aria-label="התנתקות מהמערכת">
+ <button onClick={handleLogout} disabled={isBusy("logout")} className="icon-btn desktop-only" title={authEmail ? `התנתקות (מחוברת כ-${authEmail})` : "התנתקות"} aria-label="התנתקות מהמערכת">
  <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}>
  <path d="M12 3.2v8.4"/>
  <path d="M17.4 6.1a7.5 7.5 0 1 1-10.8 0"/>
@@ -9044,6 +9184,11 @@ ${MARKETING_FOOTER}`)}`;
  {myDayOn&&<MyDayCard model={myDayModel} loading={deferred.leads==="loading"||deferred.history==="loading"} brandNew={historyReady&&deferred.leads==="ok"&&clients.length===0&&appointments.length===0&&leads.length===0} noHistory={historyReady&&appointments.length===0}
               pc={pc} pcTint={pcTint} style={{order:1}}
               onRemind={handleSendConfirmation} onPay={handleOpenCashier} onNewAppt={openNewAppt} onOpen={handleApptClick}/>}
+ {/* Two opt-in automations, offered once with the exact client message (lib/automationSuggest.js). "להפעיל" stores her own switch as true;
+     "לא עכשיו" hides the question for good. Nothing turns on and nothing is sent without her tap. */}
+ <AutomationSuggestCard settings={settings} services={services} style={{order:1}}
+              onEnable={async (key)=>{ const ok = await saveAutomationsKey(key, true); if (ok) toast(key==="waitlist_offers"?"הופעל: תורים שהתפנו יוצעו לרשימת ההמתנה":"הופעל: תזכורת לטיפול הבא"); }}
+              onDismiss={(key)=>{ const a=(settings.automations&&typeof settings.automations==="object")?settings.automations:{}; const cur=(a[SUGGEST_DISMISS_KEY]&&typeof a[SUGGEST_DISMISS_KEY]==="object")?a[SUGGEST_DISMISS_KEY]:{}; saveAutomationsKey(SUGGEST_DISMISS_KEY,{...cur,[key]:true}); }}/>
             {/* REVENUE HERO - visual pass (2026-10), היום first. The number
                 itself is not new data: todayTotals is the exact computation
                 the Insights tab's own "היום" card already uses (lib/till's
@@ -9052,8 +9197,9 @@ ${MARKETING_FOOTER}`)}`;
                 className="serif"'s stack - Cormorant Garamond (first in that
                 stack) covers Latin digits itself, so a Hebrew-fallback alone
                 would not reliably reach Frank Ruhl for a number. */}
- {/* Not while the 3-step card is on: a big ₪0 is the first thing a new business saw, before there was anything to count. */}
- {fbView!=="active"&&<div className="glass-card card-boxed" style={{order:2,padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
+ {/* Not while the 3-step card is on, and not before today's first payment (UX pass 2026-11-08): a big ₪0 says nothing.
+     Order (UX pass): greeting, My Day, the freed-slot question, the next client, then this revenue line, then the rest. */}
+ {fbView!=="active"&&todayTotals.count>0&&<div className="glass-card card-boxed" style={{order:3,padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto"}}>
  <p style={{fontSize:12.5,color:"var(--brand-muted)"}}>הכנסות היום</p>
  <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:38,letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
               {todayTotals.byMethod.length>0&&(
@@ -9073,7 +9219,7 @@ ${MARKETING_FOOTER}`)}`;
  </button>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
- {fbView!=="active"&&<MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} style={{order:5}}/>}
+ {fbView!=="active"&&<MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} fullHref={monthlyPageOn(settings)?"/dashboard/monthly":null} style={{order:5}}/>}
  <MonthValueCard appointments={appointments} receipts={liveRcpts} clients={clients} ready={historyReady} style={{order:5}}/>
  {fbView!=="active"&&<MarketingToday settings={settings} appointments={appointments} clients={clients} services={activeServices} today={today} historyReady={historyReady}
             coldCount={coldClients.length} winbackDays={winbackDays}
@@ -9094,9 +9240,9 @@ ${MARKETING_FOOTER}`)}`;
               const isComeback=pendingQuestion.kind==="comeback";
               const questionText=isComeback
                 ? `חזרת מהפסקה ✦ לשלוח הודעת "חזרנו לפעילות" בוואטסאפ ללקוחות שלא הספיקו לחזור?`
-                : `התפנה תור — יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
+                : `התפנה תור, יום ${dayName} ${hhmm}${p.service?`, ${p.service}`:""}. להציע אותו בוואטסאפ ללקוחות מתאימות?`;
               return (
- <div className="glass-card card-boxed card-boxed-rose" style={{order:6,position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
+ <div className="glass-card card-boxed card-boxed-rose" style={{order:2,position:"relative",overflow:"hidden",padding:"16px 17px",marginBottom:12,maxWidth:1180,marginInline:"auto",border:"1px solid rgba(233,169,161,.65)"}}>
                   {/* Ad-aligned pass: the new question line-icon is this
                       card's real header mark now, in place of the old faint
                       13%-opacity corner flower - large enough to actually
@@ -9149,12 +9295,12 @@ ${MARKETING_FOOTER}`)}`;
               // Warm, adaptive one-liner from today's existing data — no new sources.
               // Priority: full day → new leads → a lighter day → calm/empty.
               const warmMsg = todayAppts.length>=5
-                ? `יום מלא היום — ${todayAppts.length} תורים. את מוכנה 💪`
+                ? `יום מלא היום, ${todayAppts.length} תורים. את מוכנה 💪`
                 : newLeadsCount>0
                 ? `${newLeadsCount} ${newLeadsCount===1?"פנייה חדשה מחכה":"פניות חדשות מחכות"} לך 🌸`
                 : todayAppts.length>0
-                ? `${todayAppts.length} ${todayAppts.length===1?"תור היום":"תורים היום"} — שיהיה יום נהדר ✨`
-                : `${hour<12?"בוקר רגוע":hour<17?"צהריים רגועים":hour<21?"ערב רגוע":"לילה רגוע"} ☕ — יום טוב לפנות ללקוחות ותיקות`;
+                ? `${todayAppts.length} ${todayAppts.length===1?"תור היום":"תורים היום"}, שיהיה יום נהדר ✨`
+                : `${hour<12?"בוקר רגוע":hour<17?"צהריים רגועים":hour<21?"ערב רגוע":"לילה רגוע"} ☕ יום טוב לפנות ללקוחות ותיקות`;
               const bdToday=upcomingBirthdays.filter(c=>{const b=new Date(c.birthday);const bd=new Date(now.getFullYear(),b.getMonth(),b.getDate());if(bd<now)bd.setFullYear(now.getFullYear()+1);return Math.floor((bd-now)/(1000*60*60*24))===0;});
               // Revenue stats + chart moved to the "תובנות" (insights) tab.
               // openNewAppt is now component-scoped, above (lifted out of
@@ -9163,7 +9309,7 @@ ${MARKETING_FOOTER}`)}`;
                 {label:"תור חדש",hint:"קביעת פגישה",icon:"✦",onClick:openNewAppt},
                 {label:"קופה",hint:"רישום תשלום",icon:"₪",onClick:()=>handleOpenCashier(null)},
                 {label:"לקוחה חדשה",hint:"הוספה לרשימת הלקוחות",icon:"♥",onClick:()=>{setEditingClient(null);setNewClient(emptyClient);setShowClientModal(true);}},
-                {label:"הודעות",hint:"מרכז וואטסאפ",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
+                {label:"הודעות",hint:"וואטסאפ ללקוחות",icon:"✆",onClick:()=>setActiveTab("whatsapp")},
               ];
               return(<>
                 {/* TIER 1a's old greeting-bar card (pill + name + warm
@@ -9199,7 +9345,7 @@ ${MARKETING_FOOTER}`)}`;
                   if(!brief) return null;
                   const {appt,client,minutesUntil,lastVisit,allergies,note,isNew}=brief;
                   return(
- <div className="glass-card card-boxed card-boxed-accent" style={{order:3,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
+ <div className="glass-card card-boxed card-boxed-accent" style={{order:2,maxWidth:1180,margin:"0 auto 12px",padding:"16px 20px",borderInlineStart:"4px solid var(--pc)"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,margin:"0 0 2px"}}>{untilHe(minutesUntil)}</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",margin:"0 0 8px"}}>{appt.name}{appt.service?" · "+appt.service:""}</p>
  <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -9333,6 +9479,10 @@ ${MARKETING_FOOTER}`)}`;
                       // Each item carries its own primary action; nothing is sent — actions
                       // open an editable surface (booking modal / lead drawer) or navigate.
                       const q=[];
+                      // UX pass 2026-11-08 (audit item 2): no item twice on Today. When "היום שלי" already lists every
+                      // person an item is about (its "מחכה לך" rows), the item here steps aside.
+                      const onMyDay=new Set(myDayOn?(myDayModel?.needs||[]).map(it=>String(it.appt?.id??it.lead?.id??"")):[]);
+                      const allOnMyDay=(rows)=>myDayOn&&rows.length>0&&rows.every(r=>onMyDay.has(String(r.id)));
                       leadsWithReminders.forEach(l=>q.push({key:`lead:${l.id}`,icon:"◴",accent:"var(--danger)",source:"פניות",what:"מעקב אחר פנייה",who:l.name,why:`תזכורת מעקב להיום${l.service_interest?` · ${l.service_interest}`:""}`,primaryLabel:"פתחי פנייה",run:()=>{setSelectedLead(l);setActiveTab("leads");}}));
                       // Lapsed clients, capped at three.
                       //
@@ -9350,10 +9500,10 @@ ${MARKETING_FOOTER}`)}`;
                       const coldSorted = [...coldClients].sort((a,b)=>getDaysSince(b.id)-getDaysSince(a.id));
                       coldSorted.slice(0,3).forEach(c=>q.push({key:`rebook:${c.id}`,icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"הצעת תור חוזר",who:c.name,why:`לא ביקרה ${getDaysSince(c.id)} יום`,primaryLabel:"קבעי תור",run:()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:c.id,name:c.name,service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}}));
                       if(coldSorted.length>3)q.push({key:"cold-rest",icon:"✦",accent:"var(--warning)",source:"לקוחות",what:"עוד לקוחות שמזמן לא הגיעו",who:`${coldSorted.length-3} לקוחות נוספות`,why:"אפשר לעבור עליהן ולשלוח הודעה למי ששווה",primaryLabel:"פתחי את הרשימה",run:()=>setShowLapsed(true)});
-                      if(newLeadsCount>0)q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"פניות",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי פניות",run:()=>setActiveTab("leads")});
+                      if(newLeadsCount>0&&!allOnMyDay(leads.filter(l=>l.status==="no_answer"||l.status==="new")))q.push({key:"newleads",icon:"✉",accent:"var(--pc)",source:"פניות",what:"מענה לפניות חדשות",who:`${newLeadsCount} פניות חדשות`,why:"ממתינות למענה ראשוני",primaryLabel:"פתחי פניות",run:()=>setActiveTab("leads")});
                       bdToday.forEach(c=>q.push({key:`bday:${c.id}`,icon:"🎀",accent:"var(--danger)",source:"לקוחות",what:"ברכת יום הולדת",who:c.name,why:"יום הולדת היום",primaryLabel:"פתחי הודעות",run:()=>setActiveTab("whatsapp")}));
                       const tomorrowNotSent=tomorrowAppts.filter(a=>!a.confirmation_sent&&a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW);
-                      if(tomorrowNotSent.length>0)q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:whatsappPending.length>0?"פתיחת הרשימה":"פתחי מרכז הודעות",run:()=>{if(whatsappPending.length>0){refreshWaQueue();setShowWaQueue(true);}else setActiveTab("whatsapp");}});
+                      if(tomorrowNotSent.length>0&&!allOnMyDay(tomorrowNotSent))q.push({key:"tomorrow",icon:"✆",accent:"var(--success)",source:"יומן",what:"תזכורות לתורי מחר",who:countHe(tomorrowNotSent.length,"תור אחד","תורים"),why:"טרם נשלחה תזכורת",primaryLabel:whatsappPending.length>0?"פתיחת הרשימה":"פתחי מרכז הודעות",run:()=>{if(whatsappPending.length>0){refreshWaQueue();setShowWaQueue(true);}else setActiveTab("whatsapp");}});
                       // Skin Follow-up suggestions from the existing route (empty when Off/paused).
                       (skinQueue||[]).forEach(s=>{ if(s&&s.clientId!=null) q.push({key:`skin:${s.clientId}`,isSkin:true,icon:"🧴",accent:"var(--pc-deep)",source:"מעקב עור",what:"הצעת מעקב עור",who:s.name||"לקוחה",why:s.reasonText||"",message:s.message||"",hasPhone:!!s.hasPhone,clientId:s.clientId}); });
                       // Automated sends that FAILED in the last day, from the same log the
@@ -9402,18 +9552,27 @@ ${MARKETING_FOOTER}`)}`;
                       // Falls back to a plain "mark read" for the two kinds
                       // with no single appointment (skin_hot_lead,
                       // evening_summary) or if the row was since deleted.
-                      ownerNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      // ── Low stock (lib/products.ts): one grouped line while anything is at or below its threshold. Its in-app
+                      // notifications (kind low_stock) are this same fact, so they are not listed again and are marked read here.
+                      {
+                        const ls=productsApi.visible&&productsApi.status==="ready"?lowStockAttention(productsApi.products):null;
+                        if(ls)q.push({key:ls.key,icon:"🧴",accent:"var(--warning)",source:"מלאי",what:"מלאי נמוך",who:ls.count===1?"מוצר אחד":`${ls.count} מוצרים`,why:ls.names,primaryLabel:"למוצרים ומלאי",run:()=>{const ids=ownerNotifs.filter(n=>n.kind==="low_stock").map(n=>n.id);if(ids.length){supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs(prev=>prev.filter(n=>n.kind!=="low_stock"));}setActiveTab("cashier");}});
+                      }
+                      const listedNotifs=ownerNotifs.filter(n=>n.kind!=="low_stock");
+                      listedNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.kind==="monthly_report"?"לדוח החודשי":n.kind==="visit_feedback"?"לקריאה":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
                         if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
                         if(n.kind==="weekly_report"){router.push("/dashboard/digest");return;}
+                        if(n.kind==="monthly_report"){router.push("/dashboard/monthly");return;}
+                        if(n.kind==="visit_feedback"){router.push("/dashboard/feedback");return;}
                         if(n.appointment_id){
                           const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
                           if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
                           else toast("התור הזה כבר לא קיים");
                         }
                       }}));
-                      if(ownerNotifs.length>3)q.push({key:"ownernotif-rest",icon:"✦",accent:"var(--success)",source:"התראה",what:"עוד התראות",who:`${ownerNotifs.length-3} נוספות`,why:"",primaryLabel:"סימון הכל כנקרא",run:()=>{const ids=ownerNotifs.map(n=>n.id);supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs([]);}});
+                      if(listedNotifs.length>3)q.push({key:"ownernotif-rest",icon:"✦",accent:"var(--success)",source:"התראה",what:"עוד התראות",who:`${listedNotifs.length-3} נוספות`,why:"",primaryLabel:"סימון הכל כנקרא",run:()=>{const ids=ownerNotifs.map(n=>n.id);supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs([]);}});
                       // Dedup by key (stable per client/entity) + drop dismissed AND mocked-approved.
                       const seen=new Set();
                       const visible=q.filter(it=>{if(seen.has(it.key))return false;seen.add(it.key);return !queueDismissed.has(it.key)&&!queueApproved.has(it.key);});
@@ -9429,7 +9588,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-md)",color:"var(--ink-3)",marginTop:3}}>אין פעולות שממתינות לך כרגע</p>
  </div>);
                       return(<>
-                        {paused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:"var(--r-sm)",padding:"6px 10px",marginBottom:8}}><Icon name="pause" size={13}/> האוטומציות מושהות — פעולות ידניות עדיין זמינות.</p>}
+                        {paused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,background:"rgba(242,184,75,0.12)",borderRadius:"var(--r-sm)",padding:"6px 10px",marginBottom:8}}><Icon name="pause" size={13}/> האוטומציות מושהות, פעולות ידניות עדיין זמינות.</p>}
                         {skinQueueLoading&&skinQueue===null&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",padding:"2px 2px 8px"}}><Spinner inline label="טוענת הצעות מעקב עור"/></p>}
                         {skinQueueError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,background:"rgba(224,91,111,0.08)",borderRadius:"var(--r-sm)",padding:"6px 10px",marginBottom:8}}>{skinQueueError}</p>}
                         {visible.map(it=>(
@@ -9444,7 +9603,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.who}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:1}}>{it.why}</p>
-                                {it.isSkin&&!it.hasPhone&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,marginTop:3}}>⚠ אין מספר טלפון ללקוחה — לא ניתן לשלוח</p>}
+                                {it.isSkin&&!it.hasPhone&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,marginTop:3}}>⚠ אין מספר טלפון ללקוחה. אפשר להוסיף אותו בכרטיס שלה</p>}
                                 {it.isSkin&&(
  <div style={{marginTop:6}}>
  <button onClick={()=>setSkinOpen(prev=>{const n=new Set(prev);if(n.has(it.key))n.delete(it.key);else n.add(it.key);return n;})} style={{background:"none",border:"none",color:pc,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>{skinOpen.has(it.key)?"▲ הסתר הודעה":"▼ צפייה ועריכה בהודעה"}</button>
@@ -9502,7 +9661,7 @@ ${MARKETING_FOOTER}`)}`;
    role={s.onClick?"button":undefined}
    tabIndex={s.onClick?0:undefined}
    onKeyDown={s.onClick?onKbdActivate:undefined}
-   aria-label={s.onClick?`${s.label} — ${s.value}, פתיחת הרשימה`:undefined}
+   aria-label={s.onClick?`${s.label}, ${s.value}, פתיחת הרשימה`:undefined}
    style={{animationDelay:`${0.05*i}s`,background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden",cursor:s.onClick?"pointer":"default"}}>
  <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%, ${lighten(s.accent,0.82)}, transparent 70%)`,pointerEvents:"none"}}/>
  <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
@@ -9630,6 +9789,7 @@ ${MARKETING_FOOTER}`)}`;
  <button aria-label="שבוע הבא" onClick={()=>{const d=weekSundayOf(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);}} style={{background:"none",border:"none",borderRadius:"var(--r-sm)",padding:"7px 12px",cursor:"pointer",fontSize:"var(--t-md)",color:pc,fontFamily:"inherit"}}>←</button>
  </div>
  <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} className={calView==="day"?"primary-btn desktop-only":"primary-btn"} style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:"var(--t-sm)"}}><Icon name="lock" size={14}/> אירוע אישי</button>
+ <button data-testid="cal-waitlist-chip" onClick={openWaitlist} className={calView==="day"?"primary-btn desktop-only":"primary-btn"} style={{background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink-2)",padding:"10px 16px",fontSize:"var(--t-sm)"}}>{waitlistChipLabel}</button>
  <button className={calView==="day"?"primary-btn desktop-only":"primary-btn"} onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
  </div>
  </div>
@@ -9762,6 +9922,9 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>openPersonalEditor(null,formatDate(calDay))} style={{flex:1,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"11px 0",fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}><Icon name="lock" size={14}/> אירוע אישי</button>
  <button className="primary-btn" onClick={()=>{const svc=activeServices[0];setEditingAppointmentId(null);setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(calDay),hour:dh?dh.open:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{flex:2,background:pcGrad,color:"var(--pc-contrast)",padding:"11px 0",fontSize:"var(--t-md)",boxShadow:"var(--shadow-accent)"}}>✦ תור חדש</button>
  </div>
+ <div style={{display:"flex",justifyContent:"flex-start",marginTop:-6,marginBottom:12}}>
+ <button data-testid="cal-waitlist-chip-day" onClick={openWaitlist} style={{minHeight:44,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-full)",padding:"0 14px",fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink-2)",cursor:"pointer",fontFamily:"inherit"}}>{waitlistChipLabel}</button>
+ </div>
                   {(() => {
                     // Rows are driven by the day's REAL appointments, not by a fixed
                     // grid of hour cells. The old loop walked workingHours - the LEGACY
@@ -9829,11 +9992,14 @@ ${MARKETING_FOOTER}`)}`;
                                   const ghost={...agBtn,background:"var(--surface)",border:"1px solid var(--line-2)",color:"var(--ink)",fontSize:"var(--t-sm)",fontWeight:600,width:"auto",padding:"0 12px",gap:6};
                                   const main={...ghost,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))",fontWeight:700};
                                   const stop=fn=>e=>{e.stopPropagation();setApptMenuId(null);fn();};
+                                  // UX pass 2026-11-08: payment is the main action on a live unpaid card. The timer
+                                  // only takes the main slot while it is running ("⏹ סיימתי"); "▶ התחלתי" lives in "עוד".
+                                  const running=canTime&&!!appt.actual_start_at;
                                   return (<>
  <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}}>
                                     {paidRcpt&&<span data-testid="agenda-paid" className="pill" style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px",whiteSpace:"nowrap"}}>✓ שולם</span>}
-                                    {canTime&&!paidRcpt?(
- <button onClick={stop(()=>appt.actual_start_at?handleFinishTreatment(appt):handleStartTreatment(appt))} style={main}>{appt.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
+                                    {running&&!paidRcpt?(
+ <button onClick={stop(()=>handleFinishTreatment(appt))} style={main}>⏹ סיימתי</button>
                                     ):paidRcpt?(
  <button data-testid="agenda-open-receipt" onClick={stop(()=>setShowReceipt(paidRcpt))} style={main}>🧾 אישור התשלום</button>
                                     ):live?(
@@ -9846,8 +10012,9 @@ ${MARKETING_FOOTER}`)}`;
  <div onClick={e=>e.stopPropagation()} style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
                                     {!isPersonal(appt)&&appt.client_id&&<button onClick={stop(()=>{setSelectedClient(clients.find(c=>String(c.id)===String(appt.client_id)));setClientTab("info");})} style={ghost}>כרטיס לקוחה</button>}
                                     {!isPersonal(appt)&&hasPhone&&<button onClick={stop(()=>sendReminderToClient(appt))} disabled={isBusy("sendReminder")} style={ghost}>תזכורת</button>}
-                                    {canTime&&!paidRcpt&&<button onClick={stop(()=>handleOpenCashier(appt))} style={ghost}>₪ תשלום</button>}
-                                    {canTime&&paidRcpt&&<button onClick={stop(()=>appt.actual_start_at?handleFinishTreatment(appt):handleStartTreatment(appt))} style={ghost}>{appt.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>}
+                                    {running&&!paidRcpt&&<button onClick={stop(()=>handleOpenCashier(appt))} style={ghost}>₪ תשלום</button>}
+                                    {canTime&&!running&&<button onClick={stop(()=>handleStartTreatment(appt))} style={ghost}>▶ התחלתי</button>}
+                                    {running&&paidRcpt&&<button onClick={stop(()=>handleFinishTreatment(appt))} style={ghost}>⏹ סיימתי</button>}
                                     {!isPersonal(appt)&&canMarkNoShow(appt,today)&&<button onClick={stop(()=>markNoShow(appt))} style={ghost}>לא הגיעה</button>}
  <button onClick={stop(()=>{if(isPersonal(appt)){handleDeletePersonal(appt);}else{handleDelete(appt);}})} style={{...ghost,color:"var(--danger)"}}>{isPersonal(appt)?"מחיקת האירוע":"ביטול התור"}</button>
  </div>
@@ -10075,10 +10242,10 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>קופה ותשלומים</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>תשלומים ואישורי תשלום</p>
  <div style={{display:"flex",alignItems:"center",gap:8}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_WALLET} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>תשלומים</h2>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>קופה</h2>
  </div>
  <button onClick={()=>setActiveTab("tax")} style={{marginTop:0,background:"none",border:"none",padding:"13px 0",minHeight:44,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
  </div>
@@ -10087,6 +10254,28 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={handleExportCSV} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}><Icon name="download" size={14}/> ייצוא לאקסל</button>
  </div>
  </div>
+ {(()=>{
+   // Tabs only when there is more than one thing to show (lib/tillTabs.ts). Every panel stays MOUNTED and is only hidden, so a
+   // voucher sale asked for from "תשלום חדש" finds its panel loaded, and switching tabs never loses a half-filled form.
+   const tabs=tillTabsOf({vouchers:giftVouchersVisible(settings)&&vouchersAvail,products:productsApi.visible&&(productsApi.status==="ready"||productsApi.status==="error")});
+   const cur=activeTillTab(tillTab,tabs);
+   return(<>
+ {tabs.length>1&&(
+ <div role="tablist" aria-label="אזורי הקופה" data-testid="till-tabs" style={{display:"flex",gap:3,marginBottom:14,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
+   {tabs.map(t=>(
+ <button key={t.k} type="button" role="tab" aria-selected={cur===t.k} data-testid={`till-tab-${t.k}`} onClick={()=>setTillTab(t.k)} style={{flex:1,minHeight:44,padding:"8px 6px",border:"none",borderRadius:"var(--r-sm)",background:cur===t.k?pcGrad:"transparent",color:cur===t.k?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:cur===t.k?700:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{t.l}</button>
+   ))}
+ </div>
+ )}
+ {/* Gift vouchers: sold online or here, redeemed in the till. Renders nothing unless the platform flag is on. */}
+ <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="vouchers"}>
+ <GiftVouchersPanel settings={settings} services={services} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} voidedReceiptIds={voidedReceiptIdSet} sellRequest={voucherSellReq} onAvailable={setVouchersAvail} onReceipt={(r)=>{setReceipts(prev=>prev.some(x=>String(x.id)===String(r.id))?prev:[...prev,r]);afterPaymentRecorded(r,{autoSend:false});}}/>
+ </div>
+ {/* Products and inventory: renders nothing when switched off or before the migration. */}
+ <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="products"}>
+ <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} defaultThreshold={productsConfig(settings).lowStockThreshold}/>
+ </div>
+ <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="pay"}>
  {/* Payment links for a deposit or the full amount (Grow). Renders nothing unless Grow is on and connected. */}
  {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
  {/* INCOME. Today and this month, side by side on a desk, stacked on a
@@ -10126,7 +10315,7 @@ ${MARKETING_FOOTER}`)}`;
  <div className="glass-card card-boxed" style={{padding:"18px 20px",marginBottom:16}}>
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
  <span style={{width:34,height:34,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-lg)",background:"var(--pc-tint)",color:pc}}>⚡</span>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים היום — תשלום מהיר</h3>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>תורים היום, תשלום מהיר</h3>
  </div>
                 {todayAppts.filter(a=>a.confirmation_status!=="cancelled"&&a.confirmation_status!==NO_SHOW).map(a=>{
                   const client=clients.find(c=>String(c.id)===String(a.client_id));
@@ -10178,7 +10367,7 @@ ${MARKETING_FOOTER}`)}`;
                 const pmColor=pm?.color||DEFAULT_SERVICE_COLOR;
                 const voided=voidedIds(receiptVoids).has(String(r.id));
                 return(
- <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}${voided?" (מבוטלת)":""}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:`1px solid ${voided?"rgba(224,91,111,0.45)":"var(--line)"}`,borderRadius:"var(--r-md)",marginBottom:6,cursor:"pointer",opacity:voided?0.7:1}} className="client-row">
+ <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום, ${r.client_name||"לקוחה"}${voided?" (מבוטלת)":""}`} style={{display:"flex",alignItems:"center",gap:11,padding:"11px 13px",background:"var(--surface-2)",border:`1px solid ${voided?"rgba(224,91,111,0.45)":"var(--line)"}`,borderRadius:"var(--r-md)",marginBottom:6,cursor:"pointer",opacity:voided?0.7:1}} className="client-row">
  <div style={{width:36,height:36,borderRadius:"var(--r-sm)",background:`linear-gradient(135deg,${lighten(pmColor,0.35)},${pmColor})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-md)",color:"var(--surface)",flexShrink:0,boxShadow:"var(--shadow-xs)"}}>
                       {pm?.icon||"₪"}
  </div>
@@ -10194,6 +10383,8 @@ ${MARKETING_FOOTER}`)}`;
                 );
               })}
  </div>
+ </div>
+ </>);})()}
  </div>
  </>)}
 
@@ -10219,7 +10410,7 @@ ${MARKETING_FOOTER}`)}`;
                 message:birthdayMessage(c.name,bizSafe,settings.automations).concat("\n\n",MARKETING_FOOTER)};
             });
             const coldTargets=coldClients.filter(canMarket).map(c=>({clientId:c.id,name:c.name,phone:c.phone,days:getDaysSince(c.id),
-              message:`שלום ${c.name}! \nמתגעגעים אליך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך — נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `.concat("\n\n",MARKETING_FOOTER)}));
+              message:`שלום ${c.name}! \nמתגעגעים אליך${bizSafe?` ב${bizSafe}`:""}!\nמזמן לא ראינו אותך, נשמח לפנק אותך בטיפול \nרוצה לקבוע תור? פשוט תכתבי לנו `.concat("\n\n",MARKETING_FOOTER)}));
             const weekAgo=formatDate(new Date(now.getTime()-7*86400000));
             const reviewClientIds=[...new Set(appointments.filter(a=>a.date&&a.date>=weekAgo&&a.date<=today).map(a=>String(a.client_id)))];
             // Her Google review link when she set one: the ask used to give the client nowhere to write it. (The home
@@ -10256,9 +10447,9 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>וואטסאפ</p>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_ENVELOPE} style={{width:48,height:48,objectFit:"contain",flexShrink:0}}/>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>מרכז הודעות</h2>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",margin:0}}>הודעות</h2>
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות — בלחיצה אחת</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:18}}>שליחת הודעות מוכנות ללקוחות, בלחיצה אחת</p>
 
  {/* Sub-tabs: the send tools, or the log of everything already sent. */}
  <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
@@ -10440,6 +10631,8 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"var(--pc-contrast)":"var(--ink-2)"}}>קמפיינים בפייסבוק</button>
  </div>
 
+ {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
+ {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");setTillTab("vouchers");}}/>}
  {marketingView==="campaigns"&&(<>
  <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -10462,7 +10655,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
 
  {fbCampaigns===null&&!fbLoading&&!fbError&&(
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",padding:"10px 0"}}>לחצי "טעני קמפיינים" כדי לראות את ביצועי המודעות שלך בפייסבוק ואינסטגרם — הוצאה, לידים, ומחיר לליד.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",padding:"10px 0"}}>לחצי "טעני קמפיינים" כדי לראות את ביצועי המודעות שלך בפייסבוק ואינסטגרם: הוצאה, פניות ומחיר לפנייה.</p>
  )}
 
  {fbError&&(
@@ -10479,11 +10672,11 @@ ${MARKETING_FOOTER}`)}`;
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:pc}}>₪{Math.round(fbTotals.spend).toLocaleString()}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>לידים</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>פניות</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)"}}>{fbTotals.leads}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"13px 15px",border:"1px solid var(--line)"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מחיר לליד</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מחיר לפנייה</p>
  <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:pc}}>{fbTotals.cpl?`₪${fbTotals.cpl}`:"—"}</p>
  </div>
  <div style={{background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"13px 15px",border:"1px solid var(--line)"}}>
@@ -10507,11 +10700,11 @@ ${MARKETING_FOOTER}`)}`;
  <p className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>₪{Math.round(c.spend).toLocaleString()}</p>
  </div>
  <div style={{textAlign:"center",minWidth:45}}>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>לידים</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>פניות</p>
  <p className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:"var(--ink)"}}>{c.leads}</p>
  </div>
  <div style={{textAlign:"center",minWidth:55}}>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>לליד</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>לפנייה</p>
  <p className="serif" style={{fontSize:"var(--t-md)",fontWeight:600,color:pc}}>{c.cpl?`₪${c.cpl}`:"—"}</p>
  </div>
  </div>
@@ -10524,10 +10717,10 @@ ${MARKETING_FOOTER}`)}`;
 
  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,marginBottom:16}}>
               {[
-                {label:"סה״כ לידים",value:leads.length,icon:"✉"},
+                {label:"סה״כ פניות",value:leads.length,icon:"✉"},
                 {label:"הומרו",value:convertedLeads.length,icon:"✓"},
                 {label:"המרה",value:`${conversionRate}%`,icon:"↗"},
-                {label:"הכנסות מלידים",value:`₪${Math.round(allSourcesReport.totals.revenue).toLocaleString()}`,icon:"₪"},
+                {label:"הכנסות מפניות",value:`₪${Math.round(allSourcesReport.totals.revenue).toLocaleString()}`,icon:"₪"},
               ].map((s,i)=>(
  <div key={i} className="stat-card" style={{background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"16px 16px",border:`1px solid var(--line)`}}>
  <span style={{display:"inline-flex",width:30,height:30,borderRadius:"var(--r-xs)",alignItems:"center",justifyContent:"center",fontSize:"var(--t-md)",color:pc,background:"var(--pc-tint)",marginBottom:8}}>{s.icon}</span>
@@ -10544,7 +10737,7 @@ ${MARKETING_FOOTER}`)}`;
  <div className="glass-card" style={{padding:18,marginBottom:14}}>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>לקוחות לפי מקור</h3>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14,lineHeight:1.6}}>
-                לקוחות רשומות, לפי מאיפה הגיעו. &quot;לא ידוע&quot; הן לקוחות שנוספו לפני שהמעקב היה קיים או שנוספו ידנית — לא ניחוש.
+                לקוחות רשומות, לפי מאיפה הגיעו. &quot;לא ידוע&quot; הן לקוחות שנוספו לפני שהמעקב היה קיים או שנוספו ידנית, לא ניחוש.
  </p>
               {clients.length===0?<EmptyState compact icon="people" accent={pc} accentTint={pcTint}
                  title="אין עדיין ממי ללמוד"
@@ -10836,7 +11029,7 @@ ${MARKETING_FOOTER}`)}`;
  <div id="tax-report" style={{background:"var(--surface)",borderRadius:"var(--r-lg)",border:"1px solid var(--line)",boxShadow:"var(--shadow-md)",padding:"26px 24px"}}>
  <div style={{textAlign:"center",marginBottom:18}}>
  <BrandImage src={BANNER_WIDE} alt="" width={BANNER_WIDE_W} height={BANNER_WIDE_H} sizes="280px" style={{width:"100%",maxWidth:280,height:"auto",margin:"0 auto 12px",display:"block"}}/>
- <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name||"העסק"} — {statusLabel}</p>
+ <p className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name||"העסק"}, {statusLabel}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:3}}>תקופת הדיווח: {rangeLabel}</p>
  </div>
                   {status==="exempt"?(
@@ -10884,7 +11077,7 @@ ${MARKETING_FOOTER}`)}`;
                 {/* EXPENSES (every registration) — outside #tax-report so it stays out of the PDF */}
                 {(
  <div style={{marginTop:22}}>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>הוצאות העסק — {rangeLabel}</h3>
+ <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:4}}>הוצאות העסק, {rangeLabel}</h3>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12}}>{status==="exempt"?"ההוצאות מחושבות ברווח ובקובץ לרואה החשבון (לדוח השנתי). ההוצאות מסוננות לתקופה שנבחרה למעלה.":"הוצאות (כולל מע\"מ) משמשות לחישוב מס התשומות והרווח. ההוצאות מסוננות לתקופת הדוח שנבחרה למעלה."}</p>
 
                     {/* ADD FORM */}
@@ -10942,7 +11135,7 @@ ${MARKETING_FOOTER}`)}`;
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_SPARKLE} style={{width:48,height:48,objectFit:"contain",marginBottom:2}}/>
  <h2 className="serif" style={{fontSize:"var(--t-3xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>יועץ עסקי AI</h2>
  </div>
- <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>יועצת אישית שמכירה את הנתונים של {settings.business_name||"העסק שלך"} — שאלי כל שאלה עסקית</p>
+ <p style={{textAlign:"center",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>יועצת אישית שמכירה את הנתונים של {settings.business_name||"העסק שלך"}, שאלי כל שאלה עסקית</p>
 
  <div id="advisor-scroll" className="glass-card" style={{flex:1,overflowY:"auto",padding:"18px 18px",display:"flex",flexDirection:"column",gap:12,minHeight:300}}>
               {advisorMessages===null?(
@@ -10951,7 +11144,7 @@ ${MARKETING_FOOTER}`)}`;
  <div className="pop-in" style={{margin:"auto",textAlign:"center",padding:"20px",maxWidth:460}}>
  <BrandImage width={60} height={60} aria-hidden alt="" src={ICON_SPARKLE} style={{width:60,height:60,margin:"0 auto 14px",display:"block"}}/>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>איך אפשר לעזור לעסק שלך היום?</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך — לקוחות, הכנסות, שירותים ולידים — ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:16}}>היועצת רואה את הנתונים האמיתיים שלך (לקוחות, הכנסות, שירותים ופניות) ונותנת פתרונות ותוכניות עבודה. נסי אחת מהשאלות:</p>
  <div style={{display:"flex",flexWrap:"wrap",gap:8,justifyContent:"center"}}>
                     {["איך אחזיר לקוחות רדומות?","איך אעלה את ההכנסות החודש?","מה כדאי לתמחר מחדש?","רעיון לקמפיין לחודש חלש"].map(q=>(
  <button key={q} className="empty-cta" onClick={()=>setAdvisorInput(q)} style={{background:"var(--pc-tint)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-lg)",padding:"9px 15px",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{q}</button>
@@ -10988,7 +11181,7 @@ ${MARKETING_FOOTER}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מרחב לקוחות</p>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מרחב הלקוחות</h2>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2}}>פרסמי עדכונים, מבצעים וטיפים — הלקוחות שלך רואות הכל במקום אחד.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2}}>פרסמי עדכונים, מבצעים וטיפים, הלקוחות שלך רואות הכל במקום אחד.</p>
  </div>
  <div style={{display:"flex",gap:7}}>
  <button onClick={()=>copyPublicLink("community")} style={{padding:"9px 15px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",boxShadow:"var(--shadow-xs)"}}>העתקת קישור לקהילה</button>
@@ -11005,7 +11198,7 @@ ${MARKETING_FOOTER}`)}`;
  <div className="pop-in" style={{textAlign:"center",padding:"52px 20px",background:"var(--grad-hero)",border:"1px solid var(--line)",borderRadius:"var(--r-xl)",marginTop:14}}>
  <div style={{width:60,height:60,borderRadius:"var(--r-lg)",margin:"0 auto 14px",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--surface)",color:pc,boxShadow:"var(--shadow-md)"}}><svg viewBox="0 0 24 24" width="27" height="27" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M20.5 15.2a2.3 2.3 0 0 1-2.3 2.3H7.9L3.5 21V5.6a2.3 2.3 0 0 1 2.3-2.3h12.4a2.3 2.3 0 0 1 2.3 2.3z"/><path d="M8.2 8.6h7.6M8.2 12.2h5"/></svg></div>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",marginBottom:5}}>עוד אין פוסטים</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:360,margin:"0 auto",lineHeight:1.6}}>פרסמי את הפוסט הראשון — מבצע, טיפ, או עדכון — והלקוחות שלך יראו אותו במרחב הלקוחות.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",maxWidth:360,margin:"0 auto",lineHeight:1.6}}>פרסמי את הפוסט הראשון (מבצע, טיפ או עדכון), והלקוחות שלך יראו אותו במרחב הלקוחות.</p>
  <button className="empty-cta" onClick={()=>{setNewPost({title:"",body:"",post_type:"update",cta_label:"",image_url:""});setShowPostModal(true);}} style={{marginTop:16,background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-xl)",padding:"11px 22px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>כתיבת הפוסט הראשון</button>
  </div>
  ):(
@@ -11078,8 +11271,8 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:7}}>
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>מנויים וחבילות</p>
- <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>מנויי טיפולים</h2>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>חבילות טיפולים</p>
+ <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>חבילות</h2>
  </div>
  <div style={{display:"flex",gap:6}}>
  <button className="primary-btn" onClick={()=>setShowPackageModal(true)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 16px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>+ מכירת חבילה ללקוחה</button>
@@ -11103,7 +11296,7 @@ ${MARKETING_FOOTER}`)}`;
                 {showOfferingForm&&(
  <div style={{background:"var(--surface-2)",borderRadius:"var(--r-sm)",padding:12,marginBottom:10,display:"flex",flexDirection:"column",gap:8}}>
                     {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
- <select value={newOffering.service} onChange={e=>setNewOffering({...newOffering,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)"}}><option value="">— בחרי טיפול —</option>{activeServices.map(sv=><option key={sv.name}>{sv.name}</option>)}</select>
+ <select value={newOffering.service} onChange={e=>setNewOffering({...newOffering,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface)"}}><option value="">בחרי טיפול</option>{activeServices.map(sv=><option key={sv.name}>{sv.name}</option>)}</select>
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מספר טיפולים</p><input type="number" min={1} value={newOffering.sessions} onChange={e=>setNewOffering({...newOffering,sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/></div>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מחיר ₪</p><input type="number" min={0} value={newOffering.price} onChange={e=>setNewOffering({...newOffering,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:"var(--surface)"}}/></div>
@@ -11115,7 +11308,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                 )}
                 {offerings.length===0&&!showOfferingForm?(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>עוד לא הגדרת חבילות למכירה. חבילה היא כמה טיפולים במחיר אחד — מגדירים אותה פעם אחת ומוכרים אותה שוב ושוב.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>עוד לא הגדרת חבילות למכירה. חבילה היא כמה טיפולים במחיר אחד, מגדירים אותה פעם אחת ומוכרים אותה שוב ושוב.</p>
                 ):offerings.map(o=>(
  <div key={o.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"10px 0",borderBottom:"1px solid var(--surface-2)",opacity:o.active?1:0.5}}>
  <div style={{minWidth:0}}>
@@ -11160,7 +11353,7 @@ ${MARKETING_FOOTER}`)}`;
                 ))}
  </div>
 
- <div className="glass-card" style={{padding:18}}>
+ <div id="waitlist-card" className="glass-card" style={{padding:18,scrollMarginTop:16}}>
  {deferred.waitlist!=="ok"?<DeferredGate status={deferred.waitlist} what="את רשימת ההמתנה" onRetry={loadDeferred}/>:(<>
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_CALENDAR} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
@@ -11168,7 +11361,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
               {waitlist.filter(w=>w.status==="waiting").length===0?<EmptyState icon="calendar" accent={pc} accentTint={pcTint}
                  title="רשימת ההמתנה ריקה"
-                 body="כשלקוחה רוצה תור ואין לך מקום — הוסיפי אותה לכאן. כשמתפנה תור, היא הראשונה שתדע."
+                 body="כשלקוחה רוצה תור ואין לך מקום, הוסיפי אותה לכאן. כשמתפנה תור, היא הראשונה שתדע."
                  actions={[{label:"הוספה לרשימה",onClick:()=>setShowWaitlistModal(true)}]}/>
                 :waitlist.filter(w=>w.status==="waiting").map(w=>(
  <div key={w.id} style={{background:"var(--surface-2)",borderRadius:"var(--r-md)",padding:"11px 14px",marginBottom:6,border:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
@@ -11179,6 +11372,8 @@ ${MARKETING_FOOTER}`)}`;
                     {w.phone&&<a href={waLink(w.phone)} target="_blank" rel="noreferrer" className="wa-btn" style={{padding:"5px 10px",fontSize:"var(--t-sm)"}}>✆</a>}
  </div>
                 ))}
+ {/* What the smart waitlist does, and did: "הצענו את התור ל..." (lib/waitlistActivity.js). Hidden when the platform flag is off. */}
+ {waitlistOffersVisible(settings)&&<WaitlistActivity onOpenSettings={()=>openSettings("automations")}/>}
  </>)}
  </div>
  </div>
@@ -11274,9 +11469,11 @@ ${MARKETING_FOOTER}`)}`;
    const b={display:"inline-flex",alignItems:"center",justifyContent:"center",minHeight:44,padding:"0 12px",borderRadius:"var(--r-full)",border:"1px solid var(--line-2)",background:"var(--surface)",color:"var(--ink)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"};
    return (
  <div data-testid="appt-edit-actions" style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+   {/* A running timer takes the main slot ("⏹ סיימתי"); otherwise payment does. "▶ התחלתי" sits quietly at the bottom. */}
+   {curLive&&cur.actual_start_at&&!cur.actual_end_at&&<button type="button" onClick={()=>handleFinishTreatment(cur)} style={{...b,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))"}}>⏹ סיימתי</button>}
    {paidRcpt
      ?<button type="button" onClick={()=>{closeApptModal();setShowReceipt(paidRcpt);}} style={{...b,color:"var(--success)",borderColor:"var(--success)"}}>✓ שולם</button>
-     :curLive&&<button type="button" onClick={()=>{closeApptModal();handleOpenCashier(cur);}} style={{...b,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))"}}>₪ לתשלום</button>}
+     :curLive&&<button type="button" onClick={()=>{closeApptModal();handleOpenCashier(cur);}} style={(cur.actual_start_at&&!cur.actual_end_at)?b:{...b,background:"var(--pc-tint, var(--surface-2))",borderColor:"var(--pc, var(--line-2))"}}>₪ לתשלום</button>}
    {curLive&&(cl?.phone||cur.client_phone)&&<button type="button" onClick={()=>{closeApptModal();sendReminderToClient(cur);}} disabled={isBusy("sendReminder")} style={b}>תזכורת</button>}
    {cl&&<button type="button" onClick={()=>{closeApptModal();setSelectedClient(cl);setClientTab("info");}} style={b}>כרטיס לקוחה</button>}
    {cur.confirmation_status!=="cancelled"&&<button type="button" onClick={()=>{closeApptModal();handleDelete(cur);}} style={{...b,color:"var(--danger)"}}>ביטול התור</button>}
@@ -11302,7 +11499,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:"var(--r-sm)",background:pcTint,border:`1px solid ${pc}`}}>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{newAppt.name}</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{newAppt.clientId?"לקוחה קיימת":editingAppointmentId?"ללא כרטיס לקוחה":"לקוחה חדשה — תיווצר בשמירה"}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{newAppt.clientId?"לקוחה קיימת":editingAppointmentId?"ללא כרטיס לקוחה":"לקוחה חדשה, תיווצר בשמירה"}</p>
  </div>
  <button onClick={()=>{setNewAppt({...newAppt,clientId:"",name:""});setApptClientQuery("");}} className="icon-btn sm" style={{}} title="בחירת לקוחה אחרת" aria-label="בחירת לקוחה אחרת">✕</button>
  </div>
@@ -11385,13 +11582,13 @@ ${MARKETING_FOOTER}`)}`;
                   ✦ מחוץ לשעות הפעילות שלך ({fmtHM(apptDayHours.open*60)}–{fmtHM(apptDayHours.close*60)})
  </p>
               )}
-              {apptSelectedTaken&&<p style={{fontSize:"var(--t-sm)",color:"var(--surface)",fontWeight:700,textAlign:"center",background:"var(--danger)",borderRadius:"var(--r-sm)",padding:"7px 0",margin:"1px 0",boxShadow:"var(--shadow-sm)"}}>השעה תפוסה — בחרי שעה אחרת</p>}
+              {apptSelectedTaken&&<p style={{fontSize:"var(--t-sm)",color:"var(--surface)",fontWeight:700,textAlign:"center",background:"var(--danger)",borderRadius:"var(--r-sm)",padding:"7px 0",margin:"1px 0",boxShadow:"var(--shadow-sm)"}}>השעה תפוסה, בחרי שעה אחרת</p>}
               {/* Allowed by the database (back-to-back is not a clash), still
                   worth saying: a turnover under TIGHT_GAP_MINUTES is a real
                   cost she pays later, not now while she's picking the time. */}
               {apptGapWarning&&(
  <p style={{fontSize:"var(--t-sm)",color:"#8A5D06",fontWeight:700,background:"rgba(242,184,75,0.14)",border:"1px solid var(--warning)",borderRadius:"var(--r-sm)",padding:"7px 10px",textAlign:"center",margin:"1px 0"}}>
-                  ⏱ פחות מ-{TIGHT_GAP_MINUTES} דקות {apptGapWarning==="before"?"מהתור הקודם":"עד התור הבא"} — אין זמן להתאוורר בין הטיפולים
+                  ⏱ פחות מ-{TIGHT_GAP_MINUTES} דקות {apptGapWarning==="before"?"מהתור הקודם":"עד התור הבא"}, אין זמן להתאוורר בין הטיפולים
  </p>
               )}
 
@@ -11443,9 +11640,9 @@ ${MARKETING_FOOTER}`)}`;
                   agenda card offers, for the appointment she has open here. */}
               {editingAppointmentId&&(()=>{
                 const cur=appointments.find(a=>a.id===editingAppointmentId);
-                if(!cur||isPersonal(cur)||cur.confirmation_status==="cancelled"||cur.confirmation_status===NO_SHOW||cur.date>today||cur.actual_end_at) return null;
+                if(!cur||isPersonal(cur)||cur.confirmation_status==="cancelled"||cur.confirmation_status===NO_SHOW||cur.date>today||cur.actual_end_at||cur.actual_start_at) return null;
                 return (
- <button onClick={()=>{cur.actual_start_at?handleFinishTreatment(cur):handleStartTreatment(cur);}} style={{width:"100%",marginTop:8,background:"none",border:`1px solid ${pc}`,borderRadius:"var(--r-sm)",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>{cur.actual_start_at?"⏹ סיימתי":"▶ התחלתי"}</button>
+ <button onClick={()=>handleStartTreatment(cur)} style={{width:"100%",marginTop:8,background:"none",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",color:"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:40}}>▶ התחלתי</button>
                 );
               })()}
               {/* Edit mode, past or today: mark the client as not having come.
@@ -11537,7 +11734,8 @@ ${MARKETING_FOOTER}`)}`;
    })();
    // Clients already on file are skipped by the import (matched by phone), so the preview counts them
    // too: it promised "3 will be created" when 1 of them would be skipped (2026-10-24 sweep).
-   const existingClientCount = importTarget!=="clients" ? 0 : (()=>{
+   // A services import skips names already on her list the same way (countExistingServices), so its preview counts them as well.
+   const existingClientCount = importTarget==="services" ? countExistingServices(built.rows, services) : importTarget!=="clients" ? 0 : (()=>{
      const have = new Set(clients.map(c=>importPhoneKey(c.phone)).filter(Boolean));
      const s = new Set(); let n = 0;
      built.rows.forEach(r=>{ const k=importPhoneKey(r.phone); if(!k) return; if(have.has(k)||s.has(k)) n++; else s.add(k); });
@@ -11548,7 +11746,7 @@ ${MARKETING_FOOTER}`)}`;
 
  <label style={{display:"flex",alignItems:"center",gap:7,fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,cursor:"pointer"}}>
  <input type="checkbox" checked={importHasHeader} onChange={e=>{const h=e.target.checked;setImportHasHeader(h);setImportCols(importGuesser(grid.rows,h));}}/>
-   השורה הראשונה היא כותרות (לא לקוחה)
+   {importSpec.headerNote}
  </label>
 
  <div style={{overflowX:"auto",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",marginBottom:12}}>
@@ -11582,10 +11780,10 @@ ${MARKETING_FOOTER}`)}`;
    ?<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:600,marginBottom:12}}>יש לבחור עמודה בתור «{missingLabels}» כדי להמשיך.</p>
    :<p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>
       <strong style={{color:pcDeep}}>{built.rows.length-existingClientCount} {importSpec.unit} ייווצרו</strong>
-      {existingClientCount>0&&<> · {existingClientCount} כבר קיימות אצלך ולא ייווצרו שוב</>}
+      {existingClientCount>0&&<> · {existingClientCount} {importSpec.existingNote}</>}
       {newClientCount>0&&<> · {newClientCount} לקוחות חדשות ייווצרו גם</>}
-      {built.past>0&&<> · {built.past} דולגו — תאריך שכבר עבר</>}
-      {built.noDate>0&&<> · {built.noDate} דולגו — תאריך לא ברור</>}
+      {built.past>0&&<> · {built.past} דולגו, תאריך שכבר עבר</>}
+      {built.noDate>0&&<> · {built.noDate} דולגו, תאריך לא ברור</>}
       {built.noName>0&&<> · {built.noName} ידולגו (ללא שם)</>}
       {built.nameIsService>0&&<> · {built.nameIsService} ידולגו (שם הלקוחה הוא שם טיפול)</>}
       {preview.length<(importHasHeader?grid.rows.length-1:grid.rows.length)&&<> · מוצגות 5 שורות ראשונות</>}
@@ -11597,13 +11795,13 @@ ${MARKETING_FOOTER}`)}`;
      pointing at the wrong column, so the whole import is about to be wrong. */}
  {hasName&&built.nameIsService>0&&(
  <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:12}}>
- <p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:700,marginBottom:3}}>⚠ {built.nameIsService} שורות ידולגו — שם הלקוחה הוא שם של טיפול</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6}}>נראה שעמודת «שם הלקוחה» מצביעה על עמודת הטיפולים. בדקי את ההתאמה למעלה — אחרת ייווצרו לקוחות עם שם של טיפול.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--danger)",fontWeight:700,marginBottom:3}}>⚠ {built.nameIsService} שורות ידולגו, שם הלקוחה הוא שם של טיפול</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6}}>נראה שעמודת «שם הלקוחה» מצביעה על עמודת הטיפולים. בדקי את ההתאמה למעלה, אחרת ייווצרו לקוחות עם שם של טיפול.</p>
  {built.nameIsServiceSamples.length>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4}}>{built.nameIsServiceSamples.join("   ·   ")}</p>}
  </div>
  )}
  {hasName&&built.noTime>0&&(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>· {built.noTime} תורים ללא שעה קריאה — ייקבעו ל-9:00 ואפשר להזיז אותם ביומן.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:12,lineHeight:1.6}}>· {built.noTime} תורים ללא שעה קריאה, ייקבעו ל-9:00 ואפשר להזיז אותם ביומן.</p>
  )}
 
  <div style={{display:"flex",gap:8}}>
@@ -11621,20 +11819,20 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
    {importResult.newClients>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.newClients} לקוחות חדשות נוצרו מהתורים</p>}
-   {importResult.past>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.past} דולגו — תאריך שכבר עבר (היסטוריה לא מיובאת)</p>}
+   {importResult.past>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.past} דולגו, תאריך שכבר עבר (היסטוריה לא מיובאת)</p>}
    {importResult.noTime>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.noTime} נקבעו ל-9:00 (שעה לא קריאה)</p>}
-   {importResult.noDate>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.noDate} דולגו — תאריך לא ברור</p>}
-   {importResult.dupes>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.dupes} דולגו — כבר קיימות אצלך (זוהו לפי טלפון)</p>}
+   {importResult.noDate>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.noDate} דולגו, תאריך לא ברור</p>}
+   {importResult.dupes>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.dupes} {importSpec.dupesNote}</p>}
    {/* Not the same as a duplicate, and not in grey: these are real future
        bookings that were NOT imported because the slot was already busy. She
        has to place them by hand, so the line has to be impossible to skim past. */}
-   {importResult.overlapping>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600}}>· {importResult.overlapping} דולגו — השעה כבר תפוסה ביומן. יש לקבוע אותן ידנית</p>}
-   {importResult.noName>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.noName} דולגו — ללא שם</p>}
-   {importResult.nameIsService>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.nameIsService} דולגו — שם הלקוחה היה שם של טיפול</p>}
+   {importResult.overlapping>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600}}>· {importResult.overlapping} דולגו, השעה כבר תפוסה ביומן. יש לקבוע אותן ידנית</p>}
+   {importResult.noName>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.noName} דולגו, ללא שם</p>}
+   {importResult.nameIsService>0&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>· {importResult.nameIsService} דולגו, שם הלקוחה היה שם של טיפול</p>}
    {importResult.failed>0&&(
  <div style={{background:"rgba(224,91,111,0.10)",border:"1px solid var(--danger)",borderRadius:"var(--r-sm)",padding:"10px 12px"}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:700,marginBottom:3}}>{importResult.failed} לא נוספו</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>שאר הלקוחות נוספו בהצלחה. אפשר להדביק שוב רק את מי שחסרה — לקוחות שכבר קיימות לא ייווצרו פעמיים.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.5}}>{importSpec.failedNote}</p>
  {importResult.error&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:5,direction:"ltr",textAlign:"left"}}>{importResult.error}</p>}
  </div>
    )}
@@ -11651,14 +11849,24 @@ ${MARKETING_FOOTER}`)}`;
       {showClientModal&&(
  <Sheet open onClose={()=>setShowClientModal(false)} width={380} zIndex={1000} title={editingClient?"עריכת לקוחה":"לקוחה חדשה"}>
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
- <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/>
- <input type="tel" inputMode="tel" dir="ltr" aria-label="טלפון" value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="טלפון" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/>
- <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} placeholder="תאריך לידה" style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
+ {/* UX pass 2026-11-08: name and phone first; everything else one tap away behind "פרטים נוספים" (open when editing). */}
+ <label style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>שם מלא
+ <input value={newClient.name} onChange={e=>setNewClient({...newClient,name:e.target.value})} placeholder="שם מלא *" style={{width:"100%",marginTop:3,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></label>
+ <label style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>טלפון (לתזכורות בוואטסאפ)
+ <input type="tel" inputMode="tel" dir="ltr" value={newClient.phone} onChange={e=>setNewClient({...newClient,phone:e.target.value})} placeholder="05X-XXXXXXX" style={{width:"100%",marginTop:3,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"right",background:"var(--surface-2)"}}/></label>
+ <button type="button" data-testid="client-more" aria-expanded={clientMoreOpen||!!editingClient} onClick={()=>setClientMoreOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"none",border:"none",borderTop:"1px solid var(--line)",padding:"4px 2px",cursor:"pointer",fontFamily:"inherit"}}>
+ <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep}}>פרטים נוספים</span>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{(clientMoreOpen||editingClient)?"סגירה":"יום הולדת, אלרגיות, הערות"}</span>
+ </button>
+ {(clientMoreOpen||!!editingClient)&&(<>
+ <label style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>יום הולדת (לברכה אוטומטית)
+ <input type="date" value={newClient.birthday} onChange={e=>setNewClient({...newClient,birthday:e.target.value})} style={{width:"100%",marginTop:3,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/></label>
  {showSkinType&&(<select value={newClient.skinType} onChange={e=>setNewClient({...newClient,skinType:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">סוג עור</option>{SKIN_TYPES.map(t=><option key={t}>{t}</option>)}</select>)}
  <textarea value={newClient.allergies} onChange={e=>setNewClient({...newClient,allergies:e.target.value})} placeholder="אלרגיות" rows={2} style={{width:"100%",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.medical} onChange={e=>setNewClient({...newClient,medical:e.target.value})} placeholder="מצבים רפואיים" rows={2} style={{width:"100%",border:"1px solid #A7C4F4",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)",resize:"none"}}/>
  <textarea value={newClient.notes} onChange={e=>setNewClient({...newClient,notes:e.target.value})} placeholder="משהו שכדאי לזכור עליה. למשל: מתחתנת בנובמבר, לא אוהבת ריח חזק" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:4}}>סטטוס</p><div style={{display:"flex",gap:4}}>{Object.entries(STATUS_LABELS).map(([key,label])=><button key={key} onClick={()=>setNewClient({...newClient,status:key})} style={{flex:1,padding:"7px 2px",border:"1px solid",borderColor:newClient.status===key?pc:"var(--line)",borderRadius:"var(--r-sm)",background:newClient.status===key?STATUS_COLORS[key]:pcTint,color:newClient.status===key?"var(--surface)":"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>)}</div></div>
+ </>)}
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
  <button onClick={()=>setShowClientModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>ביטול</button>
@@ -11706,11 +11914,11 @@ ${MARKETING_FOOTER}`)}`;
         const previewText=personalised?renderLeadTemplate(bulkMessage,previewLead,settings):bulkMessage;
         const previewNote=personalised
           ?(withPhone>1
-              ?`כך תראה ההודעה אצל ${previewLead?.name||"הנמענת הראשונה"} — כל נמענת מקבלת אותה עם השם שלה`
+              ?`כך תראה ההודעה אצל ${previewLead?.name||"הנמענת הראשונה"}, כל נמענת מקבלת אותה עם השם שלה`
               :`כך תראה ההודעה אצל ${previewLead?.name||"הנמענת"}`)
           :"";
         return(
- <Sheet open onClose={closeBulk} busy={bulkStep==="sending"} width={400} zIndex={1300} title={<>שליחת וואטסאפ — {s.label}</>}>
+ <Sheet open onClose={closeBulk} busy={bulkStep==="sending"} width={400} zIndex={1300} title={<>שליחת וואטסאפ, {s.label}</>}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>{inGroup.length} פניות בסטטוס · {withPhone} עם טלפון{noPhone>0?` · ${noPhone} ללא טלפון (ידולגו)`:""}</p>
 
             {bulkStep==="compose"&&(<>
@@ -11777,7 +11985,7 @@ ${MARKETING_FOOTER}`)}`;
 
       {/* CASHIER MODAL */}
       {showCashier&&(
- <Sheet open onClose={()=>setShowCashier(false)} width={420} zIndex={1000} title="קופה — תשלום חדש">
+ <Sheet open onClose={()=>setShowCashier(false)} width={420} zIndex={1000} title="תשלום חדש">
  {/* No business type = no legal document from Morning (lib/legalReceipts/service.js, tax_status_missing). Said here, before she
      charges, with a way to fix it. Never blocks the payment itself (owner's decision, 2026-10-23). */}
  {(!settings.business_tax_status||taxStatusUnconfirmed(settings))&&(
@@ -11792,6 +12000,15 @@ ${MARKETING_FOOTER}`)}`;
  <button type="button" onClick={()=>{setShowCashier(false);openSetupTab("general");}} style={{background:"none",border:"none",padding:"8px 0",minHeight:40,color:"var(--k-green)",fontWeight:700,fontSize:"var(--t-sm)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit"}}>{settings.business_tax_status?"לאישור סוג העסק בהגדרות ←":"לבחירת סוג העסק בהגדרות ←"}</button>
  </div>
  )}
+ {/* Selling a gift voucher from here: opens the SAME sale form as the vouchers tab (app/GiftVouchersPanel.jsx, /api/vouchers 'sell'),
+     never a second sale path. Only on a fresh payment (no appointment, nothing added yet), so a half-built sale is never lost. */}
+ {giftVouchersSelling(settings)&&vouchersAvail&&!cashierAppt&&cashierItems.length===0&&(
+ <button type="button" data-testid="cashier-sell-voucher" onClick={openVoucherSale} style={{display:"flex",alignItems:"center",gap:10,width:"100%",minHeight:48,marginBottom:10,padding:"10px 12px",background:pcTint,border:`1px dashed ${pc}`,borderRadius:"var(--r-sm)",cursor:"pointer",fontFamily:"inherit",textAlign:"right",color:"var(--ink)"}}>
+ <span aria-hidden="true" style={{fontSize:"var(--t-lg)",flexShrink:0}}>🎁</span>
+ <span style={{flex:1,minWidth:0}}><span style={{display:"block",fontSize:"var(--t-sm)",fontWeight:700}}>מכירת שובר מתנה</span><span style={{display:"block",fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>לקוחה קונה שובר במקום טיפול? מכאן</span></span>
+ <span aria-hidden="true" style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--pc-deep)",flexShrink:0}}>←</span>
+ </button>
+ )}
  <div style={{position:"relative",marginBottom:10}}>
  <input value={cashierSearch} onChange={e=>{setCashierSearch(e.target.value);if(!e.target.value)setCashierClient(null);}} placeholder="חיפוש לקוחה..." style={{width:"100%",border:`1px solid ${cashierClient?"var(--success)":"var(--line)"}`,borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:cashierClient?"var(--surface-2)":pcTint}}/>
               {cashierSearch.length>1&&!cashierClient&&(
@@ -11805,11 +12022,21 @@ ${MARKETING_FOOTER}`)}`;
               )}
  </div>
  <div style={{marginBottom:10}}>
- <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>פריטים</p>
- <select onChange={e=>{const svc=activeServices.find(s=>s.name===e.target.value);if(svc){setCashierItems(prev=>[...prev,{id:Date.now(),name:svc.name,price:svc.price,qty:1,color:svc.color}]);}e.target.value="";}} style={{border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"5px 9px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,color:pc}}><option value="">+ הוסיפי שירות</option>{activeServices.map(s=><option key={s.name} value={s.name}>{s.name} — ₪{s.price}</option>)}</select>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:6}}>טיפול</p>
+ {/* One-tap chips, most-used first: the same chips as the booking sheet (UX pass 2026-11-08). A tap adds the treatment. */}
+ {activeServices.length>0&&(
+ <div data-testid="cashier-service-chips" style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:8}}>
+                  {(cashierAllServices?servicesByUse:servicesByUse.slice(0,6)).map(sv=>(
+ <button type="button" key={sv.name} onClick={()=>setCashierItems(prev=>[...prev,{id:Date.now(),name:sv.name,price:sv.price,qty:1,color:sv.color}])} style={{padding:"8px 12px",minHeight:44,borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"1px solid var(--line-2)",background:"var(--surface)",color:"var(--ink-2)",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>+ {sv.name} · ₪{sv.price}</button>
+                  ))}
+                  {servicesByUse.length>6&&(
+ <button type="button" onClick={()=>setCashierAllServices(v=>!v)} style={{padding:"8px 12px",minHeight:44,borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:`1px dashed ${pc}`,background:"transparent",color:pcDeep}}>{cashierAllServices?"פחות":`עוד ${servicesByUse.length-6}`}</button>
+                  )}
  </div>
-              {cashierItems.length===0?(activeServices.length===0?setupHint(NO_SERVICES_HINT):<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",padding:"8px 0"}}>לא נבחרו פריטים</p>)
+ )}
+ {/* Products (PR #29): their own picker, next to the treatment chips. */}
+ <ProductTillPicker api={productsApi} pc={pc} pcTint={pcTint} onAdd={(item)=>setCashierItems(prev=>[...prev,item])}/>
+              {cashierItems.length===0?(activeServices.length===0?setupHint(NO_SERVICES_HINT):null)
                 :cashierItems.map(item=>(
  <div key={item.id} style={{padding:"8px 9px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:4}}>
  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
@@ -11827,6 +12054,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                 ))}
  </div>
+ {/* Products in this sale with less on record than she is selling: a warning, never a block (lib/products.ts). */}
+ <ProductTillWarnings api={productsApi} items={cashierItems}/>
  {/* Loyalty (lib/loyalty.js): a reward that is ready is one tap; otherwise one quiet line of progress. */}
  {cashierClient&&cashierLoyalty&&(cashierLoyalty.ready?(
  <div data-testid="loyalty-till" style={{background:loyaltyApplied?"var(--pc-tint)":"var(--k-petal)",border:`1px solid ${loyaltyApplied?pc:"var(--k-pink)"}`,borderRadius:"var(--r-sm)",padding:"11px 12px",marginBottom:10}}>
@@ -11839,6 +12068,12 @@ ${MARKETING_FOOTER}`)}`;
  ):(
  <p data-testid="loyalty-till-progress" style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",margin:"0 0 10px"}}>🎁 כרטיסיית נאמנות: {cashierLoyalty.filled} מתוך {cashierLoyalty.every}. {afterSaveLine(cashierLoyalty)}</p>
  ))}
+ {/* Discount, tip and note: the exception, so behind one line that says what is set (UX pass 2026-11-08). */}
+ <button type="button" data-testid="cashier-extras" aria-expanded={cashierExtrasOpen} onClick={()=>setCashierExtrasOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"none",border:"none",borderTop:"1px solid var(--line)",padding:"4px 2px",marginBottom:8,cursor:"pointer",fontFamily:"inherit"}}>
+ <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep}}>הנחה, טיפ והערה</span>
+ <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{cashierExtrasOpen?"סגירה":[Number(cashierDiscount)>0?(cashierDiscountMode==="pct"?`הנחה ${cashierDiscount}%`:`הנחה ₪${cashierDiscount}`):"",Number(cashierTip)>0?`טיפ ₪${cashierTip}`:"",cashierNote.trim()?"הערה":""].filter(Boolean).join(" · ")||"לא חובה"}</span>
+ </button>
+ {cashierExtrasOpen&&(<>
  {/* Discount: shekels or a percentage. The shekel figure is what is stored
      either way; the percentage is remembered beside it. */}
  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
@@ -11855,6 +12090,8 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",flex:1}}>טיפ (₪)<span style={{color:"var(--ink-3)"}}> · לא נכלל בהכנסות</span></p>
  <input type="number" inputMode="decimal" min={0} value={cashierTip||""} onChange={e=>setCashierTip(e.target.value)} placeholder="0" aria-label="טיפ" style={{width:80,height:40,border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"0 10px",fontSize:"var(--t-md)",fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/>
  </div>
+ <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" aria-label="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
+ </>)}
             {cashierPackage&&(
  <div style={{background:drawFromPackage?"var(--pc-tint)":"var(--surface-2)",border:`1px solid ${drawFromPackage?pc:"var(--line-2)"}`,borderRadius:"var(--r-sm)",padding:"11px 12px",marginBottom:10}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
@@ -11878,6 +12115,7 @@ ${MARKETING_FOOTER}`)}`;
               ))}
  </div>
  )}
+ {giftVouchersVisible(settings)&&(<VoucherRedeemTill due={voucherDue} applied={voucherAdj} onApplied={setVoucherAdj} onCleared={()=>setVoucherAdj(null)} toast={toast} pc={pc} pcTint={pcTint} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
  {/* Split: two lines. She types the first amount; the second is what is
      left, so the two can only ever add up to the total. */}
  {splitOn&&(
@@ -11892,7 +12130,7 @@ ${MARKETING_FOOTER}`)}`;
    : <span style={{width:96,minHeight:44,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-md)",fontWeight:700,color:pcDeep,background:pcTint,borderRadius:"var(--r-sm)"}}>₪{ln.amount}</span>}
  </div>
                 ))}
- {splitResolved[0].method===splitResolved[1].method&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600}}>אותו אמצעי תשלום פעמיים — בחרי שניים שונים.</p>}
+ {splitResolved[0].method===splitResolved[1].method&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600}}>אותו אמצעי תשלום פעמיים, בחרי שניים שונים.</p>}
  {(!(Number(splitLines[0]?.amount)>0)||Number(splitLines[0]?.amount)>=cashierTotal)&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>כתבי כמה שולם ב{splitResolved[0].method}; השאר יירשם ב{splitResolved[1].method}.</p>}
  </div>
  )}
@@ -11905,7 +12143,6 @@ ${MARKETING_FOOTER}`)}`;
             )}
  {!isDemoTenantId(settings?.tenant_id)&&(cashierAppt?.id||cashierClient?.id)&&(<GrowCashierCredit appointmentId={cashierAppt?.id||null} clientId={cashierClient?.id||null} pcTint={pcTint} onChange={setGrowAdj}/>)}
  {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} loyalty={loyaltyRewardLive?{reward:loyaltyCfg.reward,stampsUsed:loyaltyApplied.marker?.loyalty_every??loyaltyCfg.every}:null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,loyalty:loyaltyRewardLive,loyaltyMarked:false,loyaltyEvery:loyaltyRewardLive?loyaltyApplied.marker?.loyalty_every:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
- <textarea value={cashierNote} onChange={e=>setCashierNote(e.target.value)} placeholder="הערה לתשלום" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none",marginBottom:10}}/>
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>סה״כ לתשלום</span>
@@ -11925,7 +12162,8 @@ ${MARKETING_FOOTER}`)}`;
  <Sheet open onClose={()=>setShowReceipt(null)} width={360} zIndex={1100} flush className="pop-in" ariaLabel={docLabelHe(showReceipt)}>
  <div className="receipt-print" style={{padding:24}}>
  <div style={{textAlign:"center",borderBottom:"2px dashed var(--line-2)",paddingBottom:14,marginBottom:14}}>
- <BrandImage src={BANNER_WIDE} alt="" width={BANNER_WIDE_W} height={BANNER_WIDE_H} sizes="240px" style={{width:"100%",maxWidth:240,height:"auto",margin:"0 auto 10px",display:"block"}}/>
+ {/* Her payment confirmation carries HER logo, or none: it used to print the Kalmea banner on every client's paper (2026-11-08 QA, brand rule). */}
+ {settings?.branding?.logo_url&&<img data-testid="receipt-logo" src={settings.branding.logo_url} alt={settings.business_name||""} style={{maxWidth:160,maxHeight:72,objectFit:"contain",margin:"0 auto 10px",display:"block"}}/>}
  <p className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{settings.business_name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:2}}>{docLabelHe(showReceipt)}{showReceipt.legal_status==="issued"&&showReceipt.legal_doc_number?" מספר "+showReceipt.legal_doc_number:""}</p>
                 {settings.business_phone&&<p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{settings.business_phone}</p>}
@@ -11934,13 +12172,14 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>לקוחה:</span><span style={{fontWeight:600}}>{showReceipt.client_name}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>תאריך:</span><span>{fmtDateHe(localDayKey(showReceipt.created_at))}</span></div>
  <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>שירות:</span><span style={{fontWeight:600}}>{showReceipt.service}</span></div>
- <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{showReceipt.payment_method}</span></div>
+ <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>אמצעי תשלום:</span><span>{receiptMethodLabel(showReceipt)}</span></div>
                 {isSplit(showReceipt)&&paymentsOf(showReceipt).map((ln,i)=>(
  <div key={i} style={{display:"flex",justifyContent:"space-between",paddingRight:12}}><span style={{color:"var(--ink-3)"}}>· {ln.method}</span><span>₪{ln.amount}</span></div>
                 ))}
                 {showReceipt.discount>0&&<div style={{display:"flex",justifyContent:"space-between",color:pc}}><span>הנחה{showReceipt.discount_pct?` (${showReceipt.discount_pct}%)`:""}:</span><span>−₪{showReceipt.discount}</span></div>}
                 {Number(showReceipt.tip)>0&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>טיפ:</span><span>₪{showReceipt.tip}</span></div>}
-                {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:"var(--ink-3)"}}>הערה:</span><span>{showReceipt.note}</span></div>}
+                {/* A voucher code (K7M4-X9Q2) inside the Hebrew note is an LTR isolate that never wraps: left to bidi it broke at the hyphen, halves in the wrong order. */}
+                {showReceipt.note&&<div style={{display:"flex",justifyContent:"space-between",gap:10}}><span style={{color:"var(--ink-3)",flexShrink:0}}>הערה:</span><span data-testid="receipt-note">{splitVoucherCodes(showReceipt.note).map((seg,i)=>seg.code?<bdi key={i} dir="ltr" style={{whiteSpace:"nowrap"}}>{seg.text}</bdi>:<span key={i}>{seg.text}</span>)}</span></div>}
  </div>
  {(()=>{
    const st=legalStateHe(showReceipt);
@@ -12031,6 +12270,16 @@ ${MARKETING_FOOTER}`)}`;
                 const openRebookSheet = rbClient ? ()=>setRebookNext({client:rbClient,appt:rbAnchor,receiptId:showReceipt.id,service:rbService}) : null;
                 const sheetButton = openRebookSheet && (
  <button data-testid="rebook-receipt" onClick={openRebookSheet} style={{display:"block",width:"100%",minHeight:44,marginTop:8,background:"transparent",border:"none",color:pcDeep,fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>↻ קבעי לה שוב לפי הקצב שלה</button>
+                );
+                // She already has a next visit on the calendar: say so instead of offering a one-tap second booking, which
+                // put a duplicate on the calendar (2026-11-08 QA). The sheet stays one tap away for a real extra visit.
+                const rbFuture = rbClient ? appointments.filter(a=>String(a.client_id)===String(rbClient.id)&&a.confirmation_status!=="cancelled"&&a.kind!=="personal"&&String(a.date||"")>today).sort((a,b)=>String(a.date).localeCompare(String(b.date))) : [];
+                if (rbFuture.length>0) return (
+ <div data-testid="rebook-receipt-already" style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:"var(--r-md)",background:pcTint,border:`1px solid ${pc}`}}>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",margin:0}}>התור הבא</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",margin:"2px 0 0"}}>כבר יש לה תור ביום {DAYS_HE[new Date(rbFuture[0].date).getDay()]}, {formatDateHe(new Date(rbFuture[0].date))} בשעה {fmtApptTime(rbFuture[0])}.</p>
+ {sheetButton}
+ </div>
                 );
                 if (!rebookPlan) return openRebookSheet ? (
  <div style={{margin:"0 24px 14px",padding:"12px 14px",borderRadius:"var(--r-md)",background:pcTint,border:`1px solid ${pc}`}}>
@@ -12125,7 +12374,7 @@ ${MARKETING_FOOTER}`)}`;
           nothing else. */}
       {showPersonalModal&&personalDraft&&(
  <Sheet open onClose={closePersonalEditor} width={340} zIndex={1000} title={personalDraft.ids.length?"עריכת אירוע אישי":"אירוע אישי חדש"}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14}}>הזמן הזה ייחסם ליומן — לקוחה לא תוכל להזמין אותו</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:14}}>הזמן הזה ייחסם ליומן, לקוחה לא תוכל להזמין אותו</p>
  <div style={{display:"flex",flexDirection:"column",gap:10}}>
 
  {/* Presets: the three things she blocks time for most, one tap each.
@@ -12161,7 +12410,7 @@ ${MARKETING_FOOTER}`)}`;
                       there is more than one - there is no honest way to store
                       "09:00-10:00 on each of three days" as one event. */}
                   {datesInRange(personalDraft.from,personalDraft.to).length>1?(
- <p style={{fontSize:"var(--t-sm)",color:pcDeep,fontWeight:600,background:"var(--pc-tint)",borderRadius:"var(--r-sm)",padding:"8px 10px"}}>{datesInRange(personalDraft.from,personalDraft.to).length} ימים — כל הימים ייחסמו במלואם</p>
+ <p style={{fontSize:"var(--t-sm)",color:pcDeep,fontWeight:600,background:"var(--pc-tint)",borderRadius:"var(--r-sm)",padding:"8px 10px"}}>{datesInRange(personalDraft.from,personalDraft.to).length} ימים, כל הימים ייחסמו במלואם</p>
                   ):(<>
  <label style={{display:"flex",alignItems:"center",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,cursor:"pointer"}}>
  <input type="checkbox" checked={!!personalDraft.allDay} onChange={e=>setPersonalDraft({...personalDraft,allDay:e.target.checked})} style={{width:16,height:16,accentColor:pc}}/>
@@ -12225,8 +12474,8 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  </div>
                   )}
- <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
- <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
+ <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">בחרי לקוחה</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+ <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">בחרי שירות</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <div style={{display:"flex",gap:6}}>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>מספר טיפולים</p><input type="number" value={newPackage.total_sessions} onChange={e=>setNewPackage({...newPackage,total_sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
  <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>תוקף</p><select aria-label="תוקף החבילה" value={newPackage.valid_months||0} onChange={e=>setNewPackage({...newPackage,valid_months:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 8px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}>{[[0,"ללא"],[3,"3 חודשים"],[6,"חצי שנה"],[12,"שנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
@@ -12354,6 +12603,13 @@ ${MARKETING_FOOTER}`)}`;
  </button>
                 );
               })}
+              <button data-testid="more-search" onClick={()=>{setShowMoreSheet(false);setShowMobileSidebar(true);}}
+        style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:7,
+                padding:"14px 6px",borderRadius:"var(--r-md)",cursor:"pointer",fontFamily:"inherit",
+                border:"1px solid var(--line)",background:"var(--surface-2)",color:"var(--ink-2)"}}>
+ <span aria-hidden style={{fontSize:20,lineHeight:1}}>⌕</span>
+ <span style={{fontSize:"var(--t-sm)",fontWeight:600}}>חיפוש</span>
+ </button>
               {ownerEntry}
  </div>
  </div>
@@ -12388,8 +12644,8 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {clients.length===0&&setupHint(NO_CLIENTS_HINT)}
                   {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
- <select value={newWaitlist.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewWaitlist({...newWaitlist,client_id:e.target.value,client_name:c?.name||"",phone:c?.phone||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי לקוחה —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
- <select value={newWaitlist.service} onChange={e=>setNewWaitlist({...newWaitlist,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">— בחרי שירות —</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
+ <select value={newWaitlist.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewWaitlist({...newWaitlist,client_id:e.target.value,client_name:c?.name||"",phone:c?.phone||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">בחרי לקוחה</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+ <select value={newWaitlist.service} onChange={e=>setNewWaitlist({...newWaitlist,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}><option value="">בחרי שירות</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
  <input type="date" value={newWaitlist.preferred_date} onChange={e=>setNewWaitlist({...newWaitlist,preferred_date:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}/>
  <textarea value={newWaitlist.notes} onChange={e=>setNewWaitlist({...newWaitlist,notes:e.target.value})} placeholder="הערות" rows={2} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"none"}}/>
  </div>
@@ -12441,7 +12697,7 @@ ${MARKETING_FOOTER}`)}`;
               <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600,color:"var(--ink)"}}>הגדרת המערכת</h3>
               <button onClick={()=>setShowSetup(false)} className="icon-btn" aria-label="סגירה">✕</button>
             </div>
-            {renderSetupBody()}
+            {renderSetupBody(true)}
           </Sheet>
       )}
 
@@ -12459,7 +12715,7 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
  </button>
  <div style={{display:"flex",gap:2,borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
-                {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
+                {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"payments",l:"תשלומים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsGroup(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontWeight:settingsGroup===t.k?700:500,color:settingsGroup===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsGroup===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
@@ -12468,20 +12724,21 @@ ${MARKETING_FOOTER}`)}`;
               {inG("business","clients","connections","advanced")&&(
  <div style={{display:"flex",flexDirection:"column",gap:9}}>
  {inG("business")&&(<BillingCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
+ {inG("business")&&(<BusinessReferralCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
  {inG("connections")&&(<>
  <div style={{border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"14px",background:"var(--surface-2)",display:"flex",flexDirection:"column",gap:8}}>
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",margin:0}}>פייסבוק ואינסטגרם</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>לידים ממודעות הלידים שלך מגיעים אוטומטית לרשימת הפניות. כאן רואים אילו דפים מחוברים, ואפשר להפסיק קבלת לידים מדף מסוים בלי למחוק כלום.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>פניות ממודעות הפניות שלך מגיעות לבד לרשימת הפניות. כאן רואים אילו דפים מחוברים, ואפשר להפסיק קבלת לידים מדף מסוים בלי למחוק כלום.</p>
  {fbPages===null?<Spinner inline label="בודקת חיבור"/>:fbPages.length===0?(
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",margin:0}}>עוד לא חיברת דף פייסבוק.</p>
  ):fbPages.map(p=>(
  <div key={p.page_id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",background:"var(--surface)"}}>
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.page_name}</p>
- <p style={{fontSize:"var(--t-xs)",color:p.is_active?"var(--success)":"var(--ink-3)",margin:0}}>{p.is_active?"✓ לידים מהדף מגיעים אלייך":"קבלת לידים מהדף מופסקת"}</p>
+ <p style={{fontSize:"var(--t-xs)",color:p.is_active?"var(--success)":"var(--ink-3)",margin:0}}>{p.is_active?"✓ פניות מהדף מגיעות אלייך":"קבלת פניות מהדף מופסקת"}</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:0}}>{p.instagram_business_id?"חשבון אינסטגרם עסקי מקושר לדף":"אין חשבון אינסטגרם עסקי מקושר לדף"}</p>
  </div>
- <button disabled={fbPageBusy===p.page_id} onClick={()=>toggleFbPage(p.page_id,!p.is_active)} className="primary-btn" style={{padding:"7px 12px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-xs)",whiteSpace:"nowrap"}}>{fbPageBusy===p.page_id?<Spinner inline label="רגע"/>:p.is_active?"הפסקת לידים":"הפעלה מחדש"}</button>
+ <button disabled={fbPageBusy===p.page_id} onClick={()=>toggleFbPage(p.page_id,!p.is_active)} className="primary-btn" style={{padding:"7px 12px",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",fontSize:"var(--t-xs)",whiteSpace:"nowrap"}}>{fbPageBusy===p.page_id?<Spinner inline label="רגע"/>:p.is_active?"הפסקת פניות":"הפעלה מחדש"}</button>
  </div>
  ))}
  {fbPages&&fbPages.length>0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>חיבור מחדש מרענן את ההרשאות (למשל כדי לראות נתוני קמפיינים) ומאפשר להוסיף דף נוסף. הדפים שכבר מחוברים נשארים.</p>}
@@ -12502,6 +12759,9 @@ ${MARKETING_FOOTER}`)}`;
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  </>)}
+ {inG("advanced")&&(
+ <button type="button" data-testid="settings-logout" onClick={handleLogout} disabled={isBusy("logout")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"0 12px",fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit"}}><span>התנתקות{authEmail?` (${authEmail})`:""}</span><span aria-hidden>⏻︎</span></button>
+ )}
  {inG("advanced")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>צבע מותג</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{SETTINGS_SWATCHES.map(col=><button key={col} type="button" aria-label={swatchLabel(col)} title={swatchLabel(col)} aria-pressed={editSettings.primary_color===col} onClick={()=>setEditSettings({...editSettings,primary_color:col})} style={{width:34,height:34,borderRadius:"50%",background:col,border:editSettings.primary_color===col?"3px solid var(--ink)":"2px solid var(--line-2)",cursor:"pointer",boxShadow:editSettings.primary_color===col?"var(--shadow-sm)":"none",transition:"transform 0.12s"}}/>)}</div></div>
  </>)}
@@ -12510,7 +12770,10 @@ ${MARKETING_FOOTER}`)}`;
    onChange={(next)=>setEditSettings(prev=>({...prev,automations:{...((prev.automations&&typeof prev.automations==="object")?prev.automations:{}),loyalty:next}}))}/>
  )}
  {inG("clients")&&(<>
- <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>הקישור הזה מוצג ללקוחה אחרי שכתבה לך ביקורת בטופס שלנו, כדי שתוכל גם לכתוב בגוגל. בקשת הביקורת עצמה (יומיים אחרי הטיפול) מפנה לטופס.</p></div>
+ <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>לינק ביקורת (Google)</p><input value={editSettings.review_url||""} onChange={e=>setEditSettings({...editSettings,review_url:e.target.value})} placeholder="https://g.page/r/..." style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"ltr",textAlign:"left",background:pcTint}}/><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>אחרי טיפול הלקוחה נשאלת &quot;איך היה?&quot;. מי שנהנתה מקבלת את הקישור הזה לביקורת בגוגל, ומי שמשהו הפריע לה יכולה לכתוב לך בפרטיות (וגם לה מוצע הקישור לגוגל).</p>
+ {String(editSettings.review_url||"").trim()&&!looksLikeGoogleLink(editSettings.review_url)&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:4,lineHeight:1.5}}>{GOOGLE_LINK_INVALID_HE}</p>}
+ <details data-testid="google-link-help" style={{marginTop:6}}><summary style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:700,cursor:"pointer",minHeight:32,display:"flex",alignItems:"center"}}>איך מוצאים את הקישור?</summary>
+ <ol style={{margin:"6px 0 0",paddingInlineStart:20,fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7}}>{GOOGLE_LINK_HELP.map((t,i)=><li key={i}>{t}</li>)}</ol></details></div>
  </>)}
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>סטטוס עוסק (חובה לבחור)</p>
@@ -12530,7 +12793,7 @@ ${MARKETING_FOOTER}`)}`;
  {inG("connections")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:4,fontWeight:700}}>התראות דפדפן</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>תור חדש וביטול תור מגיעים לכאן במקום בוואטסאפ — הפעילי כדי לקבל אותם גם כשהאפליקציה סגורה.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8,lineHeight:1.5}}>תור חדש וביטול תור מגיעים לכאן במקום בוואטסאפ. הפעילי כדי לקבל אותם גם כשהאפליקציה סגורה.</p>
  <PushSubscribeButton pc={pc} pcGrad={pcGrad} />
  </div>
  </>)}
@@ -12549,7 +12812,7 @@ ${MARKETING_FOOTER}`)}`;
      full, copied from the same string, and the QR is drawn from that string -
      a printed code and a bio link can never drift apart. */}
  {skinScanVisible(editSettings)&&(<div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"12px 12px 10px",marginBottom:8}}>
-   <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>סורק העור — הקישור לשיתוף</p>
+   <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>סורק העור, הקישור לשיתוף</p>
    {scanLink ? (
      <>
        <div style={{display:"flex",gap:6,alignItems:"stretch",marginBottom:8}}>
@@ -12566,7 +12829,7 @@ ${MARKETING_FOOTER}`)}`;
            </div>
          </div>
        )}
-       <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,marginTop:8}}>הקישור נושא את מזהה העסק והחתימה שלך — כך הסורק מציג את הצבע והפרטים שלך, והסריקה נרשמת אצלך. קישורים ישנים שכבר שיתפת (עם ‎?t=‎) ממשיכים לעבוד.</p>
+       <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,marginTop:8}}>הקישור נושא את מזהה העסק והחתימה שלך, כך הסורק מציג את הצבע והפרטים שלך, והסריקה נרשמת אצלך. קישורים ישנים שכבר שיתפת (עם ‎?t=‎) ממשיכים לעבוד.</p>
      </>
    ) : scanLinkError ? (
      <div style={{display:"flex",gap:8,alignItems:"center",justifyContent:"space-between"}}>
@@ -12630,7 +12893,7 @@ ${MARKETING_FOOTER}`)}`;
  <button type="button"
                     onClick={()=>{
                       const v=process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA||"";
-                      if(!v){toast("גרסת פיתוח — אין מזהה build","info");return;}
+                      if(!v){toast("גרסת פיתוח, אין מזהה build","info");return;}
                       navigator.clipboard?.writeText(v).then(()=>toast("מזהה הגרסה הועתק"),()=>toast(v,"info"));
                     }}
                     style={{background:"var(--surface-2)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 11px",width:"100%",textAlign:"start",cursor:"pointer",fontFamily:"inherit"}}>
@@ -12664,7 +12927,7 @@ ${MARKETING_FOOTER}`)}`;
                 );
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:14}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המיתוג מופיע בעמודי הלקוחות — הסורק, תוצאות הסריקה ודף קביעת התור. אם משאירים ריק, מוצג עיצוב ברירת המחדל.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.5}}>המיתוג מופיע בעמודי הלקוחות: הסורק, תוצאות הסריקה ודף קביעת התור. אם משאירים ריק, מוצג עיצוב ברירת המחדל.</p>
                     {/* She has never seen the page she is editing. Every field
                         below this line is filled in blind: there is no preview
                         anywhere in the dashboard, and the only way to look at
@@ -12704,7 +12967,7 @@ ${MARKETING_FOOTER}`)}`;
    style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,textDecoration:"none",background:pcGrad,color:"var(--pc-contrast)",borderRadius:"var(--r-sm)",padding:"10px 16px",fontSize:"var(--t-sm)",fontWeight:700,boxShadow:"var(--shadow-accent)"}}>
                         ✦ צפייה בעמוד שלי
  </a>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",textAlign:"center",lineHeight:1.5}}>נפתח בלשונית חדשה. מוצגת הגרסה השמורה — שינויים שטרם נשמרו לא יופיעו.</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)",textAlign:"center",lineHeight:1.5}}>נפתח בלשונית חדשה. מוצגת הגרסה השמורה, שינויים שטרם נשמרו לא יופיעו.</p>
  </div>
                     )}
                     {/* Her booking link into Instagram, Google, Facebook and WhatsApp Business: guided steps, tagged links, ticks (lib/bookingButtons.ts). */}
@@ -12771,7 +13034,7 @@ ${MARKETING_FOOTER}`)}`;
      generators wrote about her audience without being told who it is. */}
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}>✦ מידע לתוכן השיווקי</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>לא מוצג בדף ההזמנות שלך. משמש את ה-AI כשהוא כותב לך פוסטים ורילסים — ככל שתמלאי, הטקסטים יהיו מדויקים יותר לעסק שלך.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:10}}>לא מוצג בדף ההזמנות שלך. משמש את ה-AI כשהוא כותב לך פוסטים ורילסים. ככל שתמלאי, הטקסטים יהיו מדויקים יותר לעסק שלך.</p>
  <div style={{display:"flex",flexDirection:"column",gap:10}}>
  <div><p style={lbl}>קהל היעד שלך</p><textarea value={brand.target_audience||""} onChange={e=>setBrand("target_audience",e.target.value)} rows={2} placeholder="למשל: נשים 30-50 מהאזור, אמהות עובדות שמחפשות שעה לעצמן" style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>סגנון הפנייה שלך</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder="למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר" style={inp}/></div>
@@ -12862,12 +13125,13 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink)",fontWeight:700,marginBottom:2}}><Icon name="star" size={14}/> ביקורות מלקוחות</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>נכתבות על ידי לקוחות אחרי הטיפול, דרך קישור שנשלח בוואטסאפ. אפשר להסתיר ביקורת, אבל לא לערוך אותה — וזה מה שנותן להן ערך.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:8}}>נכתבות על ידי לקוחות אחרי הטיפול, דרך קישור שנשלח בוואטסאפ. אפשר להסתיר ביקורת, אבל לא לערוך אותה, וזה מה שנותן להן ערך.</p>
+ <div style={{marginBottom:12}}><VisitFeedbackPanel variant="compact"/></div>
                     {clientReviewsError&&<p style={{fontSize:"var(--t-sm)",color:"var(--danger)",fontWeight:600,marginBottom:8}}>לא הצלחנו לטעון את הביקורות.</p>}
                     {!clientReviewsError&&clientReviews.length===0&&(
  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
  <BrandImage width={44} height={44} aria-hidden alt="" src={ICON_HEART} style={{width:44,height:44,objectFit:"contain",flexShrink:0}}/>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. יומיים אחרי כל טיפול מוכנה בשבילך בקשת ביקורת בתור ההודעות, ושולחים אותה בלחיצה.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,margin:0}}>עוד לא התקבלו ביקורות. אחרי כל טיפול מוכנה בשבילך בקשת ביקורת בתור ההודעות, ושולחים אותה בלחיצה.</p>
  </div>
                     )}
                     {clientReviews.map(rv=>(
@@ -12955,11 +13219,11 @@ ${MARKETING_FOOTER}`)}`;
  {/* Manual quiet mode. Turning it OFF stamps quiet_ended_at - that stamp is
      what makes the comeback question wait exactly a week (lib/quiet.js).
      Automatic quiet (a dark calendar) needs no toggle and shows no banner. */}
- <AutoToggleRow pc={pc} label="מצב שקט — הפסקה יזומה" on={autos.quiet===true} onChange={()=>{
+ <AutoToggleRow pc={pc} label="מצב שקט, הפסקה יזומה" on={autos.quiet===true} onChange={()=>{
    const on=autos.quiet===true;
    const stamp=new Date().toISOString();
    setAutos(on?{...autos,quiet:false,quiet_ended_at:stamp}:{...autos,quiet:true,quiet_started_at:stamp});
- }} desc="חופשה, מילואים, לידה — כשמופעל, המערכת לא שואלת שאלות ולא מציעה הצעות. כשתכבי, נחכה שבוע ואז נציע לשלוח ללקוחות הודעת חזרנו. שימי לב: תזכורות ללקוחות והחזרת לקוחות ממשיכות. להפסקה מלאה של הכול, השתמשי ב&quot;השהיית כל האוטומציות&quot;." />
+ }} desc="חופשה, מילואים, לידה. כשמופעל, המערכת לא שואלת שאלות ולא מציעה הצעות. כשתכבי, נחכה שבוע ואז נציע לשלוח ללקוחות הודעת חזרנו. שימי לב: תזכורות ללקוחות והחזרת לקוחות ממשיכות. להפסקה מלאה של הכול, השתמשי ב&quot;השהיית כל האוטומציות&quot;." />
  </div>
  {masterPaused&&<p style={{fontSize:"var(--t-sm)",color:"var(--warning)",fontWeight:700,margin:"-2px 0 2px"}}><Icon name="pause" size={13}/> כל האוטומציות מושהות כרגע.</p>}
  </>)}
@@ -12972,8 +13236,8 @@ ${MARKETING_FOOTER}`)}`;
  <AutoToggleRow pc={pc} label="התראה גם בוואטסאפ (בנוסף להתראה באפליקציה)" on={(()=>{const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};return a.owner_alert_whatsapp===true;})()} onChange={()=>{
    const a=(editSettings.automations&&typeof editSettings.automations==="object")?editSettings.automations:{};
    setEditSettings(prev=>({...prev,automations:{...a,owner_alert_whatsapp:!(a.owner_alert_whatsapp===true)}}));
- }} desc="תור חדש וביטול תור תמיד מגיעים באפליקציה. כשמופעל, הם מגיעים גם כהודעת וואטסאפ למספר ההתראות שהגדרת (בקבוצה &quot;העסק שלי&quot;), ואם לא הגדרת, למספר העסק — שימושי אם האפליקציה לא תמיד פתוחה אצלך." />
-          {waCentralConnected===false&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:"0 0 10px"}}>המספר המרכזי לא מחובר כרגע — ההתראה בוואטסאפ תחכה ב&quot;הודעות מוכנות לשליחה&quot;, ותצטרכי ללחוץ כדי לקבל אותה. באפליקציה ההתראה תמיד מגיעה.</p>}
+ }} desc="תור חדש וביטול תור תמיד מגיעים באפליקציה. כשמופעל, הם מגיעים גם כהודעת וואטסאפ למספר ההתראות שהגדרת (בקבוצה &quot;העסק שלי&quot;), ואם לא הגדרת, למספר העסק, שימושי אם האפליקציה לא תמיד פתוחה אצלך." />
+          {waCentralConnected===false&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",lineHeight:1.5,margin:"0 0 10px"}}>המספר המרכזי לא מחובר כרגע, ההתראה בוואטסאפ תחכה ב&quot;הודעות מוכנות לשליחה&quot;, ותצטרכי ללחוץ כדי לקבל אותה. באפליקציה ההתראה תמיד מגיעה.</p>}
  </>)}
  </div>
 
@@ -12982,9 +13246,9 @@ ${MARKETING_FOOTER}`)}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תזכורות ללקוחות</p>
  <AutoToggleRow pc={pc} label="תזכורת לתור (יום לפני)" on={onDefaultTrue("reminders_enabled")} onChange={()=>setFlag("reminders_enabled",!onDefaultTrue("reminders_enabled"))} desc={waCentralConnected===true?"נשלחת אוטומטית בוואטסאפ, יום לפני התור.":"מוכנה לשליחה בלחיצה אחת, כל יום אחר הצהריים, לקראת התורים של מחר."} />
- <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה בקשת ביקורת בתור השליחה הידנית שלך, יומיים אחרי הביקור — את שולחת בלחיצה אחת מהוואטסאפ שלך." />
+ <AutoToggleRow pc={pc} label="בקשת ביקורת אחרי טיפול" on={onDefaultTrue("review_requests_enabled")} onChange={()=>setFlag("review_requests_enabled",!onDefaultTrue("review_requests_enabled"))} desc="מכינה שאלה קצרה (איך היה?) בתור השליחה הידנית שלך, לפי התזמון שבחרת למטה. מי שנהנתה מוזמנת לגוגל, ומי שלא, כותבת לך בפרטיות. את שולחת בלחיצה אחת מהוואטסאפ שלך." />
  <AutoToggleRow pc={pc} label="החזרת לקוחות רדומות" on={onDefaultTrue("winback_enabled")} onChange={()=>setFlag("winback_enabled",!onDefaultTrue("winback_enabled"))} desc="מכינה הודעת התחדשות ללקוחות שלא ביקרו למעלה מ-90 יום, בתור השליחה הידנית שלך." />
- <AutoToggleRow pc={pc} label="תזכורת לקבוע את התור הבא" on={autos.rebook_enabled===true} onChange={()=>setAutos({...autos,rebook_enabled:autos.rebook_enabled!==true})} desc="ללקוחה שאין לה תור עתידי: כשמגיע הזמן לפי הקצב שלה (למשל 3 שבועות אחרי לק ג׳ל), מכינה הודעה עם קישור לקביעת תור, בתור השליחה הידנית שלך. רק ללקוחות שהסכימו לקבל הודעות. כבוי כברירת מחדל." />
+ <RebookSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
  <AutoToggleRow pc={pc} label="סיום חבילת טיפולים" on={onDefaultTrue("package_reminders_enabled")} onChange={()=>setFlag("package_reminders_enabled",!onDefaultTrue("package_reminders_enabled"))} desc="מכינה תזכורת ללקוחה שסיימה חבילת טיפולים, וגם שבועיים לפני שתוקף חבילה עם טיפולים שנותרו נגמר, בתור השליחה הידנית שלך." />
  </div>
 
@@ -13035,7 +13299,7 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={()=>setEditSettings({...editSettings,bot_mode:"always"})} style={{flex:1,padding:"9px 0",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:(editSettings.bot_mode||"always")==="always"?`2px solid ${pc}`:"1px solid var(--line)",background:(editSettings.bot_mode||"always")==="always"?pcTint:"var(--surface)",color:pc}}>תמיד</button>
  <button onClick={()=>setEditSettings({...editSettings,bot_mode:"after_hours"})} style={{flex:1,padding:"9px 0",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:editSettings.bot_mode==="after_hours"?`2px solid ${pc}`:"1px solid var(--line)",background:editSettings.bot_mode==="after_hours"?pcTint:"var(--surface)",color:pc}}>רק מחוץ לשעות העבודה</button>
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה — בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>{editSettings.bot_mode==="after_hours"?"הבוט יענה רק כשאת לא בשעות/ימי העבודה. בשאר הזמן את עונה בעצמך.":"הבוט יענה לכל הודעה נכנסת, בכל שעה."}</p>
  </div>
  )}
  </div>
@@ -13055,7 +13319,7 @@ ${MARKETING_FOOTER}`)}`;
  <button key={m} onClick={()=>!masterPaused&&setSkinMode(m)} disabled={masterPaused} style={{flex:1,padding:"9px 0",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:masterPaused?"default":"pointer",fontFamily:"inherit",border:skinMode===m?`2px solid ${pc}`:"1px solid var(--line)",background:skinMode===m?pcTint:"var(--surface)",color:pc}}>{l}</button>
                     ))}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי — לא נוצרות הצעות.":"באישור — נכין עבורך הצעות במסך הבית, ולחיצה פותחת את ההודעה בוואטסאפ שלך לשליחה."}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:6}}>{skinMode==="off"?"כבוי, לא נוצרות הצעות.":"באישור, נכין עבורך הצעות במסך הבית, ולחיצה פותחת את ההודעה בוואטסאפ שלך לשליחה."}</p>
  </div>)}
 
  </>)}
@@ -13071,16 +13335,16 @@ ${MARKETING_FOOTER}`)}`;
      server keeps only a hash. */}
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>מפתח API לקליטת לידים</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>מפתח לקליטת פניות מהאתר שלך</p>
  {leadKeyConfigured!==null&&<span style={{fontSize:"var(--t-sm)",fontWeight:700,borderRadius:"var(--r-lg)",padding:"5px 11px",...(leadKeyConfigured?{color:"var(--success)",background:"rgba(70,179,123,0.12)"}:{color:"var(--ink-3)",background:"var(--surface-2)"})}}>{leadKeyConfigured?"פעיל ✓":"לא הופק"}</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:8}}>מאפשר לדף נחיתה או לאתר חיצוני לשלוח לידים ישירות לרשימה שלך. המפתח מוצג פעם אחת בלבד — העתיקי ושמרי אותו אצל בונה האתר. הפקה מחדש מבטלת את המפתח הקודם מיד.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:8}}>מאפשר לדף נחיתה או לאתר חיצוני לשלוח פניות ישירות לרשימה שלך. המפתח מוצג פעם אחת בלבד. העתיקי ושמרי אותו אצל בונה האתר. הפקה מחדש מבטלת את המפתח הקודם מיד.</p>
  {leadKeyJustGenerated&&(
  <div style={{background:"var(--pc-tint)",border:`1px solid ${pc}`,borderRadius:"var(--r-sm)",padding:"10px 12px",marginBottom:8}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,marginBottom:4}}>המפתח שלך — מוצג פעם אחת בלבד:</p>
+ <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,marginBottom:4}}>המפתח שלך, מוצג פעם אחת בלבד:</p>
  <p style={{fontSize:"var(--t-sm)",fontFamily:"monospace",direction:"ltr",textAlign:"left",wordBreak:"break-all",background:"var(--surface)",borderRadius:"var(--r-xs)",padding:"8px 10px",userSelect:"all"}}>{leadKeyJustGenerated}</p>
- <button onClick={()=>{copyText(leadKeyJustGenerated).then(ok=>ok?toast("המפתח הועתק"):toast("ההעתקה נכשלה — סמני והעתיקי ידנית","error"));}} className="primary-btn" style={{marginTop:8,background:pcGrad,color:"var(--pc-contrast)",padding:"7px 14px",fontSize:"var(--t-sm)"}}>העתקה</button>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8,marginBottom:4,fontWeight:600}}>לבונה האתר — שליחת ליד:</p>
+ <button onClick={()=>{copyText(leadKeyJustGenerated).then(ok=>ok?toast("המפתח הועתק"):toast("ההעתקה נכשלה, סמני והעתיקי ידנית","error"));}} className="primary-btn" style={{marginTop:8,background:pcGrad,color:"var(--pc-contrast)",padding:"7px 14px",fontSize:"var(--t-sm)"}}>העתקה</button>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:8,marginBottom:4,fontWeight:600}}>לבונה האתר: שליחת פנייה</p>
  <pre style={{fontSize:"var(--t-xs)",fontFamily:"monospace",direction:"ltr",textAlign:"left",background:"var(--surface)",borderRadius:"var(--r-xs)",padding:"8px 10px",overflowX:"auto",whiteSpace:"pre",userSelect:"all"}}>{`curl -X POST ${typeof window!=="undefined"?window.location.origin:""}/api/leads/intake \
   -H "Content-Type: application/json" \
   -H "x-api-key: ${leadKeyJustGenerated}" \
@@ -13100,7 +13364,7 @@ ${MARKETING_FOOTER}`)}`;
      finally{setLeadKeyBusy(false);}
    };
    if(leadKeyConfigured){
-     askConfirm({title:"להפיק מפתח חדש?",message:"המפתח הקיים יפסיק לעבוד מיד, וכל טופס שמשתמש בו יפסיק לשלוח לידים עד שיעודכן.",confirmText:"הפיקי חדש",cancelText:"ביטול",danger:true,onConfirm:go});
+     askConfirm({title:"להפיק מפתח חדש?",message:"המפתח הקיים יפסיק לעבוד מיד, וכל טופס שמשתמש בו יפסיק לשלוח פניות עד שיעודכן.",confirmText:"הפיקי חדש",cancelText:"ביטול",danger:true,onConfirm:go});
    } else { go(); }
  }} disabled={leadKeyBusy} className="primary-btn" style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",padding:"8px 16px",fontSize:"var(--t-sm)",opacity:leadKeyBusy?0.6:1}}>{leadKeyBusy?<Spinner inline label="מפיקה"/>:leadKeyConfigured?"הפקת מפתח חדש":"הפקת מפתח"}</button>
  </div>
@@ -13109,7 +13373,7 @@ ${MARKETING_FOOTER}`)}`;
  {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:4}}>הודעות וואטסאפ</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>{waCentralConnected===true?"תזכורות, אישורי תורים ואישורי תשלום יוצאים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה. הודעה שלא יצאה מחכה בתור השליחה שלך, ולא נעלמת.":"תזכורות, אישורי תורים ואישורי תשלום מחכים לך מוכנים ב\"הודעות מוכנות לשליחה\", לחיצה אחת לכל הודעה מהוואטסאפ שלך. התזכורות לתורים של מחר מוכנות כל יום אחר הצהריים, ובמוצאי שבת בערב."} הודעות שיווקיות (הצעות תור, חזרה ללקוחות ישנות, "חזרנו") תמיד ממתינות בתור, לא רק כשהמרכזי לא זמין — את שולחת אותן מהוואטסאפ האישי שלך, הודעה-הודעה. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6}}>{waCentralConnected===true?"תזכורות, אישורי תורים ואישורי תשלום יוצאים אוטומטית מהמספר המרכזי של קלמיה, עם שם העסק שלך בגוף ההודעה. הודעה שלא יצאה מחכה בתור השליחה שלך, ולא נעלמת.":"תזכורות, אישורי תורים ואישורי תשלום מחכים לך מוכנים ב\"הודעות מוכנות לשליחה\", לחיצה אחת לכל הודעה מהוואטסאפ שלך. התזכורות לתורים של מחר מוכנות כל יום אחר הצהריים, ובמוצאי שבת בערב."} הודעות שיווקיות (הצעות תור, חזרה ללקוחות ישנות, "חזרנו") תמיד ממתינות בתור, לא רק כשהמרכזי לא זמין, את שולחת אותן מהוואטסאפ האישי שלך, הודעה-הודעה. כך המספר שלך לעולם לא מחובר לשום מערכת אוטומטית.</p>
  </div>
 
  </>)}
@@ -13123,7 +13387,7 @@ ${MARKETING_FOOTER}`)}`;
  <textarea value={leadTemplates[k]||""} onChange={e=>setLeadTemplate(k,e.target.value)} rows={2}
    placeholder={DEFAULT_LEAD_TEMPLATES[k]||""}
    style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:"rtl",background:pcTint,resize:"vertical",boxSizing:"border-box"}}/>
- {isCleared(k)&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",fontWeight:700,marginTop:3}}>(נוקה — ייפתח ריק)</p>}
+ {isCleared(k)&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",fontWeight:700,marginTop:3}}>(נוקה, ייפתח ריק)</p>}
  </div>
  ))}
  </div>
@@ -13135,14 +13399,17 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,marginBottom:8}}>מתי יוצאות בקשת הביקורת והחזרת הלקוחות הרדומות. כשההודעות לא יוצאות אוטומטית, הן מחכות ב&quot;הודעות מוכנות לשליחה&quot;.</p>
  {(()=>{
    const t=(autos.timing&&typeof autos.timing==="object")?autos.timing:{};
-   const rv=Number(t.review_delay_days)>=1&&Number(t.review_delay_days)<=14?Number(t.review_delay_days):2;
+   const {delayDays:rv,everyMonths:rvEvery}=reviewTimingOf(autos);
    const wb=Number(t.winback_days)>=30&&Number(t.winback_days)<=365?Number(t.winback_days):90;
    const setT=(patch)=>setAutos({...autos,timing:{...t,...patch}});
    const sel={border:"1px solid var(--line-2)",borderRadius:"var(--r-xs)",padding:"7px 8px",fontSize:"var(--t-sm)",fontFamily:"inherit",background:"var(--surface)"};
    return(
  <div style={{display:"flex",flexDirection:"column",gap:8}}>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>בקשת ביקורת אחרי הטיפול</span>
- <select aria-label="בקשת ביקורת אחרי הטיפול" value={rv} onChange={e=>setT({review_delay_days:Number(e.target.value)})} style={sel}>{[[1,"יום אחרי"],[2,"יומיים אחרי"],[3,"3 ימים אחרי"],[5,"5 ימים אחרי"],[7,"שבוע אחרי"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <select aria-label="בקשת ביקורת אחרי הטיפול" value={rv} onChange={e=>setT({review_delay_days:Number(e.target.value)})} style={sel}>{[[0,"באותו יום, כמה שעות אחרי"],[1,"יום אחרי"],[2,"יומיים אחרי"],[3,"3 ימים אחרי"],[5,"5 ימים אחרי"],[7,"שבוע אחרי"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>לשאול כל לקוחה לכל היותר</span>
+ <select aria-label="לשאול כל לקוחה לכל היותר" value={rvEvery} onChange={e=>setT({review_every_months:Number(e.target.value)})} style={sel}>{[[1,"פעם בחודש"],[2,"פעם בחודשיים"],[3,"פעם ב-3 חודשים"],[4,"פעם ב-4 חודשים"],[6,"פעם בחצי שנה"],[12,"פעם בשנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ {rv===0&&<span style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5}}>הבקשה מוכנה בערב, לפחות שעתיים אחרי שהטיפול נגמר. טיפול שנגמר מאוחר מקבל אותה למחרת. לא בשבת ולא בחג, ואף פעם לא למי שביקשה להסיר אותה מהודעות.</span>}
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>החזרת לקוחה שלא ביקרה</span>
  <select aria-label="החזרת לקוחה שלא ביקרה" value={wb} onChange={e=>setT({winback_days:Number(e.target.value)})} style={sel}>{[[60,"אחרי 60 יום"],[90,"אחרי 90 יום"],[120,"אחרי 120 יום"],[180,"אחרי חצי שנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
  <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>מתנת יום הולדת בהודעה</span>
@@ -13159,10 +13426,10 @@ ${MARKETING_FOOTER}`)}`;
  {inG("messages")&&(<>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12,marginTop:4}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:10,fontWeight:600}}>תפעול</p>
- <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל — כשמבטלים תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
+ <AutoToggleRow pc={pc} label="מילוי תור שהתפנה (הצעה בוואטסאפ)" on={gapOn} onChange={()=>setFlag("gap_fill_enabled",!gapOn)} desc="כשמופעל ומתבטל תור, המערכת מכינה הצעה עם קישור לתפוס את התור שהתפנה ללקוחות מתאימות, ואת שולחת כל אחת בלחיצה מהוואטסאפ שלך; הראשונה שתלחץ על הקישור תופסת. כבוי כברירת מחדל." />
  <WaitlistOfferSetting autos={autos} setAutos={setAutos} pc={pc} Row={AutoToggleRow} />
  {/* Sent automatically only through the central number: hidden until it is connected (owner, 2026-11-03). A stored "on" is kept. */}
- {waCentralConnected===true&&(<AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל — האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי — רק לחיצה ידנית מכינה אותו." />)}
+ {waCentralConnected===true&&(<AutoToggleRow pc={pc} label="שליחת אישור תשלום ללקוחה מיד אחרי הרישום" on={receiptOn} onChange={()=>setFlag("send_receipt_auto",!receiptOn)} desc="כשמופעל, האישור יוצא אוטומטית בוואטסאפ כשהחיבור המרכזי פעיל (ועם קישור לקבלה, אם חיברת מורנינג), ואחרת ממתין בתור השליחה הידנית שלך (רק אם יש לה מספר טלפון). כשכבוי, רק לחיצה ידנית מכינה אותו." />)}
  </div>
  </>)}
  </div>
@@ -13182,6 +13449,9 @@ ${MARKETING_FOOTER}`)}`;
                   // a loaded row without the key means it has not run, and the field says so instead of pretending to save.
                   const bufferColumnReady = services.length===0 || services.some(sv=>Object.prototype.hasOwnProperty.call(sv,"buffer_minutes"));
                   const bufferDefaultHere = businessBufferDefault(editSettings?.branding);
+                  // "להזכיר לחזור אחרי" (lib/reminders/rebookPlan.js), from add_service_rebook_days_2026-11-09.sql: the same "has it run" test.
+                  const rebookColumnReady = services.length===0 || services.some(sv=>Object.prototype.hasOwnProperty.call(sv,"rebook_days"));
+                  const rebookShown = rebookVisible(editSettings);
                   const gone = draft.map((s,i)=>({s,i})).filter(x=>x.s._deleted);
                   return (<>
                   {/* Shown whenever the list is empty and the picker is closed.
@@ -13193,7 +13463,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:8}}>
  <div style={{fontSize:"var(--t-3xl)",marginBottom:8}}>✦</div>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:4}}>עדיין לא הוספת שירותים</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,maxWidth:280,margin:"0 auto 12px"}}>הוסיפי את הטיפולים שאת מציעה עם המחיר ומשך הטיפול — הם יופיעו בקביעת תור, בקופה ובעמוד ההזמנות שלך.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,maxWidth:280,margin:"0 auto 12px"}}>הוסיפי את הטיפולים שאת מציעה עם המחיר ומשך הטיפול, הם יופיעו בקביעת תור, בקופה ובעמוד ההזמנות שלך.</p>
  <button onClick={()=>setShowTemplatePicker(true)} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-sm)",padding:"11px 20px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>בחרי מרשימת טיפולים מוכנה</button>
  </div>
                   )}
@@ -13255,7 +13525,7 @@ ${MARKETING_FOOTER}`)}`;
      Inline SVG, not the archive-box / hooked-arrow codepoints: both carry an
      emoji presentation that iOS picks, so they rendered as full-colour emoji
      beside monochrome stroked icons. Same fix as the settings gear. */}
- <button onClick={()=>toggleDraftServiceActive(idx)} className="icon-btn sm" style={{}} title={svcActive?"העברה לארכיון — לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"} aria-label={svcActive?"העברה לארכיון":"החזרה לרשימה"}>
+ <button onClick={()=>toggleDraftServiceActive(idx)} className="icon-btn sm" style={{}} title={svcActive?"העברה לארכיון, לא יופיע בקביעת תור ובעמוד הציבורי":"החזרה לרשימה"} aria-label={svcActive?"העברה לארכיון":"החזרה לרשימה"}>
  {svcActive
    ? <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><rect x="2.8" y="3.8" width="18.4" height="4.6" rx="1.3"/><path d="M4.6 8.4V19a1.6 1.6 0 0 0 1.6 1.6h11.6a1.6 1.6 0 0 0 1.6-1.6V8.4M9.7 12.4h4.6"/></svg>
    : <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{fill:"none",stroke:"currentColor",strokeWidth:1.7,strokeLinecap:"round",strokeLinejoin:"round"}}><path d="M3.5 9.5h11.2a5 5 0 0 1 0 10H8.2M3.5 9.5l4.3-4.3M3.5 9.5l4.3 4.3"/></svg>}
@@ -13270,6 +13540,16 @@ ${MARKETING_FOOTER}`)}`;
  <input type="number" inputMode="numeric" min={0} max={120} disabled={!bufferColumnReady} aria-label={SERVICE_BUFFER_LABEL_HE} value={svc.buffer_minutes==null?"":svc.buffer_minutes} placeholder={String(bufferDefaultHere)} onChange={e=>patchDraftService(idx,{buffer_minutes:e.target.value===""?null:cleanBufferMinutes(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:bufferColumnReady?"var(--surface)":"var(--surface-2)"}}/>
  </label>
  {!bufferColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>יופעל אחרי עדכון קטן במערכת. עד אז חל זמן ההפסקה הכללי מ״כללי קביעת תור״.</p>}
+ {/* Days after a visit of this treatment until the "time for the next one" nudge. Empty = automatic (her rhythm, else a
+     suggestion by the name, shown as the placeholder); 0 = never for this treatment. */}
+ {rebookShown&&(()=>{const sug=suggestedRebookDays(svc.name,svc.field);return(<>
+ <label data-testid="service-rebook" style={{display:"flex",alignItems:"center",gap:6,marginTop:7,fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>
+ <span style={{flex:1,minWidth:0}}>להזכיר לחזור אחרי (ימים)</span>
+ <input type="number" inputMode="numeric" min={0} max={365} disabled={!rebookColumnReady} aria-label="להזכיר לחזור אחרי, בימים" value={svc.rebook_days==null?"":svc.rebook_days} placeholder={sug?String(sug):"אוטו׳"} onChange={e=>patchDraftService(idx,{rebook_days:typedRebookDays(e.target.value)})} onBlur={e=>{const v=cleanRebookDays(e.target.value);if(v!==svc.rebook_days)patchDraftService(idx,{rebook_days:v});}} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:rebookColumnReady?"var(--surface)":"var(--surface-2)"}}/>
+ </label>
+ {rebookColumnReady&&svc.rebook_days===0&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>0 = בלי תזכורת לטיפול הזה.</p>}
+ {!rebookColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>יופעל אחרי עדכון קטן במערכת. עד אז התזכורת נקבעת לפי הקצב של כל לקוחה ולפי סוג הטיפול.</p>}
+ </>);})()}
  </div>
                   );})}
                   </>);})()}
@@ -13279,7 +13559,7 @@ ${MARKETING_FOOTER}`)}`;
                   {showTemplatePicker&&(
  <div style={{border:`1px solid ${pc}`,borderRadius:"var(--r-md)",padding:"12px 11px",marginTop:8,background:"var(--surface)"}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:3}}>רשימת טיפולים מוכנה</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:10}}>סימני רק את מה שאת מבצעת. המחירים הם הצעה לפי המקובל בשוק — שני אותם כאן או אחר כך. טיפול שכבר במחירון שלך מסומן ולא ייווסף פעמיים.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:10}}>סימני רק את מה שאת מבצעת. המחירים הם הצעה לפי המקובל בשוק. אפשר לשנות אותם כאן או אחר כך. טיפול שכבר במחירון שלך מסומן ולא ייווסף פעמיים.</p>
  <ServiceTemplatePicker
    value={templatePicks}
    onChange={setTemplatePicks}
@@ -13307,7 +13587,7 @@ ${MARKETING_FOOTER}`)}`;
  <option value="">לא מסומן</option>
                     {BUSINESS_FIELDS.map(f=><option key={f.key} value={f.key}>{f.label.split(" ")[0]}</option>)}
  </select>
- <button onClick={handleAddService} className="icon-btn sm" style={{}} title="הוספה לרשימה — נשמר בלחיצה על שמירה" aria-label="הוספה לרשימה">+</button>
+ <button onClick={handleAddService} className="icon-btn sm" style={{}} title="הוספה לרשימה, נשמר בלחיצה על שמירה" aria-label="הוספה לרשימה">+</button>
  </div>
                   ):!showTemplatePicker&&(
  <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
@@ -13320,7 +13600,17 @@ ${MARKETING_FOOTER}`)}`;
  </div>
               )}
               {inG("business")&&(<GoalsEditor automations={editSettings.automations} pc={pc} pcTint={pcTint} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
-              {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
+              {inG("business")&&giftVouchersVisible(settings)&&(<GiftVoucherSettings automations={editSettings.automations} services={services} pc={pc} pcTint={pcTint} toast={toast} tenantId={settings?.tenant_id||null} brandPrimary={editSettings.primary_color||settings?.primary_color} businessName={editSettings.business_name||settings?.business_name||""} logoUrl={editSettings.branding?.logo_url||settings?.branding?.logo_url||null} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
+              {inG("business")&&(<ProductSettings api={productsApi} automations={editSettings.automations} pc={pc} onChange={(next)=>setEditSettings(prev=>({...prev,automations:next}))}/>)}
+              {inG("connections")&&(<GrowCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onOpenPolicy={()=>setSettingsGroup("payments")}/>)}
+              {inG("payments")&&(()=>{
+   // Settings > תשלומים: every deposit in one place (app/PaymentsSettings.jsx). Writes the same branding.booking_rules fields the
+   // booking rules wrote before, and shows the Grow deposit policy when she is connected.
+   const b=(editSettings.branding&&typeof editSettings.branding==="object")?editSettings.branding:{};
+   const r=(b.booking_rules&&typeof b.booking_rules==="object")?b.booking_rules:{};
+   const setRule=(patch)=>setEditSettings(prev=>{const pb=(prev.branding&&typeof prev.branding==="object")?prev.branding:{};const cur=(pb.booking_rules&&typeof pb.booking_rules==="object")?pb.booking_rules:{};return {...prev,branding:{...pb,booking_rules:{...cur,...patch}}};});
+   return(<PaymentsSettings rules={r} setRule={setRule} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} onOpenServices={()=>setSettingsGroup("booking")}/>);
+ })()}
               {inG("clients")&&(
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>יש לך רשימה באקסל, בטלפון או בתוכנה אחרת? אפשר להעביר אותה לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
@@ -13339,12 +13629,12 @@ ${MARKETING_FOOTER}`)}`;
                   connect. Shown only where the bot runs. */}
               {inG("advanced")&&!!(settings.green_api_instance&&String(settings.green_api_instance).trim())&&(
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ — כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",lineHeight:1.6,marginBottom:10}}>שאלות ותשובות שתמלאי כאן ישמשו את הבוט בוואטסאפ. כשלקוחה תשאל שאלה דומה, הבוט יענה לפי התשובה שכתבת, במקום תשובה כללית.</p>
                   {(editSettings.faq||[]).length===0&&(
  <div style={{textAlign:"center",padding:"22px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:8}}>
  <BrandImage width={48} height={48} aria-hidden alt="" src={ICON_QUESTION} style={{width:48,height:48,objectFit:"contain",marginBottom:8}}/>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",marginBottom:4}}>עדיין לא הוספת שאלות ותשובות</p>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי שאלות נפוצות של לקוחות (חניה, ביטולים, מה כדאי להביא) עם התשובה שלך — והבוט יענה בדיוק כמוך.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,maxWidth:260,margin:"0 auto"}}>הוסיפי שאלות נפוצות של לקוחות (חניה, ביטולים, מה כדאי להביא) עם התשובה שלך, והבוט יענה בדיוק כמוך.</p>
  </div>
                   )}
                   {(editSettings.faq||[]).map((f,idx)=>(
@@ -13378,7 +13668,7 @@ ${MARKETING_FOOTER}`)}`;
                 return(
  <div style={{display:"flex",flexDirection:"column",gap:6}}>
  {inG("booking")&&(<>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:4}}>הגדירי לכל יום אם את עובדת ובאילו שעות — כל שעה בין 00:00 ל-24:00, בכל אחד משבעת הימים. יום כבוי מסומן כ״סגור״.</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:4}}>הגדירי לכל יום אם את עובדת ובאילו שעות, כל שעה בין 00:00 ל-24:00, בכל אחד משבעת הימים. יום כבוי מסומן כ״סגור״.</p>
  {DAYS_HE.map((label,d)=>{
    const dh=bh[d];const isOpen=!!dh;
    return(
@@ -13451,13 +13741,9 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"-4px 0 0"}}>הזמן הזה נשאר פנוי אחרי כל תור, גם בדף וגם ביומן שלך. אפשר לקבוע זמן אחר לשירות מסוים ברשימת השירותים.</p>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>ביטול ללא חיוב עד</span>
  <select aria-label="חלון ביטול" value={Number(r.cancel_window_hours)||0} onChange={e=>setRule({cancel_window_hours:Number(e.target.value)})} style={sel}>{[[0,"בלי מגבלה"],[12,"12 שעות לפני"],[24,"יום לפני"],[48,"יומיים לפני"],[72,"3 ימים לפני"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
- <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>מקדמה בקביעת תור (₪)</span>
- <input type="number" min="0" max="5000" inputMode="numeric" aria-label="מקדמה" value={Number(r.deposit_amount)>0?Number(r.deposit_amount):""} placeholder="ללא" onChange={e=>setRule({deposit_amount:e.target.value===""?0:Math.max(0,Math.min(5000,Math.round(Number(e.target.value)||0)))})} style={{...sel,width:96}}/></label>
-              {Number(r.deposit_amount)>0&&(
- <div>
- <input aria-label="איך משלמים מקדמה" maxLength={200} value={typeof r.deposit_note==="string"?r.deposit_note:""} onChange={e=>setRule({deposit_note:e.target.value})} placeholder="איך משלמים: למשל, ביט ל-050-0000000" style={{...sel,width:"100%"}}/>
- </div>
-              )}
+ {/* The deposit moved to Settings > תשלומים (app/PaymentsSettings.jsx), the one place for deposits. Same field; here only a link. */}
+ <div data-testid="booking-deposit-link" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)",flexWrap:"wrap"}}><span>מקדמה בקביעת תור: {Number(r.deposit_amount)>0?`₪${Number(r.deposit_amount)}`:"ללא"}</span>
+ <button type="button" onClick={()=>setSettingsGroup("payments")} style={{background:"none",border:"none",padding:"8px 0",minHeight:40,color:"var(--pc-deep)",fontWeight:700,fontSize:"var(--t-sm)",textDecoration:"underline",cursor:"pointer",fontFamily:"inherit"}}>לשינוי בתשלומים ←</button></div>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:0}}>כשיש מקדמה או חלון ביטול, הלקוחה רואה את התנאים בדף ההזמנה ומאשרת אותם לפני שהתור נקבע. הקישור לביטול בהודעה לא יבטל תור שנמצא בתוך החלון. המקדמה משולמת אלייך ישירות, והמערכת לא גובה אותה.</p>
  </div>
  </div>
@@ -13608,10 +13894,10 @@ ${MARKETING_FOOTER}`)}`;
 
                 {(()=>{
                   const insights=[];
-                  if(days>90)insights.push({icon:"",text:`לא ביקרה ${days} ימים — שווה הודעת התחדשות`,color:"#5580C4"});
+                  if(days>90)insights.push({icon:"",text:`לא ביקרה ${days} ימים, שווה הודעת התחדשות`,color:"#5580C4"});
                   if(c.allergies)insights.push({icon:"",text:`אלרגיות: ${c.allergies}`,color:"var(--warning)"});
                   if(c.medical)insights.push({icon:"",text:`רפואי: ${c.medical}`,color:"#5580C4"});
-                  if(total>2000)insights.push({icon:"",text:`לקוחה מובילה — ₪${total.toLocaleString()} סה״כ`,color:pc});
+                  if(total>2000)insights.push({icon:"",text:`לקוחה מובילה, ₪${total.toLocaleString()} סה״כ`,color:pc});
                   if(cPackages.length>0)insights.push({icon:"",text:`${cPackages.length} חבילות פעילות`,color:"var(--pc-deep)"});
                   if(insights.length===0)return null;
                   return(
@@ -13719,7 +14005,7 @@ ${MARKETING_FOOTER}`)}`;
                   {clientTab==="receipts"&&historyReady&&(
                     cReceipts.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין תשלומים</p>
                     :cReceipts.map(r=>(
- <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום — ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
+ <div key={r.id} onClick={()=>setShowReceipt(r)} role="button" tabIndex={0} onKeyDown={onKbdActivate} aria-label={`פתיחת אישור תשלום, ${r.client_name||"לקוחה"}`} className="client-row" style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",background:pcTint,borderRadius:"var(--r-sm)",marginBottom:5,cursor:"pointer"}}>
  <span style={{fontSize:"var(--t-md)"}}>{PAYMENT_METHODS.find(p=>p.key===r.payment_method)?.icon||""}</span>
  <div style={{flex:1,minWidth:0}}><p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.service}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink-2)"}}>{fmtDateHe(localDayKey(r.created_at))} · {r.payment_method}</p></div>
  {r.legal_provider==="grow"&&r.legal_status==="issued"&&r.legal_doc_url&&<a href={r.legal_doc_url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} data-testid="grow-receipt-link" style={{fontSize:"var(--t-xs)",fontWeight:700,color:"var(--pc-text, var(--ink))",textDecoration:"underline",whiteSpace:"nowrap"}}>מסמך Grow</a>}

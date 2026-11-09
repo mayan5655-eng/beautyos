@@ -79,7 +79,7 @@ export function isValidIsraeliMobile(raw: string | null | undefined): boolean {
  */
 export const PHONE_ERROR_HE: Record<PhoneReason, string> = {
   empty: 'נא להזין מספר טלפון',
-  no_digits: 'מספר הטלפון אינו תקין — נא להזין ספרות בלבד, למשל 0501234567',
+  no_digits: 'מספר הטלפון אינו תקין. כתבי ספרות בלבד, למשל 0501234567',
   not_israeli_mobile: 'נא להזין מספר נייד ישראלי תקין, למשל 0501234567',
 };
 

@@ -100,7 +100,7 @@ export default function IOSInstallBanner() {
           costs nothing and turns a bug-looking moment into an expected
           one. */}
       <span style={{ display: "block", marginTop: "3px", opacity: 0.85 }}>
-        בפתיחה הראשונה תתבקשי להתחבר עוד פעם אחת — זו התנהגות רגילה של אייפון.
+        בפתיחה הראשונה תתבקשי להתחבר עוד פעם אחת, זו התנהגות רגילה של אייפון.
       </span>
     </InstallBannerCard>
   );

@@ -1,0 +1,705 @@
+// test-reviews-monthly-report.ts
+//
+// 1. Review requests in two steps (lib/reviewRequests.ts + lib/reminders/smartReminders.js): who is asked and when (same day,
+//    days after, once per N months, never opted out, never a cancelled or no-show visit), the message, the page's honesty
+//    (the Google link on BOTH paths, so never review gating), and the owner's counts.
+// 2. The full monthly report (lib/monthlyFull.ts): Israel-time months, income against last month (whole, or the same days
+//    for a month in progress), visits, new vs returning, top three, average per visit, lapsed clients, vouchers and products,
+//    the note on the 1st and when it may go out.
+// NO DATABASE, NO NETWORK, NO WHATSAPP: the engine runs against an in-memory fake and a recording sender.
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import {
+  reviewTimingOf, reviewDatesFor, reviewDue, monthsBetween, askedTooRecently, optedOut, reviewRequestLines, cleanFeedback, isMood,
+  googleReviewUrlOf, looksLikeGoogleLink, isMissingFeedbackTable, feedbackSummaryLine, feedbackNotice, reviewTwoStepOn,
+  israelDateBack, GOOGLE_LINK_HELP, FEEDBACK_NEEDS_MIGRATION_HE,
+} from './lib/reviewRequests.ts';
+import { runSmartReminders as runEngine } from './lib/reminders/smartReminders.js';
+// The engine's JSDoc names only a few options; the test passes the rest (now, reviewLinkFor) the route passes.
+type EngineStats = { skipped: Record<string, number> };
+const runSmartReminders = runEngine as unknown as (o: Record<string, unknown>) => Promise<{ stats: EngineStats }>;
+import {
+  buildMonthFull, monthlyNotice, monthlyCronDue, availableMonths, monthAllowed, parseMonthKey, defaultReportMonth, monthKey,
+  monthlyNoticeOn, monthlyPageOn, compareMonths, LAPSED_SHOWN,
+} from './lib/monthlyFull.ts';
+
+const rd = (p: string) => readFileSync(new URL(`./${p}`, import.meta.url), 'utf8');
+let n = 0;
+const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
+const DASH = /[–—‒―]|\s-\s/;
+
+// ── 1. review requests: the rules ───────────────────────────────────────────────────────────────────────────────────────
+
+await ok('timing: default 2 days and every 4 months; 0 means the same day; bad values are the defaults', () => {
+  assert.deepEqual(reviewTimingOf(null), { delayDays: 2, everyMonths: 4 });
+  assert.deepEqual(reviewTimingOf({ timing: { review_delay_days: 0 } }), { delayDays: 0, everyMonths: 4 });
+  assert.deepEqual(reviewTimingOf({ timing: { review_delay_days: 7, review_every_months: 6 } }), { delayDays: 7, everyMonths: 6 });
+  assert.deepEqual(reviewTimingOf({ timing: { review_delay_days: 99, review_every_months: 0 } }), { delayDays: 2, everyMonths: 4 });
+  assert.deepEqual(reviewTimingOf({ timing: { review_delay_days: '', review_every_months: 'x' } }), { delayDays: 2, everyMonths: 4 });
+  assert.deepEqual(reviewTimingOf({ timing: { review_delay_days: 1.5 } }).delayDays, 2);
+});
+
+// Monday 9 Nov 2026, 17:30 in Israel (winter, UTC+2).
+const EVE = new Date('2026-11-09T15:30:00Z');
+await ok('the same day: today (ended two hours ago) and yesterday; otherwise exactly N days ago', () => {
+  assert.equal(israelDateBack(EVE, 0), '2026-11-09');
+  assert.deepEqual(reviewDatesFor(0, EVE), ['2026-11-09', '2026-11-08']);
+  assert.deepEqual(reviewDatesFor(2, EVE), ['2026-11-07']);
+  const a = (date: string, start: number, dur = 60, extra = {}) => ({ date, start_minute: start, duration: dur, confirmation_status: 'confirmed', ...extra });
+  assert.equal(reviewDue(a('2026-11-09', 14 * 60, 30), 0, EVE), true, 'ended 14:30, three hours ago');
+  assert.equal(reviewDue(a('2026-11-09', 15 * 60, 60), 0, EVE), false, 'ended 16:00, only 1.5 hours ago');
+  assert.equal(reviewDue(a('2026-11-08', 20 * 60), 0, EVE), true, 'yesterday evening, caught up today');
+  assert.equal(reviewDue({ date: '2026-11-09', confirmation_status: 'confirmed' }, 0, EVE), false, 'no readable time: tomorrow');
+  assert.equal(reviewDue(a('2026-11-07', 600), 2, EVE), true);
+  assert.equal(reviewDue(a('2026-11-08', 600), 2, EVE), false);
+  for (const s of ['cancelled', 'no_show']) assert.equal(reviewDue(a('2026-11-07', 600, 60, { confirmation_status: s }), 2, EVE), false, s);
+  assert.equal(reviewDue(a('2026-11-07', 600, 60, { kind: 'personal' }), 2, EVE), false, 'a personal block is not a visit');
+});
+
+await ok('once per client every N months, counted between the visits', () => {
+  assert.equal(monthsBetween('2026-07-09', '2026-11-09'), 4);
+  assert.equal(monthsBetween('2026-07-10', '2026-11-09'), 3);
+  assert.equal(monthsBetween('2026-01-31', '2026-02-28'), 0);
+  assert.equal(askedTooRecently(null, '2026-11-09', 4), false);
+  assert.equal(askedTooRecently('2026-08-01', '2026-11-09', 4), true);
+  assert.equal(askedTooRecently('2026-07-01', '2026-11-09', 4), false);
+  assert.equal(askedTooRecently('2026-10-01', '2026-11-09', 1), false);
+  assert.equal(optedOut({ marketing_opted_out_at: '2026-10-01' }), true);
+  assert.equal(optedOut({ marketing_consent: false } as never), false, 'no consent is not an opt out: a review request is not an offer');
+});
+
+await ok('the message: one link, a question answered in one tap; flag off is the old wording', () => {
+  const on = reviewRequestLines({ businessName: 'סטודיו רונית', link: 'https://x/review?id=1&t=2', twoStep: true }).join('\n');
+  assert.ok(on.includes('איך היה? אפשר לענות בלחיצה אחת:') && on.includes('https://x/review?id=1&t=2') && on.includes('סטודיו רונית'), on);
+  assert.ok(!DASH.test(on), on);
+  const off = reviewRequestLines({ businessName: 'ס', link: 'L', twoStep: false }).join('\n');
+  assert.ok(off.includes('דירוג קצר עוזר מאוד'), off);
+  const noLink = reviewRequestLines({ businessName: 'ס', link: '', twoStep: true });
+  assert.ok(noLink.join('').includes('דירוג קצר') && noLink.includes(null), 'no link: the plain ask, as before');
+  assert.equal(reviewTwoStepOn(null), true);
+  assert.equal(reviewTwoStepOn({ automations: { feature_flags: { review_two_step: false } } }), false);
+  assert.equal(reviewTwoStepOn({ automations: { feature_flags: { review_two_step: 'no' } } }), true, 'only an explicit false');
+});
+
+await ok('the private note, the Google link and the honest counts', () => {
+  assert.equal(cleanFeedback('  היה   קר\r\n\r\nוהמתנתי\u0007'), 'היה קר\nוהמתנתי');
+  assert.equal(cleanFeedback('x'.repeat(3000)).length, 1000);
+  assert.equal(isMood('happy'), true); assert.equal(isMood('meh'), false);
+  assert.equal(googleReviewUrlOf(' https://g.page/r/abc/review '), 'https://g.page/r/abc/review');
+  assert.equal(googleReviewUrlOf('http://g.page/r/abc'), '');
+  assert.equal(googleReviewUrlOf('javascript:alert(1)'), '');
+  assert.equal(looksLikeGoogleLink('https://g.page/r/abc/review'), true);
+  assert.equal(looksLikeGoogleLink('https://maps.app.goo.gl/xyz'), true);
+  assert.equal(looksLikeGoogleLink('https://instagram.com/me'), false);
+  assert.equal(isMissingFeedbackTable({ code: '42P01' }), true);
+  assert.equal(isMissingFeedbackTable({ code: 'PGRST205', message: "Could not find the table 'public.visit_feedback'" }), true);
+  assert.equal(isMissingFeedbackTable({ code: '23505' }), false);
+  assert.equal(feedbackSummaryLine({ requested: 0, happy: 0, unhappy: 0, googleClicks: 0, inAppReviews: 0 }), null);
+  const line = feedbackSummaryLine({ requested: 5, happy: 3, unhappy: 1, googleClicks: 3, inAppReviews: 1 })!;
+  assert.equal(line, '5 בקשות ביקורת, 3 עברו לגוגל, ביקורת אחת אצלך בעמוד, הערה פרטית אחת');
+  assert.ok(!/השאירו ביקורת בגוגל/.test(line), 'a tap is never claimed as a written Google review');
+  const nt = feedbackNotice({ clientName: 'דנה כהן', body: 'y'.repeat(300) });
+  assert.ok(nt.title.startsWith('דנה כהן') && nt.body.length <= 140, String(nt.body.length));
+  assert.ok(feedbackNotice({ clientName: '', body: '' }).body.includes('בלי לכתוב'));
+  for (const s of [...GOOGLE_LINK_HELP, FEEDBACK_NEEDS_MIGRATION_HE, line, nt.title]) assert.ok(!DASH.test(s), s);
+});
+
+// ── 1b. the engine, end to end, with a fake database ─────────────────────────────────────────────────────────────────────
+
+type Row = Record<string, unknown>;
+function makeDb(tables: Record<string, Row[]>) {
+  return {
+    from(table: string) {
+      let rows = tables[table] ? [...tables[table]] : [];
+      const chain: Record<string, unknown> = {
+        select() { return chain; },
+        order() { return chain; },
+        eq(col: string, val: unknown) { rows = rows.filter((r) => r[col] === val); return chain; },
+        in(col: string, vals: unknown[]) { rows = rows.filter((r) => vals.includes(r[col])); return chain; },
+        gte(col: string, val: unknown) { rows = rows.filter((r) => String(r[col]) >= String(val)); return chain; },
+        lt(col: string, val: unknown) { rows = rows.filter((r) => String(r[col]) < String(val)); return chain; },
+        limit() { return chain; },
+        range(from: number, to: number) { return Promise.resolve({ data: rows.slice(from, to + 1), error: null, count: rows.length }); },
+        insert(row: Row) { (tables[table] = tables[table] || []).push(row); return Promise.resolve({ error: null }); },
+        then(res: (v: unknown) => unknown) { return Promise.resolve({ data: rows, error: null }).then(res); },
+      };
+      return chain;
+    },
+  };
+}
+
+await ok('engine: asks the right visits, at her timing, once per season, never opted out, never a no show', async () => {
+  const now = new Date('2026-11-09T15:30:00Z'); // 17:30 Israel, a Monday
+  const st = (tid: string, timing: Row | null, flags: Row | null = null) => ({ tenant_id: tid, business_name: `עסק ${tid}`, automations: { ...(timing ? { timing } : {}), ...(flags ? { feature_flags: flags } : {}) } });
+  const cl = (id: string, tid: string, extra: Row = {}) => ({ id, name: `לקוחה ${id}`, phone: '972541234567', tenant_id: tid, birthday: null, marketing_consent: true, ...extra });
+  const ap = (id: string, cid: string, tid: string, date: string, extra: Row = {}) => ({ id, client_id: cid, tenant_id: tid, date, confirmation_status: 'confirmed', service: 'טיפול פנים', start_minute: 600, duration: 60, ...extra });
+  const w: Record<string, Row[]> = {
+    settings: [st('t2', null), st('t0', { review_delay_days: 0 }), st('toff', null, { review_two_step: false })],
+    clients: [
+      cl('a', 't2'), cl('b', 't2', { marketing_opted_out_at: '2026-10-01' }), cl('c', 't2'), cl('d', 't2'), cl('e', 't2'),
+      cl('s1', 't0'), cl('s2', 't0'), cl('o1', 'toff'),
+    ],
+    appointments: [
+      ap('a1', 'a', 't2', '2026-11-07'),                                   // asked
+      ap('b1', 'b', 't2', '2026-11-07'),                                   // opted out
+      ap('c1', 'c', 't2', '2026-11-07', { confirmation_status: 'no_show' }), // no show
+      ap('d1', 'd', 't2', '2026-11-07'), ap('d0', 'd', 't2', '2026-09-20'), // asked about d0 seven weeks ago: too soon
+      ap('e1', 'e', 't2', '2026-11-07'), ap('e0', 'e', 't2', '2026-06-01'), // asked five months ago: fine
+      ap('s1a', 's1', 't0', '2026-11-09', { start_minute: 13 * 60 }),         // same day, ended 14:00
+      ap('s2a', 's2', 't0', '2026-11-09', { start_minute: 16 * 60 }),         // ends 17:00: not yet
+      ap('o1a', 'o1', 'toff', '2026-11-07'),
+    ],
+    packages: [],
+    auto_reminders_log: [
+      { tenant_id: 't2', client_id: 'd', reminder_type: 'review', reference_id: 'd0' },
+      { tenant_id: 't2', client_id: 'e', reminder_type: 'review', reference_id: 'e0' },
+    ],
+  };
+  const sent: { phone: string; message: string; tenantId: string; type: string; name: string }[] = [];
+  const send = async (phone: string, message: string, opts: { tenantId: string; type: string; name: string }) => { sent.push({ phone, message, ...opts }); return { queued: true }; };
+  const { stats } = await runSmartReminders({ db: makeDb(w), send, now, reviewLinkFor: (id: string) => `https://kalmea.test/review?id=${id}&t=sig` });
+  const reviews = sent.filter((s) => s.type === 'auto_review');
+  assert.deepEqual(reviews.map((s) => s.name).sort(), ['לקוחה a', 'לקוחה e', 'לקוחה o1', 'לקוחה s1']);
+  assert.equal(stats.skipped.optedOut, 1);
+  assert.equal(stats.skipped.reviewAskedRecently, 1);
+  const msgA = reviews.find((s) => s.name === 'לקוחה a')!.message;
+  assert.ok(msgA.includes('אפשר לענות בלחיצה אחת') && msgA.includes('review?id=a1'), msgA);
+  const msgOff = reviews.find((s) => s.name === 'לקוחה o1')!.message;
+  assert.ok(msgOff.includes('דירוג קצר עוזר מאוד'), 'platform flag off: the old message');
+  // logged, so a second run asks nobody again
+  const before = sent.length;
+  await runSmartReminders({ db: makeDb(w), send, now, reviewLinkFor: (id: string) => `https://kalmea.test/review?id=${id}&t=sig` });
+  assert.equal(sent.filter((s) => s.type === 'auto_review').length, reviews.length, `second run: ${sent.length - before} new`);
+});
+
+await ok('engine: two visits in the window ask once, about the newest', async () => {
+  const now = new Date('2026-11-09T15:30:00Z');
+  const w: Record<string, Row[]> = {
+    settings: [{ tenant_id: 't0', business_name: 'ע', automations: { timing: { review_delay_days: 0 } } }],
+    clients: [{ id: 'x', name: 'x', phone: '972541234567', tenant_id: 't0', marketing_consent: true }],
+    appointments: [
+      { id: 'x1', client_id: 'x', tenant_id: 't0', date: '2026-11-08', confirmation_status: 'confirmed', start_minute: 600, duration: 60 },
+      { id: 'x2', client_id: 'x', tenant_id: 't0', date: '2026-11-09', confirmation_status: 'confirmed', start_minute: 600, duration: 60 },
+    ],
+    packages: [], auto_reminders_log: [],
+  };
+  const sent: string[] = [];
+  await runSmartReminders({ db: makeDb(w), send: async (_p: string, m: string, o: { type: string }) => { if (o.type === 'auto_review') sent.push(m); return { ok: true }; }, now, reviewLinkFor: (id: string) => `L-${id}` });
+  assert.equal(sent.length, 1); assert.ok(sent[0].includes('L-x2'));
+});
+
+// ── 1c. the page, the routes, the owner screen: static checks ───────────────────────────────────────────────────────────
+
+await ok('the page offers Google on BOTH answers (never review gating) and degrades to the stars form', () => {
+  const page = rd('app/review/page.jsx');
+  for (const s of ['review-choose', 'review-happy', 'review-unhappy', 'review-noted', 'רוצה לכתוב גם ביקורת פומבית?', '/api/reviews/go']) assert.ok(page.includes(s), s);
+  const noted = page.slice(page.indexOf('if (state === "noted")'), page.indexOf('return (\n    <PublicPage primary={info?.primaryColor || null}>\n      <div className="pub-card" style={{ textAlign: "center" }}>\n        {/* Her logo'));
+  assert.ok(noted.includes('goGoogleHref'), 'the Google link is offered after a private note too');
+  assert.ok(page.includes('if (r === "unavailable") { setState("form"); return; }'), 'no table yet: the stars form, never a dropped note');
+  const get = rd('app/api/reviews/route.js');
+  assert.ok(get.includes('twoStep') && get.includes('isMissingFeedbackTable') && get.includes('googleReviewUrlOf'));
+  assert.ok(!/automations:\s*s\?\.automations/.test(get), 'automations is never returned to the browser');
+});
+
+await ok('routes: signed link, no WhatsApp to anyone, owner notified in the app only, tenant from the session', () => {
+  const fb = rd('app/api/reviews/feedback/route.js');
+  assert.ok(fb.includes('resolveReviewVisit') && fb.includes('checkIpLimit') && fb.includes('whatsapp: false') && !fb.includes('sendWhatsApp'));
+  assert.ok(fb.includes('needsMigration: true') && fb.includes('"no_show"'));
+  const go = rd('app/api/reviews/go/route.js');
+  assert.ok(go.includes('googleReviewUrlOf') && go.includes('Response.redirect(url, 302)') && go.includes('resolveReviewVisit'));
+  const sum = rd('app/api/reviews/summary/route.js');
+  assert.ok(sum.includes('get_user_tenant_id') && sum.includes('requireActiveTenant'));
+  assert.equal((sum.match(/\.eq\("tenant_id", tenantId\)/g) || []).length >= 6, true, 'every read is scoped to her tenant');
+  assert.ok(!sum.includes('searchParams'), 'the tenant never comes from the request');
+  const visit = rd('lib/reviewVisit.js');
+  assert.ok(visit.includes('verifyReview') && visit.includes('UUID_RE'));
+  const mig = rd('supabase/migrations/add_visit_feedback_2026-11-09.sql');
+  assert.ok(mig.includes('enable row level security') && !/create policy/i.test(mig) && mig.includes('appointment_id     uuid not null unique'));
+  for (const f of ['app/api/reviews/feedback/route.js', 'app/api/reviews/go/route.js', 'app/api/reviews/summary/route.js', 'app/VisitFeedbackPanel.jsx', 'app/dashboard/feedback/FeedbackScreen.tsx', 'lib/reviewRequests.ts']) {
+    const src = rd(f);
+    assert.ok(!src.includes('448e9e45'), `${f}: no real tenant id`);
+    assert.ok(!/[–—]/.test(src), `${f}: no dashes`);
+  }
+  const panel = rd('app/VisitFeedbackPanel.jsx');
+  assert.ok(panel.includes('גוגל לא מספרת מי כתבה בפועל'), 'the panel says a tap is a tap');
+});
+
+await ok('settings: the help for finding the link, the same-day timing and the season cap; notifications open the screens', () => {
+  const app = rd('app/beautyos.jsx');
+  assert.ok(app.includes('איך מוצאים את הקישור?') && app.includes('GOOGLE_LINK_HELP'));
+  assert.ok(app.includes('[0,"באותו יום, כמה שעות אחרי"]') && app.includes('review_every_months'));
+  assert.ok(app.includes('<VisitFeedbackPanel variant="compact"/>'));
+  assert.ok(app.includes('if(n.kind==="visit_feedback"){router.push("/dashboard/feedback");return;}'));
+  assert.ok(app.includes('if(n.kind==="monthly_report"){router.push("/dashboard/monthly");return;}'));
+  assert.ok(!app.includes('יומיים אחרי הביקור. את שולחת'), 'the review switch no longer promises a fixed two days');
+});
+
+// ── 2. the monthly report ────────────────────────────────────────────────────────────────────────────────────────────────
+
+const rc = (id: number, at: string, amount: number, service = 'טיפול פנים', items?: unknown) => ({ id, created_at: at, amount, service, items: items === undefined ? '[]' : JSON.stringify(items) });
+const NOW = new Date('2026-11-09T10:00:00Z'); // Monday 9 Nov, 12:00 Israel
+const OCT = { year: 2026, month: 9 };
+
+await ok('months: the picker, the default, the allowed window', () => {
+  assert.deepEqual(defaultReportMonth(NOW), OCT);
+  assert.deepEqual(defaultReportMonth(new Date('2026-12-31T22:30:00Z')), { year: 2026, month: 11 }, 'Jan 1 00:30 in Israel: December just ended');
+  const m = availableMonths(NOW);
+  assert.equal(m.length, 13); assert.equal(m[0].key, '2026-11'); assert.ok(m[0].current && m[0].label.includes('עד היום'));
+  assert.equal(m[1].label, 'אוקטובר 2026'); assert.equal(m[12].key, '2025-11');
+  assert.deepEqual(parseMonthKey('2026-10'), OCT); assert.equal(parseMonthKey('2026-13'), null); assert.equal(parseMonthKey('../x'), null);
+  assert.equal(monthAllowed({ year: 2026, month: 11 }, NOW), false, 'not the future');
+  assert.equal(monthAllowed({ year: 2025, month: 10 }, NOW), true);
+  assert.equal(monthAllowed({ year: 2025, month: 9 }, NOW), false, 'not older than 12 months');
+  assert.equal(monthKey(OCT), '2026-10');
+});
+
+const receipts = [
+  rc(1, '2026-10-05T08:00:00', 300, 'טיפול פנים', [{ name: 'טיפול פנים', price: 300, qty: 1 }]),
+  rc(2, '2026-10-12T08:00:00', 500, 'פילינג, מסכה', [{ name: 'פילינג', price: 400, qty: 1 }, { name: 'מסכה', price: 100, qty: 1 }]),
+  rc(3, '2026-10-20T08:00:00', 400, 'טיפול פנים', [{ name: 'טיפול פנים', price: 300, qty: 1 }, { name: 'סרום', price: 100, qty: 1, kind: 'product', product_id: 'p1' }]),
+  rc(4, '2026-10-21T08:00:00', 200, 'שובר מתנה', [{ name: 'שובר מתנה ₪200', price: 200, qty: 1, kind: 'voucher' }]),
+  rc(5, '2026-10-31T21:30:00', 999, 'לק ג׳ל'), // 23:30 Oct 31 in Israel (winter, UTC+2): still October
+  rc(6, '2026-10-31T22:30:00', 7777, 'לק ג׳ל'), // 00:30 Nov 1 in Israel: November
+  rc(7, '2026-09-10T08:00:00', 1000, 'טיפול פנים'), // September, the month before
+  rc(8, '2026-11-03T08:00:00', 250, 'פילינג'),
+  rc(9, '2026-10-08T08:00:00', 100, 'טיפול פנים'),
+];
+const appts = [
+  { id: 'v1', client_id: 'c1', date: '2026-10-05', confirmation_status: 'confirmed' },
+  { id: 'v2', client_id: 'c2', date: '2026-10-12', confirmation_status: 'confirmed' },
+  { id: 'v3', client_id: 'c1', date: '2026-10-20', confirmation_status: 'confirmed' },
+  { id: 'v4', client_id: 'c3', date: '2026-10-25', confirmation_status: 'no_show' },
+  { id: 'v5', client_id: 'c4', date: '2026-10-26', confirmation_status: 'cancelled' },
+  { id: 'v6', client_id: 'c1', date: '2026-10-26', kind: 'personal' },
+  { id: 'v0', client_id: 'c1', date: '2026-03-01', confirmation_status: 'confirmed' }, // c1 is returning
+  { id: 'p1', client_id: 'c5', date: '2026-08-01', confirmation_status: 'confirmed' },  // lapsed 100 days
+  { id: 'p2', client_id: 'c6', date: '2026-08-15', confirmation_status: 'confirmed' },  // lapsed, but booked ahead
+  { id: 'f2', client_id: 'c6', date: '2026-11-20', confirmation_status: 'confirmed' },
+  { id: 'p3', client_id: 'c7', date: '2024-01-01', confirmation_status: 'confirmed' },  // gone too long
+  { id: 'p4', client_id: 'c8', date: '2026-09-01', confirmation_status: 'confirmed' },  // 69 days, archived
+  { id: 'p5', client_id: 'c9', date: '2026-09-20', confirmation_status: 'confirmed' },  // 50 days: not yet
+  { id: 's1', client_id: 'c5', date: '2026-09-02', confirmation_status: 'cancelled' },  // cancelled is not her last visit
+];
+const clients = [
+  { id: 'c1', name: 'רונית' }, { id: 'c2', name: 'דנה' }, { id: 'c3', name: 'מיכל' }, { id: 'c4', name: 'שירה' },
+  { id: 'c5', name: 'נועה', phone: '0541234567' }, { id: 'c6', name: 'טל' }, { id: 'c7', name: 'אור' },
+  { id: 'c8', name: 'גלית', status: 'archived' }, { id: 'c9', name: 'יעל' },
+];
+
+await ok('a whole month: income vs the whole month before, visits, new vs returning, top three, average, lapsed', () => {
+  const r = buildMonthFull({ month: OCT, now: NOW, receipts, appointments: appts, clients, status: 'exempt', vatRate: 0.18, showProducts: true, showVouchers: true, voucherLedger: [
+    { kind: 'redeem', amount: -150, created_at: '2026-10-22T08:00:00' }, { kind: 'redeem', amount: -50, created_at: '2026-10-23T08:00:00' },
+    { kind: 'reverse', amount: 50, created_at: '2026-10-23T09:00:00' }, { kind: 'redeem', amount: -80, created_at: '2026-11-02T08:00:00' },
+  ] });
+  assert.equal(r.isCurrent, false); assert.equal(r.days, 31); assert.equal(r.label, 'אוקטובר 2026');
+  assert.equal(r.income.cur, 300 + 500 + 400 + 200 + 999 + 100, 'Israel midnight decides; vouchers are money in');
+  assert.equal(r.income.prev, 1000); assert.equal(r.income.dir, 'up'); assert.equal(r.income.pct, 150);
+  assert.equal(r.visits.cur, 3, 'no show, cancelled and personal are not visits');
+  assert.equal(r.noShows, 1);
+  assert.equal(r.newClients, 1, 'c2'); assert.equal(r.returningClients, 1, 'c1 came in March');
+  assert.deepEqual(r.top.map((t) => t.name), ['לק ג׳ל', 'טיפול פנים', 'פילינג']);
+  assert.equal(r.top[1].income, 300 + 300 + 100, 'the product line is not a treatment');
+  // paid treatments: 300, 500, 400, 999, 100 (the voucher sale is not a visit)
+  assert.equal(r.avgPerVisit, Math.round((300 + 500 + 400 + 999 + 100) / 5));
+  assert.deepEqual(r.lapsed.clients.map((c) => c.name), ['נועה'], 'booked ahead, archived, too long and too recent are left out');
+  assert.equal(r.lapsed.clients[0].days, 100); assert.equal(r.lapsed.clients[0].phone, '0541234567');
+  assert.deepEqual(r.products, { income: 100, units: 1 });
+  assert.deepEqual(r.vouchers, { soldCount: 1, soldAmount: 200, redeemedCount: 1, redeemedAmount: 150 });
+  assert.ok(r.headline.includes('באוקטובר הכנסת ₪2,499') && r.headline.includes('150% יותר מספטמבר'), r.headline);
+  assert.equal(r.inPrev, 'בספטמבר');
+});
+
+await ok('VAT, a missing ledger, features off', () => {
+  const r = buildMonthFull({ month: OCT, now: NOW, receipts, appointments: appts, clients, status: 'authorized', vatRate: 0.18, showProducts: false, showVouchers: true, voucherLedger: null });
+  assert.equal(r.income.cur, Math.round(2499 / 1.18)); assert.equal(r.netOfVat, true);
+  assert.ok(r.headline.includes('(לפני מע"מ)'));
+  assert.equal(r.products, null);
+  assert.equal(r.vouchers!.redeemedCount, null, 'an unreadable ledger is not "nothing redeemed"');
+  const off = buildMonthFull({ month: OCT, now: NOW, receipts, appointments: appts, clients, status: 'exempt', vatRate: 0.18 });
+  assert.equal(off.vouchers, null);
+});
+
+await ok('the month in progress compares with the same days of last month', () => {
+  const r = buildMonthFull({ month: { year: 2026, month: 10 }, now: NOW, receipts, appointments: appts, clients, status: 'exempt', vatRate: 0.18 });
+  assert.equal(r.isCurrent, true); assert.equal(r.days, 9);
+  assert.equal(r.income.cur, 7777 + 250);
+  assert.equal(r.income.prev, 300 + 100, 'October 1..9 only');
+  assert.equal(r.inPrev, 'באותם ימים באוקטובר');
+  assert.ok(r.headline.startsWith('מתחילת נובמבר הכנסת'), r.headline);
+});
+
+await ok('an empty month says so, and sends nothing', () => {
+  const r = buildMonthFull({ month: OCT, now: NOW, receipts: [], appointments: [], clients: [], status: 'exempt', vatRate: 0.18 });
+  assert.equal(r.hasData, false); assert.equal(r.headline, 'באוקטובר לא נרשמו ביקורים או תשלומים.');
+  assert.equal(r.avgPerVisit, null); assert.deepEqual(r.top, []);
+  assert.equal(monthlyNotice(r), null);
+  assert.deepEqual(compareMonths(0, 0), { cur: 0, prev: 0, pct: null, dir: 'same' });
+});
+
+await ok('the note on the 1st, and when it may go out', () => {
+  const r = buildMonthFull({ month: OCT, now: NOW, receipts, appointments: appts, clients, status: 'exempt', vatRate: 0.18 });
+  const nt = monthlyNotice(r)!;
+  assert.equal(nt.title, 'הדוח החודשי שלך: אוקטובר');
+  assert.ok(nt.body.includes('באוקטובר הכנסת ₪2,499, 3 ביקורים.') && nt.body.includes('לק ג׳ל') && nt.body.includes('לקוחה אחת לא חזרה'), nt.body);
+  for (const s of [nt.title, nt.body, r.headline]) assert.ok(!DASH.test(s), s);
+  // Sunday 1 Nov 2026 09:00 Israel: yes. Saturday 1 Aug 2026: held; Sunday 2 Aug: yes. The 4th: no.
+  assert.deepEqual(monthlyCronDue(new Date('2026-11-01T07:00:00Z')), { run: true, reason: 'ok' });
+  assert.equal(monthlyCronDue(new Date('2026-08-01T07:00:00Z')).reason, 'rest-day');
+  assert.equal(monthlyCronDue(new Date('2026-08-02T07:00:00Z')).run, true);
+  assert.equal(monthlyCronDue(new Date('2026-11-04T07:00:00Z')).reason, 'not-start-of-month');
+  assert.equal(monthlyCronDue(new Date('2026-11-02T07:00:00Z'), (d) => d === '2026-11-02').reason, 'rest-day');
+  // On by default; her switch, the platform flag and the master pause turn it off.
+  assert.equal(monthlyNoticeOn({ automations: null }), true);
+  assert.equal(monthlyNoticeOn({ automations: { monthly_report: false } }), false);
+  assert.equal(monthlyNoticeOn({ automations: { paused: true } }), false);
+  assert.equal(monthlyNoticeOn({ automations: { feature_flags: { monthly_report_page: false } } }), false);
+  assert.equal(monthlyPageOn({ automations: { monthly_report: false } }), true, 'her switch silences the note, never the page');
+  assert.equal(LAPSED_SHOWN, 6);
+});
+
+await ok('the cron and the screen: owner only, in the app, scheduled and watched', () => {
+  const cron = rd('app/api/send-monthly-report/route.js');
+  assert.ok(cron.includes('isAuthorizedCron') && cron.includes("markCronRun('send-monthly-report')") && cron.includes('whatsapp: false'));
+  assert.ok(cron.includes('alreadySent') && cron.includes('monthlyCronDue(now, isYomTov)') && !cron.includes('sendWhatsApp'));
+  const vercel = JSON.parse(rd('vercel.json'));
+  assert.ok(vercel.crons.some((c: { path: string; schedule: string }) => c.path === '/api/send-monthly-report' && c.schedule === '0 7 1-3 * *'));
+  assert.ok(rd('lib/cronHeartbeat.js').includes("'send-monthly-report': { path: '/api/send-monthly-report'"));
+  const api = rd('app/api/monthly-report/route.ts');
+  assert.ok(api.includes('get_user_tenant_id') && api.includes('requireActiveTenant') && api.includes('monthAllowed'));
+  const screen = rd('app/dashboard/monthly/MonthlyScreen.tsx');
+  assert.ok(screen.includes('/dashboard?go=winback') && screen.includes('monthly-picker') && screen.includes("repeat(2, minmax(0, 1fr))"));
+  assert.ok(existsSync(new URL('./app/dashboard/monthly/page.tsx', import.meta.url)));
+  assert.ok(rd('app/MonthlyReportCard.jsx').includes('לדוח החודשי המלא'));
+  assert.ok(rd('app/GoalsEditor.jsx').includes('monthly_report: e.target.checked'));
+  for (const f of ['lib/monthlyFull.ts', 'lib/monthlyFullLoad.ts', 'app/dashboard/monthly/MonthlyScreen.tsx', 'app/api/send-monthly-report/route.js', 'app/api/monthly-report/route.ts']) {
+    const src = rd(f);
+    assert.ok(!/[–—]/.test(src), `${f}: no dashes`);
+    assert.ok(!src.includes('448e9e45'), `${f}: no real tenant id`);
+  }
+});
+
+// ── 3. security review (Vercel findings on PR #40) ─────────────────────────────────────────────────────────────────────
+
+await ok('security: the Google link is https on a Google host only, so /api/reviews/go cannot become an open redirect', () => {
+  for (const good of ['https://g.page/r/abc/review', 'https://maps.app.goo.gl/xyz', 'https://goo.gl/maps/abc', 'https://search.google.com/local/writereview?placeid=x',
+    'https://www.google.com/maps/place/x', 'https://www.google.co.il/maps/place/x', 'https://G.PAGE/r/abc']) {
+    assert.ok(googleReviewUrlOf(good), good);
+    assert.equal(looksLikeGoogleLink(good), true, good);
+  }
+  for (const bad of ['https://evil.com/r', 'https://google.com.evil.com/x', 'https://evilgoogle.com/x', 'https://evil.com/?u=https://g.page/r',
+    'https://g.page@evil.com/x', 'https://user:pw@g.page/r', 'https://g.page:8443/r', 'http://g.page/r', '//g.page/r', 'javascript:alert(1)',
+    'https://g.page.evil.com/r', 'https://xgoo.gl/r', `https://g.page/${'a'.repeat(2100)}`]) {
+    assert.equal(googleReviewUrlOf(bad), '', bad);
+  }
+  const go = rd('app/api/reviews/go/route.js');
+  const params = [...go.matchAll(/searchParams\.get\("([^"]+)"\)/g)].map((m) => m[1]).sort();
+  assert.deepEqual(params, ['id', 't'], 'the redirect target never comes from the query');
+  assert.ok(go.includes('googleReviewUrlOf(s?.review_url)') && go.includes('.eq("tenant_id", appt.tenant_id)'), 'target = her saved link, validated at redirect time');
+  assert.ok(go.includes('/book?t=${encodeURIComponent(appt.tenant_id)}'), 'no valid Google link: her booking page');
+  assert.ok(!/Response\.redirect\(s\?\.review_url/.test(go), 'the raw stored value is never redirected to');
+  const save = rd('app/api/settings/save/route.ts');
+  assert.ok(save.includes('googleReviewUrlOf(rawUrl)') && save.includes("field: 'review_url'") && save.includes('status: 400'), 'validated at save time too');
+  const get = rd('app/api/reviews/route.js');
+  assert.ok(get.includes('googleReviewUrl: googleReviewUrlOf(s?.review_url)'), 'the stars page links only to a validated Google link');
+});
+
+await ok('security: one private note per visit, bounded, never rewritten by a replayed link', () => {
+  const fb = rd('app/api/reviews/feedback/route.js');
+  const fw = rd('lib/visitFeedbackWrite.js');
+  assert.ok(fw.includes('if (prev.data?.body) return { status: "already" };') && fb.includes('if (w.status === "already") return Response.json({ success: true, already: true });'), 'a written note is final');
+  assert.equal((fw.match(/\.is\("body", null\)\.select\(/g) || []).length, 1, 'the one guarded update refuses to overwrite a note');
+  assert.ok(fw.includes('const u = await guardedUpdate();') && (fw.match(/guardedUpdate\(\)/g) || []).length === 2, 'both update paths use it');
+  assert.ok(fb.includes('raw.length > MAX_FEEDBACK_BODY_BYTES') && fb.includes('status: 413'), 'oversized bodies are refused before parsing');
+  assert.ok(!/body\??\.tenant_id|searchParams\.get\("tenant/.test(fb), 'the tenant comes from the signed appointment, never the client');
+  assert.ok(cleanFeedback('x'.repeat(5000)).length <= 1000);
+  assert.equal(cleanFeedback('<script>alert(1)</script>'), '<script>alert(1)</script>', 'stored as text; React escapes it on her screen');
+  const panel = rd('app/VisitFeedbackPanel.jsx');
+  assert.ok(!panel.includes('dangerouslySetInnerHTML'), 'the note is rendered as text, never as HTML');
+  const n = feedbackNotice({ clientName: 'רונית', body: 'הצבע לא יצא כמו שרציתי' });
+  assert.ok(!/\d{7,}/.test(n.title + n.body), 'the notification carries no phone number');
+});
+
+await ok('security: the review token is constant-time, expiring, and bound to one appointment', async () => {
+  process.env.REVIEW_LINK_SECRET = process.env.REVIEW_LINK_SECRET || 'test-review-secret-not-real';
+  const { signReview, verifyReview } = await import('./lib/reviewToken.ts');
+  const id = '11111111-2222-4333-8444-555555555555';
+  const other = '11111111-2222-4333-8444-666666666666';
+  const now = Date.UTC(2026, 10, 9, 12);
+  const t = signReview(id, now + 86_400_000);
+  assert.equal(verifyReview(id, t, now), true);
+  assert.equal(verifyReview(other, t, now), false, 'bound to the appointment');
+  assert.equal(verifyReview(id, t, now + 2 * 86_400_000), false, 'expires');
+  assert.equal(verifyReview(id, `${t.slice(0, -2)}xx`, now), false, 'tampered');
+  assert.equal(verifyReview(id, '', now), false);
+  const signed = rd('lib/signedToken.ts');
+  assert.ok(signed.includes('timingSafeEqual'), 'constant-time compare');
+});
+
+await ok('security: owner routes resolve her tenant and plan before any service-role read; the cron checks CRON_SECRET first', () => {
+  for (const f of ['app/api/reviews/summary/route.js', 'app/api/monthly-report/route.ts']) {
+    const src = rd(f);
+    const guard = src.indexOf('requireActiveTenant(session)');
+    const role = src.indexOf('SUPABASE_SERVICE_ROLE_KEY');
+    assert.ok(guard > 0 && src.indexOf('get_user_tenant_id') < guard && role > guard, `${f}: auth and plan gate before the service role`);
+    assert.ok(src.includes('isDemoTenantId(String(tenantId))'), `${f}: demo tenant exception pattern`);
+  }
+  const cron = rd('app/api/send-monthly-report/route.js');
+  const post = cron.slice(cron.indexOf('export async function POST'));
+  assert.ok(post.indexOf('if (!isAuthorizedCron(request)) return cronUnauthorized();') < post.indexOf('markCronRun'), 'auth before anything else');
+  assert.ok(cron.includes('whatsapp: false') && !/phone/.test(post.replace(/business_phone/g, '')), 'no client phone in the note');
+  assert.ok(post.includes('error: "internal"'), 'no error detail in the response');
+});
+
+// ── 4. Vercel Agent Review findings on PR #40 ───────────────────────────────────────────────────────────────────────────
+
+await ok('review finding: private notes are queried as notes, and unread ones never fall off a limit', () => {
+  const sum = rd('app/api/reviews/summary/route.js');
+  assert.ok(!sum.includes('.limit(200)'), 'no shared limit across moods');
+  assert.ok(sum.includes('.eq("mood", "unhappy").is("read_at", null)'), 'unread notes in their own query');
+  assert.ok(sum.includes('.eq("mood", "unhappy").not("read_at", "is", null)'), 'read notes in their own query');
+  assert.ok(/const notes = \[\.\.\.\(un\.data \|\| \[\]\), \.\.\.\(rd\.data \|\| \[\]\)\]/.test(sum), 'every unread note is listed');
+  assert.ok(sum.includes('.gte("created_at", sinceIso)'), 'the counts read the window itself');
+});
+
+await ok('review finding: "לא חזרו" uses her win-back period, the same list the button opens', () => {
+  const extra = [...appts, { id: 'q1', client_id: 'cq', date: '2026-08-26', confirmation_status: 'confirmed' }]; // 75 days before NOW
+  const cls = [...clients, { id: 'cq', name: 'הילה' }];
+  const base = { month: OCT, now: NOW, receipts, appointments: extra, clients: cls, status: 'exempt', vatRate: 0.18 };
+  const at60 = buildMonthFull({ ...base, lapsedMinDays: 60 });
+  const at90 = buildMonthFull({ ...base, lapsedMinDays: 90 });
+  assert.ok(at60.lapsed.clients.some((c) => c.name === 'הילה'), '75 days is lapsed for a 60 day period');
+  assert.ok(!at90.lapsed.clients.some((c) => c.name === 'הילה'), '75 days is not lapsed for the default 90');
+  assert.equal(at90.lapsed.minDays, 90);
+  assert.ok(at90.lapsed.clients.some((c) => c.name === 'נועה'), '100 days is lapsed at 90');
+  const load = rd('lib/monthlyFullLoad.ts');
+  assert.ok(load.includes('lapsedMinDays: winbackDaysOf(settings?.automations)'), 'the loader passes her setting');
+  const screen = rd('app/dashboard/monthly/MonthlyScreen.tsx');
+  assert.ok(screen.includes('r.lapsed.minDays') && !screen.includes('לפני חודשיים עד שנה'), 'the screen says her period');
+  const note = monthlyNotice(at90);
+  assert.ok(!note || !note.body.includes('חודשיים'), 'the note says her period');
+});
+
+await ok('review finding: the unhappy screen offers a public review right away, the note is not a gate', () => {
+  const page = rd('app/review/page.jsx');
+  const unhappy = page.slice(page.indexOf('if (state === "unhappy")'), page.indexOf('if (state === "noted")'));
+  assert.ok(unhappy.includes('review-unhappy-public'), 'public review line on the unhappy screen');
+  assert.ok(unhappy.includes('href={goGoogleHref}'), 'Google is one tap away without writing a note');
+  assert.ok(unhappy.includes('onClick={() => setState("form")}'), 'the stars form is one tap away too');
+});
+
+await ok('review finding: a database without appointments.kind still sends review requests', async () => {
+  const now = new Date('2026-11-09T15:30:00Z');
+  const w: Record<string, Row[]> = {
+    settings: [{ tenant_id: 't2', business_name: 'ע', automations: {} }],
+    clients: [{ id: 'k', name: 'k', phone: '972541234567', tenant_id: 't2', marketing_consent: true }],
+    appointments: [{ id: 'k1', client_id: 'k', tenant_id: 't2', date: '2026-11-07', confirmation_status: 'confirmed', start_minute: 600, duration: 60 }],
+    packages: [], auto_reminders_log: [],
+  };
+  const base = makeDb(w);
+  let kindErrors = 0;
+  const db = {
+    from(table: string) {
+      const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>;
+      if (table !== 'appointments') return c;
+      let cols = '';
+      const sel = c.select; const range = c.range;
+      c.select = (x: unknown, ...rest: unknown[]) => { cols = String(x || ''); sel(x, ...rest); return c; };
+      c.range = (a: unknown, b: unknown) => {
+        if (/\bkind\b/.test(cols)) { kindErrors++; return Promise.resolve({ data: null, error: { code: '42703', message: 'column appointments.kind does not exist' }, count: null }); }
+        return range(a, b);
+      };
+      return c;
+    },
+  };
+  const sent: string[] = [];
+  await runSmartReminders({ db, send: async (_p: string, m: string, o: { type: string }) => { if (o.type === 'auto_review') sent.push(m); return { ok: true }; }, now, reviewLinkFor: (id: string) => `L-${id}` });
+  assert.ok(kindErrors >= 1, 'the fake really refused kind');
+  assert.equal(sent.length, 1, 'the run carried on and asked about the visit');
+  assert.ok(sent[0].includes('L-k1'));
+  // Any other error still stops the run, as before.
+  const broken = { from(table: string) { const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>; if (table === 'appointments') c.range = () => Promise.resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }); return c; } };
+  await assert.rejects(() => runSmartReminders({ db: broken, send: async () => ({ ok: true }), now, reviewLinkFor: () => 'x' }));
+});
+
+await ok('review finding: the monthly report loads on a database without appointments.kind', async () => {
+  const { loadMonthFull } = await import('./lib/monthlyFullLoad.ts');
+  const w: Record<string, Row[]> = {
+    receipts: [{ id: 'r1', tenant_id: 'tm', amount: 300, created_at: '2026-10-05T08:00:00', service: 'טיפול פנים' }],
+    appointments: [{ id: 'a1', tenant_id: 'tm', client_id: 'c1', date: '2026-10-05', confirmation_status: 'confirmed' }],
+    clients: [{ id: 'c1', tenant_id: 'tm', name: 'רונית' }],
+    receipt_voids: [],
+  };
+  const base = makeDb(w);
+  let kindErrors = 0;
+  const db = {
+    from(table: string) {
+      const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>;
+      if (table !== 'appointments') return c;
+      let cols = '';
+      const sel = c.select; const range = c.range;
+      c.select = (x: unknown, ...rest: unknown[]) => { cols = String(x || ''); sel(x, ...rest); return c; };
+      c.range = (a: unknown, b: unknown) => {
+        if (/\bkind\b/.test(cols)) { kindErrors++; return Promise.resolve({ data: null, error: { code: '42703', message: 'column appointments.kind does not exist' }, count: null }); }
+        return range(a, b);
+      };
+      return c;
+    },
+  };
+  const r = await loadMonthFull(db, 'tm', { automations: {} }, OCT, NOW);
+  assert.ok(kindErrors >= 1, 'the fake really refused kind');
+  assert.equal(r.visits.cur, 1, 'the report loaded; a visit without kind is a visit');
+  // Any other error still fails the report, never a silent zero.
+  const broken = { from(table: string) { const c = base.from(table) as Record<string, (...a: unknown[]) => unknown>; if (table === 'appointments') c.range = () => Promise.resolve({ data: null, error: { code: '42501', message: 'permission denied' }, count: null }); return c; } };
+  await assert.rejects(() => loadMonthFull(broken, 'tm', { automations: {} }, OCT, NOW));
+});
+
+await ok('race: two submissions at once store one note, notify once, and the loser answers already', async () => {
+  const { saveVisitFeedback } = await import('./lib/visitFeedbackWrite.js');
+  // A fake visit_feedback with the database's two guarantees: a unique appointment_id, and an update whose condition is
+  // checked at write time (so the second guarded update matches zero rows, without an error). Every call yields first, so
+  // the two requests interleave: both read "nothing yet" before either writes.
+  const rows: Row[] = [];
+  const tick = () => new Promise((res) => setImmediate(res));
+  const db = {
+    from() {
+      const f: Array<(r: Row) => boolean> = [];
+      let op: 'select' | 'insert' | 'update' = 'select'; let payload: Row = {};
+      const q: Record<string, unknown> = {
+        select() { return q; },
+        eq(c: string, v: unknown) { f.push((r) => r[c] === v); return q; },
+        is(c: string, v: unknown) { f.push((r) => (v === null ? r[c] == null : r[c] === v)); return q; },
+        insert(row: Row) { op = 'insert'; payload = row; return q; },
+        update(p: Row) { op = 'update'; payload = p; return q; },
+        async maybeSingle() { await tick(); const hit = rows.filter((r) => f.every((g) => g(r))); return { data: hit[0] ? { ...hit[0] } : null, error: null }; },
+        then(res: (v: unknown) => unknown) {
+          return tick().then(() => {
+            if (op === 'insert') {
+              if (rows.some((r) => r.appointment_id === payload.appointment_id)) return { data: null, error: { code: '23505', message: 'duplicate key' } };
+              rows.push({ ...payload }); return { data: [{ ...payload }], error: null };
+            }
+            if (op === 'update') { const hit = rows.filter((r) => f.every((g) => g(r))); hit.forEach((r) => Object.assign(r, payload)); return { data: hit.map((r) => ({ ...r })), error: null }; }
+            return { data: rows.filter((r) => f.every((g) => g(r))), error: null };
+          }).then(res);
+        },
+      };
+      return q;
+    },
+  };
+  const appt = { id: 'ap-1', tenant_id: 'tr', client_id: 'cr', name: 'רונית' };
+  let notifications = 0;
+  // What the route does with the result.
+  const submit = async (text: string) => {
+    const w = await saveVisitFeedback(db, appt, 'unhappy', text);
+    if (w.status === 'already') return { success: true, already: true };
+    if (w.status === 'saved' && w.noteCommitted) notifications++;
+    return { success: w.status === 'saved' };
+  };
+  const [a, b] = await Promise.all([submit('הצבע לא יצא טוב'), submit('חיכיתי חצי שעה')]);
+  assert.equal(rows.length, 1, 'one row');
+  assert.ok(rows[0].body === 'הצבע לא יצא טוב' || rows[0].body === 'חיכיתי חצי שעה', 'one note, not a mix');
+  assert.equal(notifications, 1, 'exactly one notification');
+  assert.equal([a, b].filter((x) => (x as { already?: boolean }).already).length, 1, 'the loser answers already');
+  // a third, later submission changes nothing and notifies nobody
+  const c = await submit('עוד משהו');
+  assert.deepEqual(c, { success: true, already: true }); assert.equal(notifications, 1);
+
+  // An existing row without a note (she tapped first, then two notes race): same outcome through the guarded update.
+  rows.length = 0; rows.push({ appointment_id: 'ap-1', tenant_id: 'tr', mood: 'unhappy', body: null });
+  notifications = 0;
+  const [d, e] = await Promise.all([submit('אחת'), submit('שתיים')]);
+  assert.equal(notifications, 1); assert.ok(['אחת', 'שתיים'].includes(String(rows[0].body)));
+  assert.equal([d, e].filter((x) => (x as { already?: boolean }).already).length, 1);
+
+  // The durable side: the route asks for one notification per visit, and the migration adds the index that enforces it.
+  const fb = rd('app/api/reviews/feedback/route.js');
+  assert.ok(fb.includes('w.noteCommitted') && fb.includes('onceForAppointment: true') && !fb.includes('prev.data?.body || ""'), 'notify only on this request\'s own committed note');
+  const on = rd('lib/ownerNotify.js');
+  assert.ok(on.includes('if (duplicate) return;') && rd('lib/ownerNotifyInsert.js').includes('error.code === "23505"'), 'a refused duplicate (her own row) sends no push');
+  const mig = rd('supabase/migrations/add_visit_feedback_2026-11-09.sql');
+  assert.ok(/create unique index if not exists uq_owner_notifications_visit_feedback_once\s+on public\.owner_notifications \(tenant_id, appointment_id, kind\)\s+where kind = 'visit_feedback' and appointment_id is not null;/.test(mig));
+});
+
+await ok('authz: one feedback alert per visit is keyed per business, and only a real own row silences an alert', async () => {
+  const mig = rd('supabase/migrations/add_visit_feedback_2026-11-09.sql');
+  assert.ok(/create unique index if not exists uq_owner_notifications_visit_feedback_once\s+on public\.owner_notifications \(tenant_id, appointment_id, kind\)\s+where kind = 'visit_feedback' and appointment_id is not null;/.test(mig), 'tenant_id in the key');
+  assert.ok(/a\.tenant_id = b\.tenant_id/.test(mig), 'the duplicate cleanup stays inside one business');
+  assert.ok(mig.includes('revoke update on public.owner_notifications from authenticated;') && mig.includes('grant update (read_at) on public.owner_notifications to authenticated;'), 'the browser may change read_at only');
+  // Every browser update of owner_notifications sets read_at and nothing else.
+  const app = rd('app/beautyos.jsx');
+  const ups = [...app.matchAll(/from\("owner_notifications"\)\.update\((\{[^}]*\})\)/g)].map((m) => m[1]);
+  assert.ok(ups.length >= 3);
+  for (const u of ups) assert.ok(/^\{read_at:[^,]*\}$/.test(u.replace(/\s/g, '')), u);
+
+  const { insertOwnerNotification } = await import('./lib/ownerNotifyInsert.js');
+  const fake = (rows: Row[]) => ({
+    from() {
+      const f: Array<(r: Row) => boolean> = []; let ins: Row | null = null;
+      const q: Record<string, unknown> = {
+        insert(r: Row) { ins = r; return q; },
+        select() { return q; },
+        eq(c: string, v: unknown) { f.push((r) => r[c] === v); return q; },
+        limit() { return q; },
+        async maybeSingle() {
+          // the index: (tenant_id, appointment_id, kind) for visit_feedback; also simulate an OLD index without tenant_id
+          const clash = rows.some((r) => r.kind === ins!.kind && r.appointment_id === ins!.appointment_id && (r.tenant_id === ins!.tenant_id || (globalThis as { __oldIndex?: boolean }).__oldIndex));
+          if (clash) return { data: null, error: { code: '23505', message: 'duplicate key' } };
+          rows.push({ id: `n${rows.length + 1}`, ...ins }); return { data: { id: `n${rows.length}` }, error: null };
+        },
+        then(res: (v: unknown) => unknown) { return Promise.resolve({ data: rows.filter((r) => f.every((g) => g(r))), error: null }).then(res); },
+      };
+      return q;
+    },
+  });
+  const note = { tenantId: 'victim', kind: 'visit_feedback', title: 't', body: 'b', appointmentId: 'ap-v' };
+  // her own earlier alert for this visit: a real duplicate, silenced
+  const own = await insertOwnerNotification(fake([{ id: 'x', tenant_id: 'victim', kind: 'visit_feedback', appointment_id: 'ap-v' }]), note, { onceForAppointment: true });
+  assert.equal(own.duplicate, true);
+  // another business's row on her appointment (even if an index without tenant_id refused the insert): never silences her alert
+  (globalThis as { __oldIndex?: boolean }).__oldIndex = true;
+  const foreign = await insertOwnerNotification(fake([{ id: 'y', tenant_id: 'attacker', kind: 'visit_feedback', appointment_id: 'ap-v' }]), note, { onceForAppointment: true });
+  (globalThis as { __oldIndex?: boolean }).__oldIndex = false;
+  assert.equal(foreign.duplicate, false, 'the alert still goes out');
+  // the per-business key itself: another business's row does not block her insert at all
+  const rowsK: Row[] = [{ id: 'y', tenant_id: 'attacker', kind: 'visit_feedback', appointment_id: 'ap-v' }];
+  const ok1 = await insertOwnerNotification(fake(rowsK), note, { onceForAppointment: true });
+  assert.ok(ok1.row && !ok1.duplicate && rowsK.some((r) => r.tenant_id === 'victim'));
+  const on = rd('lib/ownerNotify.js');
+  assert.ok(on.includes('insertOwnerNotification(supabase,') && on.includes('if (duplicate) return;') && !on.includes('error.code === "23505") return;'));
+});
+
+await ok('authz: a void from another business never removes her income from the reports', async () => {
+  const { loadMonthFull } = await import('./lib/monthlyFullLoad.ts');
+  const base = {
+    receipts: [
+      { id: 'r1', tenant_id: 'tm', amount: 300, created_at: '2026-10-05T08:00:00', service: 'טיפול פנים' },
+      { id: 'r2', tenant_id: 'tm', amount: 200, created_at: '2026-10-06T08:00:00', service: 'פילינג' },
+    ],
+    appointments: [], clients: [],
+  };
+  const clean = await loadMonthFull(makeDb({ ...base, receipt_voids: [] }), 'tm', { automations: {} }, OCT, NOW);
+  const forged = await loadMonthFull(makeDb({ ...base, receipt_voids: [{ id: 'v1', tenant_id: 'evil', receipt_id: 'r1' }] }), 'tm', { automations: {} }, OCT, NOW);
+  assert.equal(forged.income.cur, clean.income.cur, 'a foreign void changes nothing');
+  assert.equal(clean.income.cur, 500);
+  const own = await loadMonthFull(makeDb({ ...base, receipt_voids: [{ id: 'v2', tenant_id: 'tm', receipt_id: 'r2' }] }), 'tm', { automations: {} }, OCT, NOW);
+  assert.equal(own.income.cur, 300, 'her own void still counts');
+  for (const [f, needle] of [
+    ['lib/monthlyFullLoad.ts', ".from('receipt_voids').select('receipt_id, credit_status').eq('tenant_id', tenantId)"],
+    ['lib/weeklyDigestLoad.ts', ".from('receipt_voids').select('receipt_id, credit_status').eq('tenant_id', tenantId)"],
+    ['app/api/send-weekly-report/route.js', '.from("receipt_voids").select("receipt_id, credit_status").eq("tenant_id", tenantId)'],
+  ]) assert.ok(rd(f).includes(needle), `${f}: voids read by tenant`);
+  const mig = rd('supabase/migrations/receipt_voids_same_tenant_2026-11-09.sql');
+  assert.ok(/security definer\s+set search_path = public, pg_temp/.test(mig), 'security definer with a fixed search_path');
+  assert.ok(/before insert or update of receipt_id, tenant_id on public\.receipt_voids/.test(mig), 'on insert and on retargeting');
+  assert.ok(/is distinct from new\.tenant_id/.test(mig) && /raise exception/.test(mig));
+  assert.ok(/where v\.tenant_id is distinct from r\.tenant_id/.test(mig), 'a query to find existing cross-business voids');
+  assert.ok(!/\bdelete\s+from\b/i.test(mig), 'nothing is deleted automatically');
+});
+
+console.log(`\n${n} groups passed`);
+
+{
+  // The client sees "29.10", not "2026-10-29", under the question.
+  const src = (await import('node:fs')).readFileSync('app/review/page.jsx', 'utf8');
+  if (!/const heDate = /.test(src) || /\$\{info\.date\}/.test(src)) throw new Error('review page shows a raw ISO date');
+  console.log('ok - review page shows the visit date as day.month');
+}

@@ -6,7 +6,7 @@
 // היום has no parameter, so a plain /dashboard stays what it was. Other parameters on the address are left alone.
 
 const TABS = ['dashboard', 'insights', 'calendar', 'clients', 'leads', 'cashier', 'tax', 'whatsapp', 'campaigns', 'community', 'packages', 'protocols', 'advisor', 'help'] as const;
-const SECTIONS = ['business', 'page', 'booking', 'messages', 'clients', 'connections', 'advanced'] as const;
+const SECTIONS = ['business', 'page', 'booking', 'payments', 'messages', 'clients', 'connections', 'advanced'] as const;
 // The default of each screen has no view: whatsapp opens on send, campaigns on the posts and the studio.
 const VIEWS: Record<string, readonly string[]> = { whatsapp: ['log'], campaigns: ['campaigns', 'reels'] };
 

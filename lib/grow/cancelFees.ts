@@ -24,6 +24,7 @@ import type { LedgerRepo, LedgerRow, SavedCard } from './tokenCharge.ts';
 import { CARD_CONSENT_TEXT_HE, CARD_CONSENT_VERSION } from './tokenFlow.ts';
 import type { CardTokenNotification } from './tokenFlow.ts';
 import { growText } from './payload.ts';
+import { walletLink } from './wallet.ts';
 
 export type Account = { user_id: string; enabled: boolean };
 
@@ -82,7 +83,11 @@ export type FeeItem = {
 
 export type ApptRow = { id: string; tenant_id: string; client_id: string | null; client_phone?: string | null; name: string | null; service: string | null; date: string; start_minute: number | null; hour: number | null; price: number | string | null; confirmation_status: string | null };
 
-export type PaymentRow = { id: string; tenant_id: string; status: string; amount: number; transaction_id: string | null; receipt_id: string | null; appointment_id: string | null };
+export type PaymentRow = {
+  id: string; tenant_id: string; status: string; amount: number; transaction_id: string | null; receipt_id: string | null; appointment_id: string | null;
+  /** Read so an open wallet deposit link is handed back instead of a second one (freshDepositLink). */
+  notify_token?: string | null; created_at?: string | null;
+};
 
 export type CancelRepo = LedgerRepo & {
   getAccount(tenantId: string): Promise<Account | null>;
@@ -139,6 +144,14 @@ export type Deps = {
   notifyUrl?: string;
   /** Test hook: the identifier generator for token charges. */
   newChargeId?: () => number;
+  /**
+   * Booking deposits open on the wallet (lib/grow/wallet.ts depositsOnWallet: the wallet is configured and there is no GROW_PAGE_CODE).
+   * The deposit link is then a Kalmea /pay/<token> page (card, Bit, Apple Pay, Google Pay); the wallet keeps no card, so no card-save
+   * consent is recorded for it. Everything else (the policy consent, the 30-minute hold, the amount from the snapshot) is unchanged.
+   */
+  depositWallet?: boolean;
+  /** Refunds of deposits paid on the wallet page: the wallet's own credentials (the token credentials belong to another page). */
+  depositRefundOps?: GrowOps;
   now?: () => Date;
 };
 
@@ -200,10 +213,11 @@ export async function recordConsentAndStart(
 
   if (!(snapshot.deposit_amount > 0)) return fail('deposit', 'deposit amount is zero');
   // A deposit the CLIENT pays on the booking page also keeps her card (charge and save), under the same required tick as saved_card mode. A deposit the
-  // cosmetician asked for herself (via 'owner') has no tick to give, so it saves nothing.
-  const saveCard = (i.via || 'booking_page') !== 'owner' && !!i.cardConsentText;
+  // cosmetician asked for herself (via 'owner') has no tick to give, so it saves nothing. A deposit on the wallet page keeps no card either.
+  const wallet = d.depositWallet === true;
+  const saveCard = !wallet && (i.via || 'booking_page') !== 'owner' && !!i.cardConsentText;
   const charge = await createCharge(
-    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard },
+    { tenantId: i.tenantId, userId: account.user_id, amount: snapshot.deposit_amount, description: `מקדמה ל${i.serviceName || 'טיפול'}`, clientName: i.clientName, phone: i.phone, clientId: i.clientId, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard, wallet },
     d.chargeDeps,
   );
   if (!charge.ok) return fail('deposit', charge.message);
@@ -257,10 +271,20 @@ export async function freshDepositLink(
   if (!account || !account.enabled || !appt || appt.confirmation_status === 'cancelled') return { ok: false, code: 'none', error: 'התשלום לא זמין כרגע' };
   const amount = consent.snapshot.deposit_amount;
   if (!(amount > 0)) return { ok: false, code: 'none', error: 'לא נמצאה מקדמה לתור הזה' };
-  // The card-save tick was given (and stored) with the first page; a fresh page keeps the same choice.
-  const saveCard = (consent.snapshot.via || 'booking_page') !== 'owner';
+  const wallet = d.depositWallet === true;
+  if (wallet) {
+    // The wallet link lives 24 hours (the hold ends it sooner), so an open one for this deposit is handed back: two open links for one
+    // deposit could both be paid. A paid one was answered above through the consent; the release cron closes it when the hold ends.
+    const open = await d.repo.getDepositPayment(i.tenantId, i.appointmentId);
+    if (open && open.status === 'created' && open.notify_token && round2(Number(open.amount)) === round2(amount)) {
+      return { ok: true, url: walletLink(d.chargeDeps.appUrl, String(open.notify_token)) };
+    }
+    if (open && open.status === 'paid') return { ok: false, code: 'paid', error: 'המקדמה כבר שולמה. התור שלך מאושר.' };
+  }
+  // The card-save tick was given (and stored) with the first page; a fresh page keeps the same choice. The wallet keeps no card.
+  const saveCard = !wallet && (consent.snapshot.via || 'booking_page') !== 'owner';
   const charge = await createCharge(
-    { tenantId: i.tenantId, userId: account.user_id, amount, description: `מקדמה ל${appt.service || 'טיפול'}`, clientName: appt.name || consent.client_name || '', phone: String(appt.client_phone || ''), clientId: consent.client_id, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard },
+    { tenantId: i.tenantId, userId: account.user_id, amount, description: `מקדמה ל${appt.service || 'טיפול'}`, clientName: appt.name || consent.client_name || '', phone: String(appt.client_phone || ''), clientId: consent.client_id, appointmentId: i.appointmentId, kind: 'deposit', returnUrl: i.returnUrl, saveCard, wallet },
     d.chargeDeps,
   );
   if (!charge.ok) return { ok: false, code: 'step-failed', error: 'לא הצלחנו לפתוח את דף התשלום, נסי שוב' };
@@ -448,7 +472,7 @@ async function doRefund(d: Deps, tenantId: string, item: FeeItem, dep: PaymentRo
   // device, finds it already 'charging' and stops. (Grow's live refund call has no idempotency key, so this is the only guard.)
   const claimed = await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'charging', error: null });
   if (!claimed) return { status: 'exists' };
-  const r = await d.ops.refund({ userId: account.user_id, transactionId: dep.transaction_id, amount: Number(dep.amount), idempotencyKey: `refund:${item.id}` });
+  const r = await (d.depositRefundOps || d.ops).refund({ userId: account.user_id, transactionId: dep.transaction_id, amount: Number(dep.amount), idempotencyKey: `refund:${item.id}` });
   if (!r.ok) {
     if (r.code === 'unreachable') {
       // No answer: the money may already be on its way back. Never retried automatically, and the button stays away until a person
@@ -554,18 +578,31 @@ export async function decide(d: Deps, i: { tenantId: string; feeId: string; deci
 // ── deposit holds ────────────────────────────────────────────────────────────
 
 /**
+ * Whether a booking deposit may still be paid: its consent is awaiting the deposit and the 30-minute hold has not run out. The wallet
+ * page (/pay/<token>) asks this before opening Grow, so a slot that was released (or is about to be) is never paid for.
+ */
+export function depositHoldOpen(consent: Pick<ConsentRow, 'mode' | 'status' | 'hold_expires_at'> | null, now: Date): boolean {
+  if (!consent || consent.mode !== 'deposit' || consent.status !== 'awaiting_deposit') return false;
+  const ends = consent.hold_expires_at ? new Date(consent.hold_expires_at).getTime() : NaN;
+  return ends > now.getTime();
+}
+
+/**
  * Releases the bookings whose 30-minute deposit hold ran out: the appointment is cancelled (by the system), so its slot is free again, the unpaid
  * payment page is closed, and the consent is marked. A deposit that was paid in the meantime confirms the booking instead. Safe to run often
  * and from several places at once (the cron, the booking route and the availability route all call it); each release is a conditional update.
  */
-export async function releaseExpiredHolds(d: Deps, tenantId?: string): Promise<{ released: number; confirmed: number; errors: number }> {
+// onReleased (optional): told about each appointment this released, so the freed slot can go to the waiting list
+// (lib/waitlistRuntime.js). Called after the release is committed; whatever it does or throws never changes the release.
+export async function releaseExpiredHolds(d: Deps, tenantId?: string, onReleased?: (tenantId: string, appointmentId: string) => unknown): Promise<{ released: number; confirmed: number; errors: number }> {
   const out = { released: 0, confirmed: 0, errors: 0 };
   const expired = await d.repo.listExpiredHolds(clock(d).toISOString(), tenantId);
   for (const c of expired) {
     // One bad row must not stop every other business's holds from being released (the loop used to throw out on the first error,
     // so the 5-minute cron failed for everyone, every run). Each hold is its own try; the caller is told how many failed.
     try {
-      await releaseOneHold(d, c, out);
+      const released = await releaseOneHold(d, c, out);
+      if (released && onReleased) { try { await onReleased(c.tenant_id, c.appointment_id); } catch (e) { console.warn('[grow] after-release hook failed', (e as Error)?.message); } }
     } catch (e) {
       out.errors++;
       console.error('[grow] releasing hold failed for consent', c.id, (e as Error)?.message);
@@ -574,7 +611,7 @@ export async function releaseExpiredHolds(d: Deps, tenantId?: string): Promise<{
   return out;
 }
 
-async function releaseOneHold(d: Deps, c: ConsentRow, out: { released: number; confirmed: number; errors: number }) {
+async function releaseOneHold(d: Deps, c: ConsentRow, out: { released: number; confirmed: number; errors: number }): Promise<boolean> {
   {
     const dep = await d.repo.getDepositPayment(c.tenant_id, c.appointment_id);
     if (dep && dep.status === 'paid') {
@@ -582,13 +619,14 @@ async function releaseOneHold(d: Deps, c: ConsentRow, out: { released: number; c
       await d.repo.confirmAppointment(c.tenant_id, c.appointment_id);
       await d.repo.updateConsent(c.id, { status: 'deposit_paid', hold_expires_at: null });
       out.confirmed++;
-      return;
+      return false;
     }
     const released = await d.repo.releaseAppointment(c.tenant_id, c.appointment_id);
     if (released) out.released++;
     // Whatever happened to the appointment (she may have cancelled it herself), the hold is over and the unpaid page must not take money later.
     if (dep && dep.status === 'created') await d.grow.updatePayment(dep.id, { status: 'cancelled', error: 'deposit hold expired', updated_at: clock(d).toISOString() });
     await d.repo.updateConsent(c.id, { status: 'hold_expired', hold_expires_at: null });
+    return released;
   }
 }
 
@@ -800,7 +838,7 @@ export function supabaseCancelRepo(db: SupabaseClient, sanitize: (raw: unknown) 
       return (data || []).map((r) => fee(r as Record<string, unknown>));
     },
     async getDepositPayment(tenantId, appointmentId) {
-      const { data, error } = await db.from('grow_payments').select('id, tenant_id, status, amount, transaction_id, receipt_id, appointment_id').eq('tenant_id', tenantId).eq('appointment_id', appointmentId).eq('kind', 'deposit').order('created_at', { ascending: false }).limit(1);
+      const { data, error } = await db.from('grow_payments').select('id, tenant_id, status, amount, transaction_id, receipt_id, appointment_id, notify_token, created_at').eq('tenant_id', tenantId).eq('appointment_id', appointmentId).eq('kind', 'deposit').order('created_at', { ascending: false }).limit(1);
       if (error) fail(error, 'getDepositPayment');
       return data && data[0] ? ({ ...data[0], amount: isNum(data[0].amount) } as PaymentRow) : null;
     },

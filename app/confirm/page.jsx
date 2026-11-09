@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense, useCallback } from 'react';
+import { useEffect, useRef, useState, Suspense, useCallback } from 'react';
 import Spinner from "../Spinner";
 import { useSearchParams } from 'next/navigation';
 import { PublicPage, BusinessHeader } from "../PublicChrome";
@@ -25,12 +25,18 @@ function ConfirmContent() {
     !id ? 'error' : action === 'cancel' ? 'ready' : 'working'
   );
   const [message, setMessage] = useState(() =>
-    !id ? 'הלינק לא תקין — חסר מזהה תור' : ''
+    !id ? 'הקישור לא תקין, חסר בו מזהה התור.' : ''
   );
   // Public branding from the API's success path; optional - no logo, no space.
   const [brandInfo, setBrandInfo] = useState({ businessName: '', logoUrl: '', primaryColor: '' });
   // Her booking page and WhatsApp (lib/publicContact.ts), sent only on a signed answer: where to go after a cancel or a refusal.
   const [contact, setContact] = useState({ bookUrl: '', whatsapp: '' });
+  // A business rule said no (409: inside her cancellation window, already past, already changed). Not a glitch: no
+  // "אופס!" and no "נסי שוב", which could never succeed (2026-11-08 QA).
+  const [refused, setRefused] = useState(false);
+  // Refused only because it is inside her cancellation window: the appointment still stands, so the way out is writing to her,
+  // not "book another time" (which would only add a second appointment next to the one she wants to cancel).
+  const [tooLate, setTooLate] = useState(false);
 
   // Does not set 'working' itself. On mount that is already the status for a
   // confirm link, and setting state synchronously from an effect is a
@@ -41,7 +47,7 @@ function ConfirmContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action, token }),
     })
-      .then(res => res.json())
+      .then(res => res.json().then(data => { setRefused(res.status === 409 && !data.success); setTooLate(res.status === 409 && data.tooLate === true); return data; }))
       .then(data => {
         if (data.success) {
           setStatus(data.alreadyDone ? 'already' : 'success');
@@ -62,7 +68,9 @@ function ConfirmContent() {
   }, [id, action, token]);
 
   // What the buttons call: show the spinner, then go.
-  const sendNow = () => { setStatus('working'); send(); };
+  // Set once she has answered the question herself: a late peek answer must not overwrite what she already did.
+  const answered = useRef(false);
+  const sendNow = () => { answered.current = true; setStatus('working'); send(); };
 
   // A cancel link must NOT fire on load, so only the confirm path runs here.
   //
@@ -92,6 +100,16 @@ function ConfirmContent() {
         setBrandInfo({ businessName: d.businessName || '', logoUrl: d.logoUrl || '', primaryColor: d.primaryColor || '' });
         setPeekAppt(d.appointment || null);
         if (d.status === 'cancelled') { setStatus('already'); setMessage('התור כבר בוטל בעבר'); }
+        // The link could not cancel this one (inside her cancellation window, already past, already changed): say so now,
+        // calmly, with how to reach her, instead of a "yes, cancel" button that would only be refused after the tap. Only
+        // while the question is still on screen; the real request stays the authority (app/api/confirm).
+        else if (d.refusal && typeof d.refusal.error === 'string' && !answered.current) {
+          setStatus('error');
+          setRefused(true);
+          setTooLate(d.refusal.tooLate === true);
+          setMessage(d.refusal.error);
+          setContact({ bookUrl: typeof d.bookUrl === 'string' && d.bookUrl.startsWith('/') ? d.bookUrl : '', whatsapp: /^\d{8,15}$/.test(String(d.whatsapp || '')) ? String(d.whatsapp) : '' });
+        }
       })
       .catch(() => {});
     return () => { gone = true; };
@@ -104,6 +122,7 @@ function ConfirmContent() {
     if (status === 'working') return { emoji: '', title: 'רגע...', color: 'var(--ink-2)' };
     if (status === 'ready') return { emoji: '', title: 'לבטל את התור?', color: 'var(--ink)' };
     if (status === 'declined') return { emoji: '', title: 'התור נשאר', color: 'var(--pc-deep)' };
+    if (status === 'error' && refused) return { emoji: '', title: action === 'cancel' ? 'אי אפשר לבטל מהקישור' : 'אי אפשר לשנות מהקישור', color: 'var(--ink)' };
     if (status === 'error') return { emoji: '', title: 'אופס!', color: 'var(--danger)' };
     if (status === 'success' && action === 'confirm') return { emoji: '', title: 'התור אושר!', color: 'var(--pc-deep)' };
     if (status === 'success' && action === 'cancel') return { emoji: '', title: 'התור בוטל', color: 'var(--ink-2)' };
@@ -128,7 +147,7 @@ function ConfirmContent() {
   const markKind =
     status === 'ready' ? 'ask'
     : status === 'declined' ? 'tick'
-    : status === 'error' ? 'cross'
+    : status === 'error' ? (refused ? 'info' : 'cross')
     : status === 'already' ? 'info'
     : status === 'success' ? (action === 'cancel' ? 'info' : 'tick')
     : null;
@@ -142,7 +161,7 @@ function ConfirmContent() {
           {markKind ? mark(markKind, styles.color) : null}
         </div>
         <h1 className="pub-h1">{styles.title}</h1>
-        {status === 'ready' && peekAppt && (peekAppt.service || peekAppt.date) && (
+        {(status === 'ready' || (status === 'error' && refused && action === 'cancel')) && peekAppt && (peekAppt.service || peekAppt.date) && (
           <p data-testid="cancel-which" className="pub-p" style={{ fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>
             {[peekAppt.service, peekAppt.date, peekAppt.time].filter(Boolean).join(' · ')}
           </p>
@@ -156,21 +175,21 @@ function ConfirmContent() {
         {status === 'ready' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
             <button type="button" onClick={sendNow} className="pub-pill pub-pill-danger">כן, בטלי את התור</button>
-            <button type="button" onClick={() => setStatus('declined')} className="pub-pill pub-pill-quiet">לא, השאירי את התור</button>
+            <button type="button" onClick={() => { answered.current = true; setStatus('declined'); }} className="pub-pill pub-pill-quiet">לא, השאירי את התור</button>
           </div>
         )}
 
-        {status === 'error' && id && (
+        {status === 'error' && id && !refused && (
           <button type="button" onClick={action === 'cancel' ? () => setStatus('ready') : sendNow} className="pub-pill pub-pill-quiet" style={{ marginTop: 20, width: 'auto', display: 'inline-flex', padding: '11px 28px' }}>
             נסי שוב
           </button>
         )}
 
         {/* After a cancel, or when the link could not change the booking: book another time, or write to her. */}
-        {((status === 'success' && action === 'cancel') || (status === 'already' && action === 'cancel') || status === 'error') && (contact.bookUrl || contact.whatsapp) && (
+        {((status === 'success' && action === 'cancel') || (status === 'already' && action === 'cancel') || status === 'error') && ((contact.bookUrl && !tooLate) || contact.whatsapp) && (
           <div data-testid="confirm-next" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
-            {contact.bookUrl && <a href={contact.bookUrl} className="pub-pill" style={{ textDecoration: 'none' }}>קביעת מועד אחר</a>}
-            {contact.whatsapp && <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" className="pub-pill pub-pill-quiet" style={{ textDecoration: 'none' }}>כתיבה ל{brandInfo.businessName || 'עסק'} בוואטסאפ</a>}
+            {contact.bookUrl && !tooLate && <a href={contact.bookUrl} className="pub-pill" style={{ textDecoration: 'none' }}>קביעת מועד אחר</a>}
+            {contact.whatsapp && <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" className={tooLate ? 'pub-pill' : 'pub-pill pub-pill-quiet'} style={{ textDecoration: 'none' }}>כתיבה ל{brandInfo.businessName || 'עסק'} בוואטסאפ</a>}
           </div>
         )}
 

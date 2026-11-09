@@ -1,7 +1,8 @@
 // Kalmea's prices live in ONE place (lib/pricing.ts), and the upgrade buttons stay off until the owner switches them on.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { PLAN_PRICES, upgradeButtonsEnabled, priceHe } from './lib/pricing.ts';
+import { PLAN_PRICES, ANNUAL_PLAN_PRICES, upgradeButtonsEnabled, priceHe } from './lib/pricing.ts';
+import { annualOfferHe } from './lib/planCopy.ts';
 import { REGULAR_PRICE } from './lib/billing/service.ts';
 import { TRIAL_URGENT_BODY_HE, upgradeCtaHe, payToContinueHe } from './lib/planCopy.ts';
 import { nudgeCopy } from './lib/trialNudges.ts';
@@ -24,10 +25,10 @@ assert.equal(upgradeButtonsEnabled({ NEXT_PUBLIC_UPGRADE_BUTTONS: 'true' }), fal
 assert.equal(upgradeButtonsEnabled({ NEXT_PUBLIC_UPGRADE_BUTTONS: '1' }), true);
 
 // no hard-coded copy of a price comes back in the places that show or charge one
-const files = ['lib/billing/service.ts', 'lib/planCopy.ts', 'lib/trialNudges.ts', 'app/LandingPage.jsx', 'app/terms/page.tsx', 'app/BillingNotices.jsx', 'app/TrialBanner.jsx', 'app/api/billing/status/route.ts'];
+const files = ['app/BillingCard.jsx', 'app/BusinessReferralCard.jsx', 'app/api/billing/period/route.ts', 'lib/billing/consent.ts', 'lib/billing/service.ts', 'lib/planCopy.ts', 'lib/trialNudges.ts', 'app/LandingPage.jsx', 'app/terms/page.tsx', 'app/BillingNotices.jsx', 'app/TrialBanner.jsx', 'app/api/billing/status/route.ts'];
 for (const f of files) {
   const code = fs.readFileSync(f, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
-  for (const p of Object.values(PLAN_PRICES)) assert.ok(!new RegExp(`(^|[^\\d.])${p}([^\\d]|$)`).test(code), `${f} hard-codes ${p}: read it from lib/pricing.ts`);
+  for (const p of [...Object.values(PLAN_PRICES), ...Object.values(ANNUAL_PLAN_PRICES)]) assert.ok(!new RegExp(`(^|[^\\d.])${p}([^\\d]|$)`).test(code), `${f} hard-codes ${p}: read it from lib/pricing.ts`);
 }
 
 // the upgrade buttons only exist behind the flag, and open the existing billing screen
@@ -35,5 +36,12 @@ const notices = fs.readFileSync('app/BillingNotices.jsx', 'utf8');
 assert.ok(/const upgrade = upgradeOn && canPay/.test(notices), 'upgrade needs the flag AND a billing screen that can take a card');
 assert.equal((notices.match(/data-testid="upgrade-cta"/g) || []).length, 1);
 assert.ok(/onClick=\{onOpenBilling\}\s*\n\s*data-testid="upgrade-cta"/.test(notices), 'the quiet button opens the billing screen');
+
+// the annual plan: 10 monthly prices, confirmed by the owner 2026-11-09, and its copy reads the constant
+assert.equal(ANNUAL_PLAN_PRICES.regular, PLAN_PRICES.regular * 10);
+assert.equal(ANNUAL_PLAN_PRICES.launch, PLAN_PRICES.launch * 10);
+assert.ok(/CONFIRMED by the owner 2026-11-09/.test(fs.readFileSync('lib/pricing.ts', 'utf8')), 'the annual price records her confirmation');
+assert.equal(annualOfferHe(PLAN_PRICES.regular), `תשלום שנתי: ${priceHe(ANNUAL_PLAN_PRICES.regular)} לשנה, חודשיים מתנה`);
+assert.ok(!/[–—]/.test(annualOfferHe(PLAN_PRICES.launch)));
 
 console.log('test-pricing: ok');

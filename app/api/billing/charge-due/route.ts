@@ -9,6 +9,7 @@ import { markCronRun } from '../../../../lib/cronHeartbeat.js';
 import { billingUiEnabled } from '@/lib/billing/adapter';
 import { runDue } from '@/lib/billing/service';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
+import { supabaseReferralRepo } from '@/lib/billing/referralRepo';
 import { admin, billing } from '../_shared';
 import { moneyAlert } from '@/lib/moneyAlert.js';
 
@@ -22,7 +23,9 @@ export async function POST(request: Request) {
   if (!b.configured || !b.payments || !b.invoicing) return NextResponse.json({ success: true, skipped: 'not-configured' });
   try {
     // Stop starting new businesses at 240 s, leaving a minute for the last charge and the invoices before the 300 s limit.
-    const r = await runDue({ repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing }, { budgetMs: 240_000 });
+    // The referral tables ride along; they are used only with NEXT_PUBLIC_REFERRALS=1 (lib/billing/service.ts billingFlags).
+    const db = admin();
+    const r = await runDue({ repo: supabaseBillingRepo(db), referrals: supabaseReferralRepo(db), payments: b.payments, invoicing: b.invoicing }, { budgetMs: 240_000 });
     console.log(`[billing] daily run: ${JSON.stringify(r)}`);
     if (r.notStarted) await moneyAlert('billing:run', 'daily billing ran out of time; the rest are charged on the next run', { notStarted: r.notStarted }, { severity: 'warning', key: 'budget' });
     return NextResponse.json({ success: true, ...r });

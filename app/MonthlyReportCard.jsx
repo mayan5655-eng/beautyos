@@ -55,7 +55,7 @@ async function renderReportImage(report, { accent, businessName }) {
   return await new Promise((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
 }
 
-export default function MonthlyReportCard({ report, accent, businessName, toast, onOpenIncome, needsStatus = false, onChooseStatus, variant = 'home', style }) {
+export default function MonthlyReportCard({ report, accent, businessName, toast, onOpenIncome, needsStatus = false, onChooseStatus, variant = 'home', style, fullHref = null }) {
   const [blob, setBlob] = useState(null);
   const sentences = report?.sentences || [];
   const key = sentences.join('|') + '|' + (accent || '') + '|' + (businessName || '');
@@ -106,6 +106,7 @@ export default function MonthlyReportCard({ report, accent, businessName, toast,
           עוד אין נתונים לחודש הזה. ברגע שתרשמי את התשלום הראשון, כאן יחכה לך סיכום קצר של החודש.
         </p>
         {onOpenIncome && <IncomeLink onClick={onOpenIncome} />}
+        {fullHref && <FullLink href={fullHref} />}
       </section>
     );
   }
@@ -135,6 +136,7 @@ export default function MonthlyReportCard({ report, accent, businessName, toast,
           שיתוף
         </button>
         {onOpenIncome && <IncomeLink onClick={onOpenIncome} />}
+        {fullHref && <FullLink href={fullHref} />}
       </div>
     </section>
   );
@@ -146,5 +148,15 @@ function IncomeLink({ onClick }) {
       style={{ background: 'none', border: 'none', padding: '10px 4px', minHeight: 44, color: 'var(--pc-deep, var(--ink))', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
       לסיכום ההכנסות המלא ←
     </button>
+  );
+}
+
+// The whole month on its own page (/dashboard/monthly, lib/monthlyFull.ts): last month and any of the 12 before it.
+function FullLink({ href }) {
+  return (
+    <a href={href} data-testid="monthly-report-full"
+      style={{ display: 'inline-flex', alignItems: 'center', padding: '10px 4px', minHeight: 44, color: 'var(--pc-deep, var(--ink))', fontSize: 'var(--t-sm)', fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
+      לדוח החודשי המלא ←
+    </a>
   );
 }

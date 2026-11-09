@@ -14,7 +14,7 @@ export default function ServiceDepositToggle({ checked, onChange }) {
       <input type="checkbox" aria-label="דורש מקדמה" checked={checked === true} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, flexShrink: 0 }} />
       <span>
         דורש מקדמה
-        {mode !== 'deposit' && <span style={{ color: 'var(--ink-3)' }}> (פעיל כשמדיניות הביטולים במצב מקדמה)</span>}
+        {mode !== 'deposit' && <span style={{ color: 'var(--ink-3)' }}> (פעיל כשבוחרים מקדמה בהגדרות, בלשונית תשלומים)</span>}
       </span>
     </label>
   );

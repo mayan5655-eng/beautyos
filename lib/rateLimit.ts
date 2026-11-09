@@ -74,6 +74,47 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) => `יש כרגע עומס בבקשות תשלום לעסק. אפשר לנסות שוב ${m}, או לשלם בעסק.`,
   },
 
+  // Buying a gift voucher on her public page (app/api/vouchers/buy): each press opens a Grow payment page. A buyer retrying is fine.
+  'voucher-buy': {
+    perIp: { limit: 6, windowMs: 10 * MINUTE },
+    perTenant: { limit: 30, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}, או לפנות לעסק ישירות.`,
+    tenantMessage: (m: string) => `יש כרגע עומס בבקשות לעסק. אפשר לנסות שוב ${m}, או לפנות לעסק ישירות.`,
+  },
+
+  // The public voucher page and its polling (app/api/vouchers/public). Read only, by a 192-bit token: this only stops a scanner.
+  'voucher-view': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 600, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `יש כרגע עומס. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Her own catalog saves (app/api/products create/update, signed in). Generous: this only stops a runaway loop from her browser.
+  'product-write': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשמרו הרבה שינויים ברצף. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשמרו הרבה שינויים ברצף. אפשר לנסות שוב ${m}.`,
+  },
+
+  // The products she recommends, on the public skin-scan result (app/api/products/public). Read only, display fields only.
+  'products-view': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 300, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `יש כרגע עומס. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Looking a voucher up by its code at HER till (app/api/vouchers, signed in). A code is 8 characters (~40 bits) and only ever
+  // searched inside her own business; this caps guessing even from her own account: a real till types a handful of codes a day.
+  'voucher-lookup': {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 40, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נבדקו הרבה קודים ברצף. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נבדקו הרבה קודים ברצף. אפשר לנסות שוב ${m}.`,
+  },
+
   // Voice in the PUBLIC DEMO (lib/ai/demoPolicy.ts): every visitor is the same signed-in demo user, so the caller's address is the only way to
   // tell one visitor from another, and the tenant cap bounds them all. The daily dollar cap is the real wall; this keeps one visitor from
   // using the whole day's allowance in a minute.
@@ -299,6 +340,14 @@ export const RATE_POLICIES = {
 
   // A client's data copy and erasure (app/api/clients/export, /erase): signed-in, one client at a time. A person asks for her copy once or
   // twice; erasing is rarer still. The limits only stop a loop, never a real use.
+  // The payment page's failure report (app/api/grow/wallet/diag): token-bound, writes one ops_events row. A client whose wallet fails
+  // reports a handful of times; perTenant is used as the PER-PAYMENT cap (keyed by the payment's id), so one link cannot flood the log.
+  'wallet-diag': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 8, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
   'client-export': {
     perIp: { limit: 20, windowMs: 10 * MINUTE },
     perTenant: { limit: 20, windowMs: 10 * MINUTE },
@@ -338,6 +387,47 @@ export const RATE_POLICIES = {
       `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
     tenantMessage: (m: string) =>
       `העמוד עמוס כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
+  // "חברה מביאה חברה" (lib/referral.ts). The code lookup is PUBLIC (the signup page asks whether a link's code is real): it answers
+  // yes or no and nothing else, and a visitor opens a link once. 20 in ten minutes from one address is someone trying codes. The
+  // signed-in card asks once per Settings visit.
+  'referral-lookup': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+  'referral-card': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Her cancel in the app offers the freed slot to the waiting list (app/api/waitlist/offer): each call can send WhatsApp messages.
+  // A busy day of cancellations is a handful; 30 in ten minutes is a loop. The feature's own daily cap still applies on top.
+  'waitlist-offer': {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 30, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Her read-only lists that walk her whole client and appointment tables (app/api/rebook/today, app/api/waitlist/activity).
+  'owner-lists': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
+  // Monthly / yearly choice (app/api/billing/period): she taps it once; this only stops a loop.
+  'billing-period': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 20, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
   },
 
   // Owner questions: one cheap row per event (a cancellation opens a gap-fill

@@ -106,7 +106,9 @@ ok(/clientTab==="forms"&&deferred\.forms/.test(src), 'client sheet forms content
 
 // no other reader of the three lists slipped in ungated
 const readers = [...src.matchAll(/\b(expenses|waitlist)\.(filter|map|length|reduce|find)/g)].length;
-ok(readers <= 6, `expenses/waitlist have only the known readers (found ${readers}) - a new reader needs a gate`);
+// 7th: the calendar's "רשימת המתנה (N)" chip (UX pass 2026-11-08), gated on deferred.waitlist below.
+ok(/const waitingCount = deferred\.waitlist==="ok" \?/.test(src), 'the calendar waitlist chip count is gated on deferred.waitlist');
+ok(readers <= 7, `expenses/waitlist have only the known readers (found ${readers}) - a new reader needs a gate`);
 
 // ---- "the one question" is loaded ONCE at boot ---------------------------------
 // Two effects both fired loadPendingQuestion on mount (the mount effect, and the activeTab effect whose first run

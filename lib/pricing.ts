@@ -31,6 +31,29 @@ export function defaultPlanPrice(signedUpAt: string | null | undefined, cutoffIs
   return Number.isFinite(at) && Number.isFinite(cut) && at <= cut ? PLAN_PRICES.launch : PLAN_PRICES.regular
 }
 
+// ── The annual plan (2026-11-08) ─────────────────────────────────────────────────────────────────────────────────────────────────
+// CONFIRMED by the owner 2026-11-09 (monthly 349 launch / 499 regular too): annual = 10 times the monthly price, i.e. two months free (regular 4,990, launch 3,490). Nothing
+// is offered or charged yearly until NEXT_PUBLIC_ANNUAL_PLAN=1 is set in Vercel (read by the server for billing and by the app for the
+// choice; a redeploy is needed). A business's own agreed monthly price (tenants.plan_price) still wins: her yearly price is 10 times it.
+
+/** How many monthly prices one year costs. Confirmed by the owner 2026-11-09. */
+export const ANNUAL_MONTHS_PAID = 10
+
+/** The yearly prices that follow from the monthly ones (shekels). Confirmed by the owner 2026-11-09. */
+export const ANNUAL_PLAN_PRICES = {
+  regular: PLAN_PRICES.regular * ANNUAL_MONTHS_PAID,
+  launch: PLAN_PRICES.launch * ANNUAL_MONTHS_PAID,
+} as const
+
+/** Her yearly price from her monthly one (her agreed price, or the default). Rounded to the agora. */
+export function annualPriceOf(monthly: number): number {
+  return Math.round(Number(monthly) * ANNUAL_MONTHS_PAID * 100) / 100
+}
+
+export function annualPlanEnabled(env: Record<string, string | undefined> = { NEXT_PUBLIC_ANNUAL_PLAN: process.env.NEXT_PUBLIC_ANNUAL_PLAN }): boolean {
+  return String(env.NEXT_PUBLIC_ANNUAL_PLAN || '').trim() === '1'
+}
+
 export function upgradeButtonsEnabled(env: Record<string, string | undefined> = { NEXT_PUBLIC_UPGRADE_BUTTONS: process.env.NEXT_PUBLIC_UPGRADE_BUTTONS }): boolean {
   return String(env.NEXT_PUBLIC_UPGRADE_BUTTONS || '').trim() === '1'
 }

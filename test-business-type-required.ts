@@ -16,7 +16,7 @@ assert.ok(!/אפשר לדלג ולבחור אחר כך/.test(ob), 'the old "you 
 assert.ok(/business_tax_status: data\.business_tax_status/.test(ob), 'the choice is still saved');
 
 const app = rd('app/beautyos.jsx');
-const cashier = app.indexOf('title="קופה — תשלום חדש"');
+const cashier = app.indexOf('title="תשלום חדש"');
 assert.ok(cashier > 0);
 const warn = app.indexOf('data-testid="cashier-tax-warning"', cashier);
 assert.ok(warn > cashier && warn - cashier < 1500, 'the warning sits at the top of the till');

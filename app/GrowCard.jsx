@@ -8,7 +8,9 @@
 // The whole card is invisible unless the deployment has switched the Grow screens on (GROW_UI_ENABLED, default off): /api/grow/status
 // answers 404 and nothing renders. When it is on, the honest states are:
 //   - the payment tables are not created yet: says so, offers nothing to press;
-//   - not connected: two doors. (a) "I have a Grow account": she pastes her Grow business id (only when the platform can charge).
+//   - not connected: two doors. (a) "I have a Grow account": she asks Grow's customer service (from the email / mobile on that
+//         account only) to connect it to Kalmea; Grow sends the identifiers to /api/grow/webhook. Pasting her Grow business id
+//         stays as the fallback (only when the platform can charge).
 //     (b) "I don't have Grow yet": Grow texts her its registration form (GetLink, app/GrowRegistration.jsx), and the card
 //         shows waiting / rejected until Grow approves; then it turns connected with clearing on. Where that link is not
 //         available, she leaves her name, phone, business name and business id, and we pass them on to Grow;
@@ -18,12 +20,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import CancelPolicyCard from './CancelPolicyCard';
 import GrowRegistration from './GrowRegistration';
+import GrowCostNote from './GrowCostNote';
 import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 
+// Grow's customer service, for connecting an account she already has (Grow, 2026-11).
+const GROW_SUPPORT = { email: 'support@grow.business', whatsapp: '052-7773144', whatsappUrl: 'https://wa.me/972527773144' };
 const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל', refunded: 'הוחזר' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
-export default function GrowCard({ pc, pcTint, toast, isDemo }) {
+// onOpenPolicy: the cancellation and deposit policy lives in Settings > תשלומים (app/PaymentsSettings.jsx), the one place for deposits;
+// with it the card links there instead of showing the policy a second time. Without it (any other caller) the policy shows here as before.
+export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
   const [s, setS] = useState(null);
   const [userId, setUserId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -132,7 +139,14 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
         ) : (
           <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 8 }}>עוד לא היו חיובים. בקופה יופיע כפתור &quot;חיוב בכרטיס אשראי&quot;.</p>
         )}
-        <CancelPolicyCard key={s.account.enabled ? "on" : "off"} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
+        {onOpenPolicy ? (
+          <div data-testid="grow-policy-link" style={{ marginTop: 12, padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)', background: 'var(--surface-2)' }}>
+            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: 0, lineHeight: 1.6 }}>מדיניות ביטולים ומקדמה באשראי נמצאות עכשיו בהגדרות, בלשונית תשלומים.</p>
+            <button type="button" onClick={onOpenPolicy} style={{ background: 'none', border: 'none', padding: '8px 0', minHeight: 40, color: 'var(--pc-deep, var(--ink))', fontWeight: 700, fontSize: 'var(--t-sm)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>לתשלומים ←</button>
+          </div>
+        ) : (
+          <CancelPolicyCard key={s.account.enabled ? "on" : "off"} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
+        )}
         {!isDemo && (
           <div style={{ marginTop: 12 }}>
             {!confirmOff ? (
@@ -171,7 +185,23 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
   } else if (door === 'have') {
     body = (
       <>
-        <p style={{ ...text, marginBottom: 10 }}>הדביקי את מזהה העסק שקיבלת מ-Grow. את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.</p>
+        <div data-testid="grow-have-steps">
+          <p style={{ ...text, color: 'var(--ink)', fontWeight: 700, marginBottom: 6 }}>מחברים חשבון Grow קיים בפנייה אחת לשירות הלקוחות של Grow:</p>
+          <ol style={{ ...text, margin: '0 0 10px', paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <li>פונים רק מהמייל או מהנייד שרשומים בחשבון ה-Grow שלך.</li>
+            <li>
+              מבקשים לחבר את החשבון ל-Kalmea. במייל:{' '}
+              <a href={`mailto:${GROW_SUPPORT.email}`} dir="ltr" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700, whiteSpace: 'nowrap' }}>{GROW_SUPPORT.email}</a>
+              {' '}או בוואטסאפ:{' '}
+              <a href={GROW_SUPPORT.whatsappUrl} target="_blank" rel="noreferrer" dir="ltr" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700, whiteSpace: 'nowrap' }}>{GROW_SUPPORT.whatsapp}</a>
+            </li>
+            <li>אם החשבון מחובר היום למערכת אחרת, מבקשים מ-Grow לנתק אותו משם ולחבר ל-Kalmea.</li>
+          </ol>
+          <p style={{ ...text, marginBottom: 12 }}>אחרי שהם מחברים, תקבלי מ-Grow במייל "קוד עסק". מדביקים אותו כאן למטה ולוחצים "חיבור". את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.</p>
+        </div>
+        {!isDemo && s.platform.configured && (
+          <p style={{ ...text, fontSize: 'var(--t-xs)', marginBottom: 6 }}>קיבלת מ-Grow מזהה עסק? אפשר גם להדביק אותו כאן:</p>
+        )}
         {!isDemo && (s.platform.configured ? (
           <div style={{ display: 'flex', gap: 6 }}>
             <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder="מזהה עסק ב-Grow" aria-label="מזהה עסק ב-Grow" style={{ ...inp, ...ltr }} />
@@ -217,6 +247,8 @@ export default function GrowCard({ pc, pcTint, toast, isDemo }) {
     <div data-testid="grow-card" style={box}>
       <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>סליקת אשראי (Grow)</p>
       {s.mode === 'mock' && <p data-testid="grow-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
+      {/* What Grow charges her, before she connects and after: never a surprise (lib/growPricing.ts). */}
+      <GrowCostNote style={{ marginBottom: 10 }} />
       {body}
     </div>
   );

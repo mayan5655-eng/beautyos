@@ -55,6 +55,9 @@ const FAKE_ENV = {
   // Feature switches that move quotas: off, whatever the deployment builds with. A test that needs one on sets it itself.
   NEXT_PUBLIC_ADDON_PACKS: '',
   NEXT_PUBLIC_UPGRADE_BUTTONS: '',
+  // Kalmea's own growth features (lib/referral.ts, lib/pricing.ts annual): off, whatever the deployment builds with.
+  NEXT_PUBLIC_REFERRALS: '',
+  NEXT_PUBLIC_ANNUAL_PLAN: '',
   WA_CLOUD_ENABLED: '',
   WA_CLOUD_MODE: '',
   WA_CLOUD_ACCESS_TOKEN: '',

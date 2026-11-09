@@ -127,8 +127,8 @@ export function buildSourceReport(
 
 /** Flat rows for the Excel export: header first, plain strings and numbers, Hebrew labels. */
 export function reportToSheetRows(report: SourceReport, hasSpend: boolean): (string | number)[][] {
-  const head = ['מקור', 'לידים', 'הומרו ללקוחות', 'אחוז המרה', 'הכנסות (₪)', 'הכנסה ממוצעת לליד (₪)'];
-  if (hasSpend) head.push('הוצאת פרסום (₪)', 'עלות לליד (₪)', 'עלות ללקוחה (₪)', 'ROAS', 'ROI %');
+  const head = ['מקור', 'פניות', 'הומרו ללקוחות', 'אחוז המרה', 'הכנסות (₪)', 'הכנסה ממוצעת לפנייה (₪)'];
+  if (hasSpend) head.push('הוצאת פרסום (₪)', 'עלות לפנייה (₪)', 'עלות ללקוחה (₪)', 'ROAS', 'ROI %');
   const line = (r: SourceRow): (string | number)[] => {
     const base: (string | number)[] = [r.label, r.leads, r.conversions, r.conversionRate, r.revenue, r.avgRevenuePerLead ?? ''];
     if (hasSpend) base.push(r.spend, r.costPerLead ?? '', r.costPerAcquisition ?? '', r.roas ?? '', r.roiPercent ?? '');

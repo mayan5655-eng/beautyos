@@ -27,6 +27,7 @@ import SystemHealth from './SystemHealth'
 import GrowOnboarding from './GrowOnboarding'
 import GrowRequests from './GrowRequests'
 import BillingAdmin from './BillingAdmin'
+import ReferralsAdmin from './ReferralsAdmin'
 import WaCloudCosts from './WaCloudCosts'
 import ShareEvents from './ShareEvents'
 import { firstBookingScore } from '@/lib/firstBooking'
@@ -157,6 +158,8 @@ export default async function AdminPage() {
       <GrowOnboarding db={db} />
       <GrowRequests db={db} />
       <BillingAdmin db={db} />
+      {/* "חברה מביאה חברה": renders nothing while NEXT_PUBLIC_REFERRALS is off. */}
+      <ReferralsAdmin db={db} />
       {/* WhatsApp Cloud API (Meta) cost log: read-only; the route itself is behind WA_CLOUD_ENABLED. */}
       <WaCloudCosts db={db} />
       {/* Can tenants get their finished posts onto their phones (the save/share panel's outcomes). */}

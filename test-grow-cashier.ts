@@ -68,7 +68,10 @@ await ok('approveTransaction uses the page code of the page the client paid on, 
   const requestDeposit = { appointment_id: null, description: 'מקדמה' };
   const bookingDeposit = { appointment_id: 'a1', description: 'מקדמה לטיפול פנים' };
   for (const p of [cashier, bookingPay, requestDeposit]) assert.equal(approveCredsFor(p, grow)?.pageCode, 'WALLETPAGE', `wallet payment: ${p.description}`);
-  assert.equal(approveCredsFor(bookingDeposit, grow)?.pageCode, 'TOKENPAGE', 'a booking deposit opens the card page and is approved with it');
+  // No GROW_PAGE_CODE here, so booking deposits open on the wallet too (test-deposit-via-wallet.ts) and are approved with it.
+  assert.equal(approveCredsFor(bookingDeposit, grow)?.pageCode, 'WALLETPAGE', 'without a card page code a booking deposit opens on the wallet');
+  const withCard = resolveGrow({ ...env, GROW_API_KEY: 'PK', GROW_PAGE_CODE: 'CARDPAGE' }, 'https://kalmea.test');
+  assert.equal(approveCredsFor(bookingDeposit, withCard)?.pageCode, 'CARDPAGE', 'with GROW_PAGE_CODE a booking deposit opens the card page and is approved with it');
   assert.equal(opensOnWallet(cashier, false), false, 'no wallet configured: everything is the card page');
   const noWallet = resolveGrow({ ...env, GROW_WALLET_PAGE_CODE_TEST: '' }, 'https://kalmea.test');
   assert.equal(approveCredsFor(cashier, noWallet)?.pageCode, 'TOKENPAGE');
@@ -226,7 +229,9 @@ await ok('registration is live whenever its test (or live) key is set; the mock 
   // live needs its own key AND its own URL (Grow gives it separately); no test default leaks into live
   assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_TEST: 'k' }), null);
   assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k' }), null);
-  const live = registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k', GROW_REGISTER_URL_LIVE: 'https://register.example/GetLink' })!;
+  // live also needs its own marketer: no test marketer leaks into live (fail closed, test-grow-live-plans.ts)
+  assert.equal(registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k', GROW_REGISTER_URL_LIVE: 'https://register.example/GetLink' }), null);
+  const live = registerConfig({ GROW_REGISTER_ENV: 'live', GROW_REGISTER_API_KEY_LIVE: 'k', GROW_REGISTER_URL_LIVE: 'https://register.example/GetLink', GROW_REGISTER_MARKETER: 'm' })!;
   assert.equal(live.isDirectDebit, 0);
   const test = registerConfig({ GROW_REGISTER_API_KEY_TEST: 'k' })!;
   assert.deepEqual([test.url, test.marketer, test.priceQuote, test.isDirectDebit], [GROW_REGISTER_TEST_URL, 'b4f38969f705', '1997', 1]);

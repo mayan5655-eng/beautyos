@@ -51,11 +51,10 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       let q = db.from('billing_payments').select('*').eq('subscription_id', subId).eq('kind', 'subscription').in('status', ['pending', 'unknown']);
       if (periodStart) q = q.eq('period_start', periodStart);
       const { data, error } = await q.order('created_at', { ascending: false }).limit(1);
-      // Fail closed. attempt() reads null as "no earlier unanswered charge" and charges again, so a read error that returned null
-      // could become a second real Grow charge for a period whose first charge is still unsettled (2026-11-08). Throwing makes the
-      // daily run skip this business, raise 'billing:run', and retry next run. There is no "pre-migration = none" case left to carve
-      // out: before add_kalmea_billing_grow.sql the query still succeeds (the status check constrains writes, not reads, and kind /
-      // period_start come from add_kalmea_billing.sql, which hasSucceeded() already needs one line earlier), it just finds no rows.
+      // FAIL CLOSED: a read error is never "nothing open". An open attempt may be a charge Grow already took, and answering null here
+      // let attempt() draw a NEW identifier, which is a second real charge. Throwing stops this business's charge for this run
+      // (attempt() raises a money alert); the next run retries. Before add_kalmea_billing_grow.sql this read cannot fail on the
+      // statuses (they are plain text under a check constraint), and the pending ledger row would be refused anyway.
       if (error) fail(error, 'findOpenAttempt');
       return data && data[0] ? payOf(data[0] as Record<string, unknown>) : null;
     },
@@ -89,6 +88,18 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
     async insertAddon(row) {
       const { error } = await db.from('billing_addons').insert(row);
       if (error) fail(error, 'insertAddon');
+    },
+    async coveredByAnnual(subId, periodStart) {
+      // add_referrals_annual_2026-11-08.sql adds period_months; before it runs there is no yearly charge to find.
+      const { data, error } = await db.from('billing_payments').select('id').eq('subscription_id', subId).eq('kind', 'subscription').eq('status', 'succeeded')
+        .eq('period_months', 12).lte('period_start', periodStart).gt('period_end', periodStart).limit(1);
+      // Fail closed: only a MISSING column (the migration has not run, so no yearly charge can exist) means "not covered". Any other
+      // read error throws, and the run charges nothing for her this time (a paid year may cover this date).
+      if (error) {
+        if (error.code === '42703' || /period_months.*does not exist|does not exist.*period_months|schema cache/i.test(error.message || '')) return false;
+        fail(error, 'coveredByAnnual');
+      }
+      return !!(data && data.length);
     },
     async setPlanStatus(tenantId, status) {
       const { error } = await db.from('tenants').update({ plan_status: status }).eq('id', tenantId);

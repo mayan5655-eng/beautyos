@@ -24,6 +24,7 @@ import Image from "next/image";
 import Icon from "./Icon";
 import { PoweredBy } from "./PublicChrome";
 import PublicFooterLinks from "./PublicFooterLinks";
+import GiftVoucherLink from "./GiftVoucherLink";
 import { accentStyle } from "@/lib/theme";
 import { resolveBranding } from "@/lib/branding";
 import { logoSrc } from "@/lib/logoSrc";
@@ -590,6 +591,9 @@ export default function PublicLandingPage({
             </div>
           </Section>
         )}
+
+        {/* Gift vouchers: renders nothing unless they can be bought online (app/GiftVoucherLink.tsx). */}
+        <GiftVoucherLink tenantId={tenantId} />
 
         {/* 7. INSTAGRAM - a real handle and a follow link. Nothing else. */}
         {(igHandle || fbHref) && (

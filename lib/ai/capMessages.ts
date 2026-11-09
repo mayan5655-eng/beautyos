@@ -33,7 +33,7 @@ const NOUN: Record<string, string> = {
   'designs/generate': 'היצירות החכמות',
   'designs/generate-image': 'תמונות ה-AI',
   'leads/map-headers': 'התאמות העמודות',
-  'score-lead': 'הערכות הלידים',
+  'score-lead': 'הערכות הפניות',
   'whatsapp-webhook': 'תשובות הבוט',
   'skin-scan': 'סריקות העור',
 };

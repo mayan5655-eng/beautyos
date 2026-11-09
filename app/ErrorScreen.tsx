@@ -99,7 +99,7 @@ export default function ErrorScreen({ error, retry }: ErrorScreenProps) {
         <p className="pub-p" style={{ marginBottom: 22 }}>
           נתקלנו בתקלה זמנית. הנתונים שלך בטוחים.
           <br />
-          אפשר לנסות שוב — ואם זה חוזר, שלחי לנו את הקוד למטה.
+          אפשר לנסות שוב, ואם זה חוזר, שלחי לנו את הקוד למטה.
         </p>
 
         {shortCode && (

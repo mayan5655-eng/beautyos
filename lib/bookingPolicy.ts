@@ -153,3 +153,71 @@ export function isInsideCancelWindow(dateStr: string, startMinute: number, windo
   if (mins === null) return false;
   return mins < windowHours * 60;
 }
+
+/** "24 שעות", "שעתיים", "שעה": Hebrew for a whole number of hours. */
+export function hoursHe(h: number): string {
+  if (h === 1) return 'שעה';
+  if (h === 2) return 'שעתיים';
+  return `${h} שעות`;
+}
+
+/**
+ * The cancel lines of the booking confirmation (lib/bookingNotify.js): the sentence before the cancel link, and an
+ * optional one after it. They must say what the link will actually do. "אפשר לבטל בלחיצה אחת" was promised to every
+ * client, while a client inside her cancellation window got "אי אפשר לבטל מהקישור" (app/api/confirm) on that same tap.
+ *  - no window: the one-tap promise is true, so it stays.
+ *  - a window: the link works up to N hours before, and after that only directly with her.
+ *  - a Grow cancellation policy the client agreed to: the link always cancels, under the terms she accepted (a late
+ *    cancel has a fee, it is not refused), so no window sentence and no "no questions" promise either.
+ *  - a booking made already INSIDE her window (10 hours ahead with a 24-hour window, given `slot`): the link could never
+ *    cancel it, so there is no link and no link promise, only "ביטול רק ישירות מול {her}" (2026-11-09). `showLink` says
+ *    whether the caller should print the cancel link at all.
+ */
+export function cancelLinesHe(
+  rules: Pick<BookingRules, 'cancelWindowHours'>,
+  opts: { underPolicy?: boolean; businessName?: string; slot?: { date: string; startMinute: number }; now?: Date } = {},
+): { before: string; after: string | null; showLink: boolean } {
+  if (opts.underPolicy) return { before: 'מתרגשות לראות אותך! אם משהו משתנה, אפשר לבטל בקישור, לפי תנאי הביטול שאישרת בהזמנה:', after: null, showLink: true };
+  const h = rules.cancelWindowHours;
+  if (!(h > 0)) return { before: 'מתרגשות לראות אותך! אם משהו משתנה, אפשר לבטל בלחיצה אחת, בלי להתחייב להסביר למה:', after: null, showLink: true };
+  const who = String(opts.businessName || '').trim() || 'העסק';
+  if (opts.slot && isInsideCancelWindow(opts.slot.date, Number(opts.slot.startMinute), h, opts.now ?? new Date())) {
+    return { before: `מתרגשות לראות אותך! אם משהו משתנה, ביטול רק ישירות מול ${who}.`, after: null, showLink: false };
+  }
+  return {
+    before: `מתרגשות לראות אותך! אם משהו משתנה, אפשר לבטל בקישור עד ${hoursHe(h)} לפני התור:`,
+    after: `פחות מ${h > 2 ? '-' : ''}${hoursHe(h)} לפני התור, ביטול רק ישירות מול ${who}.`,
+    showLink: true,
+  };
+}
+
+/**
+ * Why the client's own confirm/cancel link can NOT change this appointment, or null when it can. One function for
+ * both the real request (app/api/confirm, the authority) and the read-only peek the cancel page makes on load, so the
+ * page can show the calm refusal up front instead of a "לבטל את התור?" button that could never work (2026-11-09).
+ * Order matters and matches the route: a changed status, then a slot already past, then her cancellation window
+ * (cancel only, and not for a booking under a Grow cancellation policy, where a late cancel has a fee, not a refusal).
+ * An already-cancelled appointment on a cancel link is not a refusal (the page says "already done"), so it is null here.
+ */
+export type LinkRefusal = { code: 'changed' | 'past' | 'window'; error: string; tooLate?: true };
+
+export function clientLinkRefusal(
+  input: { action: string; status: string | null | undefined; date: string; startMinute: number | null; cancelWindowHours: number; underPolicy?: boolean; businessName?: string },
+  now: Date = new Date(),
+): LinkRefusal | null {
+  const who = String(input.businessName || '').trim() || 'העסק';
+  const st = input.status ? String(input.status) : '';
+  if (input.action === 'cancel' && st === 'cancelled') return null;
+  if (st && !['pending', 'confirmed'].includes(st)) {
+    return { code: 'changed', error: `התור הזה כבר עודכן אצל ${who}. לכל שינוי אפשר ליצור קשר ישירות.` };
+  }
+  if (input.startMinute !== null && Number.isFinite(Number(input.startMinute))) {
+    const mins = minutesUntilSlot(input.date, Number(input.startMinute), now);
+    if (mins !== null && mins <= 0) return { code: 'past', error: 'מועד התור כבר עבר, אז אי אפשר לשנות אותו דרך הקישור.' };
+    if (input.action === 'cancel' && !input.underPolicy && input.cancelWindowHours > 0
+      && isInsideCancelWindow(input.date, Number(input.startMinute), input.cancelWindowHours, now)) {
+      return { code: 'window', tooLate: true, error: `אפשר לבטל דרך הקישור עד ${hoursHe(input.cancelWindowHours)} לפני התור. כדי לבטל עכשיו, אפשר ליצור קשר ישירות עם ${who}.` };
+    }
+  }
+  return null;
+}

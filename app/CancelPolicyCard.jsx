@@ -2,7 +2,8 @@
 
 // app/CancelPolicyCard.jsx
 //
-// Settings > connections > Grow card, shown only while she is connected to Grow: her cancellation policy.
+// Settings > תשלומים (app/PaymentsSettings.jsx), shown only while she is connected to Grow: her cancellation policy. The Grow card
+// links there (and still renders it itself when a caller gives it no link).
 //   off          nothing changes (the booking page and the cancel link behave as before)
 //   saved_card   the client saves a card when booking (no charge); a late cancel or no-show becomes a question she answers with one tap
 //   deposit      the client pays a deposit when booking; it is deducted at the cashier, kept, or returned

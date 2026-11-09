@@ -32,8 +32,8 @@ webhook field list; whether they sign webhooks.
 | You receive | Vercel env var |
 |---|---|
 | Platform API key | `GROW_API_KEY` |
-| Platform card payment-page code (live) | `GROW_PAGE_CODE` |
-| Production API base URL (not in the public docs) | `GROW_API_BASE` |
+| Platform card (redirect) payment-page code (live), **optional** | `GROW_PAGE_CODE` (optional: without it every client payment uses the wallet page) |
+| Only if Grow gives a different production address | `GROW_API_BASE` (optional; default `https://secure.meshulam.co.il/api/light/server/1.0` for the card page, the wallet and saved cards) |
 | Saved-card (token) API key, production | `GROW_TOKEN_API_KEY` |
 | Credit-card token page code, production | `GROW_TOKEN_PAGE_CODE` |
 | Wallet page code (card, Bit, Apple Pay, Google Pay on one page) | `GROW_WALLET_PAGE_CODE` |
@@ -45,6 +45,45 @@ webhook field list; whether they sign webhooks.
 Already set and not from Grow: `CRON_SECRET` (the crons), `SUPABASE_SERVICE_ROLE_KEY`, `TOKEN_ENCRYPTION_KEY` (saved-card tokens are stored encrypted with it).
 
 Sandbox only (already in Vercel and `.env.local`, test values from Grow): `GROW_TOKEN_USER_ID_TEST`, `GROW_TOKEN_API_KEY_TEST`, `GROW_TOKEN_PAGE_CODE_TEST`. The token flows are described, and were checked against the sandbox, in `docs/GROW_SETUP.md` ("Saved cards"). Run `supabase/migrations/add_grow_tokens.sql` before turning the saved-card policy on.
+
+## Live onboarding values (Grow sent them 2026-11): set these in Vercel, in this order
+
+Vercel > the Kalmea project > Settings > Environment Variables > **Production**. Names only here; the values are in Grow's email
+and go nowhere else (never in code, chat or the repository).
+
+1. `GROW_API_KEY`: the platform API key.
+2. `GROW_WALLET_PAGE_CODE`: the wallet page code (card, Bit, Apple Pay, Google Pay on one page).
+3. `GROW_PAGE_CODE` (optional): the **card (redirect) payment-page code**. **Without it, all client payments use the wallet page**
+   (`/pay/<token>`: card, Bit, Apple Pay, Google Pay in Grow's SDK): cashier charges, payment requests, paying for a visit from the
+   booking page, gift vouchers bought online, and booking deposits (the 30-minute hold, the policy consent and the amount checks are
+   the same; `lib/grow/wallet.ts` `depositsOnWallet`). The platform counts as configured with the wallet page alone
+   (`lib/grow/config.ts`). What changes without it: a booking deposit no longer keeps the client's card (the wallet saves no card),
+   so in deposit mode the booking page does not ask for the card-save tick. If Grow later sends a card page code, set it here (never the
+   wallet code: a wallet code answers with an SDK authCode, not a URL), and deposits go back to Grow's card page, which also keeps the
+   card. Change it only when no deposit is waiting (a hold lasts 30 minutes), since the approve call follows the current setting.
+   Saved-card mode (no charge, a token only) always uses the token page (`GROW_TOKEN_PAGE_CODE`), with or without this.
+4. `GROW_TOKEN_API_KEY`: the saved-card (token) API key.
+5. `GROW_TOKEN_PAGE_CODE`: the credit-card token page code.
+6. `GROW_ENV` = `production` (Grow's secure base `https://secure.meshulam.co.il`, and the wallet SDK in `PRODUCTION`).
+7. `GROW_MODE` = `live`.
+8. `GROW_REGISTER_ENV` = `live`.
+9. `GROW_REGISTER_URL_LIVE`: the live GetLink address Grow gave (must start with `https://`).
+10. `GROW_REGISTER_API_KEY_LIVE`: the live registration key.
+11. `GROW_REGISTER_MARKETER`: Kalmea's live marketer code. Without it, live registration stays off (it never falls back to the test marketer).
+12. `GROW_UI_ENABLED` = `true`, last, after the live test below passes.
+
+Then **redeploy** (Deployments > the latest > Redeploy). Env changes reach the app only after a redeploy.
+
+Not needed live: `GROW_REGISTER_PRICE_QUOTE` (test environment only). The plan codes are not secret and live in `lib/grow/plans.ts`:
+the cosmetician picks one when she opens her Grow account (monthly `HHtyr57` by default), and it is sent to Grow as `price_quote`
+with `is_direct_debit` 0. Terms: https://grow.business/fees/
+
+Webhook to register with Grow (all updates, including merchant onboarding): `https://kalmea.app/api/grow/webhook`.
+
+A cosmetician who already has a Grow account asks Grow's customer service (support@grow.business, WhatsApp 052-7773144), from
+the email or phone on that account, to connect it to Kalmea. **Check:** such an update reaches the webhook without our tracking
+code, so it shows as "לא שויך לעסק" in Admin > Grow onboarding and is not attached automatically. Until an attach action exists,
+connect her with the "מזהה עסק" paste on her Grow card.
 
 ## Webhook URLs to give Grow
 

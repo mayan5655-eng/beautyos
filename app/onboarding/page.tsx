@@ -528,7 +528,7 @@ export default function OnboardingPage() {
                   in Settings → תשלום and on every receipt/WhatsApp message - this
                   is just the first time she hears it, early enough to matter. */}
               <div style={{ background: "var(--brand-cream, #FBF8F1)", border: "1px solid var(--line)", borderRadius:"var(--r-sm)", padding: "11px 14px", fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>
-                שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד — לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← חיבורים</strong>.
+                שימי לב: המערכת מפיקה &quot;אישור תשלום&quot; בלבד, לא קבלה או חשבונית מס. קבלה חוקית צריכה לצאת מתוכנה רשומה; אפשר לחבר אחת (למשל מורנינג) מאוחר יותר תחת <strong style={{ color: pc }}>הגדרות ← חיבורים</strong>.
               </div>
               <Field label="הצבע של העסק שלך (בדף ההזמנות ובעיצובים)">
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
@@ -574,13 +574,15 @@ export default function OnboardingPage() {
             <>
               <h1 style={titleStyle}>✦ התחום שלך והשירותים</h1>
               <p style={subtitleStyle}>
-                באיזה תחום את עובדת? אפשר לסמן יותר מאחד — מכאן והלאה נראה לך רק טיפולים רלוונטיים.
+                באיזה תחום את עובדת? אפשר לסמן יותר מאחד. מכאן והלאה נראה לך רק טיפולים רלוונטיים.
               </p>
               <div style={{ marginBottom: 18 }}>
                 <FieldPicker
                   value={data.business_fields}
                   onChange={(fields) => {
                     setData({ ...data, business_fields: fields });
+                    // The "pick at least one field" warning stayed on screen after she picked one (2026-11-08 QA).
+                    if (fields.length > 0) setError("");
                     // A field she unticks takes its picked treatments with it: they are no longer in the picker, so they must not be
                     // inserted onto her booking page behind her back (2026-10-21 audit). Picks with no field stay.
                     setPickedServices((prev) => prev.filter((p) => !p.field || (fields as string[]).includes(p.field)));
@@ -597,7 +599,7 @@ export default function OnboardingPage() {
               ) : (
                 <>
                   <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-3)", marginBottom: 12, lineHeight: 1.6 }}>
-                    סימני את הטיפולים שאת מבצעת — רק אותם נוסיף. המחירים הם הצעה לפי המקובל בשוק
+                    סימני את הטיפולים שאת מבצעת, ורק אותם נוסיף. המחירים הם הצעה לפי המקובל בשוק
                     ואפשר לשנות כל אחד מהם כאן, או אחר כך בהגדרות.
                   </p>
                   <ServiceTemplatePicker
@@ -664,7 +666,7 @@ export default function OnboardingPage() {
                     style={{ ...inputStyle, textAlign: "center" }}
                   />
                 </Field>
-                <span style={{ fontSize:"var(--t-xl)", color: "var(--ink-3)", marginTop: 22, fontWeight: 600 }}>—</span>
+                <span style={{ fontSize:"var(--t-xl)", color: "var(--ink-3)", marginTop: 22, fontWeight: 600 }}>עד</span>
                 <Field label="סיום" inline>
                   <input
                     className="ob-input"

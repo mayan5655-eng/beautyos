@@ -9,6 +9,7 @@ export const revalidate = 0
 
 const TILES = [
   { href: '/dashboard/admin/subscribers', title: 'מעקב מנויות', body: 'כל עסק שנרשם: שלב, הגדרה, פעילות, ויצירת קשר בלחיצה עם הערות מעקב.' },
+  { href: '/dashboard/admin/outreach', title: 'פניות לקוסמטיקאיות', body: 'רשימת קוסמטיקאיות להציע להן את קלמיה: הודעה מוכנה בוואטסאפ שלך, סטטוס ומעקב.' },
   { href: '/dashboard/owner/signups', title: 'הרשמות', body: 'כמה נרשמו היום, בשבוע ובחודש, ומאיפה הן הגיעו.' },
   { href: '/dashboard/owner/trials', title: 'ניסיונות', body: 'מי מסיימת את החודש החינם בקרוב, ומי זכאית למחיר 349.' },
   { href: '/dashboard/owner/activity', title: 'פעילות', body: 'מתי כל עסק יצר משהו לאחרונה בקלמיה.' },

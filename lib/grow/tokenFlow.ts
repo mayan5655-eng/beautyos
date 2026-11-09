@@ -47,17 +47,19 @@ export type TokenCreds = {
 };
 
 export const SANDBOX_BASE = 'https://sandbox.meshulam.co.il/api/light/server/1.0';
+export const PRODUCTION_BASE = 'https://secure.meshulam.co.il/api/light/server/1.0';
 
 /**
  * Where the token flows get their credentials. Sandbox: the TEST triple Grow issued (GROW_TOKEN_*_TEST). Production: GROW_TOKEN_API_KEY and
- * GROW_TOKEN_PAGE_CODE with GROW_API_BASE, and every call carries the cosmetician's own userId. Null when anything is missing, so the caller
+ * GROW_TOKEN_PAGE_CODE with GROW_API_BASE (default Grow's production base, as in config.ts and wallet.ts: before, a missing GROW_API_BASE
+ * silently turned saved cards off in production), and every call carries the cosmetician's own userId. Null when anything is missing, so the caller
  * can say "not configured" instead of calling Grow with half a key.
  */
 export function tokenCredentials(env: GrowEnv = process.env): TokenCreds | null {
   const production = (env.GROW_ENV || '').trim().toLowerCase() === 'production';
   const t = (k: string) => (env[k] || '').trim();
   if (production) {
-    const apiBase = t('GROW_API_BASE').replace(/\/+$/, '');
+    const apiBase = t('GROW_API_BASE').replace(/\/+$/, '') || PRODUCTION_BASE;
     if (!t('GROW_TOKEN_API_KEY') || !t('GROW_TOKEN_PAGE_CODE') || !/^https:\/\//i.test(apiBase)) return null;
     return { apiKey: t('GROW_TOKEN_API_KEY'), pageCode: t('GROW_TOKEN_PAGE_CODE'), apiBase, env: 'production' };
   }

@@ -2,15 +2,24 @@
 //
 // The payment page /pay/<token> (lib/grow/wallet.ts). No login: the client who got the link has none. The token in the link IS the
 // authorisation, and it only ever opens THAT one payment.
-//   GET  ?t=<token>      -> { state: 'open' | 'paid' | 'closed' | 'expired' | 'unknown', amount, description, businessName }   (no Grow call)
-//   POST { t: <token> }  -> { state: 'ready', authCode, sdkEnv, ... }   createPaymentProcess is called now, right before the wallet is drawn
+//   GET  ?t=<token>      -> { state: 'open' | 'paid' | 'closed' | 'expired' | 'unknown', amount, description, businessName, context }   (no Grow call)
+//   POST { t: <token> }  -> { state: 'ready', authCode, sdkEnv, hostedUrl, ... }   createPaymentProcess is called now, right before the wallet is drawn
+// context (lib/grow/wallet.ts payContextOf): for a booking deposit or a visit paid from the booking page, the service, date and time and
+// the way back to her booking page; for a gift voucher, the way to the voucher. A booking deposit whose 30-minute hold ran out reads
+// 'expired' and is never opened at Grow (lib/grow/cancelFees.ts depositHoldOpen).
 // Answers like the rest of Grow's screens while the feature is off for this business.
 import { NextResponse } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
 import { growUiEnabled, resolveGrow } from '@/lib/grow/adapter';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
-import { startWalletSession, walletLinkState } from '@/lib/grow/wallet';
+import { startWalletSession, walletLinkState, payContextOf, isBookingDeposit, DEPOSIT_HOLD_OVER_HE } from '@/lib/grow/wallet';
+import type { GrowPayment } from '@/lib/grow/service';
+import { depositHoldOpen } from '@/lib/grow/cancelFees';
+import type { ConsentRow } from '@/lib/grow/cancelFees';
+import { VOUCHER_SERVICE_PREFIX } from '@/lib/giftVouchers';
 import { admin } from '../_shared';
+import { reportWalletSession } from '@/lib/grow/walletDiagServer';
+import { moneyAlert } from '@/lib/moneyAlert';
 
 export const maxDuration = 30;
 
@@ -24,13 +33,44 @@ async function brandOf(tenantId: string): Promise<{ businessName: string; accent
   return { businessName: String(d.business_name || ''), accent: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '' };
 }
 
+/** A booking deposit's hold, read from its consent. A read error counts as closed: no money is taken for a slot we cannot vouch for. */
+async function holdOpenFor(p: GrowPayment): Promise<boolean> {
+  if (!p.appointment_id) return false;
+  const { data, error } = await admin().from('appointment_policy_consents').select('mode, status, hold_expires_at')
+    .eq('tenant_id', p.tenant_id).eq('appointment_id', p.appointment_id).maybeSingle();
+  if (error) { console.error('[grow] wallet: deposit hold read failed:', error.message); return false; }
+  return depositHoldOpen(data as Pick<ConsentRow, 'mode' | 'status' | 'hold_expires_at'> | null, new Date());
+}
+
+/** What the page shows the payment is for. Each read is best effort: without it the page is the plain one it always was. */
+async function contextOf(p: GrowPayment) {
+  const db = admin();
+  let appt: Record<string, unknown> | null = null;
+  let voucherToken: string | null = null;
+  if (p.appointment_id) {
+    const { data } = await db.from('appointments').select('service, date, start_minute, hour').eq('tenant_id', p.tenant_id).eq('id', p.appointment_id).maybeSingle();
+    appt = (data as Record<string, unknown> | null) || null;
+  } else if (String(p.description || '').startsWith(VOUCHER_SERVICE_PREFIX)) {
+    // gift_voucher is a newer column (add_gift_vouchers_2026-11-08.sql): read on its own, so a database without it still shows the page.
+    const { data, error } = await db.from('grow_payments').select('gift_voucher').eq('id', p.id).maybeSingle();
+    const gv = !error && data ? (data as { gift_voucher?: { token?: unknown } | null }).gift_voucher : null;
+    voucherToken = gv && typeof gv.token === 'string' ? gv.token : null;
+  }
+  return payContextOf(p, { appUrl: APP_URL, appt, voucherToken });
+}
+
 export async function GET(request: Request) {
   const token = new URL(request.url).searchParams.get('t') || '';
   const repo = supabaseGrowRepo(admin());
-  const { state, payment } = await walletLinkState(token, { repo });
+  const found = await walletLinkState(token, { repo });
+  const payment = found.payment;
   if (!payment) return hidden();
   if (!growUiEnabled(process.env, payment.tenant_id)) return hidden();
-  return NextResponse.json({ success: true, state, amount: Number(payment.amount), description: payment.description || '', ...(await brandOf(payment.tenant_id)) });
+  let state = found.state;
+  let note = '';
+  if (state === 'open' && isBookingDeposit(payment) && !(await holdOpenFor(payment))) { state = 'expired'; note = DEPOSIT_HOLD_OVER_HE; }
+  const [brand, context] = await Promise.all([brandOf(payment.tenant_id), contextOf(payment).catch(() => null)]);
+  return NextResponse.json({ success: true, state, note, amount: Number(payment.amount), description: payment.description || '', ...brand, context });
 }
 
 export async function POST(request: Request) {
@@ -53,7 +93,10 @@ export async function POST(request: Request) {
       const { data } = await db.from('grow_accounts').select('user_id, enabled').eq('tenant_id', tenantId).maybeSingle();
       return data && (data as { enabled?: unknown }).enabled === true ? String((data as { user_id: unknown }).user_id) : null;
     },
+    holdOpen: holdOpenFor,
+    // What Grow answered (flags and its error only) into ops_events at warning: the owner reads it with SQL (docs/GROW_SETUP.md).
+    report: (rep) => reportWalletSession(rep, moneyAlert),
   });
   if (!r.ok) return NextResponse.json({ success: false, state: r.code, error: r.message }, { status: r.code === 'grow-unreachable' || r.code === 'grow-refused' ? 502 : 409 });
-  return NextResponse.json({ success: true, state: 'ready', authCode: r.authCode, sdkEnv: r.sdkEnv, amount: r.amount, description: r.description });
+  return NextResponse.json({ success: true, state: 'ready', authCode: r.authCode, sdkEnv: r.sdkEnv, hostedUrl: r.hostedUrl, amount: r.amount, description: r.description });
 }

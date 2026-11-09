@@ -6,6 +6,7 @@
 // looked up per-tenant from settings.
 
 import { ACTIVE_OR_NULL } from "../../../lib/serviceActive";
+import { bookedAppointmentColor } from "../../../lib/serviceColors";
 import { cleanSource, cleanRef } from "../../../lib/bookingSource";
 import { createClient } from "@supabase/supabase-js";
 import { after } from "next/server";
@@ -49,6 +50,8 @@ import { APP_URL } from "../../../lib/appUrl";
 import { tenantIsBlocked } from "../../../lib/tenantActive";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
+// A released hold is a freed slot: offered to the waiting list after this booking is in (its own after(); the offer re-checks the slot is free).
+import { offerFreedHold } from "../../../lib/waitlistRuntime.js";
 import { CARD_CONSENT_TEXT_HE } from "../../../lib/grow/tokenFlow";
 import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
@@ -176,7 +179,7 @@ export async function POST(request) {
     try {
       policyDeps = growUiEnabled(process.env, activeTenantId) ? cancelDeps() : null;
       if (policyDeps) {
-        await releaseExpiredHolds(policyDeps, activeTenantId);
+        await releaseExpiredHolds(policyDeps, activeTenantId, offerFreedHold);
         policy = await activePolicy(policyDeps, activeTenantId);
       }
     } catch (policyErr) {
@@ -201,7 +204,7 @@ export async function POST(request) {
         .limit(1),
       supabase
         .from("settings")
-        .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, branding, automations")
+        .select("business_name, business_phone, business_hours, working_hours_start, working_hours_end, working_days, therapist_name, primary_color, branding, automations")
         .eq("tenant_id", activeTenantId)
         .limit(1),
       // service, kind and buffer_minutes are read for the buffer after each treatment (lib/serviceBuffer.ts); kind
@@ -237,7 +240,8 @@ export async function POST(request) {
     // used only where the row is silent (a legacy row with null duration).
     const svcDuration = Number(svcRow.duration) > 0 ? Number(svcRow.duration) : Number(duration) > 0 ? Number(duration) : 60;
     const svcPrice = Number.isFinite(Number(svcRow.price)) ? Number(svcRow.price) : Number(price) || 0;
-    const svcColor = svcRow.color || color || "#E91E63";
+    // A real hex only (lib/serviceColors.ts): the page once sent "var(--pc)", which was stored as the appointment's colour.
+    const svcColor = bookedAppointmentColor(svcRow.color, color, settingsRows && settingsRows[0] ? settingsRows[0].primary_color : null);
 
     // Wire format, explicit on BOTH sides - never one field carrying two
     // meanings:
@@ -292,7 +296,9 @@ export async function POST(request) {
       );
     }
     // Saving the card is its own required tick (Grow's rule): the policy tick is not enough. Refused here, whatever the page sent.
-    if (policy && (policy.mode === "saved_card" || policy.mode === "deposit") && acceptedCardSave !== true) {
+    // A deposit paid on the wallet page keeps no card (no GROW_PAGE_CODE: lib/grow/wallet.ts depositsOnWallet), so there is no card to agree to.
+    const depositKeepsCard = !(policyDeps && policyDeps.depositWallet === true);
+    if (policy && (policy.mode === "saved_card" || (policy.mode === "deposit" && depositKeepsCard)) && acceptedCardSave !== true) {
       return Response.json(
         { success: false, error: "כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי" },
         { status: 400 }
@@ -604,6 +610,7 @@ export async function POST(request) {
         startMinute: newStart,
         duration: svcDuration,
         isReturningClient,
+        underCancelPolicy: !!policy,
       }).catch((notifyErr) => {
         console.error("[book-appointment] notifications failed:", notifyErr?.message || String(notifyErr));
       })

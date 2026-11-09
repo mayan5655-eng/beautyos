@@ -127,10 +127,10 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8, marginBottom: 14 }}>
             {[
-              ['לידים', report.totals.leads],
+              ['פניות', report.totals.leads],
               ['הפכו ללקוחות', `${report.totals.conversions} (${report.totals.conversionRate}%)`],
               ['הכנסות', money(report.totals.revenue)],
-              ['ממוצע לליד', report.totals.avgRevenuePerLead === null ? '—' : money(report.totals.avgRevenuePerLead)],
+              ['ממוצע לפנייה', report.totals.avgRevenuePerLead === null ? '—' : money(report.totals.avgRevenuePerLead)],
               ...(hasSpend ? [
                 ['הוצאת פרסום', money(report.totals.spend)],
                 ['עלות ללקוחה', report.totals.costPerAcquisition === null ? '—' : money(report.totals.costPerAcquisition)],
@@ -156,9 +156,9 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
                   <div style={{ background: pcGrad, height: 7, width: `${Math.max(2, Math.round((row.revenue / maxRevenue) * 100))}%` }} />
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>
-                  <span>{row.leads} לידים</span>
+                  <span>{row.leads} פניות</span>
                   <span style={{ color: 'var(--success)' }}>{row.conversions} הפכו ללקוחות ({row.conversionRate}%)</span>
-                  <span>ממוצע לליד {row.avgRevenuePerLead === null ? '—' : money(row.avgRevenuePerLead)}</span>
+                  <span>ממוצע לפנייה {row.avgRevenuePerLead === null ? '—' : money(row.avgRevenuePerLead)}</span>
                   {row.spend > 0 && <span>הוצאה {money(row.spend)}</span>}
                   {row.costPerAcquisition !== null && <span>עלות ללקוחה {money(row.costPerAcquisition)}</span>}
                   {row.roas !== null && <span style={{ fontWeight: 700, color: row.roas >= 1 ? 'var(--success)' : 'var(--danger)' }}>ROAS {fixed(row.roas)}x · ROI {row.roiPercent}%</span>}
@@ -178,7 +178,7 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
           </p>
         ) : spend.available === false ? (
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-            עוד לא הופעל מעקב הוצאות בחשבון, ולכן עלות לליד ו-ROI לא מוצגים. ההכנסות לפי מקור כבר מדויקות.
+            עוד לא הופעל מעקב הוצאות בחשבון, ולכן עלות לפנייה והחזר על הפרסום לא מוצגים. ההכנסות לפי מקור כבר מדויקות.
           </p>
         ) : (
           <>

@@ -19,7 +19,8 @@ import DemoVideo from "./landing/DemoVideo";
 import PublicFooterLinks from "./PublicFooterLinks";
 import KalmeaLegalFooter from "./KalmeaLegalFooter";
 import { supportWhatsAppUrl } from "@/lib/support";
-import { PLAN_PRICES, priceHe } from "@/lib/pricing";
+import { PLAN_PRICES, priceHe, annualPlanEnabled } from "@/lib/pricing";
+import { annualOfferHe } from "@/lib/planCopy";
 import PublicAnalytics from "./PublicAnalytics";
 
 const COST_ROWS = [
@@ -246,6 +247,8 @@ export default function LandingPage({ signedIn = false }) {
             </p>
             {/* No end date and no automatic expiry: the launch price stays on the page until the owner removes it by hand. */}
             <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר היכרות {priceHe(PLAN_PRICES.launch)} לזמן מוגבל</p>
+            {/* The yearly plan, only with NEXT_PUBLIC_ANNUAL_PLAN=1 (its price is pending the owner's confirmation, lib/pricing.ts). */}
+            {annualPlanEnabled() && <p data-testid="price-annual" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{annualOfferHe(PLAN_PRICES.regular)}</p>}
             <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--brand-accent)" }}>החודש הראשון עלינו, בלי כרטיס אשראי.</p>
             <p data-testid="price-payback" style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6, margin: "14px auto 0", maxWidth: 380, padding: "10px 14px", borderRadius: "var(--r-md)", background: "var(--brand-cream)", border: "1px solid var(--line)" }}>
               שניים או שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, והמחיר כבר חוזר.

@@ -49,7 +49,7 @@ ok('phone gutter: .app-main keeps 12px sides and room above the floating buttons
 ok('agenda card: calm surface with a status stripe, one main action, the rest behind "עוד", rows that wrap', () => {
   const i = app.indexOf('2026-10-20 design pass: a calm card');
   assert.ok(i > 0);
-  const card = app.slice(i - 900, i + 6000);
+  const card = app.slice(i - 900, i + 7000);
   assert.match(card, /borderInlineStart:`5px solid \$\{apptColor\}`/);
   assert.match(card, /setApptMenuId\(open\?null:appt\.id\)/);
   assert.match(card, /flexWrap:"wrap"/);
@@ -64,9 +64,9 @@ ok('היום order: today and "needs attention" right after the revenue line; th
   assert.match(app, /activeTab==="dashboard"&&\(<div className="today-stack" style=\{\{display:"flex",flexDirection:"column"\}\}>/);
   assert.match(app, /\.today-stack>\*\{order:8;width:100%;box-sizing:border-box\}/);
   const order = (re: RegExp) => Number((app.match(re) || [])[1]);
-  assert.equal(order(/className="glass-card card-boxed" style=\{\{order:(\d+),padding:"16px 17px",marginBottom:12/), 2);
+  assert.equal(order(/className="glass-card card-boxed" style=\{\{order:(\d+),padding:"16px 17px",marginBottom:12/), 3, 'revenue after the question and the next client (UX pass 2026-11-08)');
   assert.equal(order(/<div style=\{\{order:(\d+),maxWidth:1180,margin:"0 auto",display:"flex",gap:12/), 4);
-  assert.equal(order(/card-boxed-rose" style=\{\{order:(\d+),/), 6);
+  assert.equal(order(/card-boxed-rose" style=\{\{order:(\d+),/), 2, 'the freed-slot question right under My Day (UX pass 2026-11-08)');
   assert.match(app, /<MonthValueCard [^>]*style=\{\{order:5\}\}/);
 });
 

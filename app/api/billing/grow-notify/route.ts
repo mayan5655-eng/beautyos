@@ -19,6 +19,7 @@ import { growBillingCreds } from '@/lib/billing/growBilling';
 import { saveCard } from '@/lib/billing/service';
 import { encryptToken } from '@/lib/facebook/encryption';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
+import { supabaseReferralRepo } from '@/lib/billing/referralRepo';
 import { admin, billing } from '../_shared';
 import { moneyAlert } from '@/lib/moneyAlert.js';
 
@@ -53,12 +54,15 @@ export async function POST(request: Request) {
 
   try {
     // Stored sealed (AES-256-GCM, TOKEN_ENCRYPTION_KEY), like the clients' card tokens; lib/billing/growBilling.ts opens it for each call.
-    const r = await saveCard({ repo: supabaseBillingRepo(admin()), payments: b.payments, invoicing: b.invoicing }, tenantId, { tokenRef: encryptToken(n.cardToken), last4: n.last4, brand: n.brand });
+    const db = admin();
+    const r = await saveCard({ repo: supabaseBillingRepo(db), referrals: supabaseReferralRepo(db), payments: b.payments, invoicing: b.invoicing }, tenantId, { tokenRef: encryptToken(n.cardToken), last4: n.last4, brand: n.brand });
     console.log('[billing] card saved through Grow for tenant', tenantId, 'charged:', r.charged);
   } catch (e) {
     // The card was NOT stored. Answer 503 and skip the approve, so Grow sends the callback again: a 200 here lost the card for
     // good (she saw it accepted, the first charge then failed with no card on file). A retry is safe: saveCard re-writes the
     // token on the existing row and attempt() checks the ledger before charging.
+    // The same 503 when the card WAS stored but the check for a charge already in flight failed (lib/billing/service.ts
+    // OpenAttemptLookupError): nothing was charged, and Grow's retry runs the check again.
     console.error('[billing] saveCard after Grow token failed:', (e as Error)?.message);
     await moneyAlert('billing:grow-notify', 'saveCard failed after a Grow card token; answered 503 so Grow retries', { tenantId });
     return done(503);
