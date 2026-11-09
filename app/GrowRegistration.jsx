@@ -14,7 +14,10 @@
 // Design (2026-10-20 pass): one promise line, then the three steps as a short checklist with round marks (the ads' list), labelled
 // fields, ONE filled primary button in her accent (quieter when disabled, never washed out), and the fallback as a quiet link.
 // Settings cards use her accent (pc), so this one does too.
+// Plan (2026-11-09): she picks one of Grow's plans as three cards (lib/grow/plans.ts, monthly by default); the code goes to
+// /api/grow/register, which checks it against the same list and sends it to Grow as price_quote.
 import { useEffect, useRef, useState } from 'react';
+import { GROW_PLANS, DEFAULT_GROW_PLAN, GROW_FEES_URL, growPlanPriceHe } from '@/lib/grow/plans';
 
 const digits = (v) => String(v || '').replace(/\D/g, '');
 
@@ -76,8 +79,40 @@ function Steps({ states, sub }) {
   );
 }
 
-export default function GrowRegistration({ registration, pc, isDemo, busy, onStart, onFallback, onHaveAccount, onFormDone, frameOrigin }) {
-  const [form, setForm] = useState({ businessNumber: '', phone: '' });
+/** Grow's plans as three cards; one is always picked. */
+function PlanPicker({ value, onChange, pc, pcTint }) {
+  return (
+    <fieldset data-testid="grow-plan-picker" style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+      <legend style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink-2)', marginBottom: 6, padding: 0 }}>מסלול הסליקה ב-Grow</legend>
+      <div role="radiogroup" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {GROW_PLANS.map((p) => {
+          const on = p.code === value;
+          return (
+            <label key={p.code} data-testid={`grow-plan-${p.code}`} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', borderRadius: 'var(--r-md)', padding: '11px 12px',
+              border: on ? `2px solid ${pc}` : '1px solid var(--line-2)', background: on ? (pcTint || 'var(--surface)') : 'var(--surface)',
+              margin: on ? 0 : 1,
+            }}>
+              <input type="radio" name="grow-plan" value={p.code} checked={on} onChange={() => onChange(p.code)} style={{ accentColor: pc, width: 18, height: 18, marginTop: 3, flexShrink: 0 }} />
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>{p.titleHe}</span>
+                <span style={{ display: 'block', fontSize: 'var(--t-md)', color: 'var(--ink)', lineHeight: 1.5 }}>{growPlanPriceHe(p)}</span>
+                <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.5, marginTop: 2 }}>{p.lineHe}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', margin: '6px 0 0', lineHeight: 1.6 }}>
+        כל המחירים לפני מע״מ.{' '}
+        <a href={GROW_FEES_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700 }}>כל התנאים באתר Grow</a>
+      </p>
+    </fieldset>
+  );
+}
+
+export default function GrowRegistration({ registration, pc, pcTint, isDemo, busy, onStart, onFallback, onHaveAccount, onFormDone, frameOrigin }) {
+  const [form, setForm] = useState({ businessNumber: '', phone: '', plan: DEFAULT_GROW_PLAN });
   const [failure, setFailure] = useState(null); // { code, error, growId }
   const [sent, setSent] = useState(null); // { phoneMasked, url } right after a successful GetLink
   const [fixPhone, setFixPhone] = useState(false);
@@ -102,7 +137,7 @@ export default function GrowRegistration({ registration, pc, isDemo, busy, onSta
 
   const start = async () => {
     setFailure(null);
-    const r = await onStart({ businessNumber: bn, phone: ph });
+    const r = await onStart({ businessNumber: bn, phone: ph, plan: form.plan });
     if (!r) return;
     if (r.success) { setSent({ phoneMasked: r.phoneMasked || '', url: r.url || '' }); setFixPhone(false); }
     else setFailure({ code: r.code || '', error: r.error || 'לא הצלחנו לפתוח את ההרשמה, נסי שוב', growId: r.growId || '' });
@@ -122,6 +157,7 @@ export default function GrowRegistration({ registration, pc, isDemo, busy, onSta
           ה-SMS יגיע לנייד הזה, ואת הטופס ממלאים מהטלפון הזה.
         </span>
       </label>
+      <PlanPicker value={form.plan} onChange={(plan) => setForm((f) => ({ ...f, plan }))} pc={pc} pcTint={pcTint} />
       {failure && (
         <div data-testid="grow-reg-error" role="alert" style={soft}>
           <p style={{ ...text, color: 'var(--ink)', fontWeight: 700 }}>{failure.error}</p>
@@ -188,7 +224,7 @@ export default function GrowRegistration({ registration, pc, isDemo, busy, onSta
           style={failure && failure.code === 'exists' && !off ? { ...primary(false), background: 'transparent', color: 'var(--pc-text)', border: `1.5px solid ${pc}`, boxShadow: 'none' } : primary(off)}>
           {busy ? 'פותחת את ההרשמה…' : 'פתיחת חשבון ב-Grow'}
         </button>
-        <p style={{ ...text, fontSize: 'var(--t-xs)', textAlign: 'center', color: 'var(--ink-3)', marginTop: 6 }}>בלי כרטיס אשראי ובלי חיוב.</p>
+        <p style={{ ...text, fontSize: 'var(--t-xs)', textAlign: 'center', color: 'var(--ink-3)', marginTop: 6 }}>ההרשמה עצמה בלי כרטיס אשראי ובלי חיוב.</p>
         <button type="button" style={{ ...link, alignSelf: 'center' }} onClick={onFallback}>מעדיפה שנחזור אלייך? להשאיר פרטים</button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 // app/api/grow/register/route.ts
 //
-// POST { businessNumber, phone } -> { url, phoneMasked }
+// POST { businessNumber, phone, plan } -> { url, phoneMasked }
 //
 // "I don't have Grow yet": calls Grow's GetLink for HER business (lib/grow/registration.ts). Grow texts the registration form to that
 // mobile and answers with the form link and an encrypted_lead, which we keep as the pending registration's tracking code: Grow's
@@ -8,7 +8,8 @@
 //
 // Calling it again while she waits (a wrong mobile) is allowed: with the same business number and the right mobile Grow updates the
 // same lead. Refused plainly when registration is not available on this deployment, when she is already connected, and for the
-// demo business. Grow's error ids come back in plain Hebrew (GETLINK_ERRORS), with the id for the logs.
+// demo business. `plan` is the plan she picked: checked against lib/grow/plans.ts exactly (never an arbitrary string) and sent to
+// Grow as price_quote. Grow's error ids come back in plain Hebrew (GETLINK_ERRORS), with the id for the logs.
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { isDemoTenantId } from '@/lib/demoTenants';
@@ -16,6 +17,7 @@ import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { registrationOps, newTrackingCode, growBusinessNumber } from '@/lib/grow/registration';
 import { growPhone } from '@/lib/grow/payload';
+import { growPlanByCode } from '@/lib/grow/plans';
 import { checkTenantLimit } from '@/lib/rateLimit';
 import { admin, caller, tableMissing, DEMO_NOTE } from '../_shared';
 
@@ -42,9 +44,11 @@ export async function POST(request: Request) {
   const phone = growPhone(b.phone);
   if (!businessNumber) return NextResponse.json({ success: false, code: 'bad-business-number', error: 'מספר תעודת הזהות או העוסק לא נראה תקין' }, { status: 400 });
   if (!phone) return NextResponse.json({ success: false, code: 'bad-phone', error: 'צריך נייד ישראלי שמתחיל ב-05, 10 ספרות' }, { status: 400 });
+  const plan = growPlanByCode(b.plan);
+  if (!plan) return NextResponse.json({ success: false, code: 'bad-plan', error: 'צריך לבחור מסלול סליקה' }, { status: 400 });
 
   const trackingCode = newTrackingCode(() => randomBytes(12).toString('hex'));
-  const r = await ops.createLink({ trackingCode, businessNumber, phone });
+  const r = await ops.createLink({ trackingCode, businessNumber, phone, priceQuote: plan.code });
   if (!r.ok) {
     // The id and Grow's own words go to the log (no phone, no business number); she gets the plain Hebrew.
     console.error('[grow] GetLink refused:', ops.kind, r.code, r.growId || '-', r.error);
@@ -65,6 +69,6 @@ export async function POST(request: Request) {
     console.error('[grow] registration save failed:', error.message);
     return NextResponse.json({ success: false, error: 'השמירה נכשלה, נסי שוב' }, { status: 500 });
   }
-  console.log('[grow] registration link opened for tenant', c.tenantId, ops.kind);
+  console.log('[grow] registration link opened for tenant', c.tenantId, ops.kind, plan.code);
   return NextResponse.json({ success: true, url: r.url, phoneMasked: `${phone.slice(0, 3)}-•••-${phone.slice(-4)}` });
 }

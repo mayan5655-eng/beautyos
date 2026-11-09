@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { GROW_PRICING, growCostLineHe, growCostDetailsHe } from './lib/growPricing.ts';
+import { GROW_PLANS } from './lib/grow/plans.ts';
 import { clientLinkRefusal, cancelLinesHe, resolveBookingRules } from './lib/bookingPolicy.ts';
 import { HELP_SECTIONS } from './lib/helpSections.ts';
 
@@ -15,15 +16,14 @@ const noEmDash = (s: string, where: string) => assert.ok(!s.includes('—'), `${
 const NOW = new Date('2026-11-09T10:00:00Z');
 
 // ── 1. Grow cost ────────────────────────────────────────────────────────────
-ok('Grow cost: the numbers Grow confirmed, in one constant', () => {
-  assert.deepEqual({ ...GROW_PRICING }, { monthlyAnnual: 59, annualUpfront: 708, monthly: 69, feePercent: 0.75, includedTransactions: 100, includedDocuments: 100, overage: 0.5 });
-  assert.equal(GROW_PRICING.monthlyAnnual * 12, GROW_PRICING.annualUpfront);
-  assert.equal(growCostLineHe(), 'הסליקה דרך Grow, במסלול שלהם: ₪59 לחודש בתשלום שנתי (או ₪69 בתשלום חודשי) + 0.75% מכל עסקה, לפני מע״מ.');
+ok('Grow cost: the three plans from lib/grow/plans.ts, in one short line, and what every plan includes', () => {
+  assert.deepEqual({ ...GROW_PRICING }, { includedTransactions: 100, includedDocuments: 100, overage: 0.5 });
+  assert.equal(growCostLineHe(), 'הסליקה דרך Grow, שלושה מסלולים לבחירה: ₪69 לחודש + 0.75% (חודשי), ₪59 לחודש + 0.75% (שנתי) או ₪29 לחודש + 1% (שנתי מראש). לפני מע״מ.');
   const d = growCostDetailsHe().join('\n');
-  for (const s of ['₪708 מראש', '₪69 לחודש בתשלום חודשי', 'בביט ובארנקים', '100 עסקאות ו-100 מסמכים', '₪0.50 לכל אחד', 'מה-1 בחודש הבא', 'במהלך החודש', 'לפני מע״מ']) assert.ok(d.includes(s), `details say ${s}`);
+  for (const s of ['₪69 לחודש + 0.75% מכל עסקה', '₪59 לחודש + 0.75% מכל עסקה', '₪29 לחודש + 1% מכל עסקה', 'בביט ובארנקים', '100 עסקאות ו-100 מסמכים', '₪0.50 לכל אחד', 'מה-1 בחודש הבא', 'לפני מע״מ']) assert.ok(d.includes(s), `details say ${s}`);
   noEmDash(growCostLineHe() + d, 'grow cost');
   // a change in one place changes the copy
-  assert.match(growCostLineHe({ ...GROW_PRICING, monthlyAnnual: 49 }), /₪49 לחודש/);
+  assert.match(growCostLineHe([{ ...GROW_PLANS[0], monthly: 49 }]), /₪49 לחודש/);
 });
 
 ok('Grow cost: shown in the Grow card, the gift voucher card (before Grow is connected) and the help, with no hard-coded price', () => {

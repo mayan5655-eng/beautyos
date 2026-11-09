@@ -38,7 +38,9 @@ await ok('sandbox uses the GROW_TOKEN_*_TEST triple; production uses GROW_TOKEN_
   assert.equal(tokenCredentials({ GROW_ENV: 'production', ...test }), null, 'the test values are never used in production');
   const p = tokenCredentials({ GROW_ENV: 'production', GROW_TOKEN_API_KEY: 'PK', GROW_TOKEN_PAGE_CODE: 'PP', GROW_API_BASE: 'https://live.example/api/' })!;
   assert.equal(p.env, 'production'); assert.equal(p.userIdOverride, undefined, 'production charges the cosmetician\'s own userId'); assert.equal(p.apiBase, 'https://live.example/api');
-  assert.equal(tokenCredentials({ GROW_ENV: 'production', GROW_TOKEN_API_KEY: 'PK', GROW_TOKEN_PAGE_CODE: 'PP' }), null, 'production needs the base URL Grow gives');
+  // Without GROW_API_BASE production uses Grow's documented live base, the same default as the card page and the wallet.
+  assert.equal(tokenCredentials({ GROW_ENV: 'production', GROW_TOKEN_API_KEY: 'PK', GROW_TOKEN_PAGE_CODE: 'PP' })!.apiBase, 'https://secure.meshulam.co.il/api/light/server/1.0');
+  assert.equal(tokenCredentials({ GROW_ENV: 'production', GROW_TOKEN_API_KEY: 'PK', GROW_TOKEN_PAGE_CODE: 'PP', GROW_API_BASE: 'http://insecure' }), null, 'an insecure override is refused');
 });
 
 await ok('no Grow credential is written in the repository, and the test names are the ones documented', () => {
