@@ -732,7 +732,8 @@ await ok('the booking page shows the policy and a required tick only when a poli
   assert.ok(/needsPolicy && !policyOk/.test(page) && /data-testid="grow-policy"/.test(page) && /acceptedPolicy: needsPolicy \? policyOk === true : undefined/.test(page));
   assert.ok(/needsPolicy &&\s*\(/.test(page), 'the block renders only when a policy applies to the chosen service');
   const confirm = read('app/api/confirm/route.ts');
-  assert.ok(/!underPolicy/.test(confirm) && /event: 'cancel', actor: 'client'/.test(confirm), 'the client link detects the fee and is not refused inside the window');
+  // The window rule lives in lib/bookingPolicy.ts clientLinkRefusal (2026-11-09), which the route hands underPolicy.
+  assert.ok(/cancelWindowHours, underPolicy, businessName/.test(confirm) && /!input\.underPolicy/.test(read('lib/bookingPolicy.ts')) && /event: 'cancel', actor: 'client'/.test(confirm), 'the client link detects the fee and is not refused inside the window');
 });
 
 await ok('the app asks after she cancels or marks a no-show; the questions show on the home screen, the appointment and the client card; the settings are inside the Grow card', () => {

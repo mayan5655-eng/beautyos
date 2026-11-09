@@ -25,11 +25,15 @@ ok('the page asks for the tick from the same function the server uses', () => {
 
 ok('the client cancel link is refused inside the window and only the cancel action is restricted', () => {
   const src = read('app/api/confirm/route.ts');
-  assert.match(src, /action === 'cancel' && cancelWindowHours > 0/);
-  assert.match(src, /isInsideCancelWindow\(String\(appt\.date\)/);
+  // The rule moved into lib/bookingPolicy.ts clientLinkRefusal (shared with the cancel page's peek, 2026-11-09).
+  const pol = read('lib/bookingPolicy.ts');
+  assert.match(pol, /input\.action === 'cancel' && !input\.underPolicy && input\.cancelWindowHours > 0/);
+  assert.match(pol, /isInsideCancelWindow\(input\.date/);
+  assert.match(pol, /tooLate: true/);
+  assert.match(src, /clientLinkRefusal\(\{/);
   assert.match(src, /tooLate: true/);
   // the check comes before the status update
-  assert.ok(src.indexOf('isInsideCancelWindow(') < src.indexOf("from('appointments').update(patch)"));
+  assert.ok(src.indexOf('if (refusal) {') > 0 && src.indexOf('if (refusal) {') < src.indexOf("from('appointments').update(patch)"));
 });
 
 console.log(`${n} passed`);

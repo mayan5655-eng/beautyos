@@ -84,8 +84,8 @@ ok('confirmation copy: one tap only without a window; with a window it says unti
 
 ok('confirmation copy: bookingNotify uses cancelLinesHe, and the Grow paths say the booking is under her policy', () => {
   const b = rd('lib/bookingNotify.js');
-  assert.match(b, /cancelLinesHe\(resolveBookingRules\(brandJson\), \{ underPolicy: p\.underCancelPolicy === true, businessName \}\)/);
-  assert.match(b, /cancelCopy\.before,\n\s+cancelUrl,\n\s+cancelCopy\.after,/);
+  assert.match(b, /cancelLinesHe\(resolveBookingRules\(brandJson\), \{ underPolicy: p\.underCancelPolicy === true, businessName, slot: \{ date: p\.date, startMinute: p\.startMinute \} \}\)/);
+  assert.match(b, /cancelCopy\.before,\n\s+cancelCopy\.showLink \? cancelUrl : null,\n\s+cancelCopy\.after,/);
   assert.doesNotMatch(b, /"מתרגשות לראות אותך! אם משהו משתנה, אפשר לבטל בלחיצה אחת/);
   assert.match(rd('app/api/book-appointment/route.js'), /underCancelPolicy: !!policy,/);
   assert.match(rd('app/api/grow/_cancel.ts'), /underCancelPolicy: true,/);
