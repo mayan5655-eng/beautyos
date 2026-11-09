@@ -33,6 +33,8 @@ export type VoidRefundPayment = {
   transaction_id?: string | null;
   transaction_token?: string | null;
   error?: string | null;
+  updated_at?: string | null;
+  refunded_at?: string | null;
 };
 
 export type VoidRefundRepo = {
@@ -85,6 +87,9 @@ export const VOID_REFUND_HE = {
   done: (amount: number) => `התשלום בוטל, ו-₪${fmt(amount)} הוחזרו ללקוחה דרך Grow. את מסמך הזיכוי על המסמך של Grow מפיקים בחשבון Grow.`,
 };
 
+/** The line written on the receipt when the refund was not done. The till history reads it back to tell "failed" from "void only". */
+export const VOID_REFUND_FAILED_NOTE = 'ההחזר דרך Grow לא בוצע';
+
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 const isDeposit = (p: VoidRefundPayment) => /^מקדמה/.test(String(p.description || ''));
 
@@ -93,7 +98,7 @@ export async function refundVoidedGrowReceipt(d: VoidRefundDeps, i: { tenantId: 
   const now = () => (d.now ? d.now() : new Date());
   const fail = async (reason: string, why: string, details: Record<string, unknown> = {}, p?: VoidRefundPayment | null): Promise<VoidRefundResult> => {
     await d.alert('grow:void-refund', `refund on void not done: ${reason}`, { tenantId, receiptId, paymentId: p?.id ?? null, reason, ...details }, { key: `${receiptId}:${reason}` });
-    const note = await d.repo.appendReceiptNote(tenantId, receiptId, `ההחזר דרך Grow לא בוצע ב-${now().toISOString().slice(0, 10)}, להחזיר בלוח הבקרה של Grow`).catch(() => null);
+    const note = await d.repo.appendReceiptNote(tenantId, receiptId, `${VOID_REFUND_FAILED_NOTE} ב-${now().toISOString().slice(0, 10)}, להחזיר בלוח הבקרה של Grow`).catch(() => null);
     return { status: 'failed', refunded: false, reason, message: VOID_REFUND_HE.failed(why), note };
   };
 
@@ -152,7 +157,7 @@ export async function refundVoidedGrowReceipt(d: VoidRefundDeps, i: { tenantId: 
 export function supabaseVoidRefundRepo(db: any): VoidRefundRepo {
   return {
     async findPaymentByReceipt(tenantId, receiptId) {
-      const { data } = await db.from('grow_payments').select('id, tenant_id, status, amount, description, receipt_id, transaction_id, transaction_token, error')
+      const { data } = await db.from('grow_payments').select('id, tenant_id, status, amount, description, receipt_id, transaction_id, transaction_token, error, updated_at')
         .eq('receipt_id', receiptId).eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1);
       return (data && data[0]) || null;
     },

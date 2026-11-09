@@ -136,6 +136,7 @@ import useProducts from "./useProducts";
 import { lowStockAttention, productsConfig } from "@/lib/products";
 import { tillTabsOf, activeTillTab } from "@/lib/tillTabs";
 import { VOID_REFUND_HE } from "@/lib/grow/voidRefund";
+import { REFUND_STATE_HE, REFUND_STUCK_HE, stateFromVoidRefundAnswer } from "@/lib/grow/refundFollowups";
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -1317,6 +1318,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [voidReason,      setVoidReason]      = useState("");
   // "גם להחזיר את הכסף ללקוחה ב-Grow": on by default for a sale paid through Grow (lib/grow/voidRefund.ts).
   const [voidGrowRefund,  setVoidGrowRefund]  = useState(true);
+  // The refund state of each voided Grow sale, for the till history (GET /api/grow/void-refund, lib/grow/refundFollowups.ts):
+  // receiptId -> { state: refunded | in_progress | failed | void_only, stuck?, canRetry? }. Empty while Grow is off for her.
+  const [growRefundStates, setGrowRefundStates] = useState({});
   // A recurring appointment: "every N weeks, M times", new appointments only.
   const [apptRepeat,      setApptRepeat]      = useState({on:false, everyWeeks:3, count:6});
   // Grow deposit on a booking she makes by hand: the switch in the appointment sheet, and the link sheet that follows a save with it on.
@@ -5566,6 +5570,60 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     })();
   };
 
+  // The voided Grow sales she can see (newest first, at most 100): their refund state is asked for whenever this set changes.
+  const growVoidedKey = useMemo(() => {
+    const v = voidedIds(receiptVoids);
+    return receipts.filter(r => r.legal_provider === "grow" && v.has(String(r.id)))
+      .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).slice(0, 100).map(r => String(r.id)).join(",");
+  }, [receipts, receiptVoids]);
+  const loadGrowRefundStates = useCallback(async (key) => {
+    if (!key) { setGrowRefundStates({}); return; }
+    try {
+      const res = await fetch(`/api/grow/void-refund?ids=${encodeURIComponent(key)}`);
+      const j = await res.json().catch(() => null);
+      if (j && j.states && !j.hidden) setGrowRefundStates(prev => ({ ...prev, ...j.states }));
+    } catch { /* the history shows no refund line rather than a wrong one */ }
+  }, []);
+  useEffect(() => { loadGrowRefundStates(growVoidedKey); }, [growVoidedKey, loadGrowRefundStates]);
+  // The answer of POST /api/grow/void-refund, applied to the till: the receipt's note line and the refund state shown in the history.
+  const applyGrowRefundAnswer = (receiptId, answer) => {
+    if (answer && answer.note) {
+      const note = answer.note;
+      setReceipts(prev => prev.map(r => String(r.id) === String(receiptId) ? { ...r, note } : r));
+      setShowReceipt(prev => prev && String(prev.id) === String(receiptId) ? { ...prev, note } : prev);
+    }
+    setGrowRefundStates(prev => ({ ...prev, [String(receiptId)]: stateFromVoidRefundAnswer(answer) }));
+  };
+  // The refund line of a voided Grow sale (the till history row and the receipt). Nothing for any other receipt.
+  const growRefundLine = (r, where) => {
+    const st = r && r.legal_provider === "grow" ? growRefundStates[String(r.id)] : null;
+    if (!st || !REFUND_STATE_HE[st.state]) return null;
+    const color = st.state === "refunded" ? "var(--success)" : st.state === "failed" ? "var(--danger)" : st.state === "in_progress" ? "var(--warning)" : "var(--ink-3)";
+    return (
+ <div data-testid="grow-refund-state" data-state={st.state} style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:8,marginTop:where==="row"?3:8}}>
+ <span style={{fontSize:"var(--t-xs)",fontWeight:700,color,lineHeight:1.5}}>{REFUND_STATE_HE[st.state]}{st.state==="in_progress"&&st.stuck?`. ${REFUND_STUCK_HE}`:""}</span>
+        {st.state==="failed"&&st.canRetry&&<button data-testid="grow-refund-retry" onClick={e=>{e.stopPropagation();retryGrowRefund(r);}} disabled={isBusy("growRefundRetry")} className="primary-btn" style={{padding:"6px 12px",minHeight:36,fontSize:"var(--t-xs)",background:"var(--surface)",color:"var(--danger)",border:"1px solid var(--danger)"}}>{isBusy("growRefundRetry")?<Spinner inline label="מנסה"/>:"לנסות שוב להחזיר ב-Grow"}</button>}
+ </div>
+    );
+  };
+  // "לנסות שוב" on a failed refund: the same route and the same once-per-payment claim, so a retry can never refund twice.
+  const retryGrowRefund = async (receipt) => {
+    if (!receipt || guardWrite()) return;
+    await runOnce("growRefundRetry", async () => {
+      setBusyKey("growRefundRetry", true);
+      let answer = null;
+      try {
+        const res = await fetch("/api/grow/void-refund", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receiptId: receipt.id }) });
+        answer = await res.json().catch(() => null);
+      } catch { answer = null; }
+      finally { setBusyKey("growRefundRetry", false); }
+      if (!answer || answer.hidden || !answer.message) answer = { ...(answer || {}), refunded: false, status: "failed", message: VOID_REFUND_HE.failed("") };
+      applyGrowRefundAnswer(receipt.id, answer);
+      if (answer.refunded || answer.status === "already_refunded") toast(answer.message);
+      else toast(answer.message, "error");
+    });
+  };
+
   // Void: a row in receipt_voids naming the receipt and why. The receipt row
   // is not touched. The reason is required by the schema as well as the form.
   const growVoidOk = useRef(false);
@@ -5629,14 +5687,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           const res = await fetch("/api/grow/void-refund", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receiptId: receipt.id }) });
           growRefund = await res.json().catch(() => null);
         } catch { growRefund = null; }
-        // A lost answer may hide a done refund: "check Grow first", never "failed" (a second refund by hand).
-        if (growRefund && growRefund.hidden) growRefund = { refunded: false, status: "failed", message: VOID_REFUND_HE.failed("") };
+        // "hidden" (Grow off): a known no-send, the route wrote "not done" and alerted. A lost answer may hide a done refund: "check Grow first".
+        if (growRefund && growRefund.hidden) growRefund = { ...growRefund, refunded: false, status: "failed", message: VOID_REFUND_HE.failed("") };
         else if (!growRefund || !growRefund.message) growRefund = { refunded: false, status: "unknown", message: VOID_REFUND_HE.unknown };
-        if (growRefund.note) {
-          const note = growRefund.note;
-          setReceipts(prev => prev.map(r => String(r.id) === String(receipt.id) ? { ...r, note } : r));
-          setShowReceipt(prev => prev && String(prev.id) === String(receipt.id) ? { ...prev, note } : prev);
-        }
+        applyGrowRefundAnswer(receipt.id, growRefund);
       }
       setVoidOpen(false); setVoidReason("");
       // A loyalty reward given on this sale comes back to her client's card by itself (lib/loyalty.js loyaltyState drops a
@@ -10403,6 +10457,7 @@ ${MARKETING_FOOTER}`)}`;
  <div style={{flex:1,minWidth:0}}>
  <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)"}}>{r.client_name}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.service} · {r.payment_method} · {fmtDateHe(localDayKey(r.created_at))}{Number(r.tip)>0?` · טיפ ₪${r.tip}`:""}</p>
+                      {voided&&growRefundLine(r,"row")}
  </div>
  {voided&&<span className="pill" style={{fontSize:"var(--t-xs)",color:"var(--danger)",background:"rgba(224,91,111,0.10)",padding:"3px 8px",fontWeight:700}}>מבוטל</span>}
  {!voided&&legalStateHe(r)&&<span className="pill" style={{fontSize:"var(--t-xs)",color:r.legal_status==="issued"?"var(--success)":"var(--warning)",background:"var(--surface-2)",padding:"3px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{legalStateHe(r)}</span>}
@@ -12232,6 +12287,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--danger)"}}>{isVoidComplete(showReceipt)?"התשלום בוטל":"ביטול התשלום בתהליך"}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2,lineHeight:1.5}}>{vd.reason}</p>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:2}}>{localDayKey(vd.created_at)} · {vd.credit_status==="issued"?creditStateHe(vd):(vd.credit_status&&vd.credit_status!=="none")?(creditStateHe(vd)||"ממתין למסמך זיכוי")+". התשלום ממשיך להיספר עד שהמסמך יונפק.":"המקור נשמר כפי שהיה ואינו נספר בסיכומים"}</p>
+ {growRefundLine(showReceipt,"receipt")}
  {vd.credit_error&&vd.credit_status!=="issued"&&<p style={{fontSize:"var(--t-xs)",color:"var(--danger)",marginTop:4,lineHeight:1.5}}>{vd.credit_error}</p>}
  {["failed","unknown","pending_request"].includes(vd.credit_status)&&<button onClick={()=>retryCredit(vd)} disabled={isBusy("legalCredit")} className="primary-btn" style={{marginTop:8,padding:"8px 14px",fontSize:"var(--t-xs)",background:"var(--surface)",color:"var(--danger)",border:"1px solid var(--danger)"}}>{isBusy("legalCredit")?<Spinner inline label="מנסה"/>:"ניסיון חוזר להנפקת זיכוי"}</button>}
  {vd.credit_status==="issued"&&vd.credit_doc_url&&<a href={vd.credit_doc_url} target="_blank" rel="noreferrer" style={{display:"inline-block",marginTop:6,fontSize:"var(--t-xs)",color:pcDeep,fontWeight:600}}>צפייה במסמך הזיכוי</a>}
