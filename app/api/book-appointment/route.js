@@ -55,6 +55,11 @@ import { offerFreedHold } from "../../../lib/waitlistRuntime.js";
 import { CARD_CONSENT_TEXT_HE } from "../../../lib/grow/tokenFlow";
 import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
+// The pre-visit intake gate (lib/intakeGate.ts): off unless she turned it on for this service.
+import { resolveIntake } from "../../../lib/intakeGate";
+import { ensureIntakeForm, queueIntakeMessage, hadEarlierVisit } from "../../../lib/intakeQueue.js";
+import { sendWhatsApp } from "../../../lib/whatsapp.js";
+import { hebrewDate } from "../../../lib/messages.js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -632,10 +637,40 @@ export async function POST(request) {
       }
     }
 
+    // The intake gate, for a service she turned it on for (off by default, lib/intakeGate.ts). Best-effort and after the booking is
+    // saved: nothing here can fail or undo it. The client gets the form link on her confirmation screen; the "send the form" message
+    // waits in HER manual queue (type intake_form is never sent by the system, lib/intakeQueue.js). A held deposit booking is not
+    // queued: it may still be released, and its confirmation goes out when it is paid.
+    let intakeOut = null;
+    const intake = resolveIntake(svcRow);
+    if (intake) {
+      try {
+        let formPath = null;
+        if (intake.form && clientId) {
+          const f = await ensureIntakeForm({ db: supabase, tenantId: activeTenantId, clientId, clientName: name, formType: intake.formType });
+          if (f.state === "pending") {
+            formPath = `/form?id=${encodeURIComponent(f.formId)}`;
+            if (!heldForDeposit) {
+              const formId = f.formId;
+              after(() => queueIntakeMessage({
+                db: supabase, send: sendWhatsApp, tenantId: activeTenantId, phone: phoneCheck.e164, name, businessName: settingsRow?.business_name || "",
+                service, when: `ב${hebrewDate(date)}`, formId, baseUrl: APP_URL,
+              }).then(() => undefined));
+            }
+          }
+        }
+        const patchTest = intake.patchTest && !(isReturningClient && await hadEarlierVisit({ db: supabase, tenantId: activeTenantId, clientId, beforeDate: date, excludeId: appt.id }));
+        if (formPath || patchTest) intakeOut = { formUrl: formPath, patchTest };
+      } catch (intakeErr) {
+        console.warn("[book-appointment] intake step failed:", intakeErr?.message || String(intakeErr));
+      }
+    }
+
     return Response.json({
       success: true,
       appointmentId: appt.id,
       policyStep,
+      intake: intakeOut,
       // What she asked for up front, so the confirmation screen can say how to pay it.
       deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,
     });

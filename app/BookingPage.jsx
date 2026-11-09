@@ -45,6 +45,7 @@ import BrandImage from "@/app/BrandImage";
 import Image from "next/image";
 import { CARD_CONSENT_TEXT_HE } from "@/lib/grow/tokenFlow";
 import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from "@/lib/paymentTerms";
+import { INTAKE_CONFIRM_HE, INTAKE_CONFIRM_BTN_HE, patchTestConfirmHe } from "@/lib/intakeCopy";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -349,6 +350,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [marketingOk, setMarketingOk] = useState(false);
   const [termsOk, setTermsOk] = useState(false);
   const [depositInfo, setDepositInfo] = useState(null);
+  // The intake gate (lib/intakeGate.ts), from /api/book-appointment: { formUrl, patchTest } only for a service she gated, else null.
+  const [intakeInfo, setIntakeInfo] = useState(null);
   // Her cancellation policy on top of Grow (/api/grow/policy/public): null unless she turned it on, and then the booking works as it always did.
   const [growPolicy, setGrowPolicy] = useState(null);
   // Her Grow clearing is on: the client is told she can pay by credit card (the same answer, card: true).
@@ -712,6 +715,11 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       }
       if (!result.success) { setErrorMsg(result.error || CLIENT_STUCK_HE); setSubmitting(false); return; }
       setDepositInfo(result.deposit || null);
+      // Same-site form link only (app/form/page.jsx), never an outside URL.
+      setIntakeInfo(result.intake && typeof result.intake === "object" ? {
+        formUrl: typeof result.intake.formUrl === "string" && result.intake.formUrl.startsWith("/form?id=") ? result.intake.formUrl : null,
+        patchTest: result.intake.patchTest === true,
+      } : null);
       setPolicyStep(result.policyStep || null);
       setPolicyStepAt(Date.now());
       setBookedId(result.appointmentId || null);
@@ -1530,6 +1538,18 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
+                {/* The form she asked for before this treatment, and a first-timer's patch test (lib/intakeGate.ts). Only for a gated service. */}
+                {intakeInfo && (intakeInfo.formUrl || intakeInfo.patchTest) && (
+                  <div data-testid="intake-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
+                    {intakeInfo.formUrl && (
+                      <>
+                        <p style={{ fontSize: "var(--t-md)", color: ink, marginBottom: 10 }}>{INTAKE_CONFIRM_HE}</p>
+                        <a href={intakeInfo.formUrl} data-testid="intake-form-link" style={{ display: "block", textAlign: "center", padding: "13px 0", minHeight: 48, boxSizing: "border-box", background: pc, color: "var(--pc-contrast, #1F3A30)", borderRadius: "var(--r-md)", fontWeight: 700, fontSize: "var(--t-md)", textDecoration: "none" }}>{INTAKE_CONFIRM_BTN_HE}</a>
+                      </>
+                    )}
+                    {intakeInfo.patchTest && <p data-testid="intake-patch-test" style={{ fontSize: "var(--t-md)", color: ink, marginTop: intakeInfo.formUrl ? 12 : 0 }}>{patchTestConfirmHe(bizName)}</p>}
+                  </div>
+                )}
                 {/* The manual deposit and how to pay it. It sat in step 1's social links, which are gone by step 4, so the client never saw it. */}
                 {depositInfo && depositInfo.amount > 0 && (
                   <div data-testid="deposit-info" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>

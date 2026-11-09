@@ -422,6 +422,23 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
   },
 
+  // The client moving her own appointment from her link (app/api/confirm/reschedule). Looking at the free times is a few reads; a move is
+  // one write. A woman looks at two or three days and moves once; the per-appointment move cap (lib/reschedule.ts) is the hard limit.
+  'reschedule': {
+    perIp: { limit: 30, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}, או לכתוב לעסק ישירות.`,
+    tenantMessage: (m: string) => `היומן של העסק מקבל הרבה בקשות כרגע. אפשר לנסות שוב ${m}, או לכתוב לעסק ישירות.`,
+  },
+
+  // Her intake forms on the calendar (app/api/intake): one status read per screen, one "send the form" per tap.
+  'intake': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
   // Her read-only lists that walk her whole client and appointment tables (app/api/rebook/today, app/api/waitlist/activity).
   'owner-lists': {
     perIp: { limit: 60, windowMs: 10 * MINUTE },

@@ -218,6 +218,12 @@ export function clientLinkRefusal(
       && isInsideCancelWindow(input.date, Number(input.startMinute), input.cancelWindowHours, now)) {
       return { code: 'window', tooLate: true, error: `אפשר לבטל דרך הקישור עד ${hoursHe(input.cancelWindowHours)} לפני התור. כדי לבטל עכשיו, אפשר ליצור קשר ישירות עם ${who}.` };
     }
+    // Moving (app/api/confirm/reschedule) frees the slot just as a cancel does, so her window applies to it with the same wording, plus
+    // "contact the business". A Grow fee policy does not lift it: a late cancel there has a fee, a late MOVE has no agreed price at all.
+    if (input.action === 'reschedule' && input.cancelWindowHours > 0
+      && isInsideCancelWindow(input.date, Number(input.startMinute), input.cancelWindowHours, now)) {
+      return { code: 'window', tooLate: true, error: `אפשר להזיז את התור דרך הקישור עד ${hoursHe(input.cancelWindowHours)} לפני התור, כמו בביטול. כדי להזיז עכשיו, אפשר ליצור קשר ישירות עם ${who}.` };
+    }
   }
   return null;
 }

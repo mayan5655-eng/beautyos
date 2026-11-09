@@ -148,6 +148,10 @@ const CalendarFeedCard = dynamic(() => import("./CalendarFeedCard"), { ssr: fals
 import FeeQuestions from "./FeeQuestions";
 import HoldBadge from "./HoldBadge";
 import ServiceDepositToggle from "./ServiceDepositToggle";
+// The pre-visit intake gate (lib/intakeGate.ts): per-service setting, calendar badges, "send the form" in her queue.
+import ServiceIntakeToggle from "./ServiceIntakeToggle";
+import IntakeBadge, { IntakeQueueSync } from "./IntakeBadge";
+import { intakeColumnReady } from "@/lib/intakeGate";
 import ApptDepositToggle from "./ApptDepositToggle";
 import MyDayCard from "./MyDayCard";
 import { toastDurationMs, UNDO_SETTLE_MS } from "@/lib/toastDuration";
@@ -5128,14 +5132,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // (bufferPending) rather than shown a save that silently dropped it.
   // rebook_days comes from add_service_rebook_days_2026-11-09.sql (hand-run): the field is disabled until it has run, and a save
   // that still meets the missing column drops only that column (the nudge then uses the automatic interval).
-  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes", "rebook_days"];
+  // intake (lib/intakeGate.ts) comes from add_reschedule_intake_2026-11-09.sql (hand-run): the setting is hidden until it has run.
+  const SERVICE_FIELDS = ["name", "price", "duration", "description", "field", "color", "active", "requires_deposit", "buffer_minutes", "rebook_days", "intake"];
   const commitServiceDraft = async (tid) => {
     // rebook_days is typed freely (typedRebookDays) and only validated here and on blur: clamping each keystroke turned "21" into 71.
     const draft = editServices ? editServices.map(s => (s && Object.prototype.hasOwnProperty.call(s, "rebook_days") ? { ...s, rebook_days: cleanRebookDays(s.rebook_days) } : s)) : editServices;
     if (!draft) return { changed: 0, errors: [], bufferPending: false };
     // A save that failed on a column the database does not have yet: retry without THAT column only (lib/pgError
     // missingColumnName), up to three optional columns. Returns null when the error was not a missing optional column.
-    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes", "rebook_days"];
+    const OPTIONAL_SERVICE_COLS = ["field", "requires_deposit", "buffer_minutes", "rebook_days", "intake"];
     const retryWithoutMissing = async (row, firstError, run) => {
       if (!firstError || !isMissingColumnError(firstError)) return null;
       let cur = { ...row }, err = firstError, result = null;
@@ -9154,6 +9159,7 @@ ${MARKETING_FOOTER}`)}`;
                       auditing type sizes here. */}
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{fmtApptTime(a)} · {a.service}</p>
                   <HoldBadge appointmentId={a.id}/>
+                  <IntakeBadge appointmentId={a.id}/>
                   {!isPersonal(a)&&(()=>{const s0=apptStatus(a);return s0.key==="pending"?null:<span style={{fontSize:"var(--t-sm)",color:s0.key==="cancelled"?"var(--danger)":APPT_STATUS_TONE_COLOR[s0.tone],fontWeight:700}}>{s0.label}</span>;})()}
  <button onClick={()=>handleOpenCashier(a)} style={{background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-md)",padding:"3px 9px",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",marginTop:3,display:"block"}}>גבי</button>
  </div>
@@ -9302,6 +9308,7 @@ ${MARKETING_FOOTER}`)}`;
               )}
  </div>}
  <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
+ <IntakeQueueSync onQueued={refreshWaQueue}/>
  <button type="button" onClick={()=>{if(guardWrite())return;setPhotoPost({clientName:""});}} data-testid="photo-to-post-open" className="glass-card card-boxed" style={{order:3,display:"flex",alignItems:"center",gap:12,width:"100%",maxWidth:1180,marginInline:"auto",marginBottom:12,padding:"14px 17px",textAlign:"right",cursor:"pointer",fontFamily:"inherit",border:"1px solid var(--line)"}}>
  <span aria-hidden style={{width:40,height:40,borderRadius:"50%",background:"var(--ink)",color:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",flex:"none"}}><Icon name="camera" size={18}/></span>
  <span style={{flex:1}}>
@@ -10066,6 +10073,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?"כל היום":`${appt.duration}ד׳`}</p>
  {!isPersonal(appt)&&<HoldBadge appointmentId={appt.id}/>}
+ {!isPersonal(appt)&&<IntakeBadge appointmentId={appt.id}/>}
                                 {appt.actual_start_at&&appt.actual_end_at&&(()=>{
                                   const o=durationOutcome(appt.actual_start_at,appt.actual_end_at,Number(appt.duration)||0);
                                   if(!o) return null;
@@ -13643,6 +13651,7 @@ ${MARKETING_FOOTER}`)}`;
  <input type="number" inputMode="numeric" min={0} max={120} disabled={!bufferColumnReady} aria-label={SERVICE_BUFFER_LABEL_HE} value={svc.buffer_minutes==null?"":svc.buffer_minutes} placeholder={String(bufferDefaultHere)} onChange={e=>patchDraftService(idx,{buffer_minutes:e.target.value===""?null:cleanBufferMinutes(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:bufferColumnReady?"var(--surface)":"var(--surface-2)"}}/>
  </label>
  {!bufferColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>יופעל אחרי עדכון קטן במערכת. עד אז חל זמן ההפסקה הכללי מ״כללי קביעת תור״.</p>}
+ <ServiceIntakeToggle ready={intakeColumnReady(services)} value={svc.intake} onChange={v=>patchDraftService(idx,{intake:v})}/>
  {/* Days after a visit of this treatment until the "time for the next one" nudge. Empty = automatic (her rhythm, else a
      suggestion by the name, shown as the placeholder); 0 = never for this treatment. */}
  {rebookShown&&(()=>{const sug=suggestedRebookDays(svc.name,svc.field);return(<>
