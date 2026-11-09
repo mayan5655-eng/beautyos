@@ -169,8 +169,9 @@ for (const id of Object.keys(TUTORIAL_TITLES)) assert.deepEqual(validVideoIds([i
   const c = newCalls();
   await handleHelpChat(req({ message: 'q' }), deps(c, 'a', { fields: ['nails'] }));
   // ...and only the videos of features this deployment switched on (lib/tutorialFlags.ts): with Grow off, no Grow video.
-  const { tutorialFlagsOn } = await import('./lib/tutorialFlags.ts');
-  assert.equal(c.track[0].params.system[0].text, buildHelpPrompt(['nails'], tutorialFlagsOn()));
+  // (2026-11-09) and only what is switched on for her business: her settings row plus the deployment (lib/helpVisibility.ts).
+  const { helpChatGates } = await import('./lib/ai/helpChat.ts');
+  assert.equal(c.track[0].params.system[0].text, buildHelpPrompt(['nails'], helpChatGates({ business_fields: ['nails'] }, SESSION_TENANT)));
   assert.equal(buildHelpPrompt(['nails'], { grow: false, referral: false }).includes('grow-till:'), false, 'Grow off: the Grow videos are not offered');
   assert.ok(buildHelpPrompt(['nails'], { grow: true, referral: true }).includes('grow-till:'), 'Grow on: they are');
   const off = buildHelpPrompt(['cosmetics'], { grow: false, referral: false });
@@ -183,7 +184,7 @@ for (const id of Object.keys(TUTORIAL_TITLES)) assert.deepEqual(validVideoIds([i
   const c2 = newCalls();
   const r2 = await handleHelpChat(req({ message: 'q' }), deps(c2, 'a', { settingsError: { code: '42703', message: 'column settings.business_fields does not exist' } }));
   assert.equal(r2.status, 200);
-  assert.equal(c2.track[0].params.system[0].text, buildHelpPrompt(['cosmetics'], tutorialFlagsOn()));
+  assert.equal(c2.track[0].params.system[0].text, buildHelpPrompt(['cosmetics'], helpChatGates(null, SESSION_TENANT)));
 }
 
 // ── bounded history ────────────────────────────────────────────────────────

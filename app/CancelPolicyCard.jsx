@@ -59,7 +59,8 @@ export default function CancelPolicyCard({ pc, pcTint, toast, isDemo }) {
   }, [dirty, isDemo]);
   useEffect(() => () => setPendingSave('cancel-policy', null), []);
 
-  if (!state || state.hidden || !state.connected || !p) return null;
+  // Not active yet (the migration has not run): hidden, never explained (2026-11-09 owner rule).
+  if (!state || state.hidden || !state.connected || !p || state.tableReady === false) return null;
 
   const numeric = (spec) => ({ ...spec, value: Number(spec.value) || 0 });
   const asPolicy = (q) => ({ ...q, lateFee: numeric(q.lateFee), noShowFee: numeric(q.noShowFee), deposit: numeric(q.deposit), windowHours: Number(q.windowHours) || 0 });

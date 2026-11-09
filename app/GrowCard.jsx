@@ -80,7 +80,8 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
   };
 
   // Nothing until we know the Grow screens are on for this deployment (a 404 or a failed read both mean "hidden").
-  if (!s || s.hidden) return null;
+  // Not active yet (the migration has not run) is hidden too, never explained (2026-11-09 owner rule).
+  if (!s || s.hidden || s.tableReady === false) return null;
 
   const box = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 16px', marginBottom: 12 };
   const inp = { flex: 1, minWidth: 0, border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', fontSize: 'var(--t-md)', fontFamily: 'inherit', outline: 'none', background: 'var(--surface-2)', color: 'var(--ink)' };

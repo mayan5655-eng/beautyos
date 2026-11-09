@@ -3,9 +3,22 @@
 // in the last two weeks ("הצענו את התור ל..."), from /api/waitlist/activity. Read only. A failed read shows nothing rather than
 // a wrong history; the card above it still works.
 import { useEffect, useState } from "react";
+import { useDeployFlags } from "./useDeployFlags";
+
+// What it says depends on whether the central number sends by itself: today it does not, so the offer is "prepared for you to send",
+// never "offered automatically" (2026-11-09 owner rule). Exported for test-hide-inactive.ts.
+export const WAITLIST_ACTIVITY_ON = {
+  auto: "כשמתבטל תור, אני מציעה אותו אוטומטית למי שמחכה ושהוא מתאים לה, והראשונה שלוחצת מקבלת.",
+  manual: "כשמתבטל תור, אני מכינה לך ב\"הודעות מוכנות לשליחה\" הצעה למי שמחכה ושהתור מתאים לה. את שולחת בלחיצה, והראשונה שלוחצת מקבלת.",
+};
+export const WAITLIST_ACTIVITY_OFF = {
+  auto: "ההצעה האוטומטית לרשימת ההמתנה כבויה. כשמתבטל תור, אפשר להציע אותו מהיומן.",
+  manual: "ההצעה לרשימת ההמתנה כבויה. כשמתבטל תור, אפשר להציע אותו מהיומן.",
+};
 
 export default function WaitlistActivity({ onOpenSettings }) {
   const [data, setData] = useState(null);
+  const mode = useDeployFlags().autoSend ? "auto" : "manual";
   useEffect(() => {
     let alive = true;
     fetch("/api/waitlist/activity", { cache: "no-store" })
@@ -18,9 +31,7 @@ export default function WaitlistActivity({ onOpenSettings }) {
   return (
     <div data-testid="waitlist-activity" style={{ marginTop: 10, fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
       <p style={{ margin: "0 0 6px" }}>
-        {data.on
-          ? "כשמתבטל תור, אני מציעה אותו אוטומטית למי שמחכה ושהוא מתאים לה, והראשונה שלוחצת מקבלת."
-          : "ההצעה האוטומטית לרשימת ההמתנה כבויה. כשמתבטל תור, אפשר להציע אותו מהיומן."}
+        {data.on ? WAITLIST_ACTIVITY_ON[mode] : WAITLIST_ACTIVITY_OFF[mode]}
         {onOpenSettings && (
           <button type="button" onClick={onOpenSettings} style={{ background: "none", border: "none", color: "var(--ink)", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", minHeight: 44, padding: "0 4px" }}>
             {data.on ? "הגדרות" : "להפעלה"}
