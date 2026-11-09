@@ -16,7 +16,7 @@ import {
   handleHelpChat, buildHelpPrompt, parseHelpAnswer, boundHistory, validVideoIds,
   HELP_CHAT_CALL_SITE, MAX_HISTORY_TURNS, MAX_TURN_CHARS, MAX_QUESTION_CHARS,
 } from './lib/ai/helpChat.ts';
-import { HELP_SECTIONS, helpSectionsFor, TUTORIAL_TITLES } from './lib/helpSections.ts';
+import { HELP_SECTIONS, helpSectionsFor, TUTORIAL_TITLES, tutorialIdsFor } from './lib/helpSections.ts';
 import { MODELS, EFFORT } from './lib/ai/models.ts';
 import { MONTHLY_CALL_CAPS, getCallCapStatus, AiCapExceededError, DemoBlockedError } from './lib/ai/callCaps.ts';
 import { capRefusalHe } from './lib/ai/capMessages.ts';
@@ -168,12 +168,22 @@ for (const id of Object.keys(TUTORIAL_TITLES)) assert.deepEqual(validVideoIds([i
   // the route uses the session tenant's fields
   const c = newCalls();
   await handleHelpChat(req({ message: 'q' }), deps(c, 'a', { fields: ['nails'] }));
-  assert.equal(c.track[0].params.system[0].text, nails);
+  // ...and only the videos of features this deployment switched on (lib/tutorialFlags.ts): with Grow off, no Grow video.
+  const { tutorialFlagsOn } = await import('./lib/tutorialFlags.ts');
+  assert.equal(c.track[0].params.system[0].text, buildHelpPrompt(['nails'], tutorialFlagsOn()));
+  assert.equal(buildHelpPrompt(['nails'], { grow: false, referral: false }).includes('grow-till:'), false, 'Grow off: the Grow videos are not offered');
+  assert.ok(buildHelpPrompt(['nails'], { grow: true, referral: true }).includes('grow-till:'), 'Grow on: they are');
+  const off = buildHelpPrompt(['cosmetics'], { grow: false, referral: false });
+  const headings = (off.match(/\(סרטונים: [^)]*\)/g) || []).join(' ');
+  for (const id of ['grow-connect', 'grow-till', 'pay-page', 'deposits', 'grow-refunds', 'referral']) assert.equal(headings.includes(id), false, `Grow/referral off: no section heading advertises ${id}`);
+  assert.ok(headings.length > 0, 'other headings still list their videos');
+  assert.deepEqual(parseHelpAnswer('x\n[[videos: grow-till, welcome]]', tutorialIdsFor(['cosmetics'], { grow: false, referral: false })).videos, ['welcome'], 'a hidden video named by the model is dropped');
+  assert.deepEqual(parseHelpAnswer('x\n[[videos: grow-till]]', tutorialIdsFor(['cosmetics'], { grow: true, referral: true })).videos, ['grow-till']);
   // a missing business_fields column falls back to the cosmetics text, never fails
   const c2 = newCalls();
   const r2 = await handleHelpChat(req({ message: 'q' }), deps(c2, 'a', { settingsError: { code: '42703', message: 'column settings.business_fields does not exist' } }));
   assert.equal(r2.status, 200);
-  assert.equal(c2.track[0].params.system[0].text, cos);
+  assert.equal(c2.track[0].params.system[0].text, buildHelpPrompt(['cosmetics'], tutorialFlagsOn()));
 }
 
 // ── bounded history ────────────────────────────────────────────────────────

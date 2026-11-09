@@ -56,8 +56,9 @@ ok('honest copy: links, not integrations; no dashes; feminine', () => {
 });
 
 ok('the matching tutorial video is linked', () => {
-  assert.ok(TUTORIAL_TITLES['my-page']);
-  assert.match(rd('app/BookingButtonsCard.jsx'), /tutorialHref\('my-page'\)/);
+  // 2026-11-09: the card has its own video now (it used to point to the general "my page" one).
+  assert.ok(TUTORIAL_TITLES['booking-button']);
+  assert.match(rd('app/BookingButtonsCard.jsx'), /tutorialHref\('booking-button'\)/);
 });
 
 ok('the card lives in Settings > הדף שלי, copies through copyPublicLink, and saves through the settings save route', () => {

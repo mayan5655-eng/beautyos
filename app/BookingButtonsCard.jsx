@@ -47,8 +47,8 @@ export default function BookingButtonsCard({ bookingUrl, automations, onCopy, on
         כך הקישור שלך לקביעת תור יופיע בכל מקום שלקוחות מחפשות אותך. זה קישור שאת מדביקה בעצמך, לא חיבור אוטומטי: קלמיה לא משנה כלום בחשבונות שלך.
         כל קישור מסומן לפי המקום, כדי שבדוח המקורות תראי מאיפה הגיעו התורים.
       </p>
-      <a href={tutorialHref('my-page')} target="_blank" rel="noopener noreferrer" data-testid="booking-buttons-video" style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: pcDeep, textDecoration: 'none', alignSelf: 'flex-start' }}>
-        ▶ סרטון: {TUTORIAL_TITLES['my-page']}
+      <a href={tutorialHref('booking-button')} target="_blank" rel="noopener noreferrer" data-testid="booking-buttons-video" style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: pcDeep, textDecoration: 'none', alignSelf: 'flex-start' }}>
+        ▶ סרטון: {TUTORIAL_TITLES['booking-button']}
       </a>
 
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
