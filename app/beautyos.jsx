@@ -5629,8 +5629,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           const res = await fetch("/api/grow/void-refund", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receiptId: receipt.id }) });
           growRefund = await res.json().catch(() => null);
         } catch { growRefund = null; }
-        // "hidden" is a known no-send (the Grow screens are off). Any other unreadable or lost answer may hide a refund Grow already made:
-        // never tell her it failed (she would refund by hand, a second time); tell her to check Grow first (Vercel Agent Review, PR #45).
+        // A lost answer may hide a done refund: "check Grow first", never "failed" (a second refund by hand).
         if (growRefund && growRefund.hidden) growRefund = { refunded: false, status: "failed", message: VOID_REFUND_HE.failed("") };
         else if (!growRefund || !growRefund.message) growRefund = { refunded: false, status: "unknown", message: VOID_REFUND_HE.unknown };
         if (growRefund.note) {
