@@ -3,7 +3,7 @@
 // The payment page /pay/<token> (lib/grow/wallet.ts). No login: the client who got the link has none. The token in the link IS the
 // authorisation, and it only ever opens THAT one payment.
 //   GET  ?t=<token>      -> { state: 'open' | 'paid' | 'closed' | 'expired' | 'unknown', amount, description, businessName, context }   (no Grow call)
-//   POST { t: <token> }  -> { state: 'ready', authCode, sdkEnv, ... }   createPaymentProcess is called now, right before the wallet is drawn
+//   POST { t: <token> }  -> { state: 'ready', authCode, sdkEnv, hostedUrl, ... }   createPaymentProcess is called now, right before the wallet is drawn
 // context (lib/grow/wallet.ts payContextOf): for a booking deposit or a visit paid from the booking page, the service, date and time and
 // the way back to her booking page; for a gift voucher, the way to the voucher. A booking deposit whose 30-minute hold ran out reads
 // 'expired' and is never opened at Grow (lib/grow/cancelFees.ts depositHoldOpen).
@@ -18,6 +18,8 @@ import { depositHoldOpen } from '@/lib/grow/cancelFees';
 import type { ConsentRow } from '@/lib/grow/cancelFees';
 import { VOUCHER_SERVICE_PREFIX } from '@/lib/giftVouchers';
 import { admin } from '../_shared';
+import { reportWalletSession } from '@/lib/grow/walletDiagServer';
+import { moneyAlert } from '@/lib/moneyAlert';
 
 export const maxDuration = 30;
 
@@ -92,7 +94,9 @@ export async function POST(request: Request) {
       return data && (data as { enabled?: unknown }).enabled === true ? String((data as { user_id: unknown }).user_id) : null;
     },
     holdOpen: holdOpenFor,
+    // What Grow answered (flags and its error only) into ops_events at warning: the owner reads it with SQL (docs/GROW_SETUP.md).
+    report: (rep) => reportWalletSession(rep, moneyAlert),
   });
   if (!r.ok) return NextResponse.json({ success: false, state: r.code, error: r.message }, { status: r.code === 'grow-unreachable' || r.code === 'grow-refused' ? 502 : 409 });
-  return NextResponse.json({ success: true, state: 'ready', authCode: r.authCode, sdkEnv: r.sdkEnv, amount: r.amount, description: r.description });
+  return NextResponse.json({ success: true, state: 'ready', authCode: r.authCode, sdkEnv: r.sdkEnv, hostedUrl: r.hostedUrl, amount: r.amount, description: r.description });
 }

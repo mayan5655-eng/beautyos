@@ -18,6 +18,9 @@
 import { buildProcessFields, parseProcessResponse, growPhone, tenantRefOf, withGrowResult } from './payload.ts';
 import type { GrowPayment } from './service.ts';
 import { growCredentials } from './config.ts';
+import { sessionReportOf } from './walletDiagServer.ts';
+import type { SessionReport } from './walletDiagServer.ts';
+import { safeHostedUrl } from './walletDiag.js';
 
 export const LINK_LIFETIME_HOURS = 24;
 export const WALLET_METHODS_HE = 'כרטיס אשראי, ביט, Apple Pay ו-Google Pay';
@@ -104,7 +107,12 @@ export function walletLink(appUrl: string, notifyToken: string): string {
 }
 
 export type WalletSession =
-  | { ok: true; authCode: string; processId: string; processToken: string; sdkEnv: 'DEV' | 'PRODUCTION'; amount: number; description: string; clientName: string }
+  | {
+      ok: true; authCode: string; processId: string; processToken: string; sdkEnv: 'DEV' | 'PRODUCTION'; amount: number; description: string; clientName: string;
+      /** Grow's own hosted page for the SAME process, when its answer carried one (data.url, Grow hosts only), else ''. The page sends a
+       *  client there when the wallet script cannot open (in-app browsers): same process, so the callback and approve are unchanged. */
+      hostedUrl: string;
+    }
   | { ok: false; code: 'unknown' | 'closed' | 'paid' | 'expired' | 'not-connected' | 'grow-refused' | 'grow-unreachable'; message: string };
 
 export type WalletDeps = {
@@ -123,6 +131,8 @@ export type WalletDeps = {
   fetchImpl?: typeof fetch;
   appUrl: string;
   now?: () => Date;
+  /** What createPaymentProcess answered (flags and Grow's error only), for ops_events. Best effort: never fails the session. */
+  report?(r: SessionReport): Promise<void> | void;
 };
 
 /** The state of a payment link for the page that shows it (no Grow call). */
@@ -173,11 +183,15 @@ export async function startWalletSession(token: string, d: WalletDeps): Promise<
   for (const [k, v] of fields) form.append(k, v);
 
   let json: unknown = null;
+  let httpStatus: number | null = null;
+  const report = async (reason = '') => { try { await d.report?.(sessionReportOf(json, httpStatus, p, reason)); } catch { /* best effort */ } };
   try {
     const res = await (d.fetchImpl || fetch)(`${d.creds.apiBase}/createPaymentProcess`, { method: 'POST', body: form });
+    httpStatus = res.status;
     json = await res.json().catch(() => null);
-    if (!res.ok) return { ok: false, code: 'grow-refused', message: 'Grow לא פתחה את התשלום. נסי שוב בעוד רגע.' };
+    if (!res.ok) { await report('http'); return { ok: false, code: 'grow-refused', message: 'Grow לא פתחה את התשלום. נסי שוב בעוד רגע.' }; }
   } catch {
+    await report('unreachable');
     return { ok: false, code: 'grow-unreachable', message: 'לא הצלחנו להגיע ל-Grow. לא חויבת, אפשר לנסות שוב.' };
   }
   const o = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>;
@@ -189,11 +203,14 @@ export async function startWalletSession(token: string, d: WalletDeps): Promise<
     // A page code that is not a wallet code answers with a url instead: say so in the log, not to the client.
     const why = parseProcessResponse(json);
     console.error('[grow] wallet session refused:', why.ok ? 'answer had a url but no authCode (not a wallet page code)' : why.reason);
+    await report(why.ok ? 'url-no-authcode' : 'grow');
     return { ok: false, code: 'grow-refused', message: 'Grow לא פתחה את התשלום. נסי שוב בעוד רגע.' };
   }
   // Each time the page opens, a new process: the callback is matched to the LAST one (service.notificationMatches).
   await d.repo.updatePayment(p.id, { process_id: processId });
-  return { ok: true, authCode, processId, processToken, sdkEnv: d.creds.sdkEnv, amount: Number(p.amount), description: p.description || '', clientName: p.client_name || '' };
+  await report();
+  const hostedUrl = safeHostedUrl(data.url);
+  return { ok: true, authCode, processId, processToken, sdkEnv: d.creds.sdkEnv, amount: Number(p.amount), description: p.description || '', clientName: p.client_name || '', hostedUrl };
 }
 
 export const DEPOSIT_HOLD_OVER_HE = 'הזמן לתשלום המקדמה עבר והתור שוחרר. אפשר לקבוע תור חדש.';
