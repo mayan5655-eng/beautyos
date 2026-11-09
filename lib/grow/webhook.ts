@@ -263,7 +263,11 @@ export function onboardingFromRow(r: StoredOnboardingRow): OnboardingUpdate {
   };
 }
 
-export type AdminAttachRepo = OnboardingRepo & { getUpdate(id: string): Promise<StoredOnboardingRow | null> };
+export type AdminAttachRepo = OnboardingRepo & {
+  getUpdate(id: string): Promise<StoredOnboardingRow | null>;
+  /** Makes sure the tenant has a grow_onboarding_pending row (her Grow card reads its status from there). Never replaces an existing one. */
+  ensurePending?(tenantId: string, trackingCode: string, fallbackCode: string): Promise<void>;
+};
 
 export type AdminAttachResult =
   | { ok: true; result: OnboardingResult }
@@ -278,6 +282,9 @@ export async function adminAttachOnboarding(updateId: string, tenantId: string, 
   const row = await repo.getUpdate(updateId);
   if (!row) return { ok: false, code: 'not-found' };
   if (row.match_state !== 'unmatched') return { ok: false, code: 'not-unmatched' };
+  // A business the admin picked may never have started the registration from her card, so it may have no pending row, and the
+  // status written below would land nowhere while the attach said "done" (Vercel Agent Review, PR #47). Create it first.
+  if (repo.ensurePending) await repo.ensurePending(tenantId, clip(row.tracking_code, 100) || `admin-${row.id}`, `admin-${row.id}`);
   return { ok: true, result: await attachOnboardingToTenant(row.id, onboardingFromRow(row), tenantId, repo) };
 }
 

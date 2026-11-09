@@ -35,6 +35,7 @@ function fakeRepo(rows: StoredOnboardingRow[], opts: { pending?: Record<string, 
     async clearPending(t) { log.push(`clear:${t}`); },
     async setPendingStatus(t, s) { log.push(`status:${t}:${s}`); },
     async saveApiKey(t) { log.push(`key:${t}`); },
+    async ensurePending(t, code) { log.push(`pending:${t}:${code}`); },
   };
   return { repo, log, accounts };
 }
@@ -55,7 +56,7 @@ await ok('attach of an approved unmatched update connects her business, exactly 
   assert.equal(r.result.status, 'matched');
   assert.equal(r.result.registration, 'approved');
   assert.deepEqual(accounts[T], { user_id: 'u8f3a91c2', enabled: true });
-  assert.deepEqual(log, [`save:${T}:u8f3a91c2:true`, `status:${T}:approved`, `match:${row().id}:matched:${T}`, `clear:${T}`]);
+  assert.deepEqual(log, [`pending:${T}:admin-${row().id}`, `save:${T}:u8f3a91c2:true`, `status:${T}:approved`, `match:${row().id}:matched:${T}`, `clear:${T}`]);
   assert.ok(!log.some((l) => l.startsWith('key:')), 'the admin path never stores a key');
 });
 
@@ -65,7 +66,9 @@ await ok('the same writes as the webhook path for the same update', async () => 
   await applyOnboarding(readOnboarding(raw)!, viaHook.repo);
   const viaAdmin = fakeRepo([row({ id: 'u1', tracking_code: 'TRK-9' })]);
   await adminAttachOnboarding('u1', T, viaAdmin.repo);
-  assert.deepEqual(viaHook.log.filter((l) => l !== 'insert'), viaAdmin.log);
+  // The admin path first makes sure her pending row exists (the webhook matched one, so it has it); the rest is identical.
+  assert.deepEqual(viaAdmin.log[0], `pending:${T}:TRK-9`);
+  assert.deepEqual(viaHook.log.filter((l) => l !== 'insert'), viaAdmin.log.slice(1));
 });
 
 await ok('an update without a business id attaches its status only, and switches nothing on', async () => {
@@ -73,7 +76,7 @@ await ok('an update without a business id attaches its status only, and switches
   const r = await adminAttachOnboarding(row().id, T, repo);
   assert.ok(r.ok && r.result.status === 'matched' && r.result.registration === 'waiting');
   assert.equal(accounts[T], undefined);
-  assert.deepEqual(log, [`status:${T}:waiting`, `match:${row().id}:matched:${T}`]);
+  assert.deepEqual(log, [`pending:${T}:admin-${row().id}`, `status:${T}:waiting`, `match:${row().id}:matched:${T}`], 'her card gets a pending row first, so the waiting status lands');
 });
 
 await ok('a rejected update attaches as rejected', async () => {
@@ -274,6 +277,31 @@ await ok('no em dashes in the new copy', () => {
   for (const f of ['app/dashboard/admin/GrowUnmatched.tsx', 'app/dashboard/admin/GrowAttach.tsx', 'app/api/admin/grow-onboarding/route.ts', 'lib/grow/paymentOrigin.ts', 'lib/grow/adminOnboarding.ts']) {
     assert.ok(!rd(f).includes('—'), f);
   }
+});
+
+await ok('the supabase ensurePending: keeps an existing row, inserts one otherwise, and falls back to the admin code on a taken tracking code', async () => {
+  const calls: string[] = [];
+  const mk = (have: boolean, firstInsertDup: boolean) => {
+    let inserts = 0;
+    return { from() {
+      const q: Record<string, unknown> = {};
+      q.select = () => q; q.eq = () => q;
+      q.maybeSingle = async () => ({ data: have ? { tenant_id: T } : null, error: null });
+      q.insert = async (row: { tracking_code: string }) => { inserts++; calls.push(`insert:${row.tracking_code}`); return inserts === 1 && firstInsertDup ? { error: { code: '23505', message: 'duplicate key' } } : { error: null }; };
+      return q;
+    } };
+  };
+  const { supabaseOnboardingRepo } = await import('./lib/grow/onboardingRepo.ts');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await supabaseOnboardingRepo(mk(true, false) as any).ensurePending!(T, 'TRK-1', 'admin-x');
+  assert.deepEqual(calls, [], 'an existing pending row is never replaced');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await supabaseOnboardingRepo(mk(false, false) as any).ensurePending!(T, 'TRK-1', 'admin-x');
+  assert.deepEqual(calls, ['insert:TRK-1']);
+  calls.length = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await supabaseOnboardingRepo(mk(false, true) as any).ensurePending!(T, 'TRK-1', 'admin-x');
+  assert.deepEqual(calls, ['insert:TRK-1', 'insert:admin-x']);
 });
 
 console.log(`test-grow-ops-admin: passed ${passed} failed 0`);
