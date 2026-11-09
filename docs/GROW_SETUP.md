@@ -161,3 +161,24 @@ Environment: sandbox `GROW_WALLET_PAGE_CODE_TEST` (with the same `GROW_TOKEN_USE
 **Bit, Apple Pay and Google Pay have no sandbox at Grow**: a test with them is real money. Only cards were tested (sandbox card 4580458045804580). To repeat the sandbox test (card payment, a payment-request link, a refund; no database is touched): `node --env-file=.env.local scripts/smoke/grow-wallet.mjs <outDir>`.
 
 **Registration (GetLink):** built to Grow's lead-registration spec (2026-10-20). The test form is password protected (Grow gives the user and password). The live GetLink address and live key come from Grow separately.
+
+### When the wallet does not open (in-app browsers, 2026-11-09)
+
+Clients open `/pay/<token>` from WhatsApp, Instagram or Facebook, whose in-app browsers may not run Grow's wallet script (confirmed: WhatsApp Business on iPhone showed no Grow window while Safari paid). The page (`lib/grow/walletDiag.js`, `app/pay/[token]/PayClient.jsx`):
+
+1. If `createPaymentProcess` for the wallet also returned a hosted page (`data.url`, Grow hosts over https only), an in-app browser goes straight there, and any browser goes there when the wallet fails before it opened. Same process, so the callback and `approveTransaction` are unchanged. Whether Grow's wallet answer carries `data.url` was never recorded by our tests (Grow's docs describe an `authCode` "instead of" a URL); `has_url` in the session rows below answers it.
+2. Without a hosted page, an in-app browser gets a short prompt to open the same link in the phone's browser (iOS: "⋯ › פתיחה בספארי"; Android: an `intent://` link to Chrome; both: copy link).
+3. Elsewhere, Grow's own failure text is shown; never an empty failure.
+
+Diagnostics, no PII and no secrets, in `ops_events` at warning (no push): `grow:wallet-session` (what createPaymentProcess answered: success, has_auth_code, has_url, Grow's error id and text) and `grow:wallet-client` (the page's report: SDK event, Grow's message/code/status, whether the script loaded, sdkEnv, browser class, the payment id; via `/api/grow/wallet/diag`, token-bound and rate-limited). Read them:
+
+```sql
+select created_at, source, message,
+       details->>'payment_id' as payment_id, details->>'event' as event, details->>'ua' as browser,
+       details->>'sdkLoaded' as sdk_loaded, details->>'message' as grow_message, details->>'code' as grow_code,
+       details->>'has_url' as has_url, details->>'grow_err_code' as grow_err_code, details->>'grow_err_message' as grow_err_message
+from ops_events
+where source in ('grow:wallet-client', 'grow:wallet-session')
+order by created_at desc
+limit 50;
+```

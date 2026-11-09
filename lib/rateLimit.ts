@@ -340,6 +340,14 @@ export const RATE_POLICIES = {
 
   // A client's data copy and erasure (app/api/clients/export, /erase): signed-in, one client at a time. A person asks for her copy once or
   // twice; erasing is rarer still. The limits only stop a loop, never a real use.
+  // The payment page's failure report (app/api/grow/wallet/diag): token-bound, writes one ops_events row. A client whose wallet fails
+  // reports a handful of times; perTenant is used as the PER-PAYMENT cap (keyed by the payment's id), so one link cannot flood the log.
+  'wallet-diag': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 8, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
   'client-export': {
     perIp: { limit: 20, windowMs: 10 * MINUTE },
     perTenant: { limit: 20, windowMs: 10 * MINUTE },
