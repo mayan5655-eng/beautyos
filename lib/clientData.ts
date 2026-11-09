@@ -207,8 +207,37 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
     const reads = [db.from('visit_feedback').select('client_name').eq('tenant_id', tenantId).eq('client_id', clientId)]
     if (apptIds.length) reads.push(db.from('visit_feedback').select('client_name').eq('tenant_id', tenantId).in('appointment_id', apptIds))
     for (const fr of await Promise.all(reads)) {
-      if (fr.error) { if (!isTableMissing(fr.error)) { failed = true; steps.push({ table: 'visit_feedback', action: 'failed', note: 'read' }) } continue }
+      if (fr.error) {
+        if (isTableMissing(fr.error)) continue
+        steps.push({ table: 'visit_feedback', action: 'failed', note: 'read' })
+        return { ok: false, steps, error: 'some steps failed; the client card was kept so this can be run again' }
+      }
       for (const row of fr.data || []) { const t = feedbackNotice({ clientName: String(row.client_name || ''), body: '' }).title; if (!feedbackTitles.includes(t)) feedbackTitles.push(t) }
+    }
+  }
+
+  // ONE AT A TIME, AND BEFORE ANY APPOINTMENT IS ANONYMISED. The notes on an old booking never linked to her card are found
+  // only through that booking's id, and that id only through its phone, which the anonymising below removes. So the notes and
+  // the notifications quoting them go first, notifications before notes (the notes name her, which is how a retry finds the
+  // old unlinked notifications), and any failure stops the whole erasure here: nothing anonymised, the card kept, and a retry
+  // finds everything again. A table not created yet is skipped.
+  {
+    const pre: Array<[string, () => Promise<{ error: any; data?: any[] | null }>]> = []
+    if (apptIds.length) pre.push(['owner_notifications', () => db.from('owner_notifications').delete().eq('tenant_id', tenantId).in('appointment_id', apptIds).select('id')])
+    // the notifications that quoted a note but carry no appointment id (sent before they did): matched by the title naming her
+    if (feedbackTitles.length) pre.push(['owner_notifications (private notes)', () => db.from('owner_notifications').delete().eq('tenant_id', tenantId).eq('kind', 'visit_feedback').is('appointment_id', null).in('title', feedbackTitles).select('id')])
+    // her private notes: by her card AND by the appointments collected above, so a note on a visit never linked to her card goes too
+    pre.push(['visit_feedback', () => db.from('visit_feedback').delete().eq('tenant_id', tenantId).eq('client_id', clientId).select('id')])
+    if (apptIds.length) pre.push(['visit_feedback (by appointment)', () => db.from('visit_feedback').delete().eq('tenant_id', tenantId).in('appointment_id', apptIds).select('id')])
+    for (const [table, op] of pre) {
+      const res = await op()
+      if (res.error) {
+        if (isTableMissing(res.error)) { steps.push({ table, action: 'skipped', note: 'table not on this install' }); continue }
+        steps.push({ table, action: 'failed', note: isColumnMissing(res.error) ? 'column missing' : String(res.error.code || 'error') })
+        return { ok: false, steps, error: 'some steps failed; nothing was anonymised and the client card was kept so this can be run again' }
+      }
+      const n = Array.isArray(res.data) ? res.data.length : undefined
+      steps.push({ table, action: n === 0 ? 'none' : 'deleted', count: n })
     }
   }
 
@@ -236,13 +265,7 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
     // the owner's copies: the log of messages sent to HER about this client quotes the name and phone
     run('messages to the owner', 'deleted', () => db.from('whatsapp_messages').delete().eq('tenant_id', tenantId).or(phones.map((p) => `message_body.ilike.%${p}%`).join(',')).select('id'))
   }
-  if (apptIds.length) run('owner_notifications', 'deleted', () => db.from('owner_notifications').delete().eq('tenant_id', tenantId).in('appointment_id', apptIds).select('id'))
-  // her private notes: by her card AND by the appointments collected above (before they are anonymised), so a note written
-  // on a visit that was never linked to her card goes too
-  run('visit_feedback', 'deleted', () => db.from('visit_feedback').delete().eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
-  if (apptIds.length) run('visit_feedback (by appointment)', 'deleted', () => db.from('visit_feedback').delete().eq('tenant_id', tenantId).in('appointment_id', apptIds).select('id'))
-  // the notifications that quoted a note but carry no appointment id (sent before they did): matched by the title naming her
-  if (feedbackTitles.length) run('owner_notifications (private notes)', 'deleted', () => db.from('owner_notifications').delete().eq('tenant_id', tenantId).eq('kind', 'visit_feedback').is('appointment_id', null).in('title', feedbackTitles).select('id'))
+  // (owner_notifications and visit_feedback were deleted above, before anything is anonymised)
 
   // 3. kept for the books, without her identity
   const scrubAppt = { client_id: null, name: ANONYMOUS_NAME_HE, client_phone: null, note: null }

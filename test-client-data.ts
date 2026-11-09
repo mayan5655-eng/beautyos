@@ -287,6 +287,22 @@ assert.ok(isColumnMissing({ code: '42703' }) && isColumnMissing({ code: 'PGRST20
   assert.ok(!r.ok && data.clients.some((c) => c.id === 'c1' && c.tenant_id === T));
   assert.ok(r.steps.some((s) => s.table.startsWith('visit_feedback') && s.action === 'failed'));
 }
+// the note on an UNLINKED booking: a failed delete stops everything before the booking loses its phone, and a retry finds it
+{
+  const data = seed();
+  data.visit_feedback = [{ id: 'vf2', tenant_id: T, appointment_id: 'a4', client_id: null, client_name: 'דנה', mood: 'unhappy', body: 'חיכיתי חצי שעה' }];
+  data.owner_notifications.push({ id: 'n4', tenant_id: T, appointment_id: null, kind: 'visit_feedback', title: 'דנה כתבה לך משהו פרטי', body: 'חיכיתי חצי שעה' });
+  const before = JSON.stringify(data.appointments);
+  const first = await eraseClientData(fakeDb(data, { failDelete: ['visit_feedback'] }) as never, T, 'c1');
+  assert.ok(!first.ok, 'a failed note delete is a failed erasure');
+  assert.equal(JSON.stringify(data.appointments), before, 'no appointment was anonymised: a4 keeps the phone a retry needs');
+  assert.ok(data.clients.some((c) => c.id === 'c1' && c.tenant_id === T), 'the card is kept');
+  assert.equal(data.visit_feedback.length, 1);
+  const retry = await eraseClientData(fakeDb(data) as never, T, 'c1');
+  assert.ok(retry.ok, JSON.stringify(retry.steps));
+  const left = JSON.stringify([data.visit_feedback, data.owner_notifications, data.appointments.filter((a) => a.tenant_id === T)]);
+  for (const s of ['חיכיתי חצי שעה', 'דנה כתבה', '"דנה"', '0501234567', '050-123-4567']) assert.ok(!left.includes(s), `nothing left after the retry: ${s}`);
+}
 assert.ok(fs.readFileSync('app/api/reviews/feedback/route.js', 'utf8').includes('appointmentId: appt.id'), 'a private-note notification carries its appointment, so deletion finds it');
 
 // ── the routes ──
