@@ -17,6 +17,7 @@ const PATHS = {
   chart: "M4 20V10M10 20V4M16 20v-7M21 20H3",
   person: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6",
   card: "M3 6h18v12H3zM3 10h18M7 15h4",
+  doc: "M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h5",
   move: "M4 6h12v13H4zM4 10h12M18 9l3 3-3 3M14 12h7",
 };
 

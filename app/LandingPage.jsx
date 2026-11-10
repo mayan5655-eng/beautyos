@@ -55,7 +55,9 @@ const BEFORE_AFTER = [
   { icon: "wallet", before: "שכחת לגבות או לתעד תשלום", after: "קופה ומעקב אחר תשלומים וחבילות" },
   { icon: "layers", before: "מעבר בין כמה מערכות ואפליקציות", after: "יומן, לקוחות ושיווק במקום אחד" },
   { icon: "chart", before: "אין לך מושג ברור כמה הרווחת", after: "דוחות שמראים לך מה קורה בעסק" },
-  { icon: "person", before: "את גם המטפלת, גם המזכירה וגם מנהלת השיווק", after: "כלי AI שעוזרים לך בניהול היומיומי" },
+  // The intake gate (lib/intakeGate.ts), live since add_reschedule_intake_2026-11-09.sql ran (verified 2026-11-10). She turns it on
+  // per service. The form is a digital link; the patch test is a flag and a line to the client, not a digital test, so the copy says so.
+  { icon: "doc", before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה" },
 ];
 
 function beforeAfterRows(claims) {

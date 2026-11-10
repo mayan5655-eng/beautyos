@@ -175,9 +175,11 @@ console.log(`${n} passed`);
   assert.match(page, /claims\.depositBit \? NO_SHOW_DEPOSIT_BIT : NO_SHOW_DEPOSIT/);
   assert.match(page, /\{claims\.deposits && <p className="lp-fine" data-testid="deposit-note">[^<]*Grow[^<]*<\/p>\}/);
   assert.match(page, /after: "מזיזה לבד, לפי מדיניות הביטול שלך"/);
-  // Not claimed: automatic reminders (off), the intake gate (its migration has not run, so it is hidden in Settings).
+  // Not claimed: automatic reminders (off).
   assert.doesNotMatch(page, /תזכורות אוטומטיות|נשלחות אוטומטית/);
-  assert.doesNotMatch(page, /הצהרת בריאות|בדיקת רגישות/);
+  // The intake gate is live (its migration ran 2026-11-10). The form is digital; the patch test is never called digital.
+  assert.match(page, /before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה"/);
+  assert.doesNotMatch(page, /בדיקת רגישות דיגיטלית/);
   // The terms say the launch price may change with notice, so the page promises no lock-in.
   assert.doesNotMatch(page, /נשארת על המחיר/);
   assert.match(page, /Kalmea לא לוקחת אחוזים מהמכירות שלך/);

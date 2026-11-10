@@ -25,6 +25,15 @@ ok('Grow on in mock mode: no real deposit, no claim', () => {
   assert.equal(landingClaims({ ...LIVE_WALLET, GROW_MODE: '' }).deposits, false);
 });
 
+ok('live mode against the Grow sandbox (GROW_ENV unset or sandbox): no real money, no claim', () => {
+  const noEnv: Record<string, string | undefined> = { ...LIVE_WALLET };
+  delete noEnv.GROW_ENV;
+  assert.deepEqual(landingClaims(noEnv), { deposits: false, depositBit: false });
+  assert.deepEqual(landingClaims({ ...LIVE_WALLET, GROW_ENV: 'sandbox' }), { deposits: false, depositBit: false });
+  assert.deepEqual(landingClaims({ ...LIVE_CARD, GROW_ENV: 'sandbox' }), { deposits: false, depositBit: false });
+  assert.equal(landingClaims({ ...LIVE_CARD, GROW_ENV: ' Production ' }).deposits, true, 'read the same way as lib/grow/config.ts');
+});
+
 ok('Grow on, live, but no payment page configured: no claim', () => {
   assert.equal(landingClaims({ GROW_UI_ENABLED: 'true', GROW_MODE: 'live', GROW_ENV: 'production', GROW_API_KEY: 'k' }).deposits, false);
 });
