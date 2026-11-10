@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, Suspense, useCallback } from 'react';
 import Spinner from "../Spinner";
 import { useSearchParams } from 'next/navigation';
 import { PublicPage, BusinessHeader } from "../PublicChrome";
+import RescheduleFlow from "./RescheduleFlow";
 
 function ConfirmContent() {
   const searchParams = useSearchParams();
@@ -22,7 +23,7 @@ function ConfirmContent() {
   // also removes a frame where a cancel link rendered "מעדכנת את התור שלך…"
   // before the effect got a chance to say otherwise.
   const [status, setStatus] = useState(() =>
-    !id ? 'error' : action === 'cancel' ? 'ready' : 'working'
+    !id ? 'error' : action === 'cancel' ? 'ready' : action === 'reschedule' ? 'moveLoading' : 'working'
   );
   const [message, setMessage] = useState(() =>
     !id ? 'הקישור לא תקין, חסר בו מזהה התור.' : ''
@@ -87,6 +88,42 @@ function ConfirmContent() {
     if (id && action === 'confirm') send();
   }, [id, action, send]);
 
+  // "להזיז את התור" (app/api/confirm/reschedule): a read-only peek of the free times. On a reschedule link it IS the page; on a cancel
+  // link the "move instead" button appears only when this peek says the move really works for this appointment (free times
+  // exist, inside her rules and her move limit). A refused peek on a cancel link shows nothing extra: the cancel answer already
+  // says why. Owner rule 2026-11-09: nothing is shown that does not work.
+  const [movePeek, setMovePeek] = useState(null);
+  useEffect(() => {
+    if (!id || (action !== 'cancel' && action !== 'reschedule')) return;
+    let gone = false;
+    fetch('/api/confirm/reschedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, token, via: action, peek: true }) })
+      .then(r => r.json().then(d => ({ code: r.status, d })))
+      .then(({ code, d }) => {
+        if (gone) return;
+        const cleanContact = () => setContact({ bookUrl: typeof d.bookUrl === 'string' && d.bookUrl.startsWith('/') ? d.bookUrl : '', whatsapp: /^\d{8,15}$/.test(String(d.whatsapp || '')) ? String(d.whatsapp) : '' });
+        if (d?.success && d.peek) {
+          if (action === 'reschedule') {
+            setBrandInfo({ businessName: d.businessName || '', logoUrl: d.logoUrl || '', primaryColor: d.primaryColor || '' });
+            cleanContact();
+            setMovePeek(d);
+            setStatus('move');
+          } else if (Array.isArray(d.days) && d.days.length > 0) {
+            setMovePeek(d);
+          }
+          return;
+        }
+        if (action !== 'reschedule') return;
+        if (d?.businessName) setBrandInfo({ businessName: d.businessName || '', logoUrl: d.logoUrl || '', primaryColor: d.primaryColor || '' });
+        cleanContact();
+        setStatus('error');
+        setRefused(code === 409);
+        setTooLate(code === 409 && d.tooLate === true);
+        setMessage(d?.error || 'משהו השתבש');
+      })
+      .catch(() => { if (!gone && action === 'reschedule') { setStatus('error'); setMessage('לא הצלחנו להתחבר לשרת'); } });
+    return () => { gone = true; };
+  }, [id, action, token]);
+
   // A cancel link says WHICH appointment before she decides: a read-only peek (changes nothing).
   // A failed peek just leaves the question without the details.
   const [peekAppt, setPeekAppt] = useState(null);
@@ -119,10 +156,10 @@ function ConfirmContent() {
     // No hourglass emoji: it was the last colour glyph on a page that is
     // otherwise monochrome, and minHeight on the mark slot keeps the layout
     // from jumping while this state has none.
-    if (status === 'working') return { emoji: '', title: 'רגע...', color: 'var(--ink-2)' };
+    if (status === 'working' || status === 'moveLoading') return { emoji: '', title: 'רגע...', color: 'var(--ink-2)' };
     if (status === 'ready') return { emoji: '', title: 'לבטל את התור?', color: 'var(--ink)' };
     if (status === 'declined') return { emoji: '', title: 'התור נשאר', color: 'var(--pc-deep)' };
-    if (status === 'error' && refused) return { emoji: '', title: action === 'cancel' ? 'אי אפשר לבטל מהקישור' : 'אי אפשר לשנות מהקישור', color: 'var(--ink)' };
+    if (status === 'error' && refused) return { emoji: '', title: action === 'cancel' ? 'אי אפשר לבטל מהקישור' : action === 'reschedule' ? 'אי אפשר להזיז מהקישור' : 'אי אפשר לשנות מהקישור', color: 'var(--ink)' };
     if (status === 'error') return { emoji: '', title: 'אופס!', color: 'var(--danger)' };
     if (status === 'success' && action === 'confirm') return { emoji: '', title: 'התור אושר!', color: 'var(--pc-deep)' };
     if (status === 'success' && action === 'cancel') return { emoji: '', title: 'התור בוטל', color: 'var(--ink-2)' };
@@ -152,6 +189,18 @@ function ConfirmContent() {
     : status === 'success' ? (action === 'cancel' ? 'info' : 'tick')
     : null;
 
+  if (status === 'move' && movePeek) {
+    return (
+      <PublicPage primary={brandInfo.primaryColor || null}>
+        <div className="pub-card" style={{ padding: '30px 20px 28px' }}>
+          <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} />
+          <RescheduleFlow id={id} token={token} via={action} peek={movePeek} businessName={brandInfo.businessName} whatsapp={contact.whatsapp}
+            onBack={() => { answered.current = true; setStatus('declined'); }} onMoved={() => { answered.current = true; }} />
+        </div>
+      </PublicPage>
+    );
+  }
+
   return (
     <PublicPage primary={brandInfo.primaryColor || null}>
       <div className="pub-card" style={{ padding: '30px 24px 28px' }}>
@@ -167,7 +216,7 @@ function ConfirmContent() {
           </p>
         )}
         <p className="pub-p">
-          {status === 'working' ? <Spinner inline label="מעדכנת את התור שלך" /> : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהקישור הזה. אם לא התכוונת לבטל, אפשר פשוט לסגור את החלון.'
+          {status === 'working' || status === 'moveLoading' ? <Spinner inline label="מעדכנת את התור שלך" /> : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהקישור הזה. אם לא התכוונת לבטל, אפשר פשוט לסגור את החלון.'
             : status === 'declined' ? 'לא שינינו כלום. נתראה בתור.'
             : message}
         </p>
@@ -179,8 +228,16 @@ function ConfirmContent() {
           </div>
         )}
 
+        {/* Moving instead of cancelling: only when the server said this appointment can really be moved now (movePeek). */}
+        {status === 'ready' && movePeek && (
+          <div data-testid="offer-move" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line, #EAE3D2)' }}>
+            <p className="pub-p" style={{ marginBottom: 10 }}>רוצה להזיז במקום לבטל?</p>
+            <button type="button" onClick={() => { answered.current = true; setStatus('move'); }} className="pub-pill pub-pill-quiet">להזיז את התור למועד אחר</button>
+          </div>
+        )}
+
         {status === 'error' && id && !refused && (
-          <button type="button" onClick={action === 'cancel' ? () => setStatus('ready') : sendNow} className="pub-pill pub-pill-quiet" style={{ marginTop: 20, width: 'auto', display: 'inline-flex', padding: '11px 28px' }}>
+          <button type="button" onClick={action === 'cancel' ? () => setStatus('ready') : action === 'reschedule' ? () => window.location.reload() : sendNow} className="pub-pill pub-pill-quiet" style={{ marginTop: 20, width: 'auto', display: 'inline-flex', padding: '11px 28px' }}>
             נסי שוב
           </button>
         )}

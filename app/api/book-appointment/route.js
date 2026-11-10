@@ -55,6 +55,12 @@ import { offerFreedHold } from "../../../lib/waitlistRuntime.js";
 import { CARD_CONSENT_TEXT_HE } from "../../../lib/grow/tokenFlow";
 import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPolicy";
 import { cancelDeps } from "../grow/_cancel";
+// The pre-visit intake gate (lib/intakeGate.ts): off unless she turned it on for this service.
+import { resolveIntake } from "../../../lib/intakeGate";
+import { intakePublicAnswer } from "../../../lib/intakeCopy";
+import { ensureIntakeForm, queueIntakeMessage } from "../../../lib/intakeQueue.js";
+import { sendWhatsApp } from "../../../lib/whatsapp.js";
+import { hebrewDate } from "../../../lib/messages.js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -632,10 +638,36 @@ export async function POST(request) {
       }
     }
 
+    // The intake gate, for a service she turned it on for (off by default, lib/intakeGate.ts). Best-effort and after the booking is
+    // saved: nothing here can fail or undo it. The "send the form" message waits in HER manual queue, addressed to the number on the
+    // client card (type intake_form is never sent by the system, lib/intakeQueue.js). A held deposit booking is not queued: it may
+    // still be released, and its confirmation goes out when it is paid.
+    //  - The gate is the one of svcRow: the ACTIVE row of this name (the lookup above filters ACTIVE_OR_NULL and refuses an archived
+    //    one), off included. An archived namesake's setting never applies (same rule as intakeByServiceName in lib/intakeGate.ts).
+    //  - What the RESPONSE says comes from the gate alone (intakePublicAnswer): the same bytes for a new number and for one of her
+    //    clients, no form link, nothing about a card or a signed form. This form is public and takes any phone number.
+    const intake = resolveIntake(svcRow);
+    const intakeOut = intakePublicAnswer(intake);
+    if (intake && intake.form && clientId) {
+      try {
+        const f = await ensureIntakeForm({ db: supabase, tenantId: activeTenantId, clientId, clientName: name, formType: intake.formType });
+        if (f.state === "pending" && !heldForDeposit) {
+          const formId = f.formId;
+          after(() => queueIntakeMessage({
+            db: supabase, send: sendWhatsApp, tenantId: activeTenantId, phone: phoneCheck.e164, name, businessName: settingsRow?.business_name || "",
+            service, when: `ב${hebrewDate(date)}`, formId, baseUrl: APP_URL,
+          }).then(() => undefined));
+        }
+      } catch (intakeErr) {
+        console.warn("[book-appointment] intake step failed:", intakeErr?.message || String(intakeErr));
+      }
+    }
+
     return Response.json({
       success: true,
       appointmentId: appt.id,
       policyStep,
+      intake: intakeOut,
       // What she asked for up front, so the confirmation screen can say how to pay it.
       deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,
     });

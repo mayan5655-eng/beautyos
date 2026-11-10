@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
 
     // Signature is checked BEFORE the database is touched, so an unsigned
     // request costs nothing and reveals nothing.
+    // This route confirms or cancels, nothing else. A "reschedule" token is valid (lib/confirmToken.ts) but belongs to
+    // app/api/confirm/reschedule: without this line it would reach the update below as a cancel.
+    if (action !== 'confirm' && action !== 'cancel') return reject();
     if (!verifyConfirm(appointmentId, action, token)) return reject();
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

@@ -33,7 +33,7 @@ const ENV = 'CONFIRM_LINK_SECRET';
 export const CONFIRM_GRACE_DAYS = 3;
 export const CONFIRM_DEFAULT_TTL_MS = 90 * 86_400_000;
 
-export type ConfirmAction = 'confirm' | 'cancel';
+export type ConfirmAction = 'confirm' | 'cancel' | 'reschedule';
 
 const message = (appointmentId: string, action: ConfirmAction) => `${appointmentId}:${action}`;
 
@@ -50,7 +50,7 @@ export function signConfirm(appointmentId: string, action: ConfirmAction, expire
 /** Constant-time check. Returns false rather than throwing on malformed input. */
 export function verifyConfirm(appointmentId: string, action: string, token: string, nowMs: number = Date.now()): boolean {
   if (!appointmentId || !token) return false;
-  if (action !== 'confirm' && action !== 'cancel') return false;
+  if (action !== 'confirm' && action !== 'cancel' && action !== 'reschedule') return false;
   try {
     return verifyWithExpiry(token, message(appointmentId, action), signingSecret(ENV), legacySecrets(ENV), nowMs);
   } catch {
@@ -68,5 +68,8 @@ export function confirmLinks(origin: string, appointmentId: string, opts: { date
   return {
     confirmUrl: `${origin}/confirm?id=${appointmentId}&action=confirm&t=${signConfirm(appointmentId, 'confirm', exp)}`,
     cancelUrl: `${origin}/confirm?id=${appointmentId}&action=cancel&t=${signConfirm(appointmentId, 'cancel', exp)}`,
+    // "להזיז את התור" (app/api/confirm/reschedule). Its own action, so it cannot be edited into a cancel link. A cancel link also opens
+    // the move flow (the cancel page offers "להזיז במקום לבטל"), so the messages already sent keep working without this one.
+    rescheduleUrl: `${origin}/confirm?id=${appointmentId}&action=reschedule&t=${signConfirm(appointmentId, 'reschedule', exp)}`,
   };
 }
