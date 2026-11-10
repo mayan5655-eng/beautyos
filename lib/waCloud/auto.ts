@@ -31,7 +31,8 @@ import { buildAutoTemplate, WA_AUTO_TEMPLATES, type AutoKind } from './autoTempl
 import { confirmExpiry } from '../confirmToken.ts';
 import { enforcePublicCap, enforceRecipientCap, dailyCap, recipientCap, RECIPIENT_TYPES } from '../outboundCap.js';
 import { isUtilityAutoSendEnabled } from '../platformSettings.js';
-import { automationsPaused } from '../automationPause.js';
+import { automationsPaused, remindersEnabled } from '../automationPause.js';
+import { isMissingColumnError } from '../pgError.ts';
 import { autoAllowedNow, type YomTov } from './autoPlan.ts';
 import { checkCaps, countAccepted } from './caps.ts';
 import { israelMonthStartIso, israelMonthKey, israelDayStartIso } from './policy.ts';
@@ -60,6 +61,8 @@ export type AutoOutcome =
   | { outcome: 'held' }
   // Her automations are paused: no automatic message. A reminder is simply not sent; a confirmation goes to her queue.
   | { outcome: 'paused' }
+  // A reminder for a business that turned reminders off (settings.reminders_enabled = false): nothing, not even her queue.
+  | { outcome: 'reminders_off' }
   | { outcome: 'fallback'; reason: string; detail: string };
 
 export function idempotencyKey(mode: 'live' | 'mock', kind: AutoKind, appointmentId: string): string {
@@ -171,7 +174,7 @@ export type SendAutoInput = {
   /** The four template parameters (autoContent.autoParams). */
   params: unknown[];
   /** Her settings row when the caller holds it; otherwise automations is read here (only when the feature is enabled). */
-  settingsRow?: { automations?: unknown } | null;
+  settingsRow?: { automations?: unknown; reminders_enabled?: boolean | null } | null;
   /** The appointment day (YYYY-MM-DD): the button payloads expire three days after it (90 days when unknown). */
   apptDate?: string | null;
   /** The operator-alert sender for the public-send ceiling (tests); defaults to sendWhatsApp. */
@@ -196,8 +199,10 @@ export async function sendAutoMessage(p: SendAutoInput): Promise<AutoOutcome> {
   let settingsRow = p.settingsRow;
   if (settingsRow === undefined || (settingsRow && !('automations' in settingsRow))) {
     try {
-      const { data, error } = await db.from('settings').select('automations').eq('tenant_id', p.tenantId).maybeSingle();
-      settingsRow = error ? null : data;
+      // reminders_enabled too, for the gate; a database without the column is read without it (reminders stay on).
+      let r = await db.from('settings').select('automations, reminders_enabled').eq('tenant_id', p.tenantId).maybeSingle();
+      if (r.error && isMissingColumnError(r.error)) r = await db.from('settings').select('automations').eq('tenant_id', p.tenantId).maybeSingle();
+      settingsRow = r.error ? null : r.data;
     } catch { settingsRow = null; }
   }
   if (!tenantOptedIn(settingsRow)) return { outcome: 'not_opted_in' };
@@ -236,6 +241,8 @@ export async function sendAutoMessage(p: SendAutoInput): Promise<AutoOutcome> {
   // per business, and per recipient across every business). A refusal is never another automatic send: paused is
   // nothing at all for a reminder, and everything else is her manual queue.
   const refusal = await autoGate(db, { tenantId: p.tenantId, kind: p.kind, digits, settingsRow, mode, now, env, opsSend: p.opsSend });
+  // Reminders turned off: nothing at all. No claim either, so turning them back on lets a still-due reminder go.
+  if (refusal && refusal.reason === 'reminders_off') return mode === 'mock' ? dry('refused', 'reminders_off') : { outcome: 'reminders_off' };
   if (refusal) {
     const status = refusal.reason === 'tenant_paused' ? 'skipped' : 'fallback';
     const detail = `${refusal.reason}: ${refusal.detail}`.slice(0, 500);
@@ -321,11 +328,12 @@ export async function sendAutoMessage(p: SendAutoInput): Promise<AutoOutcome> {
 /** What the per-recipient ceiling covers and counts for the automatic path: the public types plus the reminder. */
 export const AUTO_RECIPIENT_TYPES = [...RECIPIENT_TYPES, 'reminder'];
 
-type GateRefusal = { reason: 'tenant_paused' | 'platform_manual' | 'public_capped' | 'recipient_capped'; detail: string };
+type GateRefusal = { reason: 'tenant_paused' | 'reminders_off' | 'platform_manual' | 'public_capped' | 'recipient_capped'; detail: string };
 
 /**
  * The guards every automatic send passes (sendAutoMessage calls this; nothing else sends). Null = may go on.
  *   - her master pause (lib/automationPause.js, the same helper the daily and smart reminders use);
+ *   - for a reminder, her reminders_enabled switch (same file, read as the daily reminders read it);
  *   - platform_settings.whatsapp_auto_utility_enabled (lib/platformSettings.js, fails CLOSED: unreadable = manual);
  *   - the per-business public-send day and the per-recipient day across businesses (lib/outboundCap.js, reused as is;
  *     those two fail open, as everywhere else they apply).
@@ -335,6 +343,8 @@ export async function autoGate(db: Db, g: {
   opsSend?: (phone: string, text: string, opts: Record<string, unknown>) => Promise<unknown>;
 }): Promise<GateRefusal | null> {
   if (automationsPaused(g.settingsRow as { automations?: unknown })) return { reason: 'tenant_paused', detail: 'her automations are paused' };
+  // Her reminder switch, as the daily path reads it (reminders only; confirmations have no switch of their own).
+  if (g.kind === 'reminder' && !remindersEnabled(g.settingsRow as { reminders_enabled?: unknown })) return { reason: 'reminders_off', detail: 'she turned reminders off' };
   if (!(await isUtilityAutoSendEnabled(db))) return { reason: 'platform_manual', detail: 'platform automatic sending is off (or unreadable)' };
   const nowMs = g.now.getTime();
   const send = (g.opsSend || (async (phone: string, text: string, opts: Record<string, unknown>) => (await import('../whatsapp.js')).sendWhatsApp(phone, text, opts))) as (phone: string, text: string, opts: object) => Promise<unknown>;

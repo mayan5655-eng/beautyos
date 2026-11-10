@@ -31,7 +31,7 @@ import { runDailyReminders, STATUS_AUTO } from './lib/reminders/dailyReminders.j
 import { confirmLinks, verifyConfirm } from './lib/confirmToken.ts';
 import { DEMO_TENANT_IDS } from './lib/demoTenants.ts';
 import { invalidatePlatformSettingsCache } from './lib/platformSettings.js';
-import { automationsPaused } from './lib/automationPause.js';
+import { automationsPaused, remindersEnabled } from './lib/automationPause.js';
 import { autoGate, AUTO_RECIPIENT_TYPES } from './lib/waCloud/auto.ts';
 
 // No test here may reach a network. A stray real call fails loudly instead.
@@ -765,6 +765,40 @@ await ok('the gate is in the one shared sender, before deferral and dispatch; ca
   // Direct: a gate with nothing to refuse passes.
   const { db } = memDb();
   assert.equal(await autoGate(db, { tenantId: T, kind: 'reminder', digits: DIGITS, settingsRow: ON, mode: 'live', now: NOW, env: LIVE }), null);
+});
+
+await ok('reminders_enabled false: wa_auto_messages on, yet no reminder is sent or queued; confirmations still go', async () => {
+  for (const v of [undefined, null, true, 'false', 0]) assert.equal(remindersEnabled({ reminders_enabled: v as any }), true, `only a literal false: ${String(v)}`);
+  assert.equal(remindersEnabled({ reminders_enabled: false }), false);
+  assert.equal(remindersEnabled(null), true);
+  const OFF = { automations: { wa_auto_messages: true }, reminders_enabled: false };
+  const a = stub();
+  // The hourly run: the due reminder of this business is neither sent nor queued, run after run.
+  const { db, tables } = memDb({
+    settings: [{ tenant_id: T, business_name: 'סטודיו נועה', branding: {}, ...OFF }, { tenant_id: T2, business_name: 'עסק אחר', branding: {}, automations: { wa_auto_messages: true } }],
+    appointments: [apptRow(APPT, T), apptRow(APPT2, T2)],
+  });
+  const queued: any[] = [];
+  for (let h = 0; h < 3; h++) {
+    await runAutoMessages({ db, env: LIVE, now: new Date(NOW.getTime() + h * 3600_000), deps: runDeps(a, queued) });
+  }
+  assert.equal(a.sent.length, 1, 'only the other business, whose reminders are on');
+  assert.equal(parseButtonPayload(a.sent[0].body.components[1].parameters[0].payload, DIGITS, LIVE, NOW.getTime())?.tenantId, T2);
+  assert.equal(queued.length, 0, 'nothing queued');
+  assert.ok(!(tables.wa_auto_claims || []).some((c: any) => c.appointment_id === APPT), 'nothing claimed for her reminder');
+  // The gate, for any caller, and when it reads her settings itself.
+  const g = memDb({ settings: [{ tenant_id: T, ...OFF }] });
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(g.db), settingsRow: OFF, adapter: a }), { outcome: 'reminders_off' });
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(g.db), settingsRow: undefined, adapter: a }), { outcome: 'reminders_off' });
+  assert.equal((g.tables.wa_auto_claims || []).length, 0);
+  assert.equal(a.sent.length, 1);
+  // A booking confirmation is not a reminder: it has no switch of its own and still goes.
+  assert.equal((await sendAutoMessage({ ...baseInput(g.db), appointmentId: APPT2, kind: 'booking_confirm', settingsRow: OFF, adapter: a })).outcome, 'sent');
+  // Turned back on: the still-due reminder goes (nothing was claimed while it was off).
+  assert.equal((await sendAutoMessage({ ...baseInput(g.db), settingsRow: { automations: { wa_auto_messages: true }, reminders_enabled: true }, adapter: a })).outcome, 'sent');
+  // The daily path reads it through the same helper.
+  assert.ok(read('lib/reminders/dailyReminders.js').includes('const remindersEnabled = (t) => remindersOn(settingsByTenant[t]);'));
+  assert.ok(read('lib/waCloud/autoRun.ts').includes("if (!remindersEnabled(s)) { res.skipped++; continue; }"));
 });
 
 // ── the daily cron and the wiring ────────────────────────────────────────────

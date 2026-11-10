@@ -26,11 +26,11 @@ import { startMinute } from '../apptTime.ts';
 import { isPersonal } from '../calendarKind.ts';
 import { isDemoTenantId } from '../demoTenants.ts';
 import { isMissingColumnError } from '../pgError.ts';
-import { automationsPaused } from '../automationPause.js';
+import { automationsPaused, remindersEnabled } from '../automationPause.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = { from: (table: string) => any };
-type Settings = { tenant_id: string; business_name?: string | null; branding?: unknown; automations?: unknown };
+type Settings = { tenant_id: string; business_name?: string | null; branding?: unknown; automations?: unknown; reminders_enabled?: boolean | null };
 type Appt = {
   id: string; tenant_id: string; name?: string | null; service?: string | null; date: string; hour?: number | null;
   start_minute?: number | null; duration?: number | null; client_phone?: string | null; client_id?: string | null;
@@ -85,7 +85,11 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
     return { ...res, migrationMissing: true };
   }
 
-  const st = await readAllRows(db, 'settings', { columns: 'tenant_id, business_name, branding, automations', order: 'tenant_id' });
+  // reminders_enabled: her reminder switch, honoured below as the daily path does. Asked for, with a fallback for a database
+  // without the column (then reminders stay on, exactly as the daily path reads a missing value).
+  const SETTINGS_COLS = 'tenant_id, business_name, branding, automations';
+  let st = await readAllRows(db, 'settings', { columns: SETTINGS_COLS + ', reminders_enabled', order: 'tenant_id' });
+  if (st.error && isMissingColumnError(st.error)) st = await readAllRows(db, 'settings', { columns: SETTINGS_COLS, order: 'tenant_id' });
   if (st.error || !st.complete) throw new Error(`settings read failed: ${st.error?.message || 'incomplete'}`);
   const settings = new Map<string, Settings>();
   const anySettings = new Map<string, Settings>();
@@ -170,6 +174,9 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
     if (outOfTime()) { res.stoppedEarly = true; break; }
     const s = settings.get(appt.tenant_id);
     if (!s || !appt.client_phone) { res.skipped++; continue; }
+    // She turned reminders off (settings.reminders_enabled = false): nothing is sent and nothing is queued. Her booking
+    // confirmations are a separate matter and still go (they have no switch of their own).
+    if (!remindersEnabled(s)) { res.skipped++; continue; }
     const lead = tenantLeadHours(s, cfg);
     const sm = startMinute(appt);
     const plan = reminderPlan({ date: appt.date, startMinute: sm, leadHours: lead, now, isYomTov: o.deps.isYomTov });
@@ -186,7 +193,7 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
         clientId: appt.client_id, apptDate: appt.date, params: autoParams(appt, s), settingsRow: s, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
       });
       if (out.outcome === 'sent') res.sent++;
-      if (out.outcome === 'paused') res.skipped++;
+      if (out.outcome === 'paused' || out.outcome === 'reminders_off') res.skipped++;
       let queued = false;
       if (out.outcome === 'fallback') queued = await queue(appt, reminderQueueText(appt, s, o.deps.confirmLinks(o.deps.baseUrl, appt.id, { date: appt.date })), 'reminder');
       count(out, appt.tenant_id, queued);
