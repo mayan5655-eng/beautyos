@@ -287,7 +287,7 @@ function splitDateTime(raw: string): { d: string; t: string } {
 export function parseFileDate(raw: unknown, order: DateOrder = 'dmy'): string | null {
   const { d } = splitDateTime(String(raw ?? ''));
   if (!d) return null;
-  if (/^\d{5}(\.\d{1,15})?$/.test(d)) return excelSerialToIso(Math.floor(Number(d)));
+  if (/^\d{5}(\.\d{1,20})?$/.test(d)) return excelSerialToIso(Math.floor(Number(d)));
   const m = d.match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{2,4})$/);
   if (!m) return null;
   if (order === 'mdy' && m[1].length <= 2) return parseImportDate(`${m[2]}/${m[1]}/${m[3]}`);
@@ -307,7 +307,7 @@ export function parseFileTime(raw: unknown): number | null {
   const s = usableDateTime(raw);
   if (!s) return null;
   // A time-only cell Excel stored as a fraction of a day (0.604166 = 14:30).
-  if (/^0?\.\d{1,15}$/.test(s)) {
+  if (/^0?\.\d{1,20}$/.test(s)) {
     const mins = Math.round(Number(s) * 1440);
     return mins >= 0 && mins < 1440 ? mins : null;
   }

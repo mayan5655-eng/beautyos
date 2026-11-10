@@ -82,6 +82,8 @@ await ok('cell readers: day first, month first when chosen, Excel serial, date+t
   assert.equal(parseFileDate('31/02/2026'), null);
   assert.equal(parseFileTime('14:30'), 870);
   assert.equal(parseFileTime('14:30:00'), 870);
+  assert.equal(parseFileTime('0.6041666666666666'), 870, 'Excel time fraction with 16 decimals (14:30)');
+  assert.ok(parseFileDate('46337.6041666666666666'), 'Excel serial date with 16 decimals');
   assert.equal(parseFileTime('0.604166667'), 870);
   assert.equal(parseFileTime('2pm'), 840);
   assert.equal(parseFileDate('12/08/2026 2:30 PM'), '2026-08-12');
