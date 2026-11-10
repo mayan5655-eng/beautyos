@@ -42,6 +42,19 @@ export const IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 export const IMPORT_MAX_ROWS = 10_000;
 /** How many sample rows the mapping screen shows. */
 export const PREVIEW_ROWS = 5;
+/** Longest cell kept from a file (a long note fits; nothing a person typed is anywhere near). Longer text is cut at read time. */
+export const MAX_CELL = 500;
+/** Longest header kept. */
+export const MAX_HEADER = 200;
+
+/**
+ * Every header and cell cut to a sane length, right after the file is read and before anything else looks at it: the route calls
+ * this on readUpload's output, so no parser, regex or response ever sees a 100k-character cell (Vercel Security Review on #59).
+ */
+export function capCells(headers: string[], rows: string[][]): { headers: string[]; rows: string[][] } {
+  const cut = (v: unknown, n: number) => { const t = String(v ?? ''); return t.length > n ? t.slice(0, n) : t; };
+  return { headers: headers.map((h) => cut(h, MAX_HEADER)), rows: rows.map((r) => r.map((c) => cut(c, MAX_CELL))) };
+}
 /** Conflicts listed one by one (all are counted). */
 export const MAX_CONFLICTS_LISTED = 200;
 
@@ -76,7 +89,7 @@ const MULTI_FIELDS = new Set<FileField>(['notes']);
 
 /** "דוא״ל", "E-mail", " Phone_Number " -> "דואל", "e mail", "phone number". */
 export function normalizeHeader(h: unknown): string {
-  return String(h ?? '')
+  return String(h ?? '').slice(0, MAX_HEADER)
     .toLowerCase()
     .replace(/["'״׳`]/g, '')
     .replace(/[_\-./\\:()[\]#*]+/g, ' ')
@@ -168,7 +181,7 @@ const KEYWORD_RULES: [FileField, RegExp][] = [
   ['name', /שם|name|לקוח|client|customer/],
 ];
 
-const looksLikePhoneCell = (s: string) => /^[\d\-+() ]{7,}$/.test(s.trim()) && (s.replace(/\D/g, '').length >= 9);
+const looksLikePhoneCell = (s: string) => s.length <= 40 && /^[\d\-+() ]{7,40}$/.test(s.trim()) && (s.replace(/\D/g, '').length >= 9);
 
 /**
  * One field per column. Preset aliases first, then the generic exact names, then the keyword rules, then (for a header we did not
@@ -241,11 +254,28 @@ function excelSerialToIso(n: number): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * A date or time cell is short: "12/08/2026 02:30:00 PM" is 22 characters, "13/11/2026 9:00 לפני הצהריים" 28. Anything longer,
+ * or with a line break inside, is not a date or a time, and is refused BEFORE any regex sees it. Every regex below also has only
+ * bounded, non-overlapping quantifiers, so even a cell that slipped past this cap is read in linear time (Vercel Security Review
+ * on #59: an unbounded `\s*(.*)$` on a 100k-character multiline cell backtracked quadratically).
+ */
+export const MAX_DATETIME_CELL = 40;
+const usableDateTime = (raw: unknown): string | null => {
+  const s = String(raw ?? '');
+  if (s.length > MAX_DATETIME_CELL * 2 || /[\r\n]/.test(s)) return null;
+  const t = s.trim();
+  return t && t.length <= MAX_DATETIME_CELL ? t : null;
+};
+
 /** Split "12/08/2026 14:30" into its date and time parts. A cell with only one of them gives '' for the other. */
 function splitDateTime(raw: string): { d: string; t: string } {
-  const s = raw.trim().replace(/T/, ' ');
-  // "12/08/2026 2:30 PM", "12/08/2026 14:30:00", "12/08/2026 2:30 אחה"צ": everything after the first space is the time, when it reads as one.
-  const m = s.match(/^(\S+)\s+(\d.*)$/);
+  const c = usableDateTime(raw);
+  if (!c) return { d: '', t: '' };
+  const s = c.replace('T', ' ');
+  // "12/08/2026 2:30 PM", "12/08/2026 14:30:00", "12/08/2026 2:30 אחה"צ": everything after the first space is the time, when it
+  // reads as one. \S and ' ' are disjoint and both bounded, so there is exactly one way to split.
+  const m = s.match(/^(\S{1,20}) {1,3}(\d[^\r\n]{0,30})$/);
   if (m && parseFileTime(m[2]) !== null) return { d: m[1], t: m[2] };
   return { d: s, t: '' };
 }
@@ -257,7 +287,7 @@ function splitDateTime(raw: string): { d: string; t: string } {
 export function parseFileDate(raw: unknown, order: DateOrder = 'dmy'): string | null {
   const { d } = splitDateTime(String(raw ?? ''));
   if (!d) return null;
-  if (/^\d{5}(\.\d+)?$/.test(d)) return excelSerialToIso(Math.floor(Number(d)));
+  if (/^\d{5}(\.\d{1,15})?$/.test(d)) return excelSerialToIso(Math.floor(Number(d)));
   const m = d.match(/^(\d{1,4})[./-](\d{1,2})[./-](\d{2,4})$/);
   if (!m) return null;
   if (order === 'mdy' && m[1].length <= 2) return parseImportDate(`${m[2]}/${m[1]}/${m[3]}`);
@@ -274,19 +304,21 @@ const PM_MARK = /^(pm|p|אחהצ|אחר הצהריים|בערב|בלילה)$/;
  * "2:30 PM" used to come back null, and a valid future appointment was skipped as "no time" (Vercel Agent review on #59).
  */
 export function parseFileTime(raw: unknown): number | null {
-  const s = String(raw ?? '').trim();
+  const s = usableDateTime(raw);
   if (!s) return null;
   // A time-only cell Excel stored as a fraction of a day (0.604166 = 14:30).
-  if (/^0?\.\d+$/.test(s)) {
+  if (/^0?\.\d{1,15}$/.test(s)) {
     const mins = Math.round(Number(s) * 1440);
     return mins >= 0 && mins < 1440 ? mins : null;
   }
-  const m = s.match(/^(\d{1,2})(?:[:.](\d{2})(?::\d{2})?)?\s*(.*)$/);
+  // Digits, an optional bounded gap, then a marker that must START with a non-space non-digit: the gap and the marker cannot
+  // match the same characters, and every part is bounded, so there is no backtracking to speak of.
+  const m = s.match(/^(\d{1,2})(?:[:.](\d{2})(?::\d{2})?)?[ \t]{0,3}([^\s\d][^\r\n\d]{0,24})?$/);
   if (!m) return null;
   let h = Number(m[1]);
   const min = m[2] === undefined ? 0 : Number(m[2]);
   if (min > 59) return null;
-  const mark = m[3].toLowerCase().replace(/["'״׳.]/g, '').replace(/\s+/g, ' ').trim();
+  const mark = (m[3] || '').toLowerCase().replace(/["'״׳.]/g, '').replace(/ {2,}/g, ' ').trim();
   if (mark) {
     const am = AM_MARK.test(mark), pm = PM_MARK.test(mark);
     if (!am && !pm) return null;
@@ -379,7 +411,7 @@ export interface ImportPlan {
   };
 }
 
-const cell = (r: string[], i: number) => String(r[i] ?? '').trim();
+const cell = (r: string[], i: number) => String(r[i] ?? '').slice(0, MAX_CELL).trim();
 
 interface RowRead {
   name: string; phone: ReturnType<typeof phoneOf>; email: string; birthdayRaw: string; notes: string[];
@@ -392,6 +424,9 @@ function readRow(r: string[], mapping: FileField[]): RowRead {
   const notes: string[] = [];
   mapping.forEach((f, i) => {
     const v = cell(r, i);
+    // Date and time cells go on UNTRIMMED (but capped): a 100k-character cell cut to 500 must still read as too long, never be
+    // trimmed down to a valid-looking "1" (usableDateTime refuses it).
+    const rawDt = String(r[i] ?? '').slice(0, MAX_CELL);
     if (!v || f === 'ignore') return;
     switch (f) {
       case 'name': name = v; break;
@@ -404,9 +439,9 @@ function readRow(r: string[], mapping: FileField[]): RowRead {
       case 'service': service = v.replace(/\s+/g, ' ').slice(0, 120); break;
       case 'price': price = parseMoney(v); break;
       case 'duration': duration = parseMinutes(v); break;
-      case 'date': dateRaw = v; break;
-      case 'time': timeRaw = v; break;
-      case 'endTime': endRaw = v; break;
+      case 'date': dateRaw = rawDt; break;
+      case 'time': timeRaw = rawDt; break;
+      case 'endTime': endRaw = rawDt; break;
       case 'status': status = v; break;
     }
   });

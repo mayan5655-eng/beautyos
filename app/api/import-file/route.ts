@@ -36,7 +36,7 @@ import { startFields, fmtTime } from '@/lib/apptTime';
 import { apptBufferField, writeWithApptBuffer } from '@/lib/apptBuffer';
 import {
   importToolEnabled, IMPORT_MAX_BYTES, IMPORT_MAX_ROWS, PREVIEW_ROWS, autoMapHeaders, cleanMapping, detectDateOrder,
-  buildImportPlan, indexExistingClients, planHeadlineHe, IMPORT_PRESETS, israelClock,
+  buildImportPlan, indexExistingClients, planHeadlineHe, IMPORT_PRESETS, israelClock, capCells,
   type ExistingData, type FileField, type PlanOptions, type Conflict,
 } from '@/lib/importFile';
 
@@ -108,7 +108,9 @@ export async function POST(request: Request) {
     if (!read.ok) {
       return fail(read.message.replace('לייבא ממנו פניות', 'לייבא ממנו נתונים'), 400, { problem: read.problem, sheetNames: read.sheetNames });
     }
-    const { headers, rows, sheetNames, sheetName, format } = read;
+    const { sheetNames, sheetName, format } = read;
+    // Every cell cut to a sane length before anything parses it (lib/importFile.ts capCells).
+    const { headers, rows } = capCells(read.headers, read.rows);
 
     // ── step=read: guess, nothing else ──
     if (step === 'read') {

@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import { register } from 'node:module';
 import {
   autoMapHeaders, cleanMapping, buildImportPlan, phoneOf, parseFileDate, parseFileTime, detectDateOrder, importToolEnabled,
-  planHeadlineHe, israelClock, normalizeHeader, type ExistingData, type PlanOptions, type FileField,
+  planHeadlineHe, israelClock, normalizeHeader, capCells, MAX_CELL, MAX_HEADER, MAX_DATETIME_CELL, type ExistingData, type PlanOptions, type FileField,
 } from './lib/importFile.ts';
 import { RATE_POLICIES } from './lib/rateLimit.ts';
 
@@ -113,6 +113,52 @@ await ok('times with AM / PM: h:mm, h, with seconds, Hebrew לפנה"צ / אחה
   assert.equal(detectDateOrder(['13/01/2026', '02/02/2026']), 'dmy');
   assert.equal(detectDateOrder(['01/13/2026']), 'mdy');
   assert.equal(detectDateOrder(['01/02/2026']), 'unknown');
+});
+
+await ok('a 100k-character multiline time / date cell is refused fast (no regex backtracking)', () => {
+  const evil = [
+    '1' + ' '.repeat(100_000) + '\n',
+    '1' + ' \n'.repeat(50_000) + 'x',
+    '12' + '\t'.repeat(100_000) + 'a',
+    '1:00' + ' '.repeat(100_000),
+    '12/08/2026 ' + '1'.repeat(100_000),
+    '12/08/2026' + ' '.repeat(100_000) + '1',
+  ];
+  for (const v of evil) {
+    const t0 = performance.now();
+    assert.equal(parseFileTime(v), null);
+    assert.equal(parseFileDate(v), null);
+    assert.equal(detectDateOrder([v]), 'unknown');
+    const ms = performance.now() - t0;
+    assert.ok(ms < 50, `took ${ms.toFixed(1)} ms`);
+  }
+  // Even below the cap, a cell of maximum length with a long gap and junk reads in linear time.
+  const t1 = performance.now();
+  for (let i = 0; i < 10_000; i++) parseFileTime('12' + ' '.repeat(30) + 'x');
+  assert.ok(performance.now() - t1 < 200);
+  // Line breaks and over-long values are not times, whatever else is in them.
+  assert.equal(parseFileTime('14:30\n'), null);
+  assert.equal(parseFileTime('2:30\r\nPM'), null);
+  assert.equal(parseFileTime('2:30 PM' + 'm'.repeat(MAX_DATETIME_CELL)), null);
+  assert.equal(parseFileTime('2:30 PM' + ' '.repeat(MAX_DATETIME_CELL * 2)), null);
+  assert.equal(parseFileTime('  14:30  '), 870);
+});
+
+await ok('every cell and header is capped at read time; a plan over huge cells stays fast and bounded', () => {
+  const huge = 'א'.repeat(200_000);
+  const capped = capCells(['שם' + huge, 'טלפון'], [[huge, '0501234567'], ['דנה', huge + '\n' + huge]]);
+  assert.equal(capped.headers[0].length, MAX_HEADER);
+  assert.ok(capped.rows.every((r) => r.every((c) => c.length <= MAX_CELL)));
+  const rows = Array.from({ length: 2000 }, (_, i) => [`לקוחה ${i}`, '0501234567', '1' + ' \n'.repeat(250), huge.slice(0, MAX_CELL)]);
+  const t0 = performance.now();
+  const plan = buildImportPlan(capCells([], rows).rows, ['name', 'phone', 'time', 'notes'], empty(), baseOpts({ appts: false }));
+  assert.ok(performance.now() - t0 < 1000);
+  assert.equal(plan.clients.toCreate.length, 1);
+  assert.ok(plan.clients.toCreate[0].name.length <= 80);
+  assert.ok(plan.clients.toCreate[0].notes.length <= 2000);
+  const t1 = performance.now();
+  autoMapHeaders(capped.headers, capped.rows);
+  assert.ok(performance.now() - t1 < 50);
 });
 
 // ── 2. phone dedupe ──────────────────────────────────────────────────────────
@@ -437,6 +483,22 @@ await ok('no notifications: no network call happened, only the three import tabl
   const tablesWritten = new Set<string>();
   for (const m of src.matchAll(/from\('([a-z_]+)'\)\.insert/g)) tablesWritten.add(m[1]);
   assert.deepEqual([...tablesWritten].sort(), ['appointments', 'clients', 'service_prices']);
+});
+
+await ok('the route: a CSV with a 100k-character multiline time cell previews fast and that row is just "no time"', async () => {
+  (globalThis as any).__TEST_SUPABASE__ = makeDb({ clients: [], service_prices: [], appointments: [] }).db;
+  const multiline = '"1' + ' \n'.repeat(50_000) + 'x"';
+  const spaces = '"1' + ' '.repeat(100_000) + 'x"';
+  const csv = ['תאריך,שעה,שם', `${dmy(TOMORROW)},${multiline},ליה`, `${dmy(TOMORROW)},${spaces},נועה`, `${dmy(TOMORROW)},2:30 PM,מאיה`].join('\n');
+  const t0 = performance.now();
+  const r = await call({ step: 'preview', mapping: JSON.stringify(['date', 'time', 'name']), appts: '1' }, csv);
+  const ms = performance.now() - t0;
+  assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 300));
+  const a = r.body.summary.appts;
+  assert.equal(a.noTime, 2, JSON.stringify({ ...a, conflicts: undefined }));
+  assert.equal(a.toCreate, 1);
+  assert.deepEqual(a.sample.map((x: any) => [x.name, x.time]), [['מאיה', '14:30']]);
+  assert.ok(ms < 1000, `took ${ms.toFixed(0)} ms`);
 });
 
 await ok('refusals: logged out, no file, no name column, oversized file', async () => {
