@@ -26,7 +26,8 @@ const OTHER_TENANT = '22222222-2222-2222-2222-222222222222';
 
 type Calls = { tables: string[]; track: { params: any; opts: any }[] };
 
-function fakeSession(calls: Calls, opts: { user?: boolean; fields?: unknown; settingsError?: any } = {}) {
+// missing: settings columns the database does not have yet (the real PostgREST answer names the first one it hits); row: the row.
+function fakeSession(calls: Calls, opts: { user?: boolean; fields?: unknown; settingsError?: any; missing?: string[]; row?: Record<string, unknown>; selects?: string[] } = {}) {
   return async () => ({
     auth: { getUser: async () => ({ data: { user: opts.user === false ? null : { id: 'u1' } } }) },
     rpc: async (fn: string) => {
@@ -36,11 +37,15 @@ function fakeSession(calls: Calls, opts: { user?: boolean; fields?: unknown; set
     from: (t: string) => {
       calls.tables.push(t);
       const q: any = {
-        select: () => q,
+        select: (cols: string) => { opts.selects?.push(cols); q.cols = String(cols).split(',').map((c) => c.trim()); return q; },
         eq: (col: string, v: unknown) => { assert.equal(col, 'tenant_id'); assert.equal(v, SESSION_TENANT, 'settings read for the session tenant'); return q; },
-        maybeSingle: async () => opts.settingsError
-          ? { data: null, error: opts.settingsError }
-          : { data: { business_fields: opts.fields ?? ['cosmetics'] }, error: null },
+        maybeSingle: async () => {
+          if (opts.settingsError) return { data: null, error: opts.settingsError };
+          const gone = (q.cols || []).find((c: string) => (opts.missing || []).includes(c));
+          if (gone) return { data: null, error: { code: '42703', message: `column settings.${gone} does not exist` } };
+          const row: Record<string, unknown> = opts.row ?? { business_fields: opts.fields ?? ['cosmetics'] };
+          return { data: Object.fromEntries((q.cols || []).filter((c: string) => c in row).map((c: string) => [c, row[c]])), error: null };
+        },
       };
       return q;
     },
@@ -181,10 +186,37 @@ for (const id of Object.keys(TUTORIAL_TITLES)) assert.deepEqual(validVideoIds([i
   assert.deepEqual(parseHelpAnswer('x\n[[videos: grow-till, welcome]]', tutorialIdsFor(['cosmetics'], { grow: false, referral: false })).videos, ['welcome'], 'a hidden video named by the model is dropped');
   assert.deepEqual(parseHelpAnswer('x\n[[videos: grow-till]]', tutorialIdsFor(['cosmetics'], { grow: true, referral: true })).videos, ['grow-till']);
   // a missing business_fields column falls back to the cosmetics text, never fails
+  // ...and drops ONLY that column: her switches in `automations` are still read (Vercel review on PR #54: dropping business_fields
+  // used to drop every list, and a feature she had switched off came back on in the chat).
   const c2 = newCalls();
-  const r2 = await handleHelpChat(req({ message: 'q' }), deps(c2, 'a', { settingsError: { code: '42703', message: 'column settings.business_fields does not exist' } }));
+  const selects: string[] = [];
+  const offAutos = { feature_flags: { skin_scan: false, gift_vouchers: false, waitlist_offers: false } };
+  const r2 = await handleHelpChat(req({ message: 'q' }), deps(c2, 'a', { missing: ['business_fields'], selects, row: { automations: offAutos } }));
   assert.equal(r2.status, 200);
-  assert.equal(c2.track[0].params.system[0].text, buildHelpPrompt(['cosmetics'], helpChatGates(null, SESSION_TENANT)));
+  assert.equal(selects.length, 2, 'one retry');
+  assert.ok(!selects[1].includes('business_fields') && selects[1].includes('automations'), 'only business_fields dropped');
+  const p2 = c2.track[0].params.system[0].text;
+  assert.equal(p2, buildHelpPrompt(['cosmetics'], helpChatGates({ automations: offAutos }, SESSION_TENANT)));
+  for (const w of ['סריקת עור', 'שוברי מתנה', 'רשימת ההמתנה']) assert.ok(!p2.includes(w), `switched off, still off with business_fields missing: ${w}`);
+  // two missing columns: each dropped alone, switches still read
+  const c3 = newCalls();
+  const sel3: string[] = [];
+  await handleHelpChat(req({ message: 'q' }), deps(c3, 'a', { missing: ['business_fields', 'feature_flags'], selects: sel3, row: { automations: offAutos } }));
+  assert.equal(sel3.length, 3);
+  assert.ok(!c3.track[0].params.system[0].text.includes('סריקת עור'));
+  // the switches cannot be read at all (automations missing, an error naming no column, a failed read): fail CLOSED, every
+  // per-business feature counts as off, never on
+  const { TENANT_GATES } = await import('./lib/helpVisibility.ts');
+  for (const o of [{ missing: ['automations'] }, { settingsError: { code: '42703', message: 'something went wrong' } }, { settingsError: { code: '57014', message: 'timeout' } }]) {
+    const c4 = newCalls();
+    const r4 = await handleHelpChat(req({ message: 'q' }), deps(c4, 'a', o));
+    assert.equal(r4.status, 200, 'never fails the chat');
+    const p4 = c4.track[0].params.system[0].text;
+    assert.equal(p4, buildHelpPrompt(['cosmetics'], helpChatGates(null, SESSION_TENANT, process.env, false)));
+    for (const w of ['סריקת עור', 'שוברי מתנה', 'רשימת ההמתנה', 'מוצרים ומלאי', 'ביקורות בשני צעדים']) assert.ok(!p4.includes(w), `unreadable switches: no ${w}`);
+  }
+  const closed = helpChatGates({ automations: {} }, SESSION_TENANT, {}, false);
+  for (const g of TENANT_GATES) assert.equal((closed as any)[g], false, `${g} off when unread`);
 }
 
 // ── bounded history ────────────────────────────────────────────────────────

@@ -29,10 +29,10 @@ import { mapAiError, userMessageForAiError } from './aiErrorResponse.ts';
 import { AiCapExceededError, AiCapUnavailableError, DemoBlockedError } from './callCaps.ts';
 import { capNoticeOf } from './capMessages.ts';
 import { helpSectionsFor, TUTORIAL_TITLES, tutorialIdsFor, type HelpSection, type HelpOn } from '../helpSections.ts';
-import { helpGatesFor } from '../helpVisibility.ts';
+import { helpGatesFor, failClosedTenantGates } from '../helpVisibility.ts';
 import { deployFlagsFor } from '../deployFlags.ts';
 import { businessFieldsOf } from '../businessFields.ts';
-import { isMissingColumnError } from '../pgError.ts';
+import { isMissingColumnError, missingColumnName } from '../pgError.ts';
 import { checkIpLimit, checkTenantLimit } from '../rateLimit.ts';
 
 export const HELP_CHAT_CALL_SITE = 'help_chat';
@@ -164,28 +164,39 @@ export type HelpChatDeps = {
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 
-// Newest columns first: a column a migration has not added yet (feature_flags, business_fields) only drops to the next list.
-const SETTINGS_COLUMNS = ['business_fields, automations, feature_flags, green_api_instance', 'business_fields, automations, green_api_instance', 'business_fields'];
+// The settings columns the help chat reads. A column a migration has not added yet (business_fields, feature_flags) is dropped
+// ALONE, by the name the error gives (lib/pgError.ts missingColumnName), and the read retried, so her real switches are still read.
+// business_fields missing -> the cosmetics text (businessFieldsOf's fallback). The switches themselves live in `automations` (and
+// feature_flags, where it exists): if `automations` cannot be read, or the error does not say which column, `flagsRead` is false and
+// the caller treats every per-business feature as OFF (fail closed: never describe a feature she may have turned off).
+export const HELP_SETTINGS_COLUMNS = ['business_fields', 'automations', 'feature_flags', 'green_api_instance'] as const;
+const FLAG_COLUMNS = ['automations', 'green_api_instance'];
 
-async function loadSettings(session: SessionClient, tenantId: string): Promise<Record<string, unknown> | null> {
+export async function loadHelpSettings(session: SessionClient, tenantId: string): Promise<{ row: Record<string, unknown> | null; flagsRead: boolean }> {
+  const cols: string[] = [...HELP_SETTINGS_COLUMNS];
   try {
-    for (const cols of SETTINGS_COLUMNS) {
-      const r = await session.from('settings').select(cols).eq('tenant_id', tenantId).maybeSingle();
-      if (!r?.error) return (r?.data as Record<string, unknown>) || null;
-      // business_fields arrives with add_business_fields.sql; before it, the cosmetics text (businessFieldsOf's fallback).
-      if (!isMissingColumnError(r.error)) { console.error('[help-chat] settings read failed:', r.error.message); return null; }
+    while (cols.length) {
+      const r = await session.from('settings').select(cols.join(', ')).eq('tenant_id', tenantId).maybeSingle();
+      if (!r?.error) return { row: (r?.data as Record<string, unknown>) || null, flagsRead: FLAG_COLUMNS.every((c) => cols.includes(c)) };
+      const gone = isMissingColumnError(r.error) ? missingColumnName(r.error) : null;
+      if (!gone || !cols.includes(gone)) {
+        console.error('[help-chat] settings read failed:', r.error.message);
+        return { row: null, flagsRead: false };
+      }
+      cols.splice(cols.indexOf(gone), 1);
     }
-    return null;
+    return { row: null, flagsRead: false };
   } catch (e) {
     console.error('[help-chat] settings read threw:', e instanceof Error ? e.message : String(e));
-    return null;
+    return { row: null, flagsRead: false };
   }
 }
 
 /** What is switched on for her: her settings row plus the deployment's switches. Automatic WhatsApp sending counts as off, the
  *  same as the rule the prompt states (sending is by her tap). */
-export function helpChatGates(settings: Record<string, unknown> | null, tenantId: string, env: Record<string, string | undefined> = process.env): HelpOn {
-  return helpGatesFor(settings, { ...deployFlagsFor(tenantId, env), autoSend: false }, env);
+export function helpChatGates(settings: Record<string, unknown> | null, tenantId: string, env: Record<string, string | undefined> = process.env, flagsRead = true): HelpOn {
+  const on = helpGatesFor(settings, { ...deployFlagsFor(tenantId, env), autoSend: false }, env);
+  return flagsRead ? on : failClosedTenantGates(on);
 }
 
 function reasonOf(e: unknown): string {
@@ -219,9 +230,9 @@ export async function handleHelpChat(request: Request, deps: HelpChatDeps): Prom
     const history = boundHistory(body?.history);
     const tab = tabOf(body?.tab);
 
-    const row = await loadSettings(session, tenantId);
+    const { row, flagsRead } = await loadHelpSettings(session, tenantId);
     const fields = businessFieldsOf(row);
-    const flags = helpChatGates(row, tenantId);
+    const flags = helpChatGates(row, tenantId, process.env, flagsRead);
     const system: any[] = [{ type: 'text', text: buildHelpPrompt(fields, flags), cache_control: { type: 'ephemeral' } }];
     if (tab) system.push({ type: 'text', text: `היא שואלת מתוך המסך: ${tab}` });
 

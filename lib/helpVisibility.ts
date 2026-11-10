@@ -50,3 +50,8 @@ export function helpGatesFor(settings: SettingsRow, deploy: DeployFlags = {}, en
     reelTemplates: reelTemplatesVisible(s),
   };
 }
+
+/** Every gate that comes from HER settings row (flags that default on). When her row cannot be read, these are the ones to switch
+ *  OFF: a feature she turned off must never be described because the read failed (fail closed). */
+export const TENANT_GATES = ['waitlist', 'rebook', 'vouchers', 'products', 'reviews', 'monthly', 'skinScan', 'leads', 'advisor', 'packages', 'reelTemplates', 'voucherOnline', 'bot'] as const;
+export const failClosedTenantGates = (on: HelpOn): HelpOn => ({ ...on, ...Object.fromEntries(TENANT_GATES.map((g) => [g, false])) });
