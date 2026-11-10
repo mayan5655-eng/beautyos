@@ -37,36 +37,75 @@ import {
 export const STORE_Z = 1450;
 
 // ── one shared read of /api/billing/upgrades for every chip, entry and the sheet ────────────────────────────────────────────────────
-let shared = { data: null, loading: false, at: 0 };
+// Security review 2026-11-10 (information disclosure): this cache outlives a client-side logout and login in the same tab, so it is
+// KEYED BY IDENTITY. The signed-in user is set by app/beautyos.jsx (setUpgradesIdentity, from supabase.auth and on sign-out); the
+// server echoes { userId, tenantId } with every answer. Data is shown only while its key matches the current user; an identity change
+// clears it at once, drops every read still in flight, and clears the purchase intents; a 401/403 clears it too.
+let identity = null;           // the signed-in user's id, or null (signed out / not known yet: nothing is shown or fetched)
+let shared = { data: null, owner: null, loading: false, at: 0 };
 // Vercel review 2026-11-09: a forced read (after a purchase) must never be satisfied by an older read still in flight, and an older
 // answer arriving late must never overwrite a newer one. Every read takes a number; only the newest one may write.
 let seq = 0;
 let inflight = null;
 const listeners = new Set();
-const emit = () => { for (const l of listeners) l(shared.data); };
 
-/** The last answer the store holds (tests, and the toast's availability check). */
-export function currentUpgrades() { return shared.data; }
+/** The cached answer, only when it belongs to the user signed in now. */
+function visible() {
+  const d = shared.data;
+  if (!d || !identity || shared.owner !== identity) return null;
+  if (d.identity && d.identity.userId !== identity) return null;
+  return d;
+}
+const emit = () => { const v = visible(); for (const l of listeners) l(v); };
 
-/** Tests (and only tests) seed the data a server render would otherwise wait for. */
-export function primeUpgrades(data) { shared = { data, loading: false, at: data ? Date.now() : 0 }; emit(); }
+function wipe() {
+  shared = { data: null, owner: null, loading: false, at: 0 };
+  seq++;               // every read still in flight now belongs to someone else: its answer is dropped
+  inflight = null;
+}
+
+/** Who is signed in (app/beautyos.jsx). A different user, or none, clears everything she could otherwise see of the previous one. */
+export function setUpgradesIdentity(userId) {
+  const next = userId ? String(userId) : null;
+  if (next === identity) return;
+  identity = next;
+  wipe();
+  clearIntents();
+  emit();
+  if (next && listeners.size) loadUpgrades(true);
+}
+
+/** Sign-out: forget everything at once, before the next screen renders. */
+export function clearUpgrades() { setUpgradesIdentity(null); }
+
+/** The last answer the store holds for the current user (tests, and the toast's availability check). */
+export function currentUpgrades() { return visible(); }
+
+/** Tests (and only tests) seed the data a server render would otherwise wait for, as the current user's. */
+export function primeUpgrades(data) { shared = { data, owner: data ? identity : null, loading: false, at: data ? Date.now() : 0 }; emit(); }
 
 export async function loadUpgrades(force = false) {
-  if (!upgradesFlagsOn()) return null;
+  if (!upgradesFlagsOn() || !identity) return null;
   if (!force && inflight) return inflight;
-  if (!force && shared.data && Date.now() - shared.at < 60_000) return shared.data;
+  if (!force && visible() && Date.now() - shared.at < 60_000) return visible();
   const mine = ++seq;
+  const asked = identity;
   shared = { ...shared, loading: true };
   const run = (async () => {
     let fresh = null;
+    let denied = false;
     try {
       const r = await fetch('/api/billing/upgrades', { cache: 'no-store' });
+      denied = r.status === 401 || r.status === 403;
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success) fresh = j;
-    } catch { /* keep what we had */ }
-    // A newer read started after this one: its answer wins, this one is dropped (it may predate a purchase).
-    if (mine !== seq) return fresh;
-    shared = fresh ? { data: fresh, loading: false, at: Date.now() } : { ...shared, loading: false };
+    } catch { /* keep what we had, for this same user only */ }
+    // Another user signed in meanwhile, or a newer read started: this answer is dropped (it may be someone else's, or predate a purchase).
+    if (mine !== seq || asked !== identity) return null;
+    // An answer for a different user than the one who asked (a session switched under the request): never kept.
+    if (fresh && fresh.identity && fresh.identity.userId !== asked) fresh = null;
+    if (denied) shared = { data: null, owner: null, loading: false, at: 0 };
+    else shared = fresh ? { data: fresh, owner: asked, loading: false, at: Date.now() } : { ...shared, loading: false };
     inflight = null;
     emit();
     return fresh;
@@ -76,17 +115,29 @@ export async function loadUpgrades(force = false) {
 }
 
 /** Can this pack be bought right now (the last answer from the server)? For buttons rendered outside a hook (the cap-hit toast). */
-export function packAvailable(key) { return addonPacksEnabled() && !!packFor(shared.data, key); }
+export function packAvailable(key) { return addonPacksEnabled() && !!packFor(visible(), key); }
 
 // ── purchase intents: one request id per pack until the server gives a definitive outcome ───────────────────────────────────────
-// Kept in memory and in sessionStorage (a reload in the same tab keeps it too; a blocked storage only loses that convenience).
+// Kept in memory and in sessionStorage (a reload in the same tab keeps it too; a blocked storage only loses that convenience), under
+// the signed-in user, and cleared on any identity change.
 const intents = new Map();
-const INTENT_KEY = (k) => `kalmea:addon-intent:${k}`;
+const PACK_KEYS = Object.keys(ADDON_PACKS);
+const INTENT_KEY = (k) => `kalmea:addon-intent:${identity || '-'}:${k}`;
+
+function clearIntents() {
+  intents.clear();
+  try {
+    const ss = window.sessionStorage;
+    for (let i = ss.length - 1; i >= 0; i--) { const k = ss.key(i); if (k && k.startsWith('kalmea:addon-intent:')) ss.removeItem(k); }
+  } catch { /* no storage */ }
+}
 
 /** The unresolved purchase id for this pack, or ''. */
 export function openIntent(key) {
-  if (intents.has(key)) return intents.get(key);
-  try { const v = window.sessionStorage.getItem(INTENT_KEY(key)); if (v) { intents.set(key, v); return v; } } catch { /* no storage */ }
+  if (!PACK_KEYS.includes(key)) return '';
+  const k = `${identity || '-'}:${key}`;
+  if (intents.has(k)) return intents.get(k);
+  try { const v = window.sessionStorage.getItem(INTENT_KEY(key)); if (v) { intents.set(k, v); return v; } } catch { /* no storage */ }
   return '';
 }
 /** The id to send for this pack: the unresolved one, or a fresh one that is kept until settled. */
@@ -94,13 +145,13 @@ export function purchaseIntent(key) {
   const have = openIntent(key);
   if (have) return have;
   const id = newRequestId();
-  intents.set(key, id);
+  intents.set(`${identity || '-'}:${key}`, id);
   try { window.sessionStorage.setItem(INTENT_KEY(key), id); } catch { /* no storage */ }
   return id;
 }
 /** A definitive outcome (succeeded, or refused / declined for this id): the next purchase of this pack is a new intent. */
 export function settleIntent(key) {
-  intents.delete(key);
+  intents.delete(`${identity || '-'}:${key}`);
   try { window.sessionStorage.removeItem(INTENT_KEY(key)); } catch { /* no storage */ }
 }
 
@@ -114,13 +165,15 @@ export async function requestStatus(rid) {
 }
 
 export function useUpgrades() {
-  const [d, setD] = useState(() => shared.data);
+  const [d, setD] = useState(() => visible());
   useEffect(() => {
     listeners.add(setD);
+    setD(visible());
     loadUpgrades();
     return () => { listeners.delete(setD); };
   }, []);
-  return d;
+  // Rendered only while it still belongs to the user signed in now (an identity change between renders shows nothing).
+  return d && d === visible() ? d : null;
 }
 
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');

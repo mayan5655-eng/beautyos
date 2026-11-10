@@ -57,6 +57,8 @@ export async function GET(request: Request) {
   const b = ui ? billing() : null;
   const out = {
     success: true as const,
+    // Whose answer this is: the store keys its cache by it and never shows it to anyone else (app/UpgradesStore.jsx).
+    identity: { userId: user.id, tenantId },
     billing: ui,
     configured: !!b?.configured,
     mode: b?.mode || null,

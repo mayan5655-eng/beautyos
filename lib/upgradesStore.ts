@@ -33,6 +33,8 @@ export function upgradesFlagsOn(env?: Record<string, string | undefined>): boole
 export type PackUsage = { key: AddonPackKey; used: number | null; cap: number | null; purchased: number; units: number; price: number };
 export type UpgradesData = {
   success: true;
+  /** Whose answer this is (the cache is keyed by it, app/UpgradesStore.jsx). */
+  identity?: { userId: string; tenantId: string };
   billing: boolean;
   configured: boolean;
   mode?: string;

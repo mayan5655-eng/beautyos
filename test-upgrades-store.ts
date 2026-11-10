@@ -25,7 +25,7 @@ const OFF = {};
 
 const usage = (key: AddonPackKey, used: number | null, cap: number | null = ADDON_PACKS[key].included, purchased = 0) => ({ key, used, cap, purchased, units: ADDON_PACKS[key].units, price: ADDON_PACKS[key].price });
 const data = (over: Partial<UpgradesData> = {}): UpgradesData => ({
-  success: true, billing: true, configured: true, mode: 'mock', demo: false, card: { last4: '4242' }, subStatus: 'active', nextChargeAt: '2026-12-01T08:00:00Z',
+  success: true, identity: { userId: 'u-test', tenantId: '11111111-1111-1111-1111-111111111111' }, billing: true, configured: true, mode: 'mock', demo: false, card: { last4: '4242' }, subStatus: 'active', nextChargeAt: '2026-12-01T08:00:00Z',
   packs: [usage('posts', 2), usage('reels', 3), usage('advisor', 10), usage('skinscan', 5)],
   annual: { ready: true, monthly: 349, yearly: 3490, billingPeriod: 'monthly', pendingPeriod: null },
   referrals: true, ...over,
@@ -201,6 +201,8 @@ await ok('the routes: rate-limited, tenant from the session, a requestId replay,
 // ── the real components ────────────────────────────────────────────────────────────────────────────────────────────────────────
 const store = await importApp('app/UpgradesStore.jsx');
 const { UpgradeChip, StoreBody, UpgradesEntry, UsageMeter, primeUpgrades } = store;
+// The cache is keyed by who is signed in (security review 2026-11-10): these renders are for one signed-in test user.
+store.setUpgradesIdentity('u-test');
 const withFlags = async (env: Record<string, string>, fn: () => void | Promise<void>) => {
   const keys = Object.keys(ON);
   const before = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
@@ -319,7 +321,7 @@ await ok('every flag off: no entry point, no chip on any page, no store, nothing
   assert.equal(renderApp(UpgradesEntry, { variant: 'home' }), '');
   assert.equal(renderApp(store.default, {}), '');
   assert.equal(store.packAvailable('reels'), false, 'the cap-hit toast gets no pack button');
-  assert.match(read('app/UpgradesStore.jsx'), /export async function loadUpgrades\(force = false\) \{\n  if \(!upgradesFlagsOn\(\)\) return null;/, 'and nothing is fetched');
+  assert.match(read('app/UpgradesStore.jsx'), /export async function loadUpgrades\(force = false\) \{\n  if \(!upgradesFlagsOn\(\) \|\| !identity\) return null;/, 'and nothing is fetched');
 }));
 
 await ok('nothing purchasable (flags on, billing off): no entry point and no chip either', () => withFlags(ON, () => {
@@ -654,6 +656,100 @@ await ok('the billing card buys with the same intent rules', () => {
   assert.match(card, /if \(r && isFinalRefusal\(r\.status, j\)\) \{ settleIntent\(key\);/);
   assert.match(card, /const a = await requestStatus\(rid\);/);
   assert.doesNotMatch(card, /לא חויבת/);
+});
+
+
+// ── security review 2026-11-10: the cache never shows one signed-in user's billing data to the next ───────────────────────────────
+const asUser = (userId: string, last4: string, used: number) => data({ identity: { userId, tenantId: `t-${userId}` } as any, card: { last4 }, packs: [usage('reels', used)] });
+const withFetch = async (impl: (u: string) => Promise<any>, fn: () => Promise<void>) => {
+  const real = globalThis.fetch;
+  (globalThis as any).fetch = impl;
+  try { await fn(); } finally { (globalThis as any).fetch = real; }
+};
+
+await ok('A then B in the same tab: B never sees A\'s last four digits or usage', () => withFlags(ON, async () => {
+  const { setUpgradesIdentity, loadUpgrades, currentUpgrades, packAvailable } = store;
+  setUpgradesIdentity('u-A');
+  await withFetch(async () => ({ ok: true, status: 200, json: async () => asUser('u-A', '1111', 9) }), async () => { await loadUpgrades(true); });
+  assert.equal(currentUpgrades().card.last4, '1111');
+  assert.match(renderApp(StoreBody, { d: currentUpgrades(), view: { kind: 'pack', key: 'reels' } }), /1111/);
+  // A signs out (client navigation, no reload) and B signs in.
+  store.clearUpgrades();
+  assert.equal(currentUpgrades(), null, 'cleared at sign-out');
+  setUpgradesIdentity('u-B');
+  assert.equal(currentUpgrades(), null, 'B starts with nothing');
+  assert.equal(renderApp(UpgradeChip, { pack: 'reels', meter: true }), '', 'no chip with A\'s usage');
+  assert.equal(packAvailable('reels'), false);
+  assert.equal(renderApp(UpgradesEntry, { variant: 'home' }), '', 'no home card with A\'s usage');
+  // A switch with no sign-out event in between (another account signed in in another tab) clears too.
+  setUpgradesIdentity('u-A');
+  await withFetch(async () => ({ ok: true, status: 200, json: async () => asUser('u-A', '1111', 9) }), async () => { await loadUpgrades(true); });
+  setUpgradesIdentity('u-B');
+  assert.equal(currentUpgrades(), null, 'a direct identity change clears A\'s data');
+  await withFetch(async () => ({ ok: true, status: 200, json: async () => asUser('u-B', '2222', 1) }), async () => { await loadUpgrades(true); });
+  assert.equal(currentUpgrades().card.last4, '2222', 'B sees her own');
+  assert.doesNotMatch(renderApp(StoreBody, { d: currentUpgrades(), view: { kind: 'pack', key: 'reels' } }), /1111/);
+  setUpgradesIdentity('u-test');
+}));
+
+await ok('a read still in flight for A is dropped when B signs in; an answer for another user is never kept', () => withFlags(ON, async () => {
+  const { setUpgradesIdentity, loadUpgrades, currentUpgrades } = store;
+  setUpgradesIdentity('u-A');
+  let release: (v: unknown) => void = () => {};
+  await withFetch(() => new Promise((res) => { release = res; }), async () => {
+    const pendingA = loadUpgrades(true);
+    setUpgradesIdentity('u-B');                         // B signs in while A's read is still on the wire
+    release({ ok: true, status: 200, json: async () => asUser('u-A', '1111', 9) });
+    assert.equal(await pendingA, null, 'A\'s late answer is dropped');
+    assert.equal(currentUpgrades(), null);
+  });
+  // The session switched under the request: the server answered for A while B is the one asking.
+  await withFetch(async () => ({ ok: true, status: 200, json: async () => asUser('u-A', '1111', 9) }), async () => {
+    assert.equal(await loadUpgrades(true), null);
+    assert.equal(currentUpgrades(), null, 'an answer echoing another user is never cached for B');
+  });
+  setUpgradesIdentity('u-test');
+}));
+
+await ok('a 401 or 403 clears the cached data instead of keeping the old values; a network error keeps only the same user\'s', () => withFlags(ON, async () => {
+  const { setUpgradesIdentity, loadUpgrades, currentUpgrades } = store;
+  for (const status of [401, 403]) {
+    setUpgradesIdentity(`u-${status}`);
+    await withFetch(async () => ({ ok: true, status: 200, json: async () => asUser(`u-${status}`, '3333', 2) }), async () => { await loadUpgrades(true); });
+    assert.equal(currentUpgrades().card.last4, '3333');
+    await withFetch(async () => ({ ok: false, status, json: async () => ({ success: false, error: 'לא מחוברת' }) }), async () => { await loadUpgrades(true); });
+    assert.equal(currentUpgrades(), null, `${status}: cleared`);
+  }
+  setUpgradesIdentity('u-net');
+  await withFetch(async () => ({ ok: true, status: 200, json: async () => asUser('u-net', '4444', 2) }), async () => { await loadUpgrades(true); });
+  await withFetch(async () => { throw new Error('offline'); }, async () => { await loadUpgrades(true); });
+  assert.equal(currentUpgrades().card.last4, '4444', 'offline: her own last answer stays, for her only');
+  setUpgradesIdentity(null);
+  assert.equal(currentUpgrades(), null, 'signed out: nothing');
+  assert.equal(await loadUpgrades(true), null, 'and nothing is fetched without a signed-in user');
+  setUpgradesIdentity('u-test');
+}));
+
+await ok('purchase intents are per user and cleared on any identity change', () => {
+  const { setUpgradesIdentity, purchaseIntent, openIntent } = store;
+  setUpgradesIdentity('u-A');
+  const a = purchaseIntent('reels');
+  assert.equal(openIntent('reels'), a);
+  setUpgradesIdentity('u-B');
+  assert.equal(openIntent('reels'), '', 'B never reuses A\'s purchase id');
+  setUpgradesIdentity('u-test');
+});
+
+await ok('wiring: the app sets the identity from supabase auth and clears at sign-out; the server echoes whose answer it is', () => {
+  const app = read('app/beautyos.jsx');
+  assert.match(app, /supabase\.auth\.onAuthStateChange\(\(event, session\) => \{\s*setUpgradesIdentity\(event === "SIGNED_OUT" \? null : session\?\.user\?\.id \|\| null\);/);
+  assert.match(app, /supabase\.auth\.getSession\(\)\.then\(\(\{ data \}\) => \{ if \(alive\) setUpgradesIdentity\(data\?\.session\?\.user\?\.id \|\| null\); \}\)/);
+  assert.ok(app.indexOf('clearUpgrades();') > 0 && app.indexOf('clearUpgrades();') < app.indexOf('await supabase.auth.signOut();'), 'cleared before signing out');
+  assert.match(read('app/api/billing/upgrades/route.ts'), /identity: \{ userId: user\.id, tenantId \},/);
+  const ui = read('app/UpgradesStore.jsx');
+  assert.match(ui, /if \(mine !== seq \|\| asked !== identity\) return null;/);
+  assert.match(ui, /if \(denied\) shared = \{ data: null, owner: null/);
+  assert.match(ui, /return d && d === visible\(\) \? d : null;/, 'the hook never renders data for anyone but the current user');
 });
 
 primeUpgrades(null);

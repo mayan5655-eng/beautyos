@@ -31,7 +31,7 @@ import { addonPackForMessage, OPEN_ADDONS_EVENT } from "@/lib/addonOffer";
 import { openUpgrades } from "@/lib/upgradesStore";
 import { addonButtonHe } from "@/lib/pricing";
 // "שדרוגים ✨": the one-tap store for what she buys from Kalmea, its entry points, and the chip on each metered screen.
-import UpgradesStore, { UpgradeChip, UpgradesEntry, loadUpgrades, packAvailable } from "./UpgradesStore";
+import UpgradesStore, { UpgradeChip, UpgradesEntry, loadUpgrades, packAvailable, setUpgradesIdentity, clearUpgrades } from "./UpgradesStore";
 import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const BusinessReferralCard = dynamic(() => import("./BusinessReferralCard"), { ssr: false });
@@ -1531,6 +1531,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       onConfirm: async () => {
         try {
           setBusyKey("logout", true);
+          clearUpgrades(); // the upgrades cache (usage, card last four) never outlives her session in this tab
           await supabase.auth.signOut();
           router.push("/login");
           router.refresh();
@@ -1655,6 +1656,15 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     openSettings();
     setTimeout(() => { try { document.getElementById(target)?.scrollIntoView({ block: "start", behavior: "smooth" }); } catch { /* not rendered yet */ } }, 700);
   };
+  // The upgrades store's cache is keyed by who is signed in (app/UpgradesStore.jsx): set it now, and on every sign-in, sign-out or switch.
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getSession().then(({ data }) => { if (alive) setUpgradesIdentity(data?.session?.user?.id || null); }).catch(() => { if (alive) setUpgradesIdentity(null); });
+    const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
+      setUpgradesIdentity(event === "SIGNED_OUT" ? null : session?.user?.id || null);
+    });
+    return () => { alive = false; authSub?.subscription?.unsubscribe?.(); };
+  }, []);
   useEffect(() => {
     const on = (e) => openAddonsRef.current?.(e?.detail?.target);
     window.addEventListener(OPEN_ADDONS_EVENT, on);
