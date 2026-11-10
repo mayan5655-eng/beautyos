@@ -37,6 +37,7 @@
 //   facebook_*                     legacy columns nothing writes
 
 import { moveEveningSummaryOnSave } from './eveningSummarySetting.ts';
+import { leadChoiceOf } from './waCloud/autoVisible.js';
 
 export const SETTINGS_EDITABLE_COLUMNS = [
   // Identity she shows clients
@@ -131,6 +132,17 @@ export function pickSettingsPayload(input: unknown): PickedSettings {
           delete autos[k];
           dropped.push(`automations.${k}`);
         }
+      }
+      // Her reminder lead time is one of the offered choices (24 or 48), stored as a plain number; anything else
+      // (an object, an array, junk) is dropped so stored settings can never break the automatic-message run.
+      if ('wa_auto_lead_hours' in autos) {
+        const lead = leadChoiceOf(autos.wa_auto_lead_hours);
+        if (lead === null) { delete autos.wa_auto_lead_hours; dropped.push('automations.wa_auto_lead_hours'); }
+        else autos.wa_auto_lead_hours = lead;
+      }
+      // Her opt-in is a plain boolean too.
+      if ('wa_auto_messages' in autos && typeof autos.wa_auto_messages !== 'boolean') {
+        delete autos.wa_auto_messages; dropped.push('automations.wa_auto_messages');
       }
       payload.automations = autos;
       continue;

@@ -12,7 +12,10 @@
 //   * statuses (sent / delivered / read / failed, with Meta's pricing block): written to wa_cloud_messages (the cost
 //     log: billable, category) and to whatsapp_messages.delivery_status through the provider-id column, the same
 //     column and words the GreenAPI webhook uses - so "sent" and "arrived" stay two different things.
-//   * an inbound "הסר" / "stop" (lib/marketingConsent.isOptOutReply): the sender is opted out of marketing in every
+//   * a quick-reply tap on an automatic message (lib/waCloud/autoButtons.ts): confirm / cancel exactly as the confirm
+//     link does, or "no more automatic messages". Signed payload, and only from the number the message went to.
+//   * an inbound "הסר" / "stop" (lib/marketingConsent.isOptOutReply): the sender is opted out of marketing (and, while
+//     WA_AUTO_ENABLED, of the automatic messages too) in every
 //     business that messaged that number through this route in the last 90 days (clients and leads by phone, plus the
 //     hashed marketing_suppressions record that outlives a deleted card), and gets one acknowledgement. Reminders and
 //     confirmations keep coming - the same promise the GreenAPI opt-out makes.
@@ -31,10 +34,35 @@ import { isOptOutReply, optOutFields } from '@/lib/marketingConsent';
 import { phoneVariants, suppressionHash } from '@/lib/clientData';
 import { normalizeIsraeliMobile } from '@/lib/phone';
 import { hit } from '@/lib/rateLimit';
+import { NextRequest } from 'next/server';
+import { POST as confirmPost } from '@/app/api/confirm/route';
+import { signConfirm } from '@/lib/confirmToken';
+import { handleAutoButton, type ActionAnswer } from '@/lib/waCloud/autoButtons';
+import { recordAutoOptOut } from '@/lib/waCloud/auto';
+import { autoConfig } from '@/lib/waCloud/autoConfig';
 
 export const dynamic = 'force-dynamic';
 
 const OPT_OUT_ACK = 'הוסרת מרשימת ההודעות. מעכשיו לא יישלחו אלייך הודעות שיווק. תזכורות לתורים ימשיכו להגיע.';
+// While the automatic messages are on (WA_AUTO_ENABLED), "הסר" stops them too, so the answer says so.
+const OPT_OUT_ACK_AUTO = 'הוסרת מרשימת ההודעות. מעכשיו לא יישלחו אלייך הודעות שיווק והודעות אוטומטיות. העסק יכול עדיין ליצור איתך קשר ישירות לגבי התורים שלך.';
+
+// A button tap on an automatic message changes the appointment through the confirm link's own handler, so every rule
+// and side effect of a tap on the link applies (lib/waCloud/autoButtons.ts). Not exported and not reachable from a
+// request: handleAutoButton calls it only after Meta's signature on the delivery, our HMAC on the button payload (bound
+// to this sender's number, the business and an expiry), and the cost-log and ownership checks have all passed. The token
+// is minted for this one in-process call, lives two minutes, and is never logged or returned.
+const INTERNAL_TOKEN_TTL_MS = 2 * 60_000;
+async function applyLinkAction(appointmentId: string, action: 'confirm' | 'cancel'): Promise<ActionAnswer> {
+  const token = signConfirm(appointmentId, action, Date.now() + INTERNAL_TOKEN_TTL_MS);
+  const req = new NextRequest('https://kalmea.internal/api/confirm', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: appointmentId, action, token }),
+  });
+  const res = await confirmPost(req);
+  const j = (await res.json().catch(() => ({}))) as ActionAnswer;
+  // Only the words for the client and her booking link go on; nothing else from the handler's answer.
+  return { success: j.success === true, message: typeof j.message === 'string' ? j.message : undefined, error: typeof j.error === 'string' ? j.error : undefined, bookUrl: typeof j.bookUrl === 'string' ? j.bookUrl : undefined };
+}
 const OPT_OUT_LOOKBACK_DAYS = 90;
 
 // Only after the signature has passed.
@@ -47,8 +75,9 @@ type Admin = ReturnType<typeof admin>;
 
 export async function GET(request: Request) {
   const challenge = verifySubscription(new URL(request.url).searchParams, process.env.WA_CLOUD_VERIFY_TOKEN);
-  if (challenge === null) return new Response('forbidden', { status: 403 });
-  return new Response(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
+  // Meta's challenge is a short token; anything else is not echoed back (no reflected content from this route).
+  if (challenge === null || !/^[A-Za-z0-9_.-]{1,128}$/.test(challenge)) return new Response('forbidden', { status: 403 });
+  return new Response(challenge, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(request: Request) {
@@ -94,9 +123,19 @@ async function recordStatus(db: Admin, s: StatusUpdate) {
 }
 
 async function handleInbound(db: Admin, m: InboundText) {
+  if (m.payload) {
+    // Meta redelivers a message it thinks we missed: one tap is acted on once (per instance; confirm / cancel are
+    // idempotent in the confirm handler anyway). Then at most 10 taps per number per 10 minutes.
+    if (m.id && !hit(`wa-auto-button-id:${m.id}`, { limit: 1, windowMs: 60 * 60_000 }).ok) return;
+    const taps = hit(`wa-auto-button:${m.from}`, { limit: 10, windowMs: 10 * 60_000 });
+    if (!taps.ok) return;
+    const b = await handleAutoButton({ db, from: m.from, payload: m.payload, applyAction: applyLinkAction });
+    if (b.handled) { console.log(`[wa-cloud-webhook] button ${b.action}: ${b.outcome}`); return; }
+  }
   if (!isOptOutReply(m.text)) return;
   const burst = hit(`wa-cloud-optout:${m.from}`, { limit: 5, windowMs: 10 * 60_000 });
   if (!burst.ok) return;
+  const autoOn = autoConfig().enabled;
 
   const since = new Date(Date.now() - OPT_OUT_LOOKBACK_DAYS * 86400_000).toISOString();
   const { data: rows, error } = await db.from(LOG_TABLE).select('tenant_id').eq('recipient_hash', recipientHash(m.from)).gte('created_at', since).limit(200);
@@ -123,19 +162,22 @@ async function handleInbound(db: Admin, m: InboundText) {
       const { error: sErr } = await db.from('marketing_suppressions').upsert({ tenant_id: tenantId, phone_hash: suppressionHash(tenantId, e164.e164) });
       if (sErr && !/marketing_suppressions|does not exist|PGRST205/i.test(`${sErr.code} ${sErr.message}`)) console.error('[wa-cloud-webhook] suppression not recorded:', sErr.message);
     }
+    // No more automatic messages either (lib/waCloud/auto.ts reads this before every automatic send).
+    if (autoOn) await recordAutoOptOut(db, tenantId, m.from, 'reply');
   }
 
   // One acknowledgement, inside the 24-hour window her message just opened (free-form text is allowed there).
   // Not again for someone who was already removed everywhere.
   if (cardsSeen === 0 || fresh > 0) {
-    const res = await resolveWaCloudAdapter().sendText(m.from, OPT_OUT_ACK);
+    const ack = autoOn ? OPT_OUT_ACK_AUTO : OPT_OUT_ACK;
+    const res = await resolveWaCloudAdapter().sendText(m.from, ack);
     if (!res.ok) {
       console.error('[wa-cloud-webhook] opt-out acknowledgement failed:', res.error);
       // The removal itself is recorded above; the client still deserves the answer. Left in the business's manual queue
       // (the same pending_manual row lib/whatsapp.js writes) so she can send it from her own WhatsApp.
       const phone = e164.ok ? e164.e164 : m.from;
       const { error: qErr } = await db.from('whatsapp_messages').insert({
-        tenant_id: tenants[0] || null, recipient_name: null, recipient_phone: phone, message_body: OPT_OUT_ACK,
+        tenant_id: tenants[0] || null, recipient_name: null, recipient_phone: phone, message_body: ack,
         message_type: 'marketing_optout_ack', status: 'pending_manual', error_detail: String(res.error || 'send failed').slice(0, 500),
       });
       if (qErr) console.error('[wa-cloud-webhook] opt-out acknowledgement not queued:', qErr.message);

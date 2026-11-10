@@ -29,6 +29,8 @@ import { describeMissed } from "../../../lib/cronFanout.js";
 import { raiseOpsAlert } from "../../../lib/opsAlert.js";
 import { reminderCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
 import { isYomTov } from "../../../lib/greetings/calendar.ts";
+import { autoConfig, tenantOptedIn } from "../../../lib/waCloud/autoConfig.ts";
+import { autoMigrationReady } from "../../../lib/waCloud/auto.ts";
 
 // 300 s is the platform ceiling. The run stops STARTING tenants at 200 s and no
 // tenant may take longer than 60 s, so it always ends by 260 s on its own terms
@@ -87,12 +89,15 @@ export async function POST(request) {
       });
     }
 
+    // Businesses on the automatic WhatsApp reminders (lib/waCloud/autoRun.ts) are left to that run, but only while it really
+    // sends: WA_AUTO_ENABLED, live, credentials, and its tables exist. Otherwise (the default) nothing changes here.
+    const autoReady = autoConfig().active && (await autoMigrationReady(supabase));
     const run = await runDailyReminders({
       db: supabase,
       send,
       tomorrow,
       baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app",
-      deps: { startMinute, isPersonal, confirmLinks, isDemoTenantId, isMissingColumnError },
+      deps: { startMinute, isPersonal, confirmLinks, isDemoTenantId, isMissingColumnError, autoHandles: autoReady ? (_t, s) => tenantOptedIn(s) : null },
       only,
     });
 

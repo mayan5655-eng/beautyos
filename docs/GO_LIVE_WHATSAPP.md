@@ -85,3 +85,7 @@ Set `WA_CLOUD_ENABLED=false` and redeploy. Every send immediately goes back to t
 - Deposit-link and cancellation-fee messages keep going from her own WhatsApp through wa.me. Their templates are approved in advance, so moving them to the central number later only needs parameters at those call sites.
 - No bot on the Cloud number. An inbound message other than an opt-out is acknowledged to Meta and ignored. The client's conversation stays with her cosmetician.
 - Marketing never goes through the Cloud route. There are no marketing templates.
+
+## Automatic reminders and booking confirmations (per business, with buttons)
+
+A separate switch, `WA_AUTO_ENABLED` (default off), sends the two button templates `kalmea_auto_reminder` and `kalmea_auto_booking` only for the businesses that turned it on in Settings. It needs `WA_CLOUD_MODE=live` and the four credentials above, and does NOT need `WA_CLOUD_ENABLED`. Run `add_wa_auto_messages.sql` first. Templates, the Hebrew step-by-step and the env order: `docs/WA_TEMPLATES.md`. Code: `lib/waCloud/auto.ts`, hourly run `/api/wa-auto/run`.

@@ -91,6 +91,8 @@ declare
     'grow_card_consents', 'grow_token_charges',
     -- The WhatsApp Cloud API cost log (supabase/migrations/add_wa_cloud.sql): server-written, listed so the gate stays right.
     'wa_cloud_messages',
+    -- The automatic WhatsApp messages' claims and opt-outs (supabase/migrations/add_wa_auto_messages.sql): server-written.
+    'wa_auto_claims', 'wa_auto_optouts',
     -- What clients wrote to the bot, for its memory (supabase/migrations/add_whatsapp_inbound.sql): server-written, listed so the gate stays right.
     'whatsapp_inbound'
     -- NOTE: 'settings' is intentionally absent. See the header for why.

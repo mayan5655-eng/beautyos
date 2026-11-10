@@ -41,3 +41,35 @@ export function israelDayStartIso(now: Date = new Date()): string {
   const offsetMs = asUtc - Math.floor(now.getTime() / 1000) * 1000;
   return new Date(Date.UTC(p.y, p.m - 1, p.d) - offsetMs).toISOString();
 }
+
+/** The UTC instant of a wall-clock time in Israel: 'YYYY-MM-DD' plus minutes from midnight. NaN for a bad date. */
+export function israelLocalToUtcMs(date: string, minute: number): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date || ''));
+  if (!m || !Number.isFinite(minute)) return NaN;
+  const naive = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, minute);
+  const offsetAt = (t: number) => {
+    const q = israelParts(new Date(t));
+    return Date.UTC(q.y, q.m - 1, q.d, q.h, q.min, q.s) - Math.floor(t / 1000) * 1000;
+  };
+  let t = naive - offsetAt(naive);
+  t = naive - offsetAt(t); // a second pass settles a DST change between the guess and the answer
+  return t;
+}
+
+/** Midnight that started this Israel calendar MONTH, as an ISO instant. The per-business monthly cap counts from here. */
+export function israelMonthStartIso(now: Date = new Date()): string {
+  const p = israelParts(now);
+  return new Date(israelLocalToUtcMs(`${p.y}-${String(p.m).padStart(2, '0')}-01`, 0)).toISOString();
+}
+
+/** 'YYYY-MM' of the Israel calendar month, for alert keys. */
+export function israelMonthKey(now: Date = new Date()): string {
+  const p = israelParts(now);
+  return `${p.y}-${String(p.m).padStart(2, '0')}`;
+}
+
+/** The Israel calendar day 'YYYY-MM-DD' and the minute of that day, for an instant. */
+export function israelDayAndMinute(now: Date): { day: string; minute: number } {
+  const p = israelParts(now);
+  return { day: `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`, minute: p.h * 60 + p.min };
+}

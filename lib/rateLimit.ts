@@ -406,6 +406,13 @@ export const RATE_POLICIES = {
     ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
     tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
   },
+  // Settings asks once per open whether the automatic WhatsApp row exists (app/api/wa-auto/status).
+  'wa-auto-status': {
+    perIp: { limit: 60, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
   'referral-card': {
     perIp: { limit: 60, windowMs: 10 * MINUTE },
     perTenant: { limit: 60, windowMs: 10 * MINUTE },
