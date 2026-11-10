@@ -11,7 +11,15 @@ import { metaPixelId, trackPageView, META_PIXEL_SCRIPT_SRC } from '@/lib/metaPix
 import { NO_TRACK_KEY } from './PublicAnalytics';
 
 // The owner's own browser, marked once with ?no-track=1 (app/PublicAnalytics.tsx), is not counted here either.
-const ownBrowser = () => { try { return localStorage.getItem(NO_TRACK_KEY) === '1'; } catch { return false; } };
+// The query is handled here too, so ?no-track=1 works on whichever page she opens first (the landing or /signup).
+const ownBrowser = () => {
+  try {
+    const q = window.location.search;
+    if (/[?&]no-track=1(&|$)/.test(q)) localStorage.setItem(NO_TRACK_KEY, '1');
+    if (/[?&]track=1(&|$)/.test(q)) localStorage.removeItem(NO_TRACK_KEY);
+    return localStorage.getItem(NO_TRACK_KEY) === '1';
+  } catch { return false; }
+};
 
 export default function MetaPixel() {
   const id = metaPixelId();

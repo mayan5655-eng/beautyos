@@ -50,6 +50,7 @@ ok('the script: next/script afterInteractive, fbevents.js, rendered only with an
   assert.ok(c.includes("from 'next/script'") && c.includes('strategy="afterInteractive"') && c.includes('src={META_PIXEL_SCRIPT_SRC}'));
   assert.ok(/if \(!id \|\| !load\) return null;/.test(c), 'env empty: no script rendered');
   assert.ok(c.includes('NO_TRACK_KEY') && /if \(!id \|\| ownBrowser\(\)\) return;/.test(c), 'the owner\'s own marked browser is not counted (same switch as PublicAnalytics)');
+  assert.ok(c.includes("/[?&]no-track=1(&|$)/.test(q)) localStorage.setItem(NO_TRACK_KEY, '1')"), '?no-track=1 is honoured on the page itself, /signup included');
   assert.ok(!c.includes('<noscript'));
   assert.ok(fs.readFileSync('lib/metaPixel.ts', 'utf8').includes('process.env.NEXT_PUBLIC_META_PIXEL_ID'), 'a literal reference, so Next inlines it into the browser bundle');
 });
