@@ -362,8 +362,8 @@ await ok('settings, services and the migration', () => {
   const app = read('app/beautyos.jsx');
   assert.match(app, /<RebookSetting autos=\{autos\} setAutos=\{setAutos\}/);
   assert.ok(!/label="תזכורת לקבוע את התור הבא" on=\{autos\.rebook_enabled===true\}/.test(app), 'the old opt-in row is replaced, not duplicated');
-  assert.match(app, /"buffer_minutes", "rebook_days"\]/, 'saved with the service');
-  assert.match(app, /OPTIONAL_SERVICE_COLS = \["field", "requires_deposit", "buffer_minutes", "rebook_days"\]/, 'and dropped, not failed, before the migration');
+  assert.match(app, /"buffer_minutes", "rebook_days"(, "intake")?\]/, 'saved with the service');
+  assert.match(app, /OPTIONAL_SERVICE_COLS = \["field", "requires_deposit", "buffer_minutes", "rebook_days"(, "intake")?\]/, 'and dropped, not failed, before the migration');
   assert.match(app, /data-testid="service-rebook"/);
   assert.match(app, /disabled=\{!rebookColumnReady\}/, 'the field waits for the migration');
   const setting = read('app/RebookSetting.jsx');
