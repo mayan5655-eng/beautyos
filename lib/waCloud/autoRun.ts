@@ -177,17 +177,19 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
     // She turned reminders off (settings.reminders_enabled = false): nothing is sent and nothing is queued. Her booking
     // confirmations are a separate matter and still go (they have no switch of their own).
     if (!remindersEnabled(s)) { res.skipped++; continue; }
-    const lead = tenantLeadHours(s, cfg);
-    const sm = startMinute(appt);
-    const plan = reminderPlan({ date: appt.date, startMinute: sm, leadHours: lead, now, isYomTov: o.deps.isYomTov });
-    if (plan === 'held') { res.held++; continue; }
-    if (plan !== 'due') continue;
-    const bc = bookingClaims.get(appt.id);
-    if (bc && sm !== null) {
-      const sendAt = reminderSendAt(israelLocalToUtcMs(appt.date, sm), lead);
-      if (new Date(bc.created_at).getTime() >= sendAt - 60 * 60 * 1000) { res.skipped++; continue; }
-    }
+    // Everything per appointment, planning included, is inside the try: one business's stored settings (tenant-written
+    // JSON) can never abort the shared hourly run for every other business (Vercel Security Review, PR #53).
     try {
+      const lead = tenantLeadHours(s, cfg);
+      const sm = startMinute(appt);
+      const plan = reminderPlan({ date: appt.date, startMinute: sm, leadHours: lead, now, isYomTov: o.deps.isYomTov });
+      if (plan === 'held') { res.held++; continue; }
+      if (plan !== 'due') continue;
+      const bc = bookingClaims.get(appt.id);
+      if (bc && sm !== null) {
+        const sendAt = reminderSendAt(israelLocalToUtcMs(appt.date, sm), lead);
+        if (new Date(bc.created_at).getTime() >= sendAt - 60 * 60 * 1000) { res.skipped++; continue; }
+      }
       const out = await sendAutoMessage({
         db, tenantId: appt.tenant_id, kind: 'reminder', appointmentId: appt.id, phone: String(appt.client_phone), name: appt.name,
         clientId: appt.client_id, apptDate: appt.date, params: autoParams(appt, s), settingsRow: s, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
@@ -206,47 +208,58 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
   if (autoAllowedNow(now, o.deps.isYomTov)) {
     for (const c of deferred) {
       if (outOfTime()) { res.stoppedEarly = true; break; }
-      // Take it: only the run whose update still finds it deferred sends it.
-      const { data: taken, error } = await db.from(CLAIMS_TABLE).update({ status: 'claimed', updated_at: now.toISOString() })
-        .eq('idempotency_key', c.idempotency_key).eq('status', 'deferred').select('idempotency_key');
-      if (error || !Array.isArray(taken) || taken.length === 0) continue;
-      const settle = (status: string, detail: string) =>
-        db.from(CLAIMS_TABLE).update({ status, detail, updated_at: now.toISOString() }).eq('idempotency_key', c.idempotency_key);
-      const appt = deferredAppt.get(c.appointment_id);
-      const sm = appt ? startMinute(appt) : null;
-      const startMs = appt && sm !== null ? israelLocalToUtcMs(appt.date, sm) : NaN;
-      // Skipped ONLY when there is nothing left to confirm: the appointment was deleted or cancelled, or its time has passed.
-      if (!appt || appt.tenant_id !== c.tenant_id || appt.confirmation_status === 'cancelled') {
-        await settle('skipped', 'appointment cancelled or removed before the morning'); res.skipped++; continue;
+      // One confirmation's failure (bad stored settings, a throwing read) never stops the others, nor the run.
+      try {
+        // Take it: only the run whose update still finds it deferred sends it.
+        const { data: taken, error } = await db.from(CLAIMS_TABLE).update({ status: 'claimed', updated_at: now.toISOString() })
+          .eq('idempotency_key', c.idempotency_key).eq('status', 'deferred').select('idempotency_key');
+        if (error || !Array.isArray(taken) || taken.length === 0) continue;
+        const settle = (status: string, detail: string) =>
+          db.from(CLAIMS_TABLE).update({ status, detail, updated_at: now.toISOString() }).eq('idempotency_key', c.idempotency_key);
+        const appt = deferredAppt.get(c.appointment_id);
+        const sm = appt ? startMinute(appt) : null;
+        const startMs = appt && sm !== null ? israelLocalToUtcMs(appt.date, sm) : NaN;
+        // Skipped ONLY when there is nothing left to confirm: the appointment was deleted or cancelled, or its time has passed.
+        if (!appt || appt.tenant_id !== c.tenant_id || appt.confirmation_status === 'cancelled') {
+          await settle('skipped', 'appointment cancelled or removed before the morning'); res.skipped++; continue;
+        }
+        if (Number.isFinite(startMs) && startMs <= now.getTime()) {
+          await settle('skipped', 'the visit time passed before the confirmation could go'); res.skipped++; continue;
+        }
+        const s = settings.get(c.tenant_id);
+        const cancelUrl = () => o.deps.confirmLinks(o.deps.baseUrl, appt.id, { date: appt.date }).cancelUrl;
+        if (!s) {
+          // She turned the automatic messages off (or paused her automations) overnight: the confirmation is still owed,
+          // from her own WhatsApp. Not an automatic send.
+          const queued = appt.client_phone ? await queue(appt, bookingQueueText(appt, anySettings.get(c.tenant_id) || {}, cancelUrl()), 'booking_confirm') : false;
+          await settle('fallback', 'automatic messages turned off before the morning: her manual queue');
+          if (queued) { res.queued++; res.queuedByTenant[c.tenant_id] = (res.queuedByTenant[c.tenant_id] || 0) + 1; }
+          continue;
+        }
+        const out = await sendAutoMessage({
+          db, tenantId: appt.tenant_id, kind: 'booking_confirm', appointmentId: appt.id, phone: String(appt.client_phone || ''), name: appt.name,
+          clientId: appt.client_id, apptDate: appt.date, params: autoParams(appt, s), settingsRow: s, fromDeferred: true, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
+        });
+        let queued = false;
+        if (out.outcome === 'sent') {
+          res.deferredSent++;
+          await db.from('appointments').update({ confirmation_sent: true }).eq('id', appt.id).eq('tenant_id', appt.tenant_id);
+        } else if (out.outcome === 'fallback' || out.outcome === 'paused') {
+          if (appt.client_phone) queued = await queue(appt, bookingQueueText(appt, s, cancelUrl()), 'booking_confirm');
+        } else if (out.outcome === 'held') {
+          // Became quiet between the check and the send: give it back for the next run.
+          await db.from(CLAIMS_TABLE).update({ status: 'deferred' }).eq('idempotency_key', c.idempotency_key);
+        }
+        count(out, appt.tenant_id, queued);
+      } catch (e) {
+        const msg = (e as Error)?.message || String(e);
+        console.error(`[wa-auto] ${c.tenant_id} deferred confirmation ${c.appointment_id} failed:`, msg);
+        // Not retried automatically (a retry after a partial send could repeat it): recorded for the operator.
+        try {
+          await db.from(CLAIMS_TABLE).update({ status: 'fallback', detail: `error: ${msg}`.slice(0, 500), updated_at: now.toISOString() })
+            .eq('idempotency_key', c.idempotency_key).eq('status', 'claimed');
+        } catch { /* the run goes on */ }
       }
-      if (Number.isFinite(startMs) && startMs <= now.getTime()) {
-        await settle('skipped', 'the visit time passed before the confirmation could go'); res.skipped++; continue;
-      }
-      const s = settings.get(c.tenant_id);
-      const cancelUrl = () => o.deps.confirmLinks(o.deps.baseUrl, appt.id, { date: appt.date }).cancelUrl;
-      if (!s) {
-        // She turned the automatic messages off (or paused her automations) overnight: the confirmation is still owed,
-        // from her own WhatsApp. Not an automatic send.
-        const queued = appt.client_phone ? await queue(appt, bookingQueueText(appt, anySettings.get(c.tenant_id) || {}, cancelUrl()), 'booking_confirm') : false;
-        await settle('fallback', 'automatic messages turned off before the morning: her manual queue');
-        if (queued) { res.queued++; res.queuedByTenant[c.tenant_id] = (res.queuedByTenant[c.tenant_id] || 0) + 1; }
-        continue;
-      }
-      const out = await sendAutoMessage({
-        db, tenantId: appt.tenant_id, kind: 'booking_confirm', appointmentId: appt.id, phone: String(appt.client_phone || ''), name: appt.name,
-        clientId: appt.client_id, apptDate: appt.date, params: autoParams(appt, s), settingsRow: s, fromDeferred: true, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
-      });
-      let queued = false;
-      if (out.outcome === 'sent') {
-        res.deferredSent++;
-        await db.from('appointments').update({ confirmation_sent: true }).eq('id', appt.id).eq('tenant_id', appt.tenant_id);
-      } else if (out.outcome === 'fallback' || out.outcome === 'paused') {
-        if (appt.client_phone) queued = await queue(appt, bookingQueueText(appt, s, cancelUrl()), 'booking_confirm');
-      } else if (out.outcome === 'held') {
-        // Became quiet between the check and the send: give it back for the next run.
-        await db.from(CLAIMS_TABLE).update({ status: 'deferred' }).eq('idempotency_key', c.idempotency_key);
-      }
-      count(out, appt.tenant_id, queued);
     }
   }
   return res;

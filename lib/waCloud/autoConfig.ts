@@ -72,7 +72,10 @@ export function tenantOptedIn(settingsRow: { automations?: unknown } | null | un
 
 /** Her chosen lead time, or the platform default. */
 export function tenantLeadHours(settingsRow: { automations?: unknown } | null | undefined, cfg: AutoConfig): number {
-  const v = Number((autosOf(settingsRow) as Autos)?.wa_auto_lead_hours);
+  // Only a primitive is converted: a stored object (tenant-written JSON) must never reach Number(), which can throw.
+  const raw = (autosOf(settingsRow) as Autos)?.wa_auto_lead_hours;
+  if (typeof raw !== 'number' && typeof raw !== 'string') return cfg.leadHours;
+  const v = Number(raw);
   return (LEAD_HOUR_CHOICES as readonly number[]).includes(v) ? v : cfg.leadHours;
 }
 

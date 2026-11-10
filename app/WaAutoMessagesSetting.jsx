@@ -8,7 +8,7 @@
 // (lib/waCloud/autoConfig.ts publicAutoStatus). Before that, while loading, on a failed fetch, or with the kill switch
 // off: nothing at all, no placeholder and no teaser (lib/waCloud/autoVisible.js, test-wa-auto-reminders.ts).
 import { useEffect, useState } from "react";
-import { autoSettingVisible, LEAD_CHOICES } from "@/lib/waCloud/autoVisible.js";
+import { autoSettingVisible, LEAD_CHOICES, leadChoiceOf } from "@/lib/waCloud/autoVisible.js";
 
 export default function WaAutoMessagesSetting({ autos, setAutos, pc, Row }) {
   const [status, setStatus] = useState(null);
@@ -24,8 +24,8 @@ export default function WaAutoMessagesSetting({ autos, setAutos, pc, Row }) {
 
   const a = autos && typeof autos === "object" ? autos : {};
   const on = a.wa_auto_messages === true;
-  const dflt = LEAD_CHOICES.includes(Number(status.leadHours)) ? Number(status.leadHours) : 24;
-  const lead = LEAD_CHOICES.includes(Number(a.wa_auto_lead_hours)) ? Number(a.wa_auto_lead_hours) : dflt;
+  const dflt = leadChoiceOf(status.leadHours) ?? 24;
+  const lead = leadChoiceOf(a.wa_auto_lead_hours) ?? dflt;
   return (
     <div data-testid="wa-auto-setting">
       <Row pc={pc} label="תזכורות ואישורי תור אוטומטיים בוואטסאפ" on={on} onChange={() => setAutos({ ...a, wa_auto_messages: !on })}

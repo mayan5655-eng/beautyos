@@ -16,7 +16,8 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { autoConfig, publicAutoStatus, tenantOptedIn, tenantLeadHours, autoHandlesTenant } from './lib/waCloud/autoConfig.ts';
-import { autoSettingVisible } from './lib/waCloud/autoVisible.js';
+import { autoSettingVisible, leadChoiceOf } from './lib/waCloud/autoVisible.js';
+import { pickSettingsPayload } from './lib/settingsColumns.ts';
 import { WA_AUTO_TEMPLATES, buildAutoTemplate, buttonPayload, parseButtonPayload } from './lib/waCloud/autoTemplates.ts';
 import { reminderPlan, reminderSendAt, restHold, autoAllowedNow } from './lib/waCloud/autoPlan.ts';
 import { israelLocalToUtcMs, israelMonthStartIso } from './lib/waCloud/policy.ts';
@@ -799,6 +800,42 @@ await ok('reminders_enabled false: wa_auto_messages on, yet no reminder is sent 
   // The daily path reads it through the same helper.
   assert.ok(read('lib/reminders/dailyReminders.js').includes('const remindersEnabled = (t) => remindersOn(settingsByTenant[t]);'));
   assert.ok(read('lib/waCloud/autoRun.ts').includes("if (!remindersEnabled(s)) { res.skipped++; continue; }"));
+});
+
+await ok('a hostile stored wa_auto_lead_hours never throws, never aborts the hourly run, and is dropped on save', async () => {
+  const cfg = autoConfig(LIVE);
+  const evil = { toString: 1, valueOf: 1 } as any;
+  assert.throws(() => Number(evil), TypeError, 'the payload that used to abort the run');
+  for (const v of [evil, [24], { a: 1 }, null, undefined, 'x', 12, true]) {
+    assert.equal(tenantLeadHours({ automations: { wa_auto_messages: true, wa_auto_lead_hours: v } }, cfg), cfg.leadHours, `default for ${typeof v}`);
+    assert.equal(leadChoiceOf(v), null);
+  }
+  assert.equal(tenantLeadHours({ automations: { wa_auto_lead_hours: 48 } }, cfg), 48);
+  assert.equal(tenantLeadHours({ automations: { wa_auto_lead_hours: '48' } }, cfg), 48);
+  assert.equal(leadChoiceOf(24), 24);
+  // The shared hourly run: her poisoned row does not stop the other business's reminder.
+  const a = stub();
+  const { db } = memDb({
+    settings: [{ tenant_id: T, business_name: 'סטודיו נועה', branding: {}, automations: { wa_auto_messages: true, wa_auto_lead_hours: evil } },
+      { tenant_id: T2, business_name: 'עסק אחר', branding: {}, automations: { wa_auto_messages: true } }],
+    appointments: [apptRow(APPT, T), apptRow(APPT2, T2)],
+  });
+  const queued: any[] = [];
+  const err = console.error; console.error = () => {};
+  try {
+    for (let h = 0; h < 3; h++) await runAutoMessages({ db, env: LIVE, now: new Date(NOW.getTime() + h * 3600_000), deps: runDeps(a, queued) });
+  } finally { console.error = err; }
+  assert.ok(a.sent.some((m) => parseButtonPayload(m.body.components[1].parameters[0].payload, DIGITS, LIVE, NOW.getTime())?.tenantId === T2), 'the other business still gets its reminder');
+  // Settings save keeps only 24 / 48 as a plain number, and a boolean opt-in.
+  const bad = pickSettingsPayload({ automations: { wa_auto_messages: 'yes', wa_auto_lead_hours: { toString: 1 } } });
+  assert.ok(!('wa_auto_lead_hours' in (bad.payload.automations as any)) && !('wa_auto_messages' in (bad.payload.automations as any)));
+  assert.ok(bad.dropped.includes('automations.wa_auto_lead_hours') && bad.dropped.includes('automations.wa_auto_messages'));
+  const good = pickSettingsPayload({ automations: { wa_auto_messages: true, wa_auto_lead_hours: '48' } });
+  assert.deepEqual(good.payload.automations, { wa_auto_messages: true, wa_auto_lead_hours: 48 });
+  // Every per-item step of the run is inside its try.
+  const run = read('lib/waCloud/autoRun.ts');
+  assert.ok(run.indexOf('try {', run.indexOf('if (!remindersEnabled(s))')) < run.indexOf('const lead = tenantLeadHours(s, cfg);'));
+  assert.ok(run.indexOf('try {', run.indexOf('for (const c of deferred)')) < run.indexOf('// Take it: only the run whose update'));
 });
 
 // ── the daily cron and the wiring ────────────────────────────────────────────
