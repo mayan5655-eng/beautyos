@@ -87,9 +87,25 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
   const st = await readAllRows(db, 'settings', { columns: 'tenant_id, business_name, branding, automations', order: 'tenant_id' });
   if (st.error || !st.complete) throw new Error(`settings read failed: ${st.error?.message || 'incomplete'}`);
   const settings = new Map<string, Settings>();
-  for (const s of (st.data || []) as Settings[]) if (tenantOptedIn(s) && !isDemoTenantId(s.tenant_id)) settings.set(s.tenant_id, s);
+  const anySettings = new Map<string, Settings>();
+  for (const s of (st.data || []) as Settings[]) {
+    anySettings.set(s.tenant_id, s);
+    if (tenantOptedIn(s) && !isDemoTenantId(s.tenant_id)) settings.set(s.tenant_id, s);
+  }
   res.tenants = settings.size;
-  if (settings.size === 0) return res;
+
+  // Booking confirmations held from quiet hours / Shabbat, loaded by their OWN pending state: not by the visit's date
+  // (a night booking for a visit weeks away is still owed its confirmation at 08:00) and not by whether the business is
+  // still opted in (one that turned it off since gets the message in her manual queue instead).
+  const df = await readAllRows(db, CLAIMS_TABLE, {
+    columns: 'idempotency_key, tenant_id, appointment_id, kind, mode, status, created_at', order: 'idempotency_key',
+    filter: (q: { eq: Function }) => (q.eq('kind', 'booking_confirm') as unknown as { eq: Function }).eq('mode', mode).eq('status', 'deferred'),
+  });
+  if (df.error || !df.complete) throw new Error(`${CLAIMS_TABLE} deferred read failed: ${df.error?.message || 'incomplete'}`);
+  type Claim = { idempotency_key: string; tenant_id: string; appointment_id: string; status: string; created_at: string };
+  const deferred = (df.data || []) as Claim[];
+
+  if (settings.size === 0 && deferred.length === 0) return res;
   const ids = [...settings.keys()];
 
   const days = upcomingDays(now, LOOKAHEAD_DAYS);
@@ -97,12 +113,27 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
     columns: cols,
     filter: (q: { in: Function }) => (q.in('tenant_id', ids) as unknown as { in: Function }).in('date', days),
   });
-  let ap = await load(COLS + ', kind');
-  if (ap.error && isMissingColumnError(ap.error)) ap = await load(COLS);
-  if (ap.error || !ap.complete) throw new Error(`appointments read failed: ${ap.error?.message || 'incomplete'}`);
+  let ap: { data: unknown[] | null; error: { message?: string } | null; complete: boolean } = { data: [], error: null, complete: true };
+  if (ids.length) {
+    ap = await load(COLS + ', kind');
+    if (ap.error && isMissingColumnError(ap.error)) ap = await load(COLS);
+    if (ap.error || !ap.complete) throw new Error(`appointments read failed: ${ap.error?.message || 'incomplete'}`);
+  }
   const appts = ((ap.data || []) as Appt[]).filter((a) => a.confirmation_status !== 'cancelled' && !isPersonal(a));
   await fillPhonesFromClients(db, appts);
-  const byId = new Map(appts.map((a) => [a.id, a]));
+
+  // The deferred confirmations' own appointments, by id, whatever their date (cancelled ones too, so they are recognised).
+  const deferredAppt = new Map<string, Appt>();
+  for (const a of appts) deferredAppt.set(a.id, a);
+  const missing = [...new Set(deferred.map((c) => c.appointment_id).filter((id) => !deferredAppt.has(id)))];
+  for (let i = 0; i < missing.length; i += 200) {
+    const chunk = missing.slice(i, i + 200);
+    const r = await readAllRows(db, 'appointments', { columns: COLS, filter: (q: { in: Function }) => q.in('id', chunk) });
+    if (r.error || !r.complete) throw new Error(`deferred appointments read failed: ${r.error?.message || 'incomplete'}`);
+    const rows = (r.data || []) as Appt[];
+    await fillPhonesFromClients(db, rows.filter((a) => a.confirmation_status !== 'cancelled'));
+    for (const a of rows) deferredAppt.set(a.id, a);
+  }
 
   // Booking confirmations of the last days: a booking made inside the reminder window gets no reminder on top, and the
   // ones held overnight are sent below.
@@ -112,7 +143,6 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
     filter: (q: { in: Function }) => (q.in('tenant_id', ids) as unknown as { eq: Function }).eq('kind', 'booking_confirm').eq('mode', mode).gte('created_at', since),
   });
   if (cl.error || !cl.complete) throw new Error(`${CLAIMS_TABLE} read failed: ${cl.error?.message || 'incomplete'}`);
-  type Claim = { idempotency_key: string; tenant_id: string; appointment_id: string; status: string; created_at: string };
   const bookingClaims = new Map<string, Claim>();
   for (const c of (cl.data || []) as Claim[]) bookingClaims.set(c.appointment_id, c);
 
@@ -150,7 +180,7 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
     try {
       const out = await sendAutoMessage({
         db, tenantId: appt.tenant_id, kind: 'reminder', appointmentId: appt.id, phone: String(appt.client_phone), name: appt.name,
-        clientId: appt.client_id, params: autoParams(appt, s), settingsRow: s, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
+        clientId: appt.client_id, apptDate: appt.date, params: autoParams(appt, s), settingsRow: s, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
       });
       if (out.outcome === 'sent') res.sent++;
       let queued = false;
@@ -161,34 +191,45 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
     }
   }
 
-  // 2. booking confirmations held overnight
+  // 2. booking confirmations held overnight (or over Shabbat / yom tov), at the first allowed hour
   if (autoAllowedNow(now, o.deps.isYomTov)) {
-    for (const c of bookingClaims.values()) {
-      if (c.status !== 'deferred') continue;
+    for (const c of deferred) {
       if (outOfTime()) { res.stoppedEarly = true; break; }
       // Take it: only the run whose update still finds it deferred sends it.
       const { data: taken, error } = await db.from(CLAIMS_TABLE).update({ status: 'claimed', updated_at: now.toISOString() })
         .eq('idempotency_key', c.idempotency_key).eq('status', 'deferred').select('idempotency_key');
       if (error || !Array.isArray(taken) || taken.length === 0) continue;
-      const appt = byId.get(c.appointment_id);
-      const s = settings.get(c.tenant_id);
+      const settle = (status: string, detail: string) =>
+        db.from(CLAIMS_TABLE).update({ status, detail, updated_at: now.toISOString() }).eq('idempotency_key', c.idempotency_key);
+      const appt = deferredAppt.get(c.appointment_id);
       const sm = appt ? startMinute(appt) : null;
       const startMs = appt && sm !== null ? israelLocalToUtcMs(appt.date, sm) : NaN;
-      if (!appt || !s || !appt.client_phone || !Number.isFinite(startMs) || startMs <= now.getTime()) {
-        await db.from(CLAIMS_TABLE).update({ status: 'skipped', detail: 'cancelled, past, or no phone by the morning', updated_at: now.toISOString() }).eq('idempotency_key', c.idempotency_key);
-        res.skipped++;
+      // Skipped ONLY when there is nothing left to confirm: the appointment was deleted or cancelled, or its time has passed.
+      if (!appt || appt.tenant_id !== c.tenant_id || appt.confirmation_status === 'cancelled') {
+        await settle('skipped', 'appointment cancelled or removed before the morning'); res.skipped++; continue;
+      }
+      if (Number.isFinite(startMs) && startMs <= now.getTime()) {
+        await settle('skipped', 'the visit time passed before the confirmation could go'); res.skipped++; continue;
+      }
+      const s = settings.get(c.tenant_id);
+      const cancelUrl = () => o.deps.confirmLinks(o.deps.baseUrl, appt.id, { date: appt.date }).cancelUrl;
+      if (!s) {
+        // She turned the automatic messages off overnight: the confirmation is still owed, from her own WhatsApp.
+        const queued = appt.client_phone ? await queue(appt, bookingQueueText(appt, anySettings.get(c.tenant_id) || {}, cancelUrl()), 'booking_confirm') : false;
+        await settle('fallback', 'automatic messages turned off before the morning: her manual queue');
+        if (queued) { res.queued++; res.queuedByTenant[c.tenant_id] = (res.queuedByTenant[c.tenant_id] || 0) + 1; }
         continue;
       }
       const out = await sendAutoMessage({
-        db, tenantId: appt.tenant_id, kind: 'booking_confirm', appointmentId: appt.id, phone: String(appt.client_phone), name: appt.name,
-        clientId: appt.client_id, params: autoParams(appt, s), settingsRow: s, fromDeferred: true, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
+        db, tenantId: appt.tenant_id, kind: 'booking_confirm', appointmentId: appt.id, phone: String(appt.client_phone || ''), name: appt.name,
+        clientId: appt.client_id, apptDate: appt.date, params: autoParams(appt, s), settingsRow: s, fromDeferred: true, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
       });
       let queued = false;
       if (out.outcome === 'sent') {
         res.deferredSent++;
         await db.from('appointments').update({ confirmation_sent: true }).eq('id', appt.id).eq('tenant_id', appt.tenant_id);
       } else if (out.outcome === 'fallback') {
-        queued = await queue(appt, bookingQueueText(appt, s, o.deps.confirmLinks(o.deps.baseUrl, appt.id, { date: appt.date }).cancelUrl), 'booking_confirm');
+        if (appt.client_phone) queued = await queue(appt, bookingQueueText(appt, s, cancelUrl()), 'booking_confirm');
       } else if (out.outcome === 'held') {
         // Became quiet between the check and the send: give it back for the next run.
         await db.from(CLAIMS_TABLE).update({ status: 'deferred' }).eq('idempotency_key', c.idempotency_key);

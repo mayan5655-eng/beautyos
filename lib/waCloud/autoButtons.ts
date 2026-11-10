@@ -9,9 +9,10 @@
 //                             waitlist offer all run as they do for a tap on the link.
 //   לא לשלוח לי הודעות        no more automatic messages from this business to this number (wa_auto_optouts).
 //
-// Two checks before anything changes: the payload carries our signature (autoTemplates.parseButtonPayload), and the tap
-// comes from the very number this appointment's automatic message was sent to (the cost log keeps a hash of it). A
-// forwarded message tapped from another phone does nothing.
+// Three checks before anything changes: the payload carries our unexpired HMAC signature over the action, appointment,
+// business AND the sender's own number (autoTemplates.parseButtonPayload, before any read); the cost log shows this
+// business sent this appointment's automatic message to this number; and the appointment is still this business's.
+// A forwarded message tapped from another phone, an edited or replayed payload, or an old one, does nothing.
 //
 // The answer to the client is free text inside the 24-hour window her tap opened (a service conversation, not billed),
 // and only while the feature is on: with the kill switch off the action still happens and nothing is sent.
@@ -52,20 +53,27 @@ export async function handleAutoButton(p: {
   applyAction: ApplyAction;
   adapter?: WaCloudAdapter;
   env?: WaCloudEnv;
+  nowMs?: number;
 }): Promise<ButtonResult> {
   const env = p.env || process.env;
-  const parsed = parseButtonPayload(p.payload, env);
+  // 1. Our signature, for THIS sender's number, not expired (lib/waCloud/autoTemplates.ts). Nothing is read before this.
+  const parsed = parseButtonPayload(p.payload, p.from, env, p.nowMs);
   if (!parsed) return { handled: false };
-  const { action, appointmentId } = parsed;
-
-  // The tap must come from the number the automatic message for this appointment went to.
-  const { data: rows, error } = await p.db.from('wa_cloud_messages').select('tenant_id')
-    .eq('appointment_id', appointmentId).eq('recipient_hash', recipientHash(p.from)).eq('status', 'accepted').limit(1);
-  if (error || !Array.isArray(rows) || rows.length === 0) {
-    console.warn(`[wa-auto-button] ignored: no automatic message for ${appointmentId} to this sender`);
+  const { action, appointmentId, tenantId } = parsed;
+  const ignore = (): ButtonResult => {
+    console.warn('[wa-auto-button] ignored: no matching automatic message for this sender');
     return { handled: true, action, outcome: 'unknown_sender', reply: null };
-  }
-  const tenantId = String(rows[0].tenant_id);
+  };
+
+  // 2. This business really sent this appointment's automatic message to this number (the cost log), live.
+  const { data: rows, error } = await p.db.from('wa_cloud_messages').select('tenant_id')
+    .eq('appointment_id', appointmentId).eq('tenant_id', tenantId).eq('recipient_hash', recipientHash(p.from))
+    .eq('status', 'accepted').eq('mode', 'live').limit(1);
+  if (error || !Array.isArray(rows) || rows.length === 0) return ignore();
+
+  // 3. And the appointment is still this business's.
+  const { data: own, error: ownErr } = await p.db.from('appointments').select('id').eq('id', appointmentId).eq('tenant_id', tenantId).limit(1);
+  if (ownErr || !Array.isArray(own) || own.length === 0) return ignore();
 
   let reply: string;
   let outcome: 'applied' | 'refused' | 'opted_out' | 'failed';

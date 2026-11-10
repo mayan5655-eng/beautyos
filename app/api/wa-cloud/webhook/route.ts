@@ -36,7 +36,7 @@ import { normalizeIsraeliMobile } from '@/lib/phone';
 import { hit } from '@/lib/rateLimit';
 import { NextRequest } from 'next/server';
 import { POST as confirmPost } from '@/app/api/confirm/route';
-import { signConfirm, confirmExpiry } from '@/lib/confirmToken';
+import { signConfirm } from '@/lib/confirmToken';
 import { handleAutoButton, type ActionAnswer } from '@/lib/waCloud/autoButtons';
 import { recordAutoOptOut } from '@/lib/waCloud/auto';
 import { autoConfig } from '@/lib/waCloud/autoConfig';
@@ -48,14 +48,20 @@ const OPT_OUT_ACK = 'הוסרת מרשימת ההודעות. מעכשיו לא �
 const OPT_OUT_ACK_AUTO = 'הוסרת מרשימת ההודעות. מעכשיו לא יישלחו אלייך הודעות שיווק והודעות אוטומטיות. העסק יכול עדיין ליצור איתך קשר ישירות לגבי התורים שלך.';
 
 // A button tap on an automatic message changes the appointment through the confirm link's own handler, so every rule
-// and side effect of a tap on the link applies (lib/waCloud/autoButtons.ts). The token is signed here, for this call only.
+// and side effect of a tap on the link applies (lib/waCloud/autoButtons.ts). Not exported and not reachable from a
+// request: handleAutoButton calls it only after Meta's signature on the delivery, our HMAC on the button payload (bound
+// to this sender's number, the business and an expiry), and the cost-log and ownership checks have all passed. The token
+// is minted for this one in-process call, lives two minutes, and is never logged or returned.
+const INTERNAL_TOKEN_TTL_MS = 2 * 60_000;
 async function applyLinkAction(appointmentId: string, action: 'confirm' | 'cancel'): Promise<ActionAnswer> {
-  const token = signConfirm(appointmentId, action, confirmExpiry(null));
+  const token = signConfirm(appointmentId, action, Date.now() + INTERNAL_TOKEN_TTL_MS);
   const req = new NextRequest('https://kalmea.internal/api/confirm', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: appointmentId, action, token }),
   });
   const res = await confirmPost(req);
-  return (await res.json().catch(() => ({}))) as ActionAnswer;
+  const j = (await res.json().catch(() => ({}))) as ActionAnswer;
+  // Only the words for the client and her booking link go on; nothing else from the handler's answer.
+  return { success: j.success === true, message: typeof j.message === 'string' ? j.message : undefined, error: typeof j.error === 'string' ? j.error : undefined, bookUrl: typeof j.bookUrl === 'string' ? j.bookUrl : undefined };
 }
 const OPT_OUT_LOOKBACK_DAYS = 90;
 
@@ -69,8 +75,9 @@ type Admin = ReturnType<typeof admin>;
 
 export async function GET(request: Request) {
   const challenge = verifySubscription(new URL(request.url).searchParams, process.env.WA_CLOUD_VERIFY_TOKEN);
-  if (challenge === null) return new Response('forbidden', { status: 403 });
-  return new Response(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } });
+  // Meta's challenge is a short token; anything else is not echoed back (no reflected content from this route).
+  if (challenge === null || !/^[A-Za-z0-9_.-]{1,128}$/.test(challenge)) return new Response('forbidden', { status: 403 });
+  return new Response(challenge, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' } });
 }
 
 export async function POST(request: Request) {
@@ -117,6 +124,9 @@ async function recordStatus(db: Admin, s: StatusUpdate) {
 
 async function handleInbound(db: Admin, m: InboundText) {
   if (m.payload) {
+    // Meta redelivers a message it thinks we missed: one tap is acted on once (per instance; confirm / cancel are
+    // idempotent in the confirm handler anyway). Then at most 10 taps per number per 10 minutes.
+    if (m.id && !hit(`wa-auto-button-id:${m.id}`, { limit: 1, windowMs: 60 * 60_000 }).ok) return;
     const taps = hit(`wa-auto-button:${m.from}`, { limit: 10, windowMs: 10 * 60_000 });
     if (!taps.ok) return;
     const b = await handleAutoButton({ db, from: m.from, payload: m.payload, applyAction: applyLinkAction });

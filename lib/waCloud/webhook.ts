@@ -56,7 +56,8 @@ export function parseWebhook(body: unknown): { inbound: InboundText[]; statuses:
       const names = new Map((v.contacts || []).map((c) => [String(c.wa_id || ''), c.profile?.name || null]));
       for (const m of v.messages || []) {
         const text = m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? '';
-        if (!m.from || !m.id) continue;
+        // The sender is Meta's wa_id: digits only. Anything else is not a phone, and nothing (an opt-out, a tap) acts on it.
+        if (!m.from || !m.id || !/^\d{8,15}$/.test(String(m.from))) continue;
         // A quick-reply tap on a template carries the payload we set at send time (lib/waCloud/autoTemplates.ts).
         const payload = m.button?.payload ?? m.interactive?.button_reply?.id ?? null;
         out.inbound.push({ from: String(m.from), text: String(text), id: String(m.id), name: names.get(String(m.from)) ?? null, ...(payload != null ? { payload: String(payload) } : {}) });

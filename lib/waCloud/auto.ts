@@ -28,6 +28,7 @@
 
 import { autoConfig, tenantOptedIn, type AutoConfig } from './autoConfig.ts';
 import { buildAutoTemplate, WA_AUTO_TEMPLATES, type AutoKind } from './autoTemplates.ts';
+import { confirmExpiry } from '../confirmToken.ts';
 import { autoAllowedNow, type YomTov } from './autoPlan.ts';
 import { checkCaps, countAccepted } from './caps.ts';
 import { israelMonthStartIso, israelMonthKey, israelDayStartIso } from './policy.ts';
@@ -166,6 +167,8 @@ export type SendAutoInput = {
   params: unknown[];
   /** Her settings row when the caller holds it; otherwise automations is read here (only when the feature is enabled). */
   settingsRow?: { automations?: unknown } | null;
+  /** The appointment day (YYYY-MM-DD): the button payloads expire three days after it (90 days when unknown). */
+  apptDate?: string | null;
   /** The hourly run sending a confirmation that was deferred at night: it already holds the claim. */
   fromDeferred?: boolean;
   now?: Date;
@@ -254,7 +257,8 @@ export async function sendAutoMessage(p: SendAutoInput): Promise<AutoOutcome> {
     return fallback(caps.reason, caps.detail, true);
   }
 
-  const built = buildAutoTemplate(p.kind, p.params, p.appointmentId, env);
+  // Each button payload is bound to this appointment, business and number, and dies three days after the visit.
+  const built = buildAutoTemplate(p.kind, p.params, { appointmentId: p.appointmentId, tenantId: p.tenantId, recipient: digits, expiresAtMs: confirmExpiry(p.apptDate ?? null, now.getTime()) }, env);
   if (!built.ok) {
     await logRow(db, { ...base, status: 'refused', reason: 'bad_params', error_detail: built.error.slice(0, 500) });
     return fallback('bad_params', built.error, true);

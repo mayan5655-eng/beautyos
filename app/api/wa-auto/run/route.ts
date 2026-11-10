@@ -47,12 +47,15 @@ export async function GET(request: Request) {
     if (run.stoppedEarly) {
       await moneyAlert('wa-auto:run', 'Automatic WhatsApp run stopped at its time budget; the next hourly run continues', { sent: run.sent }, { severity: 'warning', key: 'budget' });
     }
-    return Response.json({ success: true, ...run });
+    // Counts only: no tenant ids or database text in the response, even behind CRON_SECRET.
+    const { queuedByTenant, ...counts } = run;
+    return Response.json({ success: true, ...counts, businessesWithQueue: Object.keys(queuedByTenant).length });
   } catch (e) {
     const msg = (e as Error)?.message || String(e);
     console.error('[wa-auto] run aborted:', msg);
     await moneyAlert('wa-auto:run', `Automatic WhatsApp run aborted: ${msg.slice(0, 200)}`, null, { severity: 'error', key: 'aborted' });
-    return Response.json({ success: false, error: msg }, { status: 500 });
+    // The detail stays in the log and the alert; the response says only that it failed.
+    return Response.json({ success: false, error: 'run aborted' }, { status: 500 });
   }
 }
 

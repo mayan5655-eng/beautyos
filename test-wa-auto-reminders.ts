@@ -28,7 +28,7 @@ import { routeThroughCloud, recipientHash } from './lib/waCloud/send.ts';
 import { parseWebhook } from './lib/waCloud/webhook.ts';
 import { mockAdapter, type WaCloudAdapter } from './lib/waCloud/adapter.ts';
 import { runDailyReminders, STATUS_AUTO } from './lib/reminders/dailyReminders.js';
-import { confirmLinks } from './lib/confirmToken.ts';
+import { confirmLinks, verifyConfirm } from './lib/confirmToken.ts';
 import { DEMO_TENANT_IDS } from './lib/demoTenants.ts';
 
 // No test here may reach a network. A stray real call fails loudly instead.
@@ -227,41 +227,62 @@ await ok('docs/WA_TEMPLATES.md carries each name, body, footer and button exactl
 });
 
 // ── payloads ─────────────────────────────────────────────────────────────────
-await ok('button payloads are signed, short, and bound to one appointment and one action', () => {
+const FAR = Date.parse('2026-11-14T22:00:00Z');
+const BIND = { appointmentId: APPT, tenantId: T, recipient: DIGITS, expiresAtMs: FAR };
+await ok('button payloads: HMAC over action, appointment, tenant, recipient and expiry; nothing edits or replays', () => {
   const env = { CONFIRM_LINK_SECRET: SECRET };
+  const at = NOW.getTime();
   for (const a of ['confirm', 'cancel', 'optout'] as const) {
-    const p = buttonPayload(a, APPT, env);
-    assert.ok(p.length <= 128);
-    assert.deepEqual(parseButtonPayload(p, env), { action: a, appointmentId: APPT });
+    const p = buttonPayload(a, BIND, env);
+    assert.ok(p.length <= 128, `${p.length} characters`);
+    assert.ok(!p.includes(DIGITS) && !p.includes(DIGITS.slice(-7)), 'the number is not in the payload');
+    assert.deepEqual(parseButtonPayload(p, DIGITS, env, at), { action: a, appointmentId: APPT, tenantId: T, expiresAtMs: FAR });
   }
-  const p = buttonPayload('confirm', APPT, env);
-  assert.equal(parseButtonPayload(p.replace('|c|', '|x|'), env), null, 'a confirm cannot be edited into a cancel');
-  assert.equal(parseButtonPayload(p.replace(APPT, APPT2), env), null, 'nor pointed at another appointment');
-  assert.equal(parseButtonPayload(p, { CONFIRM_LINK_SECRET: 'other' }), null, 'another secret');
-  for (const junk of ['', 'מאשרת הגעה', null, 42, 'ka1|c|x|y']) assert.equal(parseButtonPayload(junk, env), null);
+  const p = buttonPayload('confirm', BIND, env);
+  const hex = (u: string) => u.replace(/-/g, '');
+  assert.equal(parseButtonPayload(p.replace('k2|c|', 'k2|x|'), DIGITS, env, at), null, 'a confirm cannot be edited into a cancel');
+  assert.equal(parseButtonPayload(p.replace(hex(APPT), hex(APPT2)), DIGITS, env, at), null, 'nor pointed at another appointment');
+  assert.equal(parseButtonPayload(p.replace(hex(T), hex(T2)), DIGITS, env, at), null, 'nor at another business');
+  const parts = p.split('|');
+  const later = [...parts.slice(0, 4), (parseInt(parts[4], 36) + 86400 * 365).toString(36), parts[5]].join('|');
+  assert.equal(parseButtonPayload(later, DIGITS, env, at), null, 'nor given a later expiry');
+  assert.equal(parseButtonPayload(p, '972509999999', env, at), null, 'nor tapped from another number');
+  assert.equal(parseButtonPayload(p, DIGITS, env, FAR + 1), null, 'nor used after it expired');
+  assert.equal(parseButtonPayload(p, DIGITS, { CONFIRM_LINK_SECRET: 'other' }, at), null, 'another secret');
+  const legacy = `ka1|c|${APPT}|00000000000000000000`;
+  for (const junk of ['', 'מאשרת הגעה', null, 42, legacy, p + 'x', 'k2|c|' + 'a'.repeat(300)]) assert.equal(parseButtonPayload(junk, DIGITS, env, at), null, String(junk).slice(0, 20));
+  assert.throws(() => buttonPayload('confirm', { ...BIND, tenantId: 'x' }, env));
+  assert.throws(() => buttonPayload('confirm', { ...BIND, recipient: '' }, env));
+  // Its signature is not a confirm-link token for the same appointment (a separate label in the HMAC input).
+  assert.equal(verifyConfirm(APPT, 'confirm', parts[5]), false);
 });
 
 await ok('buildAutoTemplate: body parameters plus one quick-reply payload per button, in index order', () => {
-  const b = buildAutoTemplate('reminder', params, APPT, LIVE);
+  const b = buildAutoTemplate('reminder', params, BIND, LIVE);
   assert.ok(b.ok); if (!b.ok) return;
   const comps = b.payload.components as any[];
   assert.equal(b.payload.name, 'kalmea_auto_reminder');
   assert.deepEqual(comps[0], { type: 'body', parameters: params.map((text) => ({ type: 'text', text })) });
-  assert.deepEqual(comps.slice(1).map((c) => [c.sub_type, c.index, parseButtonPayload(c.parameters[0].payload, LIVE)?.action]), [['quick_reply', '0', 'confirm'], ['quick_reply', '1', 'cancel'], ['quick_reply', '2', 'optout']]);
+  assert.deepEqual(comps.slice(1).map((c) => [c.sub_type, c.index, parseButtonPayload(c.parameters[0].payload, DIGITS, LIVE, NOW.getTime())?.action]), [['quick_reply', '0', 'confirm'], ['quick_reply', '1', 'cancel'], ['quick_reply', '2', 'optout']]);
   assert.ok(b.preview.startsWith('שלום רונית, תזכורת לתור שלך בסטודיו נועה.'));
-  assert.ok(!buildAutoTemplate('reminder', params.slice(1), APPT, LIVE).ok);
-  assert.ok(!buildAutoTemplate('reminder', params, 'not-a-uuid', LIVE).ok);
+  assert.ok(!buildAutoTemplate('reminder', params.slice(1), BIND, LIVE).ok);
+  assert.ok(!buildAutoTemplate('reminder', params, { ...BIND, appointmentId: 'not-a-uuid' }, LIVE).ok);
+  assert.ok(!buildAutoTemplate('reminder', params, { ...BIND, tenantId: 'not-a-uuid' }, LIVE).ok);
+  assert.ok(!buildAutoTemplate('reminder', params, { ...BIND, recipient: '12' }, LIVE).ok);
 });
 
 await ok('parseWebhook keeps the payload of a button tap', () => {
   const body = { object: 'whatsapp_business_account', entry: [{ changes: [{ field: 'messages', value: { messages: [
     { from: DIGITS, id: 'wamid.in1', type: 'button', button: { text: 'מאשרת הגעה', payload: 'ka1|c|abc|def' } },
     { from: DIGITS, id: 'wamid.in2', type: 'text', text: { body: 'הסר' } },
+    { from: '+972 50-123', id: 'wamid.in3', type: 'text', text: { body: 'הסר' } },
+    { from: 'attacker', id: 'wamid.in4', type: 'text', text: { body: 'הסר' } },
   ] } }] }] };
   const { inbound } = parseWebhook(body);
   assert.equal(inbound[0].payload, 'ka1|c|abc|def');
   assert.equal(inbound[0].text, 'מאשרת הגעה');
   assert.equal('payload' in inbound[1], false);
+  assert.equal(inbound.length, 2, 'a sender that is not a wa_id is dropped');
 });
 
 // ── timing ───────────────────────────────────────────────────────────────────
@@ -436,7 +457,7 @@ await ok('the hourly run: the due reminder of an opted-in business goes; not-yet
   assert.equal(r.tenants, 1); assert.equal(r.sent, 1); assert.equal(a.sent.length, 1);
   const b = a.sent[0].body;
   assert.equal(b.name, 'kalmea_auto_reminder');
-  assert.equal(parseButtonPayload(b.components[1].parameters[0].payload, LIVE)?.appointmentId, APPT);
+  assert.equal(parseButtonPayload(b.components[1].parameters[0].payload, DIGITS, LIVE, NOW.getTime())?.appointmentId, APPT);
   const again = await runAutoMessages({ db, env: LIVE, now: new Date(NOW.getTime() + 3600_000), deps: { queue: async () => {}, confirmLinks, baseUrl: 'https://x', adapter: a, alert, isYomTov: noYomTov } });
   assert.equal(again.sent, 0); assert.equal(a.sent.length, 1, 'the next hour does not send it again');
 });
@@ -466,34 +487,118 @@ await ok('the hourly run: a night booking goes at 08:00 and is marked sent; a bo
   assert.equal(r.sent, 0); assert.equal(r.skipped >= 1, true);
 });
 
+await ok('a booking at 23:00 for a visit 10 days away gets its confirmation at 08:00 (not limited to the reminder lookahead)', async () => {
+  const at23 = new Date('2026-11-10T21:00:00Z'); // 23:00 Israel
+  const far = apptRow(APPT, T, { date: '2026-11-20', start_minute: 600, hour: 10 });
+  const { db, tables } = memDb({ settings: settingsRows(), appointments: [far] }, { clock: () => at23 });
+  const a = stub();
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(db), kind: 'booking_confirm', apptDate: far.date, now: at23, adapter: a }), { outcome: 'deferred' });
+  const r = await runAutoMessages({ db, env: LIVE, now: MORNING, deps: { queue: async () => {}, confirmLinks, baseUrl: 'https://x', adapter: a, alert, isYomTov: noYomTov } });
+  assert.equal(r.deferredSent, 1); assert.equal(r.skipped, 0);
+  assert.equal(a.sent.length, 1); assert.equal(a.sent[0].body.name, 'kalmea_auto_booking');
+  assert.equal(tables.wa_auto_claims[0].status, 'sent');
+  assert.equal(tables.appointments[0].confirmation_sent, true);
+  // Its buttons live until three days after the visit, not the reminder window.
+  const parsed = parseButtonPayload(a.sent[0].body.components[1].parameters[0].payload, DIGITS, LIVE, Date.parse('2026-11-21T12:00:00Z'));
+  assert.equal(parsed?.appointmentId, APPT);
+});
+
+await ok('a deferred confirmation is skipped only when cancelled or past; a business that turned it off gets it in her queue', async () => {
+  const at23 = new Date('2026-11-10T21:00:00Z');
+  const A3 = '33333333-3333-4333-8333-333333333333';
+  const rows = [
+    apptRow(APPT, T, { date: '2026-11-25', start_minute: 600 }),
+    apptRow(APPT2, T, { date: '2026-11-25', start_minute: 600, confirmation_status: 'cancelled' }),
+    apptRow(A3, T2, { date: '2026-11-25', start_minute: 600 }),
+  ];
+  const { db, tables } = memDb({ settings: settingsRows(), appointments: rows }, { clock: () => at23 });
+  const a = stub();
+  for (const [id, tenant] of [[APPT, T], [APPT2, T], [A3, T2]]) {
+    const out = await sendAutoMessage({ ...baseInput(db), tenantId: tenant, appointmentId: id, kind: 'booking_confirm', apptDate: '2026-11-25', now: at23, settingsRow: ON, adapter: a });
+    assert.deepEqual(out, { outcome: 'deferred' });
+  }
+  // T2 never opted in in settings (as if she turned it off overnight); APPT2 was cancelled overnight.
+  const queued: any[] = [];
+  const r = await runAutoMessages({ db, env: LIVE, now: MORNING, deps: { queue: async (ph: string, text: string, opts: any) => { queued.push({ ph, text, opts }); }, confirmLinks, baseUrl: 'https://x', adapter: a, alert, isYomTov: noYomTov } });
+  const st = Object.fromEntries(tables.wa_auto_claims.map((c: any) => [c.appointment_id, c.status]));
+  assert.equal(st[APPT], 'sent');
+  assert.equal(st[APPT2], 'skipped');
+  assert.equal(st[A3], 'fallback');
+  assert.equal(r.deferredSent, 1); assert.equal(r.skipped, 1);
+  assert.equal(queued.length, 1); assert.equal(queued[0].opts.tenantId, T2); assert.equal(queued[0].opts.forceManual, true);
+  // Past: a deferred confirmation whose visit already happened.
+  const past = memDb({ settings: settingsRows(), appointments: [apptRow(APPT, T, { date: '2026-11-11', start_minute: 7 * 60 })] }, { clock: () => at23 });
+  await sendAutoMessage({ ...baseInput(past.db), kind: 'booking_confirm', apptDate: '2026-11-11', now: at23, adapter: a });
+  await runAutoMessages({ db: past.db, env: LIVE, now: new Date('2026-11-11T06:15:00Z'), deps: { queue: async () => {}, confirmLinks, baseUrl: 'https://x', adapter: a, alert, isYomTov: noYomTov } });
+  assert.equal(past.tables.wa_auto_claims[0].status, 'skipped');
+});
+
 // ── buttons ──────────────────────────────────────────────────────────────────
-await ok('a button tap: from the number the message went to, it runs the confirm handler and answers in its words', async () => {
-  const { db, tables } = memDb({ wa_cloud_messages: [{ tenant_id: T, appointment_id: APPT, recipient_hash: recipientHash(DIGITS), status: 'accepted', mode: 'live' }], settings: [{ tenant_id: T, business_name: 'סטודיו נועה' }] });
+await ok('a button tap: bound to the sender, the business and the appointment; runs the confirm handler, answers in its words', async () => {
+  const log = { tenant_id: T, appointment_id: APPT, recipient_hash: recipientHash(DIGITS), status: 'accepted', mode: 'live' };
+  const { db, tables } = memDb({ wa_cloud_messages: [log], appointments: [apptRow(APPT, T)], settings: [{ tenant_id: T, business_name: 'סטודיו נועה' }] });
   const calls: [string, string][] = [];
   const applyAction = async (id: string, action: 'confirm' | 'cancel') => { calls.push([id, action]); return { success: true, message: 'נתראה ביום ד׳ 🌸' }; };
   const a = stub();
-  const r = await handleAutoButton({ db, from: DIGITS, payload: buttonPayload('confirm', APPT, LIVE), applyAction, adapter: a, env: LIVE });
+  const at = NOW.getTime();
+  const tap = (action: 'confirm' | 'cancel' | 'optout', o: Record<string, unknown> = {}) =>
+    handleAutoButton({ db, from: DIGITS, payload: buttonPayload(action, BIND, LIVE), applyAction, adapter: a, env: LIVE, nowMs: at, ...o });
+  const r = await tap('confirm');
   assert.ok(r.handled && r.outcome === 'applied' && r.reply === 'נתראה ביום ד׳ 🌸');
   assert.deepEqual(calls, [[APPT, 'confirm']]);
   assert.equal(a.sent[0].kind, 'text');
-  // Another phone (a forwarded message): nothing changes, nothing is sent.
-  const other = await handleAutoButton({ db, from: '972509999999', payload: buttonPayload('cancel', APPT, LIVE), applyAction, adapter: a, env: LIVE });
-  assert.ok(other.handled && other.outcome === 'unknown_sender');
+  // The same payload from another phone (forwarded, or a spoofed sender): not even recognised as ours. Nothing read.
+  assert.deepEqual(await handleAutoButton({ db: neverDb as any, from: '972509999999', payload: buttonPayload('cancel', BIND, LIVE), applyAction, adapter: a, env: LIVE, nowMs: at }), { handled: false });
+  // Expired: nothing.
+  assert.deepEqual(await tap('cancel', { nowMs: FAR + 1 }), { handled: false });
+  // Signed for this number but the business never sent it (or not live): ignored.
+  const noLog = memDb({ wa_cloud_messages: [{ ...log, mode: 'mock' }], appointments: [apptRow(APPT, T)] });
+  const ig = await handleAutoButton({ db: noLog.db, from: DIGITS, payload: buttonPayload('cancel', BIND, LIVE), applyAction, adapter: a, env: LIVE, nowMs: at });
+  assert.ok(ig.handled && ig.outcome === 'unknown_sender');
+  // The appointment is no longer this business's: ignored.
+  const moved = memDb({ wa_cloud_messages: [log], appointments: [apptRow(APPT, T2)] });
+  const mv = await handleAutoButton({ db: moved.db, from: DIGITS, payload: buttonPayload('cancel', BIND, LIVE), applyAction, adapter: a, env: LIVE, nowMs: at });
+  assert.ok(mv.handled && mv.outcome === 'unknown_sender');
   assert.equal(calls.length, 1); assert.equal(a.sent.length, 1);
   // A forged payload is not ours at all.
-  assert.deepEqual(await handleAutoButton({ db, from: DIGITS, payload: 'ka1|x|' + APPT + '|00000000000000000000', applyAction, adapter: a, env: LIVE }), { handled: false });
-  // The opt-out button.
-  const o = await handleAutoButton({ db, from: DIGITS, payload: buttonPayload('optout', APPT, LIVE), applyAction, adapter: a, env: LIVE });
+  assert.deepEqual(await handleAutoButton({ db, from: DIGITS, payload: `k2|x|${APPT.replace(/-/g, '')}|${T.replace(/-/g, '')}|zzzzzz|${'A'.repeat(22)}`, applyAction, adapter: a, env: LIVE, nowMs: at }), { handled: false });
+  // The opt-out button: recorded for the SENDER's own number in this business.
+  const o = await tap('optout');
   assert.ok(o.handled && o.outcome === 'opted_out' && String(o.reply).includes('סטודיו נועה'));
   assert.equal(tables.wa_auto_optouts[0].recipient_hash, recipientHash(DIGITS));
+  assert.equal(tables.wa_auto_optouts[0].tenant_id, T);
   assert.equal(await isAutoOptedOut(db, T, DIGITS), true);
   // A refused cancel (inside her window) answers with the handler's own refusal.
   assert.equal(answerText('cancel', { success: false, error: 'אפשר לבטל רק ישירות מול העסק' }), 'אפשר לבטל רק ישירות מול העסק');
   assert.ok(answerText('cancel', { success: true, message: 'התור בוטל', bookUrl: 'https://kalmea.app/b/x' }).includes('https://kalmea.app/b/x'));
   // Kill switch off after the message went: her tap still counts, and nothing is sent back.
-  const killed = await handleAutoButton({ db, from: DIGITS, payload: buttonPayload('confirm', APPT, LIVE), applyAction, adapter: a, env: { ...LIVE, WA_AUTO_ENABLED: '' } });
+  const killed = await tap('confirm', { env: { ...LIVE, WA_AUTO_ENABLED: '' } });
   assert.ok(killed.handled && killed.reply === null);
   assert.equal(calls.length, 2); assert.equal(a.sent.length, 2);
+});
+
+await ok('security wiring: cron secret, signed session status, webhook signature first, a short internal token, no leaks', () => {
+  const run = read('app/api/wa-auto/run/route.ts');
+  assert.ok(/if \(!isAuthorizedCron\(request\)\) return cronUnauthorized\(\);/.test(run), 'the shared CRON_SECRET guard, as every cron');
+  assert.ok(!/error: msg/.test(run) && run.includes("error: 'run aborted'"), 'no database text in the response');
+  assert.ok(!/\.\.\.run\b/.test(run) && run.includes('const { queuedByTenant, ...counts } = run;'), 'no tenant ids in the response');
+  const st = read('app/api/wa-auto/status/route.ts');
+  assert.ok(st.indexOf('auth.getUser()') < st.indexOf('publicAutoStatus()') && st.includes('callerTenantId(session)'), 'signed-in, tenant from the session');
+  assert.ok(st.includes("checkIpLimit(request, 'wa-auto-status')") && st.includes("checkTenantLimit(tenantId, 'wa-auto-status')"), 'rate-limited');
+  assert.ok(!/searchParams|request\.json|tenant_id/.test(st), 'nothing from the request picks a tenant');
+  assert.deepEqual(Object.keys(publicAutoStatus(LIVE)).sort(), ['available', 'leadHours', 'monthlyCap']);
+  assert.ok(!JSON.stringify(publicAutoStatus(LIVE)).includes('tok'), 'no credential');
+  const wh = read('app/api/wa-cloud/webhook/route.ts');
+  const post = wh.slice(wh.indexOf('export async function POST'));
+  assert.ok(post.indexOf("verifySignature(raw, request.headers.get('x-hub-signature-256'), waCloudAppSecret())") < post.indexOf('admin()'), 'Meta signature before any database');
+  assert.ok(/timingSafeEqual/.test(read('lib/waCloud/webhook.ts')));
+  assert.ok(wh.includes('signConfirm(appointmentId, action, Date.now() + INTERNAL_TOKEN_TTL_MS)') && wh.includes('const INTERNAL_TOKEN_TTL_MS = 2 * 60_000;'), 'a two-minute token');
+  assert.ok(!/export (async )?function applyLinkAction/.test(wh), 'the minting function is not exported');
+  assert.equal((wh.match(/applyLinkAction/g) || []).length, 2, 'defined once, used once (inside handleAutoButton)');
+  assert.ok(!/console\.\w+\([^)]*token/i.test(wh + read('lib/waCloud/autoButtons.ts')), 'no token in a log line');
+  assert.ok(wh.includes('wa-auto-button-id:${m.id}') && wh.includes('wa-auto-button:${m.from}') && wh.includes('wa-cloud-optout:${m.from}'), 'dedupe and rate limits');
+  assert.ok(wh.includes("recordAutoOptOut(db, tenantId, m.from, 'reply')"), '"הסר" opts out only the verified sender');
+  assert.ok(/\[A-Za-z0-9_\.-\]\{1,128\}/.test(wh) && wh.includes("'X-Content-Type-Options': 'nosniff'"), 'the GET challenge is not reflected freely');
 });
 
 // ── the daily cron and the wiring ────────────────────────────────────────────
