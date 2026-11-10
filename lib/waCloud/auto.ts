@@ -29,6 +29,9 @@
 import { autoConfig, tenantOptedIn, type AutoConfig } from './autoConfig.ts';
 import { buildAutoTemplate, WA_AUTO_TEMPLATES, type AutoKind } from './autoTemplates.ts';
 import { confirmExpiry } from '../confirmToken.ts';
+import { enforcePublicCap, enforceRecipientCap, dailyCap, recipientCap, RECIPIENT_TYPES } from '../outboundCap.js';
+import { isUtilityAutoSendEnabled } from '../platformSettings.js';
+import { automationsPaused } from '../automationPause.js';
 import { autoAllowedNow, type YomTov } from './autoPlan.ts';
 import { checkCaps, countAccepted } from './caps.ts';
 import { israelMonthStartIso, israelMonthKey, israelDayStartIso } from './policy.ts';
@@ -55,6 +58,8 @@ export type AutoOutcome =
   | { outcome: 'duplicate' }
   | { outcome: 'deferred' }
   | { outcome: 'held' }
+  // Her automations are paused: no automatic message. A reminder is simply not sent; a confirmation goes to her queue.
+  | { outcome: 'paused' }
   | { outcome: 'fallback'; reason: string; detail: string };
 
 export function idempotencyKey(mode: 'live' | 'mock', kind: AutoKind, appointmentId: string): string {
@@ -169,6 +174,8 @@ export type SendAutoInput = {
   settingsRow?: { automations?: unknown } | null;
   /** The appointment day (YYYY-MM-DD): the button payloads expire three days after it (90 days when unknown). */
   apptDate?: string | null;
+  /** The operator-alert sender for the public-send ceiling (tests); defaults to sendWhatsApp. */
+  opsSend?: (phone: string, text: string, opts: Record<string, unknown>) => Promise<unknown>;
   /** The hourly run sending a confirmation that was deferred at night: it already holds the claim. */
   fromDeferred?: boolean;
   now?: Date;
@@ -218,10 +225,33 @@ export async function sendAutoMessage(p: SendAutoInput): Promise<AutoOutcome> {
     return { outcome: 'fallback', reason, detail };
   };
 
-  // Quiet hours first (a held reminder claims nothing and is tried next hour), then the claim: every refusal after it is
-  // recorded on the claim, so the hourly run never puts the same message in her queue twice.
+  // Quiet hours first (a held reminder claims nothing and is tried next hour), then the shared gate, then the claim:
+  // every refusal from here on is recorded on the claim, so the hourly run never puts the same message in her queue twice.
   const allowed = autoAllowedNow(now, p.isYomTov);
   if (!allowed && p.kind === 'reminder') return mode === 'mock' ? dry('held', 'quiet_hours') : { outcome: 'held' };
+
+  // ── THE GATE: every automatic message, from every caller (the booking confirmation, the hourly reminder, a deferred
+  // confirmation at 08:00), passes here BEFORE it is deferred and BEFORE it is dispatched. Her master pause, the
+  // platform's automatic-send switch, and the same public-send ceilings sendWhatsApp enforces (lib/outboundCap.js:
+  // per business, and per recipient across every business). A refusal is never another automatic send: paused is
+  // nothing at all for a reminder, and everything else is her manual queue.
+  const refusal = await autoGate(db, { tenantId: p.tenantId, kind: p.kind, digits, settingsRow, mode, now, env, opsSend: p.opsSend });
+  if (refusal) {
+    const status = refusal.reason === 'tenant_paused' ? 'skipped' : 'fallback';
+    const detail = `${refusal.reason}: ${refusal.detail}`.slice(0, 500);
+    if (p.fromDeferred) await setClaim(db, key, { status, detail });
+    else {
+      let claimErr: { code?: string; message?: string } | null = null;
+      try {
+        const { error } = await db.from(CLAIMS_TABLE).insert({ idempotency_key: key, tenant_id: p.tenantId, appointment_id: p.appointmentId, kind: p.kind, mode, status, detail });
+        claimErr = error || null;
+      } catch (e) { claimErr = { message: (e as Error)?.message || String(e) }; }
+      if (isUniqueViolation(claimErr)) return mode === 'mock' ? dry('duplicate', null) : { outcome: 'duplicate' };
+    }
+    if (refusal.reason !== 'tenant_paused') await logRow(db, { ...base, status: 'refused', reason: refusal.reason, error_detail: refusal.detail.slice(0, 500) });
+    if (mode === 'mock') return dry('refused', refusal.reason);
+    return refusal.reason === 'tenant_paused' ? { outcome: 'paused' } : { outcome: 'fallback', reason: refusal.reason, detail: refusal.detail };
+  }
 
   if (!p.fromDeferred) {
     let claimErr: { code?: string; message?: string } | null = null;
@@ -286,6 +316,40 @@ export async function sendAutoMessage(p: SendAutoInput): Promise<AutoOutcome> {
 
   await checkSpendAlert(db, { now, env, cfg, alert });
   return { outcome: 'sent', messageId: res.messageId, preview: built.preview };
+}
+
+/** What the per-recipient ceiling covers and counts for the automatic path: the public types plus the reminder. */
+export const AUTO_RECIPIENT_TYPES = [...RECIPIENT_TYPES, 'reminder'];
+
+type GateRefusal = { reason: 'tenant_paused' | 'platform_manual' | 'public_capped' | 'recipient_capped'; detail: string };
+
+/**
+ * The guards every automatic send passes (sendAutoMessage calls this; nothing else sends). Null = may go on.
+ *   - her master pause (lib/automationPause.js, the same helper the daily and smart reminders use);
+ *   - platform_settings.whatsapp_auto_utility_enabled (lib/platformSettings.js, fails CLOSED: unreadable = manual);
+ *   - the per-business public-send day and the per-recipient day across businesses (lib/outboundCap.js, reused as is;
+ *     those two fail open, as everywhere else they apply).
+ */
+export async function autoGate(db: Db, g: {
+  tenantId: string; kind: AutoKind; digits: string; settingsRow: unknown; mode: 'live' | 'mock'; now: Date; env: WaCloudEnv;
+  opsSend?: (phone: string, text: string, opts: Record<string, unknown>) => Promise<unknown>;
+}): Promise<GateRefusal | null> {
+  if (automationsPaused(g.settingsRow as { automations?: unknown })) return { reason: 'tenant_paused', detail: 'her automations are paused' };
+  if (!(await isUtilityAutoSendEnabled(db))) return { reason: 'platform_manual', detail: 'platform automatic sending is off (or unreadable)' };
+  const nowMs = g.now.getTime();
+  const send = (g.opsSend || (async (phone: string, text: string, opts: Record<string, unknown>) => (await import('../whatsapp.js')).sendWhatsApp(phone, text, opts))) as (phone: string, text: string, opts: object) => Promise<unknown>;
+  const capEnv = g.env as NodeJS.ProcessEnv;
+  const pub = await enforcePublicCap({
+    db, tenantId: g.tenantId, type: g.kind, send, cap: dailyCap(capEnv), now: nowMs,
+    // The operator hears about it once per window, and only for a real (live) run.
+    operatorPhone: g.mode === 'live' ? g.env.NEXT_PUBLIC_SUPPORT_WHATSAPP : undefined,
+  });
+  if (!pub.allowed) return { reason: 'public_capped', detail: `daily public-send ceiling (${pub.count}/${pub.cap})` };
+  if (g.digits) {
+    const rv = await enforceRecipientCap({ db, digits: g.digits, type: g.kind, cap: recipientCap(capEnv), now: nowMs, countTypes: AUTO_RECIPIENT_TYPES });
+    if (!rv.allowed) return { reason: 'recipient_capped', detail: `per-recipient daily ceiling (${rv.count}/${rv.cap})` };
+  }
+  return null;
 }
 
 /** Has add_wa_auto_messages.sql run? One cheap read of each new table. Only called when the feature is active. */

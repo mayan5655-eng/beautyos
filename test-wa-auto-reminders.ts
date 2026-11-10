@@ -30,6 +30,9 @@ import { mockAdapter, type WaCloudAdapter } from './lib/waCloud/adapter.ts';
 import { runDailyReminders, STATUS_AUTO } from './lib/reminders/dailyReminders.js';
 import { confirmLinks, verifyConfirm } from './lib/confirmToken.ts';
 import { DEMO_TENANT_IDS } from './lib/demoTenants.ts';
+import { invalidatePlatformSettingsCache } from './lib/platformSettings.js';
+import { automationsPaused } from './lib/automationPause.js';
+import { autoGate, AUTO_RECIPIENT_TYPES } from './lib/waCloud/auto.ts';
 
 // No test here may reach a network. A stray real call fails loudly instead.
 globalThis.fetch = (async () => { throw new Error('network is not allowed in this test'); }) as typeof fetch;
@@ -62,6 +65,10 @@ const noYomTov = () => false;
 type Row = Record<string, any>;
 function memDb(init: Record<string, Row[]> = {}, opts: { missing?: string[]; clock?: () => Date } = {}) {
   const tables: Record<string, Row[]> = {};
+  // The platform's automatic-send switch is ON unless a test says otherwise (lib/platformSettings.js caches it for 15s
+  // per process, so every new database starts from a fresh read).
+  invalidatePlatformSettingsCache();
+  if (!('platform_settings' in init)) tables.platform_settings = [{ id: true, whatsapp_auto_utility_enabled: true }];
   for (const [k, v] of Object.entries(init)) tables[k] = v.map((r) => ({ ...r }));
   const PK: Record<string, string[]> = { wa_auto_claims: ['idempotency_key'], wa_auto_optouts: ['tenant_id', 'recipient_hash'] };
   let seq = 0;
@@ -356,7 +363,7 @@ await ok('dry run (enabled, mock): decisions logged as mock rows, nothing reache
   assert.deepEqual(out, { outcome: 'dry_run', status: 'accepted', reason: null });
   assert.equal(tables.wa_cloud_messages[0].mode, 'mock');
   assert.equal(tables.wa_auto_claims[0].idempotency_key, idempotencyKey('mock', 'reminder', APPT), 'a mock claim never blocks a later live send');
-  assert.equal(tables.whatsapp_messages, undefined, 'no "sent" row for a message nobody got');
+  assert.equal((tables.whatsapp_messages || []).length, 0, 'no "sent" row for a message nobody got');
 });
 
 await ok('opt-out: a recorded opt-out, a "הסר" on her card, or a suppression: no automatic message, her queue instead', async () => {
@@ -599,6 +606,165 @@ await ok('security wiring: cron secret, signed session status, webhook signature
   assert.ok(wh.includes('wa-auto-button-id:${m.id}') && wh.includes('wa-auto-button:${m.from}') && wh.includes('wa-cloud-optout:${m.from}'), 'dedupe and rate limits');
   assert.ok(wh.includes("recordAutoOptOut(db, tenantId, m.from, 'reply')"), '"הסר" opts out only the verified sender');
   assert.ok(/\[A-Za-z0-9_\.-\]\{1,128\}/.test(wh) && wh.includes("'X-Content-Type-Options': 'nosniff'"), 'the GET challenge is not reflected freely');
+});
+
+// ── the shared gate (PR #53 security review): recipient ceiling, platform switch, her pause ──────────────────────
+const tid = (i: number) => `00000000-0000-4000-8000-0000000001${String(i).padStart(2, '0')}`;
+const aid = (i: number) => `22222222-2222-4222-8222-2222222222${String(i).padStart(2, '0')}`;
+const optedSettings = (ids: string[], extra: Row = {}) => ids.map((t) => ({ tenant_id: t, business_name: 'עסק ' + t.slice(-2), branding: {}, automations: { wa_auto_messages: true, ...extra } }));
+const runDeps = (a: WaCloudAdapter, queued: any[] = []) => ({ queue: async (phone: string, text: string, opts: any) => { queued.push({ phone, text, opts }); }, confirmLinks, baseUrl: 'https://x', adapter: a, alert, isYomTov: noYomTov });
+
+await ok('recipient ceiling: distinct bookings in distinct businesses to one number stop at 4 a day, then her manual queue', async () => {
+  const { db, tables } = memDb();
+  const a = stub();
+  const outs = [];
+  for (let i = 1; i <= 6; i++) {
+    outs.push(await sendAutoMessage({ ...baseInput(db), tenantId: tid(i), appointmentId: aid(i), kind: 'booking_confirm', apptDate: '2026-11-20', adapter: a }));
+  }
+  assert.deepEqual(outs.map((o) => o.outcome), ['sent', 'sent', 'sent', 'sent', 'fallback', 'fallback']);
+  assert.ok(outs[4].outcome === 'fallback' && outs[4].reason === 'recipient_capped');
+  assert.equal(a.sent.length, 4, 'Meta was called four times, not six');
+  const claims = Object.fromEntries(tables.wa_auto_claims.map((c: any) => [c.appointment_id, c.status]));
+  assert.equal(claims[aid(5)], 'fallback'); assert.equal(claims[aid(6)], 'fallback');
+  // A refusal is recorded, so the same message is not refused (and queued) again.
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(db), tenantId: tid(5), appointmentId: aid(5), kind: 'booking_confirm', adapter: a }), { outcome: 'duplicate' });
+  // Another number is not affected.
+  assert.equal((await sendAutoMessage({ ...baseInput(db), tenantId: tid(7), appointmentId: aid(7), phone: '0527654321', kind: 'booking_confirm', adapter: a })).outcome, 'sent');
+  // The ceiling counts what sendWhatsApp counts too: GreenAPI booking confirmations to the same number, any business.
+  const mixed = memDb({ whatsapp_messages: Array.from({ length: 4 }, (_, i) => ({ tenant_id: tid(20 + i), recipient_phone: '+972501234567', message_type: 'booking_confirm', status: 'sent', created_at: '2026-11-10T07:00:00.000Z' })) });
+  const r = await sendAutoMessage({ ...baseInput(mixed.db), kind: 'booking_confirm', adapter: a });
+  assert.ok(r.outcome === 'fallback' && r.reason === 'recipient_capped');
+  // And the ceiling's env is the same one (WHATSAPP_PUBLIC_RECIPIENT_CAP).
+  const one = memDb({ whatsapp_messages: [{ tenant_id: tid(30), recipient_phone: PHONE, message_type: 'booking_confirm', status: 'sent', created_at: '2026-11-10T07:00:00.000Z' }] });
+  const r1 = await sendAutoMessage({ ...baseInput(one.db), kind: 'booking_confirm', env: { ...LIVE, WHATSAPP_PUBLIC_RECIPIENT_CAP: '1' }, adapter: a });
+  assert.ok(r1.outcome === 'fallback' && r1.reason === 'recipient_capped');
+});
+
+await ok('recipient ceiling: hourly reminders across hourly windows count and are limited, and go to her queue', async () => {
+  const earlier = Array.from({ length: 3 }, (_, i) => ({ tenant_id: tid(40 + i), recipient_phone: PHONE, message_type: 'booking_confirm', status: 'sent', created_at: '2026-11-10T09:00:00.000Z' }));
+  const A = apptRow(aid(41), tid(1), { date: '2026-11-11', start_minute: 690 });              // due at 12:00
+  const B = apptRow(aid(42), tid(2), { date: '2026-11-11', start_minute: 750, hour: 12 });    // due at 13:00
+  const C = apptRow(aid(43), tid(3), { date: '2026-11-11', start_minute: 810, hour: 13 });    // due at 14:00
+  let clockNow = NOW;
+  const { db, tables } = memDb({ settings: optedSettings([tid(1), tid(2), tid(3)]), appointments: [A, B, C], whatsapp_messages: earlier }, { clock: () => clockNow });
+  const a = stub();
+  const queued: any[] = [];
+  const r1 = await runAutoMessages({ db, env: LIVE, now: NOW, deps: runDeps(a, queued) });
+  assert.equal(r1.sent, 1, 'hour 1: the 4th message of the day goes');
+  clockNow = new Date(NOW.getTime() + 3600_000);
+  const r2 = await runAutoMessages({ db, env: LIVE, now: clockNow, deps: runDeps(a, queued) });
+  assert.equal(r2.sent, 0); assert.equal(r2.queued, 1, 'hour 2: the reminder counted, so the 5th waits in her queue');
+  clockNow = new Date(NOW.getTime() + 2 * 3600_000);
+  const r3 = await runAutoMessages({ db, env: LIVE, now: clockNow, deps: runDeps(a, queued) });
+  assert.equal(r3.sent, 0); assert.equal(r3.queued, 1, 'hour 3: still limited');
+  assert.equal(a.sent.length, 1);
+  assert.ok(queued.every((q) => q.opts.forceManual === true && q.opts.type === 'reminder'), 'her manual queue, not another automatic channel');
+  assert.equal(tables.wa_auto_claims.find((c: any) => c.appointment_id === aid(42)).status, 'fallback');
+  // Hour 4: the same reminders are not queued a second time.
+  await runAutoMessages({ db, env: LIVE, now: new Date(NOW.getTime() + 3 * 3600_000), deps: runDeps(a, queued) });
+  assert.equal(queued.length, 2);
+  assert.ok(AUTO_RECIPIENT_TYPES.includes('reminder') && AUTO_RECIPIENT_TYPES.includes('booking_confirm'));
+});
+
+await ok('recipient ceiling and the business public-send ceiling also stop a deferred confirmation at 08:00', async () => {
+  let clockNow = NIGHT;
+  const appt = apptRow(APPT, T, { date: '2026-11-20', start_minute: 600 });
+  const { db, tables } = memDb({ settings: settingsRows(), appointments: [appt] }, { clock: () => clockNow });
+  const a = stub();
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(db), kind: 'booking_confirm', apptDate: appt.date, now: NIGHT, adapter: a }), { outcome: 'deferred' });
+  // Overnight, four other businesses' confirmations reached the same number (the morning is inside the same 24 hours).
+  for (let i = 0; i < 4; i++) tables.whatsapp_messages.push({ tenant_id: tid(50 + i), recipient_phone: PHONE, message_type: 'booking_confirm', status: 'sent', created_at: '2026-11-11T05:00:00.000Z' });
+  clockNow = MORNING;
+  const queued: any[] = [];
+  const r = await runAutoMessages({ db, env: LIVE, now: MORNING, deps: runDeps(a, queued) });
+  assert.equal(r.deferredSent, 0); assert.equal(a.sent.length, 0);
+  assert.equal(queued.length, 1); assert.equal(queued[0].opts.forceManual, true);
+  assert.equal(tables.wa_auto_claims[0].status, 'fallback');
+  // The per-business public-send day (WHATSAPP_PUBLIC_DAILY_CAP) applies to the automatic confirmation too.
+  const pub = memDb({ whatsapp_messages: [{ tenant_id: T, recipient_phone: '0529999999', message_type: 'booking_confirm', status: 'sent', created_at: '2026-11-10T08:00:00.000Z' }] });
+  const pr = await sendAutoMessage({ ...baseInput(pub.db), kind: 'booking_confirm', env: { ...LIVE, WHATSAPP_PUBLIC_DAILY_CAP: '1' }, adapter: a });
+  assert.ok(pr.outcome === 'fallback' && pr.reason === 'public_capped');
+  assert.equal(a.sent.length, 0);
+});
+
+await ok('platform switch off or unreadable: no automatic send for a confirmation, a reminder or a deferred one; her queue instead', async () => {
+  const a = stub();
+  for (const variant of ['off', 'unreadable', 'no row'] as const) {
+    const init: Record<string, Row[]> = { settings: settingsRows(), appointments: [apptRow(APPT, T)] };
+    if (variant === 'off') init.platform_settings = [{ id: true, whatsapp_auto_utility_enabled: false }];
+    if (variant === 'no row') init.platform_settings = [];
+    const { db, tables } = memDb(init, { missing: variant === 'unreadable' ? ['platform_settings'] : [] });
+    const c = await sendAutoMessage({ ...baseInput(db), appointmentId: APPT2, kind: 'booking_confirm', adapter: a });
+    assert.ok(c.outcome === 'fallback' && c.reason === 'platform_manual', `${variant}: confirmation`);
+    const queued: any[] = [];
+    const r = await runAutoMessages({ db, env: LIVE, now: NOW, deps: runDeps(a, queued) });
+    assert.equal(r.sent, 0); assert.equal(queued.length, 1, `${variant}: the reminder waits in her queue`);
+    assert.equal(queued[0].opts.forceManual, true);
+    assert.equal(tables.wa_auto_claims.find((x: any) => x.appointment_id === APPT).status, 'fallback');
+  }
+  // Deferred at night while the switch was on, switched off by the morning.
+  let clockNow = NIGHT;
+  const appt = apptRow(APPT, T, { date: '2026-11-20', start_minute: 600 });
+  const d = memDb({ settings: settingsRows(), appointments: [appt] }, { clock: () => clockNow });
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(d.db), kind: 'booking_confirm', apptDate: appt.date, now: NIGHT, adapter: a }), { outcome: 'deferred' });
+  d.tables.platform_settings[0].whatsapp_auto_utility_enabled = false;
+  invalidatePlatformSettingsCache();
+  clockNow = MORNING;
+  const queued: any[] = [];
+  const r = await runAutoMessages({ db: d.db, env: LIVE, now: MORNING, deps: runDeps(a, queued) });
+  assert.equal(r.deferredSent, 0); assert.equal(queued.length, 1); assert.equal(d.tables.wa_auto_claims[0].status, 'fallback');
+  assert.equal(a.sent.length, 0, 'Meta was never called');
+});
+
+await ok('her pause: wa_auto_messages on + paused on means no automatic reminder, confirmation or deferred message', async () => {
+  const PAUSED = { automations: { wa_auto_messages: true, paused: true } };
+  assert.equal(automationsPaused(PAUSED), true);
+  for (const junk of [null, {}, { automations: null }, { automations: { paused: 'true' } }, { automations: [true] }]) assert.equal(automationsPaused(junk as any), false, 'fails open');
+  const a = stub();
+  const { db, tables } = memDb({ settings: [{ tenant_id: T, business_name: 'סטודיו נועה', branding: {}, automations: PAUSED.automations }], appointments: [apptRow(APPT, T)] });
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(db), settingsRow: PAUSED, adapter: a }), { outcome: 'paused' }, 'a reminder');
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(db), appointmentId: APPT2, kind: 'booking_confirm', settingsRow: PAUSED, adapter: a }), { outcome: 'paused' }, 'a confirmation');
+  assert.equal(tables.wa_auto_claims.find((c: any) => c.appointment_id === APPT).status, 'skipped');
+  // Read from her settings row when the caller does not hold it.
+  const fresh = memDb({ settings: [{ tenant_id: T, automations: PAUSED.automations }] });
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(fresh.db), settingsRow: undefined, adapter: a }), { outcome: 'paused' });
+  // The hourly run: a paused business is not selected at all, and nothing is queued for its reminders either.
+  const run = memDb({ settings: [{ tenant_id: T, business_name: 'x', branding: {}, automations: PAUSED.automations }], appointments: [apptRow(APPT, T)] });
+  const queued: any[] = [];
+  const r = await runAutoMessages({ db: run.db, env: LIVE, now: NOW, deps: runDeps(a, queued) });
+  assert.equal(r.tenants, 0); assert.equal(r.sent, 0); assert.equal(queued.length, 0);
+  // Deferred at night, paused by the morning: not sent automatically; her manual queue (the confirmation is still owed).
+  let clockNow = NIGHT;
+  const appt = apptRow(APPT, T, { date: '2026-11-20', start_minute: 600 });
+  const d = memDb({ settings: settingsRows(), appointments: [appt] }, { clock: () => clockNow });
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(d.db), kind: 'booking_confirm', apptDate: appt.date, now: NIGHT, adapter: a }), { outcome: 'deferred' });
+  d.tables.settings[0].automations = { wa_auto_messages: true, paused: true };
+  clockNow = MORNING;
+  const dq: any[] = [];
+  const dr = await runAutoMessages({ db: d.db, env: LIVE, now: MORNING, deps: runDeps(a, dq) });
+  assert.equal(dr.deferredSent, 0); assert.equal(dq.length, 1); assert.equal(dq[0].opts.forceManual, true);
+  // The gate itself refuses a deferred send for a paused business, whoever calls it.
+  const g = memDb({ wa_auto_claims: [{ idempotency_key: idempotencyKey('live', 'booking_confirm', APPT), tenant_id: T, appointment_id: APPT, kind: 'booking_confirm', mode: 'live', status: 'claimed' }] });
+  assert.deepEqual(await sendAutoMessage({ ...baseInput(g.db), kind: 'booking_confirm', settingsRow: PAUSED, fromDeferred: true, now: MORNING, adapter: a }), { outcome: 'paused' });
+  assert.equal(g.tables.wa_auto_claims[0].status, 'skipped');
+  assert.equal(a.sent.length, 0, 'Meta was never called');
+});
+
+await ok('the gate is in the one shared sender, before deferral and dispatch; callers map its refusals to her manual queue', async () => {
+  const src = read('lib/waCloud/auto.ts');
+  const body = src.slice(src.indexOf('export async function sendAutoMessage'));
+  const gate = body.indexOf('await autoGate(db,');
+  assert.ok(gate > 0 && gate < body.indexOf("status: allowed ? 'claimed' : 'deferred'") && gate < body.indexOf('adapter.sendTemplate('), 'before the deferral claim and before Meta');
+  assert.ok(src.includes("from '../outboundCap.js'") && src.includes("from '../platformSettings.js'") && src.includes("from '../automationPause.js'"), 'reused, not reimplemented');
+  assert.equal((read('lib/waCloud/autoRun.ts').match(/sendAutoMessage\(\{/g) || []).length, 2, 'the hourly run sends only through it');
+  assert.ok(!/adapter\.sendTemplate|sendTemplate\(/.test(read('lib/waCloud/autoRun.ts') + read('lib/bookingNotify.js')), 'no caller dispatches on its own');
+  const bn = read('lib/bookingNotify.js');
+  assert.ok(bn.includes('if (out.outcome === "fallback" || out.outcome === "paused") return { handled: false, queue: true };'));
+  assert.ok(/her manual queue instead[\s\S]{0,120}return \{ handled: false, queue: true \};/.test(bn), 'an exception is her queue, not the unguarded path');
+  assert.ok(read('lib/reminders/dailyReminders.js').includes('automationsPaused(settingsByTenant[t])') && read('lib/reminders/smartReminders.js').includes('automationsPaused(settingsByTenant[tenantId])'), 'one pause helper');
+  // Direct: a gate with nothing to refuse passes.
+  const { db } = memDb();
+  assert.equal(await autoGate(db, { tenantId: T, kind: 'reminder', digits: DIGITS, settingsRow: ON, mode: 'live', now: NOW, env: LIVE }), null);
 });
 
 // ── the daily cron and the wiring ────────────────────────────────────────────

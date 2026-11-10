@@ -26,6 +26,7 @@ import { startMinute } from '../apptTime.ts';
 import { isPersonal } from '../calendarKind.ts';
 import { isDemoTenantId } from '../demoTenants.ts';
 import { isMissingColumnError } from '../pgError.ts';
+import { automationsPaused } from '../automationPause.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = { from: (table: string) => any };
@@ -90,7 +91,9 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
   const anySettings = new Map<string, Settings>();
   for (const s of (st.data || []) as Settings[]) {
     anySettings.set(s.tenant_id, s);
-    if (tenantOptedIn(s) && !isDemoTenantId(s.tenant_id)) settings.set(s.tenant_id, s);
+    // Opted in and NOT paused (her master switch, lib/automationPause.js): a paused business gets no reminders at all.
+    // sendAutoMessage's gate checks the pause again, for every caller.
+    if (tenantOptedIn(s) && !automationsPaused(s) && !isDemoTenantId(s.tenant_id)) settings.set(s.tenant_id, s);
   }
   res.tenants = settings.size;
 
@@ -183,6 +186,7 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
         clientId: appt.client_id, apptDate: appt.date, params: autoParams(appt, s), settingsRow: s, now, env, adapter: o.deps.adapter, alert: o.deps.alert, isYomTov: o.deps.isYomTov,
       });
       if (out.outcome === 'sent') res.sent++;
+      if (out.outcome === 'paused') res.skipped++;
       let queued = false;
       if (out.outcome === 'fallback') queued = await queue(appt, reminderQueueText(appt, s, o.deps.confirmLinks(o.deps.baseUrl, appt.id, { date: appt.date })), 'reminder');
       count(out, appt.tenant_id, queued);
@@ -214,7 +218,8 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
       const s = settings.get(c.tenant_id);
       const cancelUrl = () => o.deps.confirmLinks(o.deps.baseUrl, appt.id, { date: appt.date }).cancelUrl;
       if (!s) {
-        // She turned the automatic messages off overnight: the confirmation is still owed, from her own WhatsApp.
+        // She turned the automatic messages off (or paused her automations) overnight: the confirmation is still owed,
+        // from her own WhatsApp. Not an automatic send.
         const queued = appt.client_phone ? await queue(appt, bookingQueueText(appt, anySettings.get(c.tenant_id) || {}, cancelUrl()), 'booking_confirm') : false;
         await settle('fallback', 'automatic messages turned off before the morning: her manual queue');
         if (queued) { res.queued++; res.queuedByTenant[c.tenant_id] = (res.queuedByTenant[c.tenant_id] || 0) + 1; }
@@ -228,7 +233,7 @@ export async function runAutoMessages(o: { db: Db; deps: AutoRunDeps; now?: Date
       if (out.outcome === 'sent') {
         res.deferredSent++;
         await db.from('appointments').update({ confirmation_sent: true }).eq('id', appt.id).eq('tenant_id', appt.tenant_id);
-      } else if (out.outcome === 'fallback') {
+      } else if (out.outcome === 'fallback' || out.outcome === 'paused') {
         if (appt.client_phone) queued = await queue(appt, bookingQueueText(appt, s, cancelUrl()), 'booking_confirm');
       } else if (out.outcome === 'held') {
         // Became quiet between the check and the send: give it back for the next run.
