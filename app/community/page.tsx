@@ -79,7 +79,7 @@ export default function CommunityPage() {
         {!loading && !error && posts.length === 0 && (
           <div className="pub-card" style={{ padding: "36px 20px" }}>
             <LineIcon src={ICON_HEART} />
-            <p style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", margin: 0 }}>עוד אין פוסטים — בקרוב יהיו כאן עדכונים.</p>
+            <p style={{ fontSize: "var(--t-lg)", color: "var(--ink-2)", margin: 0 }}>עוד אין פוסטים.</p>
           </div>
         )}
 

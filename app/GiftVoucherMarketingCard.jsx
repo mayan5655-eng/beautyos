@@ -15,6 +15,7 @@ import { voucherLook, storageHostOf } from '@/lib/giftVoucherDesign';
 import { waShareLink } from '@/lib/giftVouchers';
 import VoucherArt from './VoucherArt';
 import { useVouchersReady } from './useVouchersReady';
+import { useDeployFlags } from './useDeployFlags';
 
 const HOST = storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
@@ -34,6 +35,8 @@ export const fillCopy = (t, name, link) => t.replace(/\{name\}/g, name || 'אצ�
 
 export default function GiftVoucherMarketingCard(props) {
   const { ready, slug } = useVouchersReady(true);
+  // "Grow is not connected yet" is said only where she CAN connect it: with the Grow screens off it is not active (2026-11-09 rule).
+  const { grow } = useDeployFlags();
   const [online, setOnline] = useState(null);
   const tenantId = props.settings?.tenant_id || null;
   useEffect(() => {
@@ -44,11 +47,11 @@ export default function GiftVoucherMarketingCard(props) {
   }, [ready, tenantId]);
   if (ready !== true) return null;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  return <GiftVoucherMarketingBody {...props} slug={slug} online={online} origin={origin} />;
+  return <GiftVoucherMarketingBody {...props} slug={slug} online={online} origin={origin} growOn={grow} />;
 }
 
 /** The card itself, without the network: what tests render. */
-export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAtTill, slug, online, origin }) {
+export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAtTill, slug, online, origin, growOn = false }) {
   const tenantId = settings?.tenant_id || null;
   const cfg = useMemo(() => voucherConfig(settings, tenantId, HOST), [settings, tenantId]);
   const name = settings?.business_name || '';
@@ -78,8 +81,8 @@ export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAt
             <a style={{ ...btn, background: '#0B7A3E', color: '#fff', border: 'none' }} target="_blank" rel="noreferrer" href={waShareLink(fillCopy(copyText(VOUCHER_COPY[3], online), name, link))}>שליחה בוואטסאפ</a>
             <a style={btn} data-testid="gv-story" href={`/api/vouchers/image?shop=${encodeURIComponent(tenantId)}&f=story`} download="gift-voucher-story.png" target="_blank" rel="noreferrer">תמונה לסטורי</a>
           </div>
-          {online === false && <p style={{ margin: '8px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>Grow עוד לא מחובר, אז בדף כתוב שקונים שובר אצלך בעסק. אחרי החיבור הקונה תוכל לשלם אונליין, בלי לשנות כלום.</p>}
-          {online === false && <GrowCostNote style={{ marginTop: 4 }} />}
+          {online === false && growOn && <p style={{ margin: '8px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>Grow עוד לא מחובר, אז בדף כתוב שקונים שובר אצלך בעסק. אחרי החיבור הקונה תוכל לשלם אונליין, בלי לשנות כלום.</p>}
+          {online === false && growOn && <GrowCostNote style={{ marginTop: 4 }} />}
         </div>
       ) : null}
 

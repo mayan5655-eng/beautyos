@@ -444,7 +444,7 @@ await ok('security: replacing the card, cancelling, and the billing details are 
   assert.match(st, /card_last4: null, card_brand: null \} : null, payments: \[\], addons: undefined, owner: false/, 'a member gets no card digits, no history, no packs');
   assert.equal((st.match(/forMember\(/g) || []).length, 2, 'both answers with data go through it');
   const card = read('app/BillingCard.jsx');
-  assert.match(card, /s\.owner === false \? <p data-testid="billing-member"/);
+  assert.match(card, /s\.owner === false && <p data-testid="billing-member"/);
   assert.match(card, /!isDemo && s\.owner !== false && sub && sub\.status !== 'canceled'/, 'no cancel button for a member');
 });
 

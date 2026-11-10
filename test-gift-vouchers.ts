@@ -701,8 +701,11 @@ await ok('the marketing card: shop link, WhatsApp share with no number, a story 
   assert.match(j, /sessionStorage\.setItem\("kalmea:voucher-sell","1"\);\}catch\{\}setActiveTab\("cashier"\)/);
   assert.match(rd('app/GiftVouchersPanel.jsx'), /sessionStorage\.getItem\('kalmea:voucher-sell'\) === '1'/);
   // no Grow: the card says so, and the link still leads to the "buy at the business" page
-  const off = renderApp(mod.GiftVoucherMarketingBody, { settings: { tenant_id: T, automations: {} }, pc: '#000', pcTint: '#eee', slug: 'studio-noa', online: false, origin: '' });
+  const off = renderApp(mod.GiftVoucherMarketingBody, { settings: { tenant_id: T, automations: {} }, pc: '#000', pcTint: '#eee', slug: 'studio-noa', online: false, origin: '', growOn: true });
   assert.ok(off.includes('Grow עוד לא מחובר'));
+  // ...but only where she can connect it: with the Grow screens off it is not active, so nothing is said (2026-11-09 owner rule).
+  const noGrow = renderApp(mod.GiftVoucherMarketingBody, { settings: { tenant_id: T, automations: {} }, pc: '#000', pcTint: '#eee', slug: 'studio-noa', online: false, origin: '' });
+  assert.ok(!noGrow.includes('Grow'));
 });
 
 // ── her own switch (owner request 2026-11-08): on by default, off stops selling, never redeeming ──────────
