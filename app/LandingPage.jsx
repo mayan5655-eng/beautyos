@@ -22,6 +22,7 @@ import { supportWhatsAppUrl } from "@/lib/support";
 import { PLAN_PRICES, priceHe, annualPlanEnabled } from "@/lib/pricing";
 import { annualOfferHe } from "@/lib/planCopy";
 import PublicAnalytics from "./PublicAnalytics";
+import MetaPixel from "./MetaPixel";
 
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
@@ -144,6 +145,8 @@ export default function LandingPage({ signedIn = false }) {
   return (
     <div dir="rtl" className="lp-page">
       <PublicAnalytics />
+      {/* Kalmea's own Meta Pixel: renders nothing while NEXT_PUBLIC_META_PIXEL_ID is empty (lib/metaPixel.ts). */}
+      <MetaPixel />
       {/* ── 1. HEADER ─────────────────────────────────────────────────────── */}
       <header className="lp-top">
         <Image src="/kalmea-wordmark.png" alt="Kalmea" width={WORDMARK_W} height={WORDMARK_H} priority style={{ width: "auto", height: 32 }} />

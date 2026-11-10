@@ -60,6 +60,8 @@ const FAKE_ENV = {
   NEXT_PUBLIC_ANNUAL_PLAN: '',
   // Import from another system (lib/importFile.ts): off, whatever the deployment builds with. test-import-from-system.ts sets it itself.
   NEXT_PUBLIC_IMPORT_TOOL: '',
+  // Kalmea's own Meta Pixel (lib/metaPixel.ts): off, so no test ever sees a pixel unless it sets the id itself.
+  NEXT_PUBLIC_META_PIXEL_ID: '',
   WA_CLOUD_ENABLED: '',
   WA_CLOUD_MODE: '',
   WA_CLOUD_ACCESS_TOKEN: '',

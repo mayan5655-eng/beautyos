@@ -9,6 +9,8 @@ import Image from 'next/image'
 const getSupabase = () => import('../supabase').then((m) => m.supabase)
 import BrandBackdrop from '../BrandBackdrop'
 import PublicFooterLinks from '../PublicFooterLinks'
+import MetaPixel from '../MetaPixel'
+import { trackCompleteRegistration } from '@/lib/metaPixel'
 
 // Pre-auth page: carries the KALMEA BRAND, never a tenant accent. There is no
 // tenant until after signup, so every value reads --brand-*, never --pc-*.
@@ -127,6 +129,10 @@ export default function SignupPage() {
       return
     }
 
+    // The server accepted a NEW account (an error and an already-registered address returned above): Kalmea's own ad
+    // measurement, once, with no parameters and nothing about her (lib/metaPixel.ts). A no-op while the pixel id is empty.
+    if (data.user) trackCompleteRegistration()
+
     if (data.session) {
       // Confirmation is off (or already done): straight in, as before.
       router.push('/onboarding')
@@ -153,6 +159,7 @@ export default function SignupPage() {
   return (
     <div dir="rtl" style={pageStyle}>
       <BrandBackdrop density="full" idPrefix="signup" />
+      <MetaPixel />
 
       <style>{`
         @keyframes signupIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
