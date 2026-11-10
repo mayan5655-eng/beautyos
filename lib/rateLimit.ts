@@ -199,6 +199,18 @@ export const RATE_POLICIES = {
       `נותחו יותר מדי קבצים כרגע. אפשר לנסות שוב ${m}.`,
   },
 
+  // Moving her clients, price list and diary over from another system (app/api/import-file, lib/importFile.ts). No model call,
+  // but each request parses a file of up to 5 MB and reads her whole client list, so a loop is stopped. Read, check the
+  // summary, fix a column, check again, import: a real session is a dozen calls, far under the cap.
+  'file-import': {
+    perIp: { limit: 40, windowMs: 10 * MINUTE },
+    perTenant: { limit: 60, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) =>
+      `נקראו הרבה קבצים מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) =>
+      `נקראו הרבה קבצים כרגע. אפשר לנסות שוב ${m}.`,
+  },
+
   // Asking for help. She is already stuck, so the cap is only here to stop a
   // stuck-and-hammering loop, never to be the thing that blocks her.
   support: {
