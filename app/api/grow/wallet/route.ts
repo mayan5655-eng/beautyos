@@ -3,7 +3,9 @@
 // The payment page /pay/<token> (lib/grow/wallet.ts). No login: the client who got the link has none. The token in the link IS the
 // authorisation, and it only ever opens THAT one payment.
 //   GET  ?t=<token>      -> { state: 'open' | 'paid' | 'closed' | 'expired' | 'unknown', amount, description, businessName, context }   (no Grow call)
-//   POST { t: <token> }  -> { state: 'ready', authCode, sdkEnv, hostedUrl, ... }   createPaymentProcess is called now, right before the wallet is drawn
+//   POST { t: <token>, inApp? }  -> { state: 'ready', authCode, sdkEnv, hostedUrl, limited, ... }   createPaymentProcess is called now, right before the wallet is drawn
+// inApp (GROW_INAPP_WALLET=1 only): the page says it runs in an in-app browser; exactly the boolean true opens the wallet with card and
+// Bit only (lib/grow/wallet.ts inAppLimitFor). GET answers inAppWallet so the page knows the flag before the tap.
 // context (lib/grow/wallet.ts payContextOf): for a booking deposit or a visit paid from the booking page, the service, date and time and
 // the way back to her booking page; for a gift voucher, the way to the voucher. A booking deposit whose 30-minute hold ran out reads
 // 'expired' and is never opened at Grow (lib/grow/cancelFees.ts depositHoldOpen).
@@ -12,7 +14,7 @@ import { NextResponse } from 'next/server';
 import { APP_URL } from '@/lib/appUrl';
 import { growUiEnabled, resolveGrow } from '@/lib/grow/adapter';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
-import { startWalletSession, walletLinkState, payContextOf, isBookingDeposit, DEPOSIT_HOLD_OVER_HE } from '@/lib/grow/wallet';
+import { startWalletSession, walletLinkState, inAppLimitFor, inAppWalletEnabled, payContextOf, isBookingDeposit, DEPOSIT_HOLD_OVER_HE } from '@/lib/grow/wallet';
 import type { GrowPayment } from '@/lib/grow/service';
 import { depositHoldOpen } from '@/lib/grow/cancelFees';
 import type { ConsentRow } from '@/lib/grow/cancelFees';
@@ -70,11 +72,11 @@ export async function GET(request: Request) {
   let note = '';
   if (state === 'open' && isBookingDeposit(payment) && !(await holdOpenFor(payment))) { state = 'expired'; note = DEPOSIT_HOLD_OVER_HE; }
   const [brand, context] = await Promise.all([brandOf(payment.tenant_id), contextOf(payment).catch(() => null)]);
-  return NextResponse.json({ success: true, state, note, amount: Number(payment.amount), description: payment.description || '', ...brand, context });
+  return NextResponse.json({ success: true, state, note, amount: Number(payment.amount), description: payment.description || '', ...brand, inAppWallet: inAppWalletEnabled(process.env), context });
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => ({}))) as { t?: unknown; acceptedTerms?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { t?: unknown; acceptedTerms?: unknown; inApp?: unknown };
   const token = typeof body.t === 'string' ? body.t : '';
   // The terms tick on the payment page (Grow's site check) is required here too, before Grow is asked for anything.
   if (body.acceptedTerms !== true) return NextResponse.json({ success: false, state: 'terms-required', error: 'כדי להמשיך לתשלום צריך לסמן את האישור.' }, { status: 400 });
@@ -94,9 +96,11 @@ export async function POST(request: Request) {
       return data && (data as { enabled?: unknown }).enabled === true ? String((data as { user_id: unknown }).user_id) : null;
     },
     holdOpen: holdOpenFor,
+    // A hint from the page, never trusted beyond this: only removes methods, only with the flag on, only for exactly `true`.
+    cardAndBitOnly: inAppLimitFor(process.env, body.inApp),
     // What Grow answered (flags and its error only) into ops_events at warning: the owner reads it with SQL (docs/GROW_SETUP.md).
     report: (rep) => reportWalletSession(rep, moneyAlert),
   });
   if (!r.ok) return NextResponse.json({ success: false, state: r.code, error: r.message }, { status: r.code === 'grow-unreachable' || r.code === 'grow-refused' ? 502 : 409 });
-  return NextResponse.json({ success: true, state: 'ready', authCode: r.authCode, sdkEnv: r.sdkEnv, hostedUrl: r.hostedUrl, amount: r.amount, description: r.description });
+  return NextResponse.json({ success: true, state: 'ready', authCode: r.authCode, sdkEnv: r.sdkEnv, hostedUrl: r.hostedUrl, limited: r.limited, amount: r.amount, description: r.description });
 }

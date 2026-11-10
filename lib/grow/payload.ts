@@ -56,7 +56,15 @@ export type ProcessInput = {
   tenantRef?: string;
   /** Charge now AND keep the card as a token (saveCardToken=1): the deposit that also saves the card. */
   saveCardToken?: boolean;
+  /**
+   * Wallet SDK only: the payment methods the wallet shows (Grow's transactionTypes[i]). Omitted, the wallet shows every method of its page.
+   * Only ids in WALLET_TYPE_IDS pass, so a typo can never send Grow something it does not know.
+   */
+  transactionTypes?: readonly string[];
 };
+
+/** Grow's transaction type ids the wallet can be limited to: 1 credit card, 6 Bit, 13 Apple Pay, 14 Google Pay. */
+export const WALLET_TYPE_IDS = ['1', '6', '13', '14'] as const;
 
 /** A tenant id as it travels in cField2: lower-case letters and digits only (Grow refuses special characters). */
 export function tenantRefOf(tenantId: unknown): string {
@@ -81,6 +89,8 @@ export function buildProcessFields(i: ProcessInput): [string, string][] {
   if (i.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(i.email)) f.push(['pageField[email]', i.email]);
   if (i.invoiceNotifyUrl) f.push(['invoiceNotifyUrl', i.invoiceNotifyUrl]);
   if (i.saveCardToken) f.push(['saveCardToken', '1']);
+  const types = [...new Set((i.transactionTypes || []).map(String).filter((t) => (WALLET_TYPE_IDS as readonly string[]).includes(t)))];
+  types.forEach((t, k) => f.push([`transactionTypes[${k}]`, t]));
   return f;
 }
 

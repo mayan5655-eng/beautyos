@@ -66,6 +66,8 @@ const FAKE_ENV = {
   WA_CLOUD_VERIFY_TOKEN: '',
   // The automatic reminders' kill switch: off for tests, whatever the machine has. A test that needs it sets it in its env object.
   WA_AUTO_ENABLED: '',
+  // Card-and-Bit wallet inside in-app browsers (lib/grow/wallet.ts inAppLimitFor): off, whatever the deployment builds with.
+  GROW_INAPP_WALLET: '',
   NEXT_PUBLIC_SUPPORT_WHATSAPP: '',
   SENTRY_AUTH_TOKEN: '',
   NEXT_PUBLIC_SENTRY_DSN: '',

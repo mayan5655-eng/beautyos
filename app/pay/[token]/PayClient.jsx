@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { openGrowWallet, preloadGrowSdk, growSdkLoaded, growWalletVisible } from '@/lib/grow/walletClient';
-import { uaClass, osOf, fallbackDecision, androidIntentUrl, iosSafariUrl, iosChromeUrl, buildDiagPayload, sdkFailureText } from '@/lib/grow/walletDiag';
+import { uaClass, osOf, fallbackDecision, wantsInAppWallet, androidIntentUrl, iosSafariUrl, iosChromeUrl, buildDiagPayload, sdkFailureText } from '@/lib/grow/walletDiag';
 import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from '@/lib/paymentTerms';
 import { contrastOn, readableAccentText, DEFAULT_ACCENT } from '@/lib/theme';
 
@@ -42,6 +42,12 @@ export default function PayClient({ token }) {
   // One tap's wallet attempt: whether it opened, whether the page already moved on (redirect / prompt), its watchdog.
   const attempt = useRef(null);
   const [copied, setCopied] = useState(false);
+  // This browser, read after mount (never server-rendered): its class, its phone, and the page's own address for the open-in-browser link.
+  const [here, setHere] = useState({ cls: 'other', os: 'other', href: '' });
+  useEffect(() => {
+    const ua = window.navigator.userAgent;
+    setHere({ cls: uaClass(ua), os: osOf(ua), href: window.location.href });
+  }, []);
 
   const load = useCallback(async () => {
     // Every payment token is randomBytes(24) in hex (app/api/grow/*). Anything else cannot open a payment,
@@ -98,7 +104,9 @@ export default function PayClient({ token }) {
     if (!termsOk) { setMsg('כדי להמשיך לתשלום צריך לסמן את האישור.'); return; }
     setPhase('opening'); setMsg('');
     try {
-      const r = await fetch('/api/grow/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token, acceptedTerms: termsOk === true }) });
+      // In-app browser with GROW_INAPP_WALLET on: ask for the card-and-Bit wallet (the server checks the flag and the hint again).
+      const hint = wantsInAppWallet(info?.inAppWallet, uaClass(window.navigator.userAgent)) ? { inApp: true } : {};
+      const r = await fetch('/api/grow/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token, acceptedTerms: termsOk === true, ...hint }) });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) {
         if (j?.state === 'paid') { setPhase('paid'); return; }
@@ -108,7 +116,8 @@ export default function PayClient({ token }) {
       const cls = uaClass(ua);
       const hostedUrl = j.hostedUrl || '';
       // An in-app browser (WhatsApp, Instagram, Facebook) with Grow's hosted page for this process: straight there, the same process.
-      const first = fallbackDecision({ when: 'before', cls, hostedUrl });
+      // Not when the server opened the card-and-Bit wallet (limited): that one is shown right here.
+      const first = fallbackDecision({ when: 'before', cls, hostedUrl, limited: j.limited === true });
       if (first.action === 'hosted') { report('hosted-redirect', null, { sdkEnv: j.sdkEnv, phase: 'before' }); setPhase('redirect'); window.location.assign(first.url); return; }
 
       if (attempt.current?.watch) clearTimeout(attempt.current.watch);
@@ -164,6 +173,9 @@ export default function PayClient({ token }) {
   // Only read on the open-in-browser prompt, which exists in the browser alone (never server-rendered).
   const os = phase === 'browser' && typeof window !== 'undefined' ? osOf(window.navigator.userAgent) : 'other';
   const ctx = info?.context || null;
+  // GROW_INAPP_WALLET on and an in-app browser: the wallet here is card and Bit; Apple Pay / Google Pay stay one tap away in the browser.
+  const cardBit = wantsInAppWallet(info?.inAppWallet, here.cls);
+  const walletAppUrl = !cardBit ? '' : here.os === 'ios' ? iosSafariUrl(here.href) : here.os === 'android' ? androidIntentUrl(here.href) : '';
   const backLink = { display: 'inline-block', marginTop: 12, fontSize: 16, color: accentText, fontWeight: 700 };
   const card = { background: '#fff', border: '1px solid #E8DFD0', borderRadius: 20, padding: '28px 22px', maxWidth: 420, margin: '0 auto', textAlign: 'center', boxShadow: '0 6px 24px rgba(31,58,48,.06)' };
 
@@ -203,7 +215,12 @@ export default function PayClient({ token }) {
                 </button>
                 {/* The button waits for the tick (Grow's site check); without this line a greyed button gave no reason (2026-11-02 audit). */}
                 {!termsOk && <p data-testid="pay-tick-hint" style={{ fontSize: 'var(--t-sm)', color: '#656A56', marginTop: 8 }}>כדי להמשיך לתשלום, מסמנים את האישור למעלה.</p>}
-                <p style={{ fontSize: 13, color: '#656A56', marginTop: 12, lineHeight: 1.7 }}>כרטיס אשראי, ביט, Apple Pay או Google Pay.<br />התשלום מאובטח ועובר דרך Grow. פרטי הכרטיס לא נשמרים אצלנו.</p>
+                <p data-testid="pay-methods" style={{ fontSize: 13, color: '#656A56', marginTop: 12, lineHeight: 1.7 }}>{cardBit ? 'כרטיס אשראי או ביט.' : 'כרטיס אשראי, ביט, Apple Pay או Google Pay.'}<br />התשלום מאובטח ועובר דרך Grow. פרטי הכרטיס לא נשמרים אצלנו.</p>
+                {walletAppUrl && (
+                  <a data-testid="pay-open-browser-wallet" href={walletAppUrl} style={{ display: 'inline-block', marginTop: 4, fontSize: 'var(--t-md)', color: accentText, fontWeight: 700 }}>
+                    {here.os === 'ios' ? 'רוצה לשלם ב-Apple Pay? פתיחה בספארי' : 'רוצה לשלם ב-Google Pay? פתיחה בכרום'}
+                  </a>
+                )}
               </>
             )}
             {phase === 'open' && <p style={{ fontSize: 15, color: '#656A56' }}>השלימי את התשלום בחלון שנפתח.</p>}
