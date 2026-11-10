@@ -16,6 +16,8 @@ const PATHS = {
   layers: "M12 4l9 5-9 5-9-5 9-5zM3 14l9 5 9-5",
   chart: "M4 20V10M10 20V4M16 20v-7M21 20H3",
   person: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6",
+  card: "M3 6h18v12H3zM3 10h18M7 15h4",
+  move: "M4 6h12v13H4zM4 10h12M18 9l3 3-3 3M14 12h7",
 };
 
 const Glyph = ({ name }) => (
