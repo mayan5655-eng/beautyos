@@ -113,8 +113,11 @@ ok('the in-action clips exist and nothing loads before play', () => {
 
 ok('before and after: soft red and green in pairs, finished picture without JS, no sound', () => {
   const ba = rd('app/landing/BeforeAfter.jsx');
-  assert.match(page, /<BeforeAfter rows=\{BEFORE_AFTER\} \/>/);
-  assert.equal((page.slice(page.indexOf('const BEFORE_AFTER'), page.indexOf('const MOMENTS')).match(/before: "/g) || []).length, 9);
+  assert.match(page, /<BeforeAfter rows=\{beforeAfterRows\(claims\)\} \/>/);
+  // 8 written inline plus the no-show row and the reschedule row: ten pairs, the most the section should carry.
+  const list = page.slice(page.indexOf('const BEFORE_AFTER = ['), page.indexOf('function beforeAfterRows'));
+  assert.equal((list.match(/before: "/g) || []).length + (list.match(/^\s+(NO_SHOW_READY|RESCHEDULE),$/gm) || []).length, 10);
+  for (const icon of [...page.matchAll(/icon: "(\w+)"/g)].map((m) => m[1])) assert.match(ba, new RegExp(`\\b${icon}: "M`), `icon ${icon} has a path`);
   assert.doesNotMatch(ba, /use client|autoplay|<audio|AudioContext/i);
   const css = rd('app/globals.css');
   assert.match(css, /\.lp-ba-cell\.is-before \{ background: #FBF0EE/);
@@ -156,3 +159,33 @@ console.log(`${n} passed`);
   assert.equal((finalCta.match(/style=\{pillBtn\}/g) || []).length, 1);
   console.log('ok - landing focus: one prominent action in the hero and at the end, demo as quiet links');
 }
+
+// Landing sharpen (2026-11-10): founder line up top, a concrete hero line, and only claims that are live for every business.
+{
+  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
+  const kicker = hero.indexOf('<p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות</p>');
+  assert.ok(kicker > 0 && kicker < hero.indexOf('<h1'), 'the founder line sits right above the headline');
+  assert.match(hero, /<p className="lp-h1-sub">את מטפלת בלקוחות\. Kalmea עוזרת לך לטפל בעסק\.<\/p>/);
+  assert.match(page, /נולדה מתוך הקליניקה/, 'the founder section at the bottom stays');
+  // The hero line names the deposit only while deposits are on for everyone; otherwise the same line without it.
+  assert.match(hero, /claims\.deposits \? "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד\." : "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות ומזיזות תור לבד\."/);
+  assert.equal((page.match(/משלמות מקדמה/g) || []).length, 1);
+  // Deposit rows exist only as the deposit-on swap, and the Grow requirement is said next to them.
+  assert.match(page, /if \(!claims\.deposits\) return BEFORE_AFTER;/);
+  assert.match(page, /claims\.depositBit \? NO_SHOW_DEPOSIT_BIT : NO_SHOW_DEPOSIT/);
+  assert.match(page, /\{claims\.deposits && <p className="lp-fine" data-testid="deposit-note">[^<]*Grow[^<]*<\/p>\}/);
+  assert.match(page, /after: "מזיזה לבד, לפי מדיניות הביטול שלך"/);
+  // Not claimed: automatic reminders (off).
+  assert.doesNotMatch(page, /תזכורות אוטומטיות|נשלחות אוטומטית/);
+  // The intake gate is live (its migration ran 2026-11-10). The form is digital; the patch test is never called digital.
+  assert.match(page, /before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה"/);
+  assert.doesNotMatch(page, /בדיקת רגישות דיגיטלית/);
+  // The terms say the launch price may change with notice, so the page promises no lock-in.
+  assert.doesNotMatch(page, /נשארת על המחיר/);
+  assert.match(page, /Kalmea לא לוקחת אחוזים מהמכירות שלך/);
+  // Testimonials: a slot that renders nothing while the list is empty.
+  assert.match(page, /<Testimonials \/>/);
+  assert.match(rd('app/landing/Testimonials.jsx'), /if \(list\.length === 0\) return null;/);
+  console.log('ok - landing sharpen: founder kicker, concrete hero line, deposit claims behind the live switch, no lock-in promise');
+}
+
