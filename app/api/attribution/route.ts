@@ -12,7 +12,8 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
-import { parseAttribution, signupSourceLabel } from '@/lib/attribution';
+import { parseAttribution, signupSourceLabel, attributionColumns } from '@/lib/attribution';
+import { isMissingColumnError } from '@/lib/pgError';
 
 export async function POST(request: Request) {
   const session = await createSessionClient();
@@ -23,11 +24,18 @@ export async function POST(request: Request) {
 
   let body: { attr?: unknown } = {};
   try { body = await request.json(); } catch { /* empty */ }
-  const label = signupSourceLabel(parseAttribution(typeof body.attr === 'string' ? body.attr : ''));
+  const attr = parseAttribution(typeof body.attr === 'string' ? body.attr.slice(0, 2000) : '');
+  const label = signupSourceLabel(attr);
   if (!label) return NextResponse.json({ ok: true, stored: false });
 
   const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await admin.from('tenants').update({ signup_source: label }).eq('id', tenantId).is('signup_source', null).select('id');
+  const write = (patch: Record<string, string | null>) =>
+    admin.from('tenants').update(patch).eq('id', tenantId).is('signup_source', null).select('id');
+  // The label plus the structured columns (utm source / medium / campaign, referrer host). Those columns come from
+  // signup_attribution_columns_2026-11-10.sql, which is run by hand: until it has, the label alone is written, as before.
+  // All four come from the one migration and none of them gates anything, so the fallback drops them together.
+  let { data, error } = await write({ signup_source: label, ...attributionColumns(attr) });
+  if (error && isMissingColumnError(error)) ({ data, error } = await write({ signup_source: label }));
   if (error) {
     console.error('[attribution] write failed:', error.message);
     return NextResponse.json({ ok: false, error: 'לא נשמר' }, { status: 500 });

@@ -40,6 +40,8 @@
 // Anything blocked shows in the browser console as a CSP violation naming
 // the directive, so a future addition that breaks is loud, not silent.
 
+import { metaPixelId, META_PIXEL_SCRIPT_ORIGIN, META_PIXEL_BEACON_ORIGIN } from './metaPixel.ts';
+
 export type HeaderPair = { key: string; value: string };
 
 function supabaseOrigin(env: Record<string, string | undefined>): string | null {
@@ -73,7 +75,7 @@ export function growRegisterFrameOrigin(env: Record<string, string | undefined> 
   return /^https:\/\/([a-z0-9-]+\.)+(meshulam\.co\.il|grow\.business|grow\.link)$/.test(v) ? v : null;
 }
 
-export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean } = {}): string {
+export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean; pixel?: boolean } = {}): string {
   const dev = !!opts.dev;
   const env = opts.env || process.env;
   const supabase = supabaseOrigin(env);
@@ -122,13 +124,20 @@ export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | un
     directives['style-src'].push(...GROW_WALLET_ORIGINS);
     directives['font-src'].push(...GROW_WALLET_ORIGINS);
   }
+  // Kalmea's own Meta Pixel (lib/metaPixel.ts): only on the paths next.config.ts passes `pixel` for (the landing and /signup),
+  // and only when NEXT_PUBLIC_META_PIXEL_ID is set. Every other page, and every page while the id is empty, never names Meta.
+  if (opts.pixel && metaPixelId(env)) {
+    directives['script-src'].push(META_PIXEL_SCRIPT_ORIGIN);
+    directives['connect-src'].push(META_PIXEL_BEACON_ORIGIN, META_PIXEL_SCRIPT_ORIGIN);
+    directives['img-src'].push(META_PIXEL_BEACON_ORIGIN);
+  }
   const parts = Object.entries(directives).map(([k, v]) => `${k} ${v.join(' ')}`);
   if (!dev) parts.push('upgrade-insecure-requests');
   return parts.join('; ');
 }
 
 /** Every header, for next.config.ts's headers(). */
-export function securityHeaders(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean } = {}): HeaderPair[] {
+export function securityHeaders(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean; pixel?: boolean } = {}): HeaderPair[] {
   const dev = !!opts.dev;
   const headers: HeaderPair[] = [
     { key: 'Content-Security-Policy', value: buildCsp(opts) },
