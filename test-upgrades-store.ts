@@ -487,7 +487,7 @@ await ok('lost answer, then a retry with the same id: the first charge\'s outcom
   const l = ledger();
   const first = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-aaaaaaaa' });
   assert.equal(first.ok, true);                                     // the answer to this one is "lost" on the way back
-  const again = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-aaaaaaaa', retry: true });
+  const again = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-aaaaaaaa' });
   assert.equal(again.ok, true);
   assert.equal(again.ok && again.replay, true, 'answered from the saved charge');
   assert.equal(l.charges.length, 1, 'one intent, one charge');
@@ -515,12 +515,12 @@ await ok('a retried id whose charge is still open, or was declined, gets that ou
   (pend.d.payments as any).lookup = async () => ({ ok: true, found: true, status: 'pending' });
   const r1 = await buyAddon(pend.d, T, ADDON_PACKS.advisor, { requestId: 'req-dddddddd' });
   assert.deepEqual([r1.ok, !r1.ok && r1.reason], [false, 'pending']);
-  const r2 = await buyAddon(pend.d, T, ADDON_PACKS.advisor, { requestId: 'req-dddddddd', retry: true });
+  const r2 = await buyAddon(pend.d, T, ADDON_PACKS.advisor, { requestId: 'req-dddddddd' });
   assert.deepEqual([r2.ok, !r2.ok && r2.reason], [false, 'pending']);
   assert.equal(pend.charges.length, 1, 'still the one charge attempt');
   const dec = ledger({ charge: { ok: false, code: 'declined', error: 'refused' } });
   await buyAddon(dec.d, T, ADDON_PACKS.advisor, { requestId: 'req-eeeeeeee' });
-  const r3 = await buyAddon(dec.d, T, ADDON_PACKS.advisor, { requestId: 'req-eeeeeeee', retry: true });
+  const r3 = await buyAddon(dec.d, T, ADDON_PACKS.advisor, { requestId: 'req-eeeeeeee' });
   assert.deepEqual([r3.ok, !r3.ok && r3.reason], [false, 'declined'], 'the provider\'s "no" for this id, said again');
   assert.equal(dec.charges.length, 1);
 });
