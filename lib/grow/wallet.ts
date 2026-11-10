@@ -101,6 +101,17 @@ export function approveCredsFor<C extends { apiKey: string; pageCode: string; ap
   return opensOnWallet(p, !!grow.wallet, !!grow.depositWallet) ? walletAsCreds(grow.wallet) : grow.creds;
 }
 
+/**
+ * Card and Bit only inside an in-app browser (GROW_INAPP_WALLET=1, default off). Apple Pay and Google Pay cannot run in the WhatsApp,
+ * Instagram or Facebook web view, so there the wallet is opened with only the methods that can (Grow's transactionTypes, SDK wallet only),
+ * instead of sending the client to her phone's browser first. The page's hint is believed only when it is exactly the boolean true:
+ * anything else is a normal browser. The limit only ever REMOVES methods; a desktop or a normal phone browser never sends the hint.
+ */
+export const INAPP_TRANSACTION_TYPES = ['1', '6'] as const;
+export const INAPP_WALLET_METHODS_HE = 'כרטיס אשראי או ביט';
+export const inAppWalletEnabled = (env: Env = process.env) => String(env.GROW_INAPP_WALLET || '').trim() === '1';
+export const inAppLimitFor = (env: Env, hint: unknown): boolean => inAppWalletEnabled(env) && hint === true;
+
 /** The payment link the client opens. */
 export function walletLink(appUrl: string, notifyToken: string): string {
   return `${appUrl.replace(/\/+$/, '')}/pay/${notifyToken}`;
@@ -112,6 +123,8 @@ export type WalletSession =
       /** Grow's own hosted page for the SAME process, when its answer carried one (data.url, Grow hosts only), else ''. The page sends a
        *  client there when the wallet script cannot open (in-app browsers): same process, so the callback and approve are unchanged. */
       hostedUrl: string;
+      /** The wallet was opened with card and Bit only (inAppLimitFor). */
+      limited: boolean;
     }
   | { ok: false; code: 'unknown' | 'closed' | 'paid' | 'expired' | 'not-connected' | 'grow-refused' | 'grow-unreachable'; message: string };
 
@@ -129,6 +142,8 @@ export type WalletDeps = {
    */
   holdOpen?(p: GrowPayment): Promise<boolean>;
   fetchImpl?: typeof fetch;
+  /** Open the wallet with card and Bit only (inAppLimitFor: the flag AND the page's in-app hint). Off: every method of the page. */
+  cardAndBitOnly?: boolean;
   appUrl: string;
   now?: () => Date;
   /** What createPaymentProcess answered (flags and Grow's error only), for ops_events. Best effort: never fails the session. */
@@ -177,6 +192,7 @@ export async function startWalletSession(token: string, d: WalletDeps): Promise<
     invoiceNotifyUrl: `${base}/api/grow/invoice?t=${p.notify_token}`,
     paymentRef: p.id,
     tenantRef: tenantRefOf(p.tenant_id),
+    ...(d.cardAndBitOnly === true ? { transactionTypes: INAPP_TRANSACTION_TYPES } : {}),
   });
   const form = new FormData();
   form.append('apiKey', d.creds.apiKey); // a body field: Grow refuses a header (error 701)
@@ -210,7 +226,7 @@ export async function startWalletSession(token: string, d: WalletDeps): Promise<
   await d.repo.updatePayment(p.id, { process_id: processId });
   await report();
   const hostedUrl = safeHostedUrl(data.url);
-  return { ok: true, authCode, processId, processToken, sdkEnv: d.creds.sdkEnv, amount: Number(p.amount), description: p.description || '', clientName: p.client_name || '', hostedUrl };
+  return { ok: true, authCode, processId, processToken, sdkEnv: d.creds.sdkEnv, amount: Number(p.amount), description: p.description || '', clientName: p.client_name || '', hostedUrl, limited: d.cardAndBitOnly === true };
 }
 
 export const DEPOSIT_HOLD_OVER_HE = 'הזמן לתשלום המקדמה עבר והתור שוחרר. אפשר לקבוע תור חדש.';
