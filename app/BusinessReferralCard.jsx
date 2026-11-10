@@ -28,7 +28,8 @@ export default function BusinessReferralCard({ pc, pcTint, toast, isDemo }) {
     return () => { alive = false; };
   }, [on]);
 
-  if (!on || !s || s.hidden) return null;
+  // Not active yet (the migration has not run) is hidden too, never explained (2026-11-09 owner rule).
+  if (!on || !s || s.hidden || s.ready === false) return null;
 
   const box = { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 16px', marginBottom: 12 };
   const text = { fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7 };

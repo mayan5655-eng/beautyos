@@ -192,7 +192,7 @@ await ok('every signed-in Grow route is behind the flag; the callbacks Grow call
 
 await ok('the card renders nothing when the flag is off, and the cashier option needs a connected account', () => {
   const card = read('app/GrowCard.jsx');
-  assert.ok(card.includes('if (!s || s.hidden) return null;'));
+  assert.ok(card.includes('if (!s || s.hidden || s.tableReady === false) return null;'), 'off, or not set up yet: nothing (2026-11-09 owner rule)');
   assert.ok(card.includes('אין לי עדיין Grow') && card.includes('/api/grow/request') && card.includes("'DELETE'"), 'has the "no Grow yet" request and the disconnect button');
   const panel = read('app/GrowChargePanel.jsx');
   assert.ok(panel.includes('j.account?.connected && j.account.enabled') && panel.includes('wa.me/') && panel.includes("import('qrcode')"), 'cashier: only when connected, with WhatsApp and QR');
