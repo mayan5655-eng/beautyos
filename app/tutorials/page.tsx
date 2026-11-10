@@ -41,6 +41,13 @@ export const metadata: Metadata = {
 type Video = { id: string; title: string; sub: string; steps?: readonly string[] };
 type Topic = { key: string; title: string; videos: readonly Video[] };
 
+// Buying a voucher online needs Grow. With the Grow screens off, the gift-voucher entry describes only what works: selling and
+// redeeming at the till (2026-11-09 owner rule: nothing inactive is promised). With Grow on, the entry below is unchanged.
+const GIFT_VOUCHERS_NO_GROW: Pick<Video, "sub" | "steps"> = {
+  sub: "מוכרים שובר בקופה, ומממשים אותו אצלך",
+  steps: ["השוברים כבר פועלים. משנים בהגדרות ← העסק שלי", "בקופה, בלשונית ״שוברי מתנה״, מוכרים שובר", "בקופה מקלידים את הקוד, והסכום יורד מהתשלום"],
+};
+
 // In the order she meets things (owner, 2026-11-09): getting started, the calendar, clients, the till and payments with card clearing,
 // marketing and growth, reports. "steps": the same thing in three short lines under the video, for reading without sound and for
 // explaining it to someone else. Titles are the same as lib/helpSections.ts TUTORIAL_TITLES (a test keeps them in step).
@@ -115,7 +122,7 @@ const TOPICS: readonly Topic[] = [
 export default function TutorialsPage() {
   const wa = supportWhatsAppUrl("היי, יש לי שאלה על קלמיה");
   const on = tutorialFlagsOn();
-  const topics = TOPICS.map((g) => ({ ...g, videos: g.videos.filter((v) => tutorialOn(v.id, on)) })).filter((g) => g.videos.length > 0);
+  const topics = TOPICS.map((g) => ({ ...g, videos: g.videos.filter((v) => tutorialOn(v.id, on)).map((v) => (v.id === "gift-vouchers" && !on.grow ? { ...v, ...GIFT_VOUCHERS_NO_GROW } : v)) })).filter((g) => g.videos.length > 0);
   return (
     <div dir="rtl" style={pageStyle}>
       <PublicAnalytics />

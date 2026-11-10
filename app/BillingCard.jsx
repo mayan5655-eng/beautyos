@@ -53,7 +53,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [load]);
 
-  if (!s || s.hidden) return null;
+  // Not active yet (the migration has not run) is hidden, never explained (2026-11-09 owner rule).
+  if (!s || s.hidden || s.tableReady === false) return null;
   if (s.failed) {
     return (
       <div data-testid="billing-card" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 16px', marginBottom: 12 }}>
@@ -143,8 +144,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז המערכת נסגרת עד לחידוש. כל הנתונים נשמרים.`;
     else if (sub?.status === 'past_due') line = `החיוב האחרון נכשל. כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס${sub.graceEndsAt ? ` עד ${day(sub.graceEndsAt)}` : ''}. ננסה שוב אוטומטית בימים הקרובים.`;
     else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו, והמערכת סגורה בינתיים. כדי לחדש אותו, כתבי לנו בוואטסאפ ונחזיר אותו לפעילות.';
-    else if (status === 'expired') line = 'המערכת סגורה עד לחידוש המנוי. הוספת כרטיס וחיוב יפתחו אותה מיד, עם כל הנתונים כמו שהיו.';
-    else if (status === 'trial' || sub?.status === 'trialing') line = `תקופת ההתנסות עד ${day(s.plan.trialEndsAt || sub?.next_charge_at)}. ${hasCard ? `החיוב הראשון, ${money(nextPeriod === 'annual' && an ? an.yearly : s.plan.price)}, יהיה בתום ההתנסות.` : 'כדי שלא תהיה הפסקה, אפשר להוסיף כרטיס כבר עכשיו. לא יחויב כלום עד סוף ההתנסות.'}`;
+    else if (status === 'expired') line = s.configured ? 'המערכת סגורה עד לחידוש המנוי. הוספת כרטיס וחיוב יפתחו אותה מיד, עם כל הנתונים כמו שהיו.' : 'המערכת סגורה עד לחידוש המנוי. כל הנתונים נשמרים.';
+    else if (status === 'trial' || sub?.status === 'trialing') line = `תקופת ההתנסות עד ${day(s.plan.trialEndsAt || sub?.next_charge_at)}. ${hasCard ? `החיוב הראשון, ${money(nextPeriod === 'annual' && an ? an.yearly : s.plan.price)}, יהיה בתום ההתנסות.` : s.configured ? 'כדי שלא תהיה הפסקה, אפשר להוסיף כרטיס כבר עכשיו. לא יחויב כלום עד סוף ההתנסות.' : ''}`.trim();
     else if (sub?.next_charge_at) line = `החיוב הבא: ${day(sub.next_charge_at)}.`;
     else line = 'המנוי פעיל.';
 
@@ -168,9 +169,9 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
           <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>חידוש המנוי בכרטיס אשראי</button>
         )}
         {cardErr && <p role="alert" data-testid="billing-card-error" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 8 }}>{cardErr}</p>}
-        {!s.configured && <p style={text}>התשלום בכרטיס אשראי עוד לא פעיל. כשיהיה זמין תוכלי להוסיף כרטיס כאן.</p>}
+        {/* Card payment not configured: no card form above, and no "not active yet" line either (2026-11-09 owner rule). */}
 
-        {an && (
+        {an && an.ready && (
           <div data-testid="billing-period" style={{ marginTop: 16 }}>
             <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>מסלול תשלום</p>
             {!an.ready ? (
@@ -199,7 +200,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                     {an.pendingPeriod === 'annual' ? 'המעבר לתשלום שנתי' : 'החזרה לתשלום חודשי'} ייכנס לתוקף בחידוש הבא{sub?.next_charge_at ? `, ב-${day(sub.next_charge_at)}` : ''}. עד אז לא משתנה דבר ולא יהיה חיוב נוסף.
                   </p>
                 )}
-                {!sub && <p style={{ ...text, marginTop: 8 }}>אחרי שמירת כרטיס אפשר לבחור תשלום שנתי.</p>}
+                {!sub && s.configured && <p style={{ ...text, marginTop: 8 }}>אחרי שמירת כרטיס אפשר לבחור תשלום שנתי.</p>}
                 {periodAsk && sub && (
                   <div style={{ marginTop: 10, background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
                     <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>

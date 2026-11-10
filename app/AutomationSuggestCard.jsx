@@ -4,12 +4,15 @@
 // suggestion for good. Nothing is sent from here.
 import { useState } from "react";
 import { automationSuggestions } from "@/lib/automationSuggest.js";
+import { useDeployFlags } from "./useDeployFlags";
 
 export default function AutomationSuggestCard({ settings, services, onEnable, onDismiss, style }) {
   const [busy, setBusy] = useState(null);
   const [openPreview, setOpenPreview] = useState(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const items = automationSuggestions(settings, { services, origin });
+  // Automatic sending off (today): the card says the message is prepared for her to send, never that it goes out by itself.
+  const { autoSend } = useDeployFlags();
+  const items = automationSuggestions(settings, { services, origin, autoSend });
   if (!items.length) return null;
   const btn = { minHeight: 44, padding: "0 16px", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)", fontWeight: 700, fontFamily: "inherit", cursor: "pointer" };
   return (

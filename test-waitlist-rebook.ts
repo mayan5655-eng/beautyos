@@ -385,10 +385,14 @@ await ok('settings, services and the migration', () => {
 await ok('the suggestion card: only for a switch never stored, with the exact message, dismissible', () => {
   const settings = { tenant_id: 'tid', business_name: 'סטודיו נועה', automations: {} };
   const now = new Date('2026-11-09T10:00:00Z');
-  const items = automationSuggestions(settings, { services: [{ name: 'עיצוב גבות', active: true }], origin: 'https://app.example', now });
+  // With the central number sending by itself (autoSend), the original wording; without it (today), the "prepared for you" one.
+  const items = automationSuggestions(settings, { services: [{ name: 'עיצוב גבות', active: true }], origin: 'https://app.example', now, autoSend: true });
   assert.deepEqual(items.map((i: any) => i.switchKey), ['waitlist_offers', 'rebook_enabled']);
   assert.equal(items[0].question, 'להציע אוטומטית תורים שהתפנו לרשימת ההמתנה?');
   assert.equal(items[1].question, 'לשלוח ללקוחות תזכורת כשמגיע הזמן לטיפול הבא?');
+  const manual = automationSuggestions(settings, { services: [{ name: 'עיצוב גבות', active: true }], origin: 'https://app.example', now });
+  assert.equal(manual[0].question, 'להכין הצעה לרשימת ההמתנה כשתור מתבטל?');
+  assert.ok(!(manual[0].question + manual[0].body).includes('אוטומטית'), 'no automatic promise while sending is by her tap');
   // The preview IS the message the feature sends.
   assert.equal(items[0].preview, offerMessage({ name: 'רונית', clinic: 'סטודיו נועה', service: 'עיצוב גבות', date: '2026-11-12', minute: 840, url: 'https://app.example/claim/…' }));
   assert.equal(items[1].preview, rebookText({ name: 'רונית', businessName: 'סטודיו נועה', service: 'עיצוב גבות', daysSince: 21, url: 'https://app.example/book?t=tid' }));

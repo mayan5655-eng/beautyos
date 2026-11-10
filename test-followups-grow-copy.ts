@@ -35,7 +35,7 @@ ok('Grow cost: shown in the Grow card, the gift voucher card (before Grow is con
   assert.match(card, /import GrowCostNote from '\.\/GrowCostNote';/);
   assert.ok(card.indexOf('<GrowCostNote') > card.indexOf('data-testid="grow-card"'), 'inside the card');
   const gv = read('./app/GiftVoucherMarketingCard.jsx');
-  assert.match(gv, /\{online === false && <GrowCostNote/);
+  assert.match(gv, /\{online === false && growOn && <GrowCostNote/);
   for (const [f, s] of [['GrowCard', card], ['GiftVoucherMarketingCard', gv], ['GrowCostNote', note]]) assert.ok(!/₪\s?59|0\.75%/.test(s), `${f}: the price comes from lib/growPricing.ts`);
   const settings = HELP_SECTIONS.find((x) => x.key === 'settings')!;
   assert.ok(settings.body.some((l) => l.includes(growCostLineHe())), 'help says the cost');
