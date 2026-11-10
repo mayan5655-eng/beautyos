@@ -1659,9 +1659,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The upgrades store's cache is keyed by who is signed in (app/UpgradesStore.jsx): set it now, and on every sign-in, sign-out or switch.
   useEffect(() => {
     let alive = true;
-    supabase.auth.getSession().then(({ data }) => { if (alive) setUpgradesIdentity(data?.session?.user?.id || null); }).catch(() => { if (alive) setUpgradesIdentity(null); });
+    // No session yet (INITIAL_SESSION during a reload) is "not known", never a sign-out: her saved purchase ids must survive it.
+    supabase.auth.getSession().then(({ data }) => { if (alive) setUpgradesIdentity(data?.session?.user?.id || null); }).catch(() => {});
     const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
-      setUpgradesIdentity(event === "SIGNED_OUT" ? null : session?.user?.id || null);
+      if (event === "SIGNED_OUT") clearUpgrades();
+      else setUpgradesIdentity(session?.user?.id || null);
     });
     return () => { alive = false; authSub?.subscription?.unsubscribe?.(); };
   }, []);

@@ -42,6 +42,7 @@ export const STORE_Z = 1450;
 // server echoes { userId, tenantId } with every answer. Data is shown only while its key matches the current user; an identity change
 // clears it at once, drops every read still in flight, and clears the purchase intents; a 401/403 clears it too.
 let identity = null;           // the signed-in user's id, or null (signed out / not known yet: nothing is shown or fetched)
+let lastKnown = null;          // the last user that was known in this tab: "unknown -> her again" (a reload) is not a change of user
 let shared = { data: null, owner: null, loading: false, at: 0 };
 // Vercel review 2026-11-09: a forced read (after a purchase) must never be satisfied by an older read still in flight, and an older
 // answer arriving late must never overwrite a newer one. Every read takes a number; only the newest one may write.
@@ -64,19 +65,30 @@ function wipe() {
   inflight = null;
 }
 
-/** Who is signed in (app/beautyos.jsx). A different user, or none, clears everything she could otherwise see of the previous one. */
+/**
+ * Who is signed in (app/beautyos.jsx), or null while it is not known. Any change wipes the cached billing data and drops reads in flight.
+ * The saved purchase ids are a different matter (Vercel review 2026-11-10: a reload after a lost answer starts with no user, and wiping
+ * the ids on the first auth let a retry be charged again): they are stored per user and are NEVER cleared on "unknown -> first user";
+ * only a change from one known user to a different known user clears the previous user's, and an explicit sign-out clears hers.
+ */
 export function setUpgradesIdentity(userId) {
   const next = userId ? String(userId) : null;
   if (next === identity) return;
+  if (next && lastKnown && lastKnown !== next) clearIntents(lastKnown);
   identity = next;
+  if (next) lastKnown = next;
   wipe();
-  clearIntents();
   emit();
   if (next && listeners.size) loadUpgrades(true);
 }
 
-/** Sign-out: forget everything at once, before the next screen renders. */
-export function clearUpgrades() { setUpgradesIdentity(null); }
+/** Explicit sign-out (the sign-out button, supabase SIGNED_OUT): forget everything at once, and this user's saved purchase ids too. */
+export function clearUpgrades() {
+  const who = identity || lastKnown;
+  if (who) clearIntents(who);
+  lastKnown = null;
+  setUpgradesIdentity(null);
+}
 
 /** The last answer the store holds for the current user (tests, and the toast's availability check). */
 export function currentUpgrades() { return visible(); }
@@ -118,41 +130,47 @@ export async function loadUpgrades(force = false) {
 export function packAvailable(key) { return addonPacksEnabled() && !!packFor(visible(), key); }
 
 // ── purchase intents: one request id per pack until the server gives a definitive outcome ───────────────────────────────────────
-// Kept in memory and in sessionStorage (a reload in the same tab keeps it too; a blocked storage only loses that convenience), under
-// the signed-in user, and cleared on any identity change.
+// Kept in memory and in sessionStorage (a reload in the same tab keeps it too; a blocked storage only loses that convenience), KEYED BY
+// USER ID: each user reads only her own, so the first auth after a reload simply finds hers, and nothing has to be wiped to keep users apart.
+// Without a known user there is no intent at all (the store renders nothing then).
 const intents = new Map();
 const PACK_KEYS = Object.keys(ADDON_PACKS);
-const INTENT_KEY = (k) => `kalmea:addon-intent:${identity || '-'}:${k}`;
+const PREFIX = 'kalmea:addon-intent:';
+const intentKey = (user, k) => `${PREFIX}${user}:${k}`;
 
-function clearIntents() {
-  intents.clear();
+/** Clears ONE user's saved purchase ids (a switch to another user, or her sign-out). Never anyone else's. */
+function clearIntents(user) {
+  if (!user) return;
+  for (const k of [...intents.keys()]) if (k.startsWith(`${user}:`)) intents.delete(k);
   try {
     const ss = window.sessionStorage;
-    for (let i = ss.length - 1; i >= 0; i--) { const k = ss.key(i); if (k && k.startsWith('kalmea:addon-intent:')) ss.removeItem(k); }
+    for (let i = ss.length - 1; i >= 0; i--) { const k = ss.key(i); if (k && k.startsWith(`${PREFIX}${user}:`)) ss.removeItem(k); }
   } catch { /* no storage */ }
 }
 
-/** The unresolved purchase id for this pack, or ''. */
+/** The unresolved purchase id for this pack, for the signed-in user, or ''. */
 export function openIntent(key) {
-  if (!PACK_KEYS.includes(key)) return '';
-  const k = `${identity || '-'}:${key}`;
+  if (!PACK_KEYS.includes(key) || !identity) return '';
+  const k = `${identity}:${key}`;
   if (intents.has(k)) return intents.get(k);
-  try { const v = window.sessionStorage.getItem(INTENT_KEY(key)); if (v) { intents.set(k, v); return v; } } catch { /* no storage */ }
+  try { const v = window.sessionStorage.getItem(intentKey(identity, key)); if (v) { intents.set(k, v); return v; } } catch { /* no storage */ }
   return '';
 }
-/** The id to send for this pack: the unresolved one, or a fresh one that is kept until settled. */
+/** The id to send for this pack: the unresolved one, or a fresh one that is kept until settled. '' without a signed-in user. */
 export function purchaseIntent(key) {
+  if (!identity) return '';
   const have = openIntent(key);
   if (have) return have;
   const id = newRequestId();
-  intents.set(`${identity || '-'}:${key}`, id);
-  try { window.sessionStorage.setItem(INTENT_KEY(key), id); } catch { /* no storage */ }
+  intents.set(`${identity}:${key}`, id);
+  try { window.sessionStorage.setItem(intentKey(identity, key), id); } catch { /* no storage */ }
   return id;
 }
 /** A definitive outcome (succeeded, or refused / declined for this id): the next purchase of this pack is a new intent. */
 export function settleIntent(key) {
-  intents.delete(`${identity || '-'}:${key}`);
-  try { window.sessionStorage.removeItem(INTENT_KEY(key)); } catch { /* no storage */ }
+  if (!identity) return;
+  intents.delete(`${identity}:${key}`);
+  try { window.sessionStorage.removeItem(intentKey(identity, key)); } catch { /* no storage */ }
 }
 
 /** What the server knows about one purchase id. A failed lookup is 'unreachable', never "not charged". */

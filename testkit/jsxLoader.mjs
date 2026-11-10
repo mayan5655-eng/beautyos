@@ -85,14 +85,16 @@ export async function resolve(specifier, context, nextResolve) {
   }
 }
 
-const transpile = (url) => ts.transpileModule(readFileSync(fileURLToPath(url), 'utf8'), {
+// A query string (`...jsx?reload=1`) gives a test a FRESH module instance, e.g. to simulate a page reload; it is not part of the path.
+const fileOf = (url) => fileURLToPath(url.split('?')[0]);
+const transpile = (url) => ts.transpileModule(readFileSync(fileOf(url), 'utf8'), {
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
-  fileName: fileURLToPath(url),
+  fileName: fileOf(url),
 }).outputText;
 
 export async function load(url, context, nextLoad) {
   if (url.startsWith('nextstub:')) return { format: 'module', source: NEXT_STUBS[url.slice('nextstub:'.length)], shortCircuit: true };
   if (url.startsWith('stub:')) return { format: 'module', source: STUB_SOURCE, shortCircuit: true };
-  if (/\.(jsx|tsx)$/.test(url)) return { format: 'module', source: transpile(url), shortCircuit: true };
+  if (/\.(jsx|tsx)(\?.*)?$/.test(url)) return { format: 'module', source: transpile(url), shortCircuit: true };
   return nextLoad(url, context);
 }

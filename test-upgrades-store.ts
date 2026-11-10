@@ -742,7 +742,7 @@ await ok('purchase intents are per user and cleared on any identity change', () 
 
 await ok('wiring: the app sets the identity from supabase auth and clears at sign-out; the server echoes whose answer it is', () => {
   const app = read('app/beautyos.jsx');
-  assert.match(app, /supabase\.auth\.onAuthStateChange\(\(event, session\) => \{\s*setUpgradesIdentity\(event === "SIGNED_OUT" \? null : session\?\.user\?\.id \|\| null\);/);
+  assert.match(app, /supabase\.auth\.onAuthStateChange\(\(event, session\) => \{\s*if \(event === "SIGNED_OUT"\) clearUpgrades\(\);\s*else setUpgradesIdentity\(session\?\.user\?\.id \|\| null\);/, 'only an explicit sign-out clears; no session yet is "unknown"');
   assert.match(app, /supabase\.auth\.getSession\(\)\.then\(\(\{ data \}\) => \{ if \(alive\) setUpgradesIdentity\(data\?\.session\?\.user\?\.id \|\| null\); \}\)/);
   assert.ok(app.indexOf('clearUpgrades();') > 0 && app.indexOf('clearUpgrades();') < app.indexOf('await supabase.auth.signOut();'), 'cleared before signing out');
   assert.match(read('app/api/billing/upgrades/route.ts'), /identity: \{ userId: user\.id, tenantId \},/);
@@ -750,6 +750,60 @@ await ok('wiring: the app sets the identity from supabase auth and clears at sig
   assert.match(ui, /if \(mine !== seq \|\| asked !== identity\) return null;/);
   assert.match(ui, /if \(denied\) shared = \{ data: null, owner: null/);
   assert.match(ui, /return d && d === visible\(\) \? d : null;/, 'the hook never renders data for anyone but the current user');
+});
+
+
+await ok('a lost answer, a reload, auth resolving to the same user, a retry: the same request id, one charge', async () => {
+  const mem = new Map<string, string>();
+  const sessionStorage = {
+    get length() { return mem.size; },
+    key: (i: number) => [...mem.keys()][i] ?? null,
+    getItem: (k: string) => (mem.has(k) ? mem.get(k)! : null),
+    setItem: (k: string, v: string) => { mem.set(k, String(v)); },
+    removeItem: (k: string) => { mem.delete(k); },
+  };
+  const hadWindow = 'window' in globalThis;
+  const prevWindow = (globalThis as any).window;
+  (globalThis as any).window = { sessionStorage };
+  try {
+    const l = ledger();
+    // Before the reload: she taps "אישור וחיוב"; the charge goes through but the answer is lost.
+    store.setUpgradesIdentity('u-R');
+    const rid = store.purchaseIntent('reels');
+    assert.ok(rid);
+    assert.equal((await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: rid })).ok, true);
+    mem.set('kalmea:addon-intent:u-Other:reels', 'req-other-0001');   // another user's saved id in the same tab
+    // The reload: a fresh module (no memory), sessionStorage intact, and auth not known yet.
+    const { pathToFileURL } = await import('node:url');
+    const { resolve } = await import('node:path');
+    const fresh = await import(pathToFileURL(resolve('app/UpgradesStore.jsx')).href + '?reload=1');
+    assert.notEqual(fresh, store, 'a new module instance');
+    fresh.setUpgradesIdentity(null);                                   // INITIAL_SESSION before the session is read
+    assert.equal(fresh.openIntent('reels'), '', 'no user known: no intent is used');
+    fresh.setUpgradesIdentity('u-R');                                  // auth resolves to the same user
+    const again = fresh.purchaseIntent('reels');
+    assert.equal(again, rid, 'the same request id after the reload');
+    const retry = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: again });
+    assert.equal(retry.ok, true);
+    assert.equal(l.charges.length, 1, 'one charge');
+    assert.equal(l.payments.length, 1);
+    // A different known user next: only the previous user's ids are cleared, never another's.
+    fresh.setUpgradesIdentity('u-S');
+    assert.equal(mem.has(`kalmea:addon-intent:u-R:reels`), false, 'u-R -> u-S clears u-R\'s');
+    assert.equal(mem.get('kalmea:addon-intent:u-Other:reels'), 'req-other-0001');
+    // An explicit sign-out clears only the signed-out user's.
+    const sid = fresh.purchaseIntent('posts');
+    assert.equal(mem.get('kalmea:addon-intent:u-S:posts'), sid);
+    fresh.clearUpgrades();
+    assert.equal(mem.has('kalmea:addon-intent:u-S:posts'), false, 'sign-out clears hers');
+    assert.equal(mem.get('kalmea:addon-intent:u-Other:reels'), 'req-other-0001', 'and nobody else\'s');
+    // And the first auth after a sign-out (a new user) does not wipe anyone's: u-Other signs in and finds hers.
+    fresh.setUpgradesIdentity('u-Other');
+    assert.equal(fresh.openIntent('reels'), 'req-other-0001');
+  } finally {
+    if (hadWindow) (globalThis as any).window = prevWindow; else delete (globalThis as any).window;
+    store.setUpgradesIdentity('u-test');
+  }
 });
 
 primeUpgrades(null);
