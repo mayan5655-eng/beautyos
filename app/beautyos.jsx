@@ -170,6 +170,7 @@ import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waSt
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
+import { VIEW_MODE_KEY, VIEW_MODES, VIEW_MODE_LABELS, viewModeOf, isTillOnly, viewAllowsTab, viewAllowsSettingsGroup, bottomNavIds, moreNavIds } from "@/lib/viewMode";
 import { reviewTimingOf, looksLikeGoogleLink, GOOGLE_LINK_HELP, GOOGLE_LINK_INVALID_HE } from "@/lib/reviewRequests";
 import { monthlyPageOn } from "@/lib/monthlyFull";
 import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher, splitVoucherCodes } from "@/lib/giftVouchers";
@@ -2419,8 +2420,13 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // while she is standing on that tab, and it means a future deep link or
   // restored-tab feature cannot reopen a hidden screen by accident.
   useEffect(() => {
-    if (!isTabVisible(settings, activeTab)) setActiveTab("dashboard");
+    if (!isTabVisible(settings, activeTab) || !viewAllowsTab(settings, activeTab)) setActiveTab("dashboard");
   }, [settings, activeTab]);
+  // The same backstop for Settings: in "קופה, ניקובים ודוחות בלבד" (lib/viewMode.ts) the page and messages groups are not offered,
+  // so a restored address or an old shortcut lands on העסק שלי instead.
+  useEffect(() => {
+    if (!viewAllowsSettingsGroup(settings, settingsGroup)) setSettingsGroup("business");
+  }, [settings, settingsGroup]);
 
   useEffect(() => {
     if (activeTab === "community") loadCommunityPosts();
@@ -7877,7 +7883,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   openScreenRef.current = () => {
     const { pathname, search, hash } = window.location;
     const wanted = screenFromSearch(search);
-    if (wanted.tab && !isTabVisible(settings, wanted.tab)) wanted.tab = "dashboard";
+    if (wanted.tab && (!isTabVisible(settings, wanted.tab) || !viewAllowsTab(settings, wanted.tab))) wanted.tab = "dashboard";
     if (showSettings && !wanted.section && panelDirty) {
       // Back while she has unsaved changes: the panel stays until she answers, and the address with it.
       window.history.pushState(null, "", pathname + searchForScreen(search, { tab: null, section: settingsGroup, view: null }) + hash);
@@ -7995,13 +8001,16 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // The day's five. Leads and messages live inside לקוחות (a segment bar on
   // those three screens), so the bar holds what she opens every day and
   // תוכן, the one door to posts, reels and campaigns.
+  // "קופה, ניקובים ודוחות בלבד" (lib/viewMode.ts): היום, לקוחות, קופה and הכנסות instead. A view preference only.
+  const tillOnly = isTillOnly(settings);
   const BOTTOM_NAV = [
     {id:"dashboard", label:"היום"},
     {id:"calendar",  label:"יומן"},
     {id:"clients",   label:"לקוחות"},
     {id:"cashier",   label:"קופה"},
     {id:"campaigns", label:"תוכן"},
-  ].filter(item => isTabVisible(settings, item.id));
+    {id:"tax",       label:"הכנסות"},
+  ].filter(item => isTabVisible(settings, item.id) && bottomNavIds(settings).includes(item.id));
   // Screens that highlight לקוחות in the bar: people, however they arrived.
   const PEOPLE_TABS = ["clients","leads","whatsapp"];
   // The two stubs (community, protocols; lib/featureFlags.ts STUB_TABS) are
@@ -8012,7 +8021,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // tab back with its data intact. campaigns and insights are never filtered -
   // see lib/featureFlags.ts for why that is a deliberate exception and not an
   // oversight.
-  const MORE_NAV = visibleTabIds(settings, ["insights","tax","packages","protocols","advisor","community","help"]);
+  const MORE_NAV = moreNavIds(settings, visibleTabIds(settings, ["insights","tax","packages","protocols","advisor","community","help"]));
 
   const NAV_ITEMS = [
     {id:"dashboard",label:"היום"},
@@ -8029,11 +8038,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     {id:"protocols",label:"פרוטוקולים"},
     {id:"advisor",  label:"יועץ AI"},
     {id:"help",     label:"עזרה"},
-  ].filter(item => isTabVisible(settings, item.id));
+  ].filter(item => isTabVisible(settings, item.id) && viewAllowsTab(settings, item.id));
   // לקוחות · פניות · הודעות: one row of chips on each of the three people
   // screens, so they read as one place. Leads keeps its badge here.
   const peopleSegments = () => {
-    const segs = [["clients","לקוחות"],["leads","פניות"],["whatsapp","הודעות"]].filter(([id]) => isTabVisible(settings, id));
+    const segs = [["clients","לקוחות"],["leads","פניות"],["whatsapp","הודעות"]].filter(([id]) => isTabVisible(settings, id) && viewAllowsTab(settings, id));
     if (segs.length < 2) return null;
     return (
  <div style={{display:"inline-flex",gap:3,marginBottom:14,background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:4,boxShadow:"var(--shadow-xs)"}}>
@@ -9078,8 +9087,8 @@ ${MARKETING_FOOTER}`)}`;
      instead of its width. */}
  <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={116} height={34} style={{width:"auto",height:34,display:"block"}}/>
  </div>
-          {newLeadsCount>0&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
-          {tomorrowCancelled>0&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)"}}>{tomorrowCancelled}</span>}
+          {newLeadsCount>0&&viewAllowsTab(settings,"leads")&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
+          {tomorrowCancelled>0&&!tillOnly&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)"}}>{tomorrowCancelled}</span>}
  </div>
  <div className="header-search" style={{position:"relative",flex:1,maxWidth:280,minWidth:80}}>
  <span style={{position:"absolute",top:"50%",right:13,transform:"translateY(-50%)",fontSize:"var(--t-sm)",color:"var(--ink-3)",pointerEvents:"none",zIndex:1}}>⌕</span>
@@ -9170,6 +9179,8 @@ ${MARKETING_FOOTER}`)}`;
  </aside>
 
         {/* TODAY / REMINDERS PANEL (left, RTL) */}
+        {/* The day's diary panel: not in "קופה, ניקובים ודוחות בלבד" (lib/viewMode.ts). Hidden, not removed. */}
+        {!tillOnly&&(
  <aside className="sidebar-aside desktop-only" style={{order:2,width:195,background:"linear-gradient(0deg, var(--pc-chrome), var(--pc-chrome)), rgba(252,250,254,0.6)",borderRight:"1px solid var(--line)",padding:"14px 11px",display:"flex",flexDirection:"column",gap:11,flexShrink:0,overflowY:"auto"}}>
  <div>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
@@ -9253,6 +9264,7 @@ ${MARKETING_FOOTER}`)}`;
             ✦ קביעת תור
  </button>
  </aside>
+        )}
 
  <div className="app-main" style={{order:1,flex:1,overflow:"auto",padding:"28px 30px",background:activeTab==="dashboard"?"#FBF8F1":undefined}}>
           <ChromeFlowerBg/>
@@ -9268,7 +9280,7 @@ ${MARKETING_FOOTER}`)}`;
    :<><Spinner inline label="טוענת את ההיסטוריה המלאה"/><span>חלק מהמספרים (ביקורים וסכומים של לקוחות) יתעדכנו בעוד רגע.</span></>}
  </div>
  )}
- <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={tourStep!==null&&tourStep!==undefined} quietKeys={fbShowing?["day1","day10"]:null} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
+ <TrialNudge plan={planInfo} tenantId={settings.tenant_id} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={tourStep!==null&&tourStep!==undefined} quietKeys={fbShowing||tillOnly?["day1","day10"]:null} onCopyLink={()=>copyPublicLink("book")} onOpenCashier={()=>setActiveTab("cashier")} onContact={()=>setShowHelp(true)} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad}/>
  <FeedbackBanner plan={planInfo} tenantId={settings.tenant_id} isDemo={isDemoTenantId(settings?.tenant_id)} counts={{appointments:clientAppts.filter(a=>a.confirmation_status!=="cancelled").length,clients:clients.length}} suppress={(tourStep!==null&&tourStep!==undefined)||activeTab!=="dashboard"||showSettings||showModal||showMoreSheet}/>
           {/* Persistent, not per-screen, same placement logic as TrialBanner
               above it: a demo session (lib/demoTenants.ts) is never her own
@@ -9281,7 +9293,38 @@ ${MARKETING_FOOTER}`)}`;
           )}
  <div key={activeTab} className="fade-in">
           {/* DASHBOARD */}
-          {activeTab==="dashboard"&&(<div className="today-stack" style={{display:"flex",flexDirection:"column"}}>
+          {/* TILL-ONLY HOME ("קופה, ניקובים ודוחות בלבד", lib/viewMode.ts): today's sales and the month, a new sale (with or
+              without an appointment), and the monthly report. The full home below is untouched and returns with "הכל". */}
+          {activeTab==="dashboard"&&tillOnly&&(<div data-testid="till-only-home" style={{display:"flex",flexDirection:"column",gap:12,maxWidth:1180,marginInline:"auto",width:"100%"}}>
+ <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingInline:17}}>
+ <b style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:700,fontSize:"var(--t-xl)",color:"var(--ink)"}}>{now.getHours()<12?"בוקר טוב":now.getHours()<17?"צהריים טובים":now.getHours()<21?"ערב טוב":"לילה טוב"}</b>
+ <BrandImage width={30} height={30} aria-hidden alt="" src={FLOWER_256} style={{width:30,height:30,objectFit:"contain",display:"block"}}/>
+ </div>
+ <div className="glass-card card-boxed" data-testid="till-only-today" style={{padding:"16px 17px"}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted)"}}>הכנסות היום</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:"var(--t-hero)",letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.05,marginTop:1}}>₪{todayTotals.total.toLocaleString()}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted)",marginTop:3}}>
+              {todayTotals.count===0?"עוד לא נרשמו תשלומים היום"
+                :<>{todayTotals.byMethod.map(m=>`${m.method} ${m.total.toLocaleString()}`).join(" · ")}{todayTotals.tips>0&&` · טיפים ${todayTotals.tips.toLocaleString()}`}</>}
+ </p>
+ <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:12}}>
+ <button type="button" data-testid="till-only-new-sale" className="primary-btn" onClick={()=>handleOpenCashier(null)} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",minHeight:44,fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>✦ תשלום חדש</button>
+ <button type="button" onClick={()=>setActiveTab("cashier")} style={{background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-xl)",padding:"9px 16px",minHeight:44,fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>לקופה</button>
+ </div>
+ </div>
+ <div className="glass-card card-boxed" data-testid="till-only-month" style={{padding:"16px 17px"}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted)"}}>הכנסות החודש</p>
+ <p style={{fontFamily:"var(--font-frank),'Frank Ruhl Libre',serif",fontWeight:900,fontSize:"var(--t-3xl)",letterSpacing:"-0.02em",color:"var(--ink)",lineHeight:1.1,marginTop:1}}>₪{monthTotals.total.toLocaleString()}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted)",marginTop:3}}>
+              {monthTotals.count===0?"עוד אין תשלומים החודש"
+                :`${monthTotals.count===1?"תשלום אחד":`${monthTotals.count} תשלומים`}${monthTotals.byMethod.length?` · ${monthTotals.byMethod.map(m=>`${m.method} ${m.total.toLocaleString()}`).join(" · ")}`:""}`}
+ </p>
+ <button type="button" onClick={()=>setActiveTab("tax")} style={{background:"none",border:"none",padding:"10px 0 0",minHeight:44,color:"var(--pc-deep)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>סיכום הכנסות ודוחות ←</button>
+ </div>
+ <FeeQuestions variant="home" pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
+ <MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} fullHref={monthlyPageOn(settings)?"/dashboard/monthly":null}/>
+ </div>)}
+          {!tillOnly&&activeTab==="dashboard"&&(<div className="today-stack" style={{display:"flex",flexDirection:"column"}}>
             {/* 2026-10-20 design pass: what she needs at 9am first. Cards keep their place in the source (and in every
                 test that reads it); the ORDER below is visual only: greeting, today's revenue, the next client, today's
                 appointments with "needs attention", then the question, setup, marketing and the rest. Children without
@@ -12860,7 +12903,7 @@ ${MARKETING_FOOTER}`)}`;
  </button>
  <UpgradesEntry variant="settings"/>
  <div style={{display:"flex",gap:2,borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
-                {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"payments",l:"תשלומים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
+                {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"payments",l:"תשלומים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(viewAllowsSettingsGroup(settings,t.k)&&
  <button key={t.k} onClick={()=>setSettingsGroup(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontWeight:settingsGroup===t.k?700:500,color:settingsGroup===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsGroup===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
                 ))}
  </div>
@@ -12904,6 +12947,17 @@ ${MARKETING_FOOTER}`)}`;
  {inG("business")&&(<>
  <div><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>שם המטפלת</p><input value={editSettings.therapist_name||""} onChange={e=>setEditSettings({...editSettings,therapist_name:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:"var(--surface-2)"}}/></div>
  </>)}
+ {/* מה מוצג לי במערכת (lib/viewMode.ts): a view preference only. Takes effect on save; nothing is deleted or switched off. */}
+ {inG("business")&&(
+ <div data-testid="view-mode-setting"><p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:4}}>מה מוצג לי במערכת</p>
+ <div role="radiogroup" aria-label="מה מוצג לי במערכת" style={{display:"flex",gap:6}}>
+                  {VIEW_MODES.map(k=>{
+                    const sel=viewModeOf(editSettings)===k;
+                    return <button key={k} type="button" role="radio" aria-checked={sel} data-testid={`view-mode-${k}`} onClick={()=>setEditSettings(prev=>({...prev,automations:{...((prev.automations&&typeof prev.automations==="object")?prev.automations:{}),[VIEW_MODE_KEY]:k}}))} style={{flex:1,padding:"9px 6px",minHeight:44,borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:sel?`1.5px solid ${pc}`:"1px solid var(--line-2)",background:sel?"var(--pc-tint)":"var(--surface)",color:sel?pcDeep:"var(--ink-2)"}}>{VIEW_MODE_LABELS[k]}</button>;
+                  })}
+ </div>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginTop:4,lineHeight:1.5}}>{viewModeOf(editSettings)==="till_only"?"רק הקופה, הלקוחות, כרטיסיית הניקובים וההכנסות שלך. היומן, ההודעות והשיווק מוסתרים מהתפריט, לא נמחק כלום, ודף ההזמנות שלך ממשיך לעבוד. אפשר לחזור להכל בכל רגע.":"כל המסכים מוצגים: יומן, קופה, לקוחות, הודעות ושיווק."}</p></div>
+ )}
  {inG("advanced")&&(
  <button type="button" data-testid="settings-logout" onClick={handleLogout} disabled={isBusy("logout")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",minHeight:44,background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"0 12px",fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit"}}><span>התנתקות{authEmail?` (${authEmail})`:""}</span><span aria-hidden>⏻︎</span></button>
  )}
@@ -13011,7 +13065,7 @@ ${MARKETING_FOOTER}`)}`;
      </div>
    );
  })()}
- <button data-tour="booking-link" onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="calendar" size={14}/> העתקת קישור לקביעת תור</button>
+ {!tillOnly&&<button data-tour="booking-link" onClick={()=>copyPublicLink("book")} style={{width:"100%",padding:"11px 0",background:"var(--surface)",color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}><Icon name="calendar" size={14}/> העתקת קישור לקביעת תור</button>}
  </div>
  </>)}
  {inG("advanced")&&(<>

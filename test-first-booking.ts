@@ -94,7 +94,8 @@ ok('the card is wired to the real screens', () => {
   assert.match(a, /const rememberLinkShared = \(\) => \{[\s\S]{0,300}persistTourPatch\(\{ link_shared_at:/);
   assert.match(a, /persistTourPatch\(\{ \[FIRST_BOOKING_KEY\]: \{ shown_at: fbRecord\.shown_at \|\| at, done_at: at \} \}\)/);
   // the day-1 and day-10 "send your link" nudges do not repeat the card
-  assert.match(a, /quietKeys=\{fbShowing\?\["day1","day10"\]:null\}/);
+  // "|| tillOnly": the till-only view (lib/viewMode.ts) quiets the same two booking-link nudges.
+  assert.match(a, /quietKeys=\{fbShowing(\|\|tillOnly)?\?\["day1","day10"\]:null\}/);
   assert.match(rd('app/TrialNudge.jsx'), /if \(Array\.isArray\(quietKeys\) && quietKeys\.includes\(nudge\.key\)\) return null;/);
 });
 

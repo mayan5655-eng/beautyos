@@ -38,6 +38,7 @@
 
 import { moveEveningSummaryOnSave } from './eveningSummarySetting.ts';
 import { leadChoiceOf } from './waCloud/autoVisible.js';
+import { VIEW_MODE_KEY, cleanViewMode } from './viewMode.ts';
 
 export const SETTINGS_EDITABLE_COLUMNS = [
   // Identity she shows clients
@@ -143,6 +144,11 @@ export function pickSettingsPayload(input: unknown): PickedSettings {
       // Her opt-in is a plain boolean too.
       if ('wa_auto_messages' in autos && typeof autos.wa_auto_messages !== 'boolean') {
         delete autos.wa_auto_messages; dropped.push('automations.wa_auto_messages');
+      }
+      // What she sees (lib/viewMode.ts): exactly 'all' or 'till_only'. Anything else is dropped, never stored.
+      if (VIEW_MODE_KEY in autos) {
+        const mode = cleanViewMode(autos[VIEW_MODE_KEY]);
+        if (mode === null) { delete autos[VIEW_MODE_KEY]; dropped.push(`automations.${VIEW_MODE_KEY}`); }
       }
       payload.automations = autos;
       continue;
