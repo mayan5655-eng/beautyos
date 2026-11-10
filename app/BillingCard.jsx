@@ -16,6 +16,8 @@ import { billingConsentTextHe, billingAnnualConsentTextHe, billingMonthlyConsent
 import { annualOfferHe } from '@/lib/planCopy';
 import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 import { priceHe } from '@/lib/pricing';
+import { isFinalRefusal, requestVerdict, requestStateHe, LOST_ANSWER_HE } from '@/lib/upgradesStore';
+import { purchaseIntent, settleIntent, requestStatus } from './UpgradesStore';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -79,19 +81,32 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     } finally { setBusy(false); }
   };
 
+  // The same purchase rules as the upgrades store (app/UpgradesStore.jsx): one request id per pack intent, kept until the server gives a
+  // definitive outcome, so a retry is never a second charge; a lost or unclear answer is checked by that id, never told "not charged".
   const buyPack = async (key) => {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key }) });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { toast?.(j?.error || 'החיוב לא הצליח, נסי שוב', r.status === 202 ? 'info' : 'error'); return; }
-      toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
-      setConfirmPack(null);
-      await load();
-    } catch {
-      // A lost answer is not a refusal: the charge may have gone through. Re-read and say so honestly (Vercel review 2026-11-09).
-      toast?.('לא קיבלנו תשובה. בודקות אם החיוב עבר, ואם כן החבילה תופיע כאן', 'info');
+      const rid = purchaseIntent(key);
+      let r = null;
+      let j = null;
+      try {
+        r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid }) });
+        j = await r.json().catch(() => null);
+      } catch { r = null; }
+      if (r && r.ok && j?.success) {
+        settleIntent(key);
+        toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
+        setConfirmPack(null);
+        await load();
+        return;
+      }
+      if (r && isFinalRefusal(r.status, j)) { settleIntent(key); toast?.(j?.error || 'החיוב לא הצליח, נסי שוב', 'error'); return; }
+      toast?.(LOST_ANSWER_HE, 'info');
+      const a = await requestStatus(rid);
+      const v = requestVerdict(a);
+      if (v !== 'wait') settleIntent(key);
+      toast?.(requestStateHe(a), v === 'done' ? 'success' : 'info');
       setConfirmPack(null);
       await load();
     } finally { setBusy(false); }

@@ -178,7 +178,7 @@ export function isFinalRefusal(status: number, body: unknown): boolean {
 
 /** The server's answer for one request id: 'unreachable' when the lookup itself failed. */
 export type RequestState = 'succeeded' | 'failed' | 'pending' | 'none' | 'untracked' | 'unreachable';
-export type RequestAnswer = { state: RequestState; recent?: 'succeeded' | 'failed' | 'pending' | null };
+export type RequestAnswer = { state: RequestState };
 
 /**
  * What the store does with that answer:
@@ -190,9 +190,6 @@ export function requestVerdict(a: RequestAnswer | null | undefined): 'done' | 'd
   if (!a) return 'wait';
   if (a.state === 'succeeded') return 'done';
   if (a.state === 'failed') return 'declined';
-  // Before the migration: only a recent success of that pack is taken as this one (today's fallback). Its "failed" is NOT read as
-  // "not charged": it may be an earlier attempt.
-  if (a.state === 'untracked' && a.recent === 'succeeded') return 'done';
   return 'wait';
 }
 

@@ -105,9 +105,9 @@ export function settleIntent(key) {
 }
 
 /** What the server knows about one purchase id. A failed lookup is 'unreachable', never "not charged". */
-export async function requestStatus(rid, pack) {
+export async function requestStatus(rid) {
   try {
-    const r = await fetch(`/api/billing/upgrades?request=${encodeURIComponent(rid)}&pack=${encodeURIComponent(pack)}`, { cache: 'no-store' });
+    const r = await fetch(`/api/billing/upgrades?request=${encodeURIComponent(rid)}`, { cache: 'no-store' });
     const j = await r.json().catch(() => null);
     return r.ok && j?.success && j.request ? j.request : { state: 'unreachable' };
   } catch { return { state: 'unreachable' }; }
@@ -366,7 +366,7 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
   const recheck = useCallback(async (key) => {
     const rid = openIntent(key);
     if (!rid) return;
-    const a = await requestStatus(rid, key);
+    const a = await requestStatus(rid);
     const v = requestVerdict(a);
     if (v === 'wait') { setErr(requestStateHe(a)); return; }
     settleIntent(key);
@@ -407,7 +407,7 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
     let a = null;
     for (let i = 0; i < 3; i++) {
       if (i) await new Promise((res) => setTimeout(res, 2000 * i));
-      a = await requestStatus(rid, key);
+      a = await requestStatus(rid);
       if (requestVerdict(a) !== 'wait') break;
     }
     const v = requestVerdict(a);
@@ -422,12 +422,11 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
     try {
       // One id per purchase intent, kept until a definitive outcome: a retry, a double tap, or the sheet reopened all send the same id,
       // and the server never charges one id twice (lib/billing/service.ts buyAddon).
-      const retry = !!openIntent(key);
       const rid = purchaseIntent(key);
       let r = null;
       let j = null;
       try {
-        r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid, retry }) });
+        r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid }) });
         j = await r.json().catch(() => null);
       } catch { r = null; }
       if (r && r.ok && j?.success) { await landed(key); return; }

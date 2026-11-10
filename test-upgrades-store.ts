@@ -143,6 +143,7 @@ function shop(findOpenAddon?: (t: string, p: string, since: string) => Promise<P
     insertPayment: async (r: any) => { const p = { ...r, id: `p${++id}`, created_at: NOW.toISOString() }; payments.push(p); return p; },
     updatePayment: async (pid: string, patch: any) => { Object.assign(payments.find((p) => p.id === pid)!, patch); },
     insertAddon: async () => {},
+    findAddonByRequest: async () => ({ supported: true, row: null }),
     ...(findOpenAddon ? { findOpenAddon } : {}),
   };
   const d: Deps = {
@@ -158,7 +159,7 @@ function shop(findOpenAddon?: (t: string, p: string, since: string) => Promise<P
 await ok('an open charge of the same pack (a double tap on another instance) is answered "in progress", nothing is charged', async () => {
   let asked: string[] = [];
   const s = shop(async (t, p, since) => { asked = [t, p, since]; return { id: 'p0', status: 'pending' } as PaymentRecord; });
-  const r = await buyAddon(s.d, T, ADDON_PACKS.reels);
+  const r = await buyAddon(s.d, T, ADDON_PACKS.reels, { requestId: 'req-open-0001' });
   assert.deepEqual([r.ok, !r.ok && r.reason], [false, 'in-progress']);
   assert.equal(s.charges.length + s.payments.length, 0);
   assert.deepEqual(asked, [T, 'reels', new Date(NOW.getTime() - ADDON_OPEN_WINDOW_MS).toISOString()]);
@@ -166,13 +167,13 @@ await ok('an open charge of the same pack (a double tap on another instance) is 
 
 await ok('the ledger check fails closed: a read error charges nothing', async () => {
   const s = shop(async () => { throw new Error('findOpenAddon: timeout'); });
-  await assert.rejects(() => buyAddon(s.d, T, ADDON_PACKS.posts));
+  await assert.rejects(() => buyAddon(s.d, T, ADDON_PACKS.posts, { requestId: 'req-open-0002' }));
   assert.equal(s.charges.length, 0);
 });
 
 await ok('nothing open: one charge, as before', async () => {
   const s = shop(async () => null);
-  const r = await buyAddon(s.d, T, ADDON_PACKS.posts);
+  const r = await buyAddon(s.d, T, ADDON_PACKS.posts, { requestId: 'req-open-0003' });
   assert.equal(r.ok, true);
   assert.equal(s.charges.length, 1);
 });
@@ -352,7 +353,7 @@ await ok('wiring (source, app/beautyos.jsx cannot render alone): the reels, advi
   assert.match(read('app/BillingCard.jsx'), /id="billing-card"/, 'no card: the store sends her to the existing card flow');
   assert.match(read('app/BusinessReferralCard.jsx'), /id="business-referral"/);
   const ui = read('app/UpgradesStore.jsx');
-  assert.match(ui, /requestId: rid, retry/, 'one id per purchase intent, sent with every try');
+  assert.match(ui, /requestId: rid \}\)/, 'one id per purchase intent, sent with every try');
   assert.match(ui, /if \(busy\) return;/);
   assert.doesNotMatch(ui, /--brand-|pcTint|herAccent/, 'Kalmea\'s own store wears Kalmea chrome, not her accent');
 });
@@ -471,7 +472,6 @@ function ledger(opts: { tracked?: boolean; charge?: any; insertFailsOnceWith?: s
     insertAddon: async () => {},
     findOpenAddon: async () => null,
     findAddonByRequest: async (t: string, rid: string) => (tracked ? { supported: true, row: payments.find((p) => p.tenant_id === t && p.request_id === rid) || null } : { supported: false, row: null }),
-    findRecentAddon: async (t: string, pack: string) => [...payments].reverse().find((p) => p.tenant_id === t && p.note === pack) || null,
   };
   const d: Deps = {
     repo,
@@ -525,30 +525,27 @@ await ok('a retried id whose charge is still open, or was declined, gets that ou
   assert.equal(dec.charges.length, 1);
 });
 
-await ok('before the migration: the purchase still works, and a retry is matched to the recent charge, never charged again', async () => {
+await ok('before the migration: packs are NOT purchasable; nothing is charged, so a lost answer can never be charged twice', async () => {
   const l = ledger({ tracked: false });
-  const first = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-ffffffff' });
-  assert.equal(first.ok, true);
-  assert.equal(l.payments[0].request_id, undefined, 'no column, no id written');
-  const retry = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-ffffffff', retry: true });
-  assert.equal(retry.ok, true);
-  assert.equal(l.charges.length, 1, 'the retry was answered by the recent charge of the same pack');
-  // A deploy that runs between the read and the insert (the column vanished): the insert falls back without the id, once.
-  const m = ledger({ insertFailsOnceWith: 'column "request_id" of relation "billing_payments" does not exist' });
-  const r = await buyAddon(m.d, T, ADDON_PACKS.posts, { requestId: 'req-gggggggg' });
-  assert.equal(r.ok, true);
-  assert.equal(m.charges.length, 1);
+  const r = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-ffffffff' });
+  assert.deepEqual([r.ok, !r.ok && r.reason], [false, 'unavailable']);
+  const again = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-ffffffff' });
+  assert.deepEqual([again.ok, !again.ok && again.reason], [false, 'unavailable'], 'a retry, 15 minutes later or a day later, the same');
+  assert.equal(l.charges.length + l.payments.length, 0, 'no charge, no ledger row');
+  const noId = await buyAddon(ledger().d, T, ADDON_PACKS.reels);
+  assert.deepEqual([noId.ok, !noId.ok && noId.reason], [false, 'unavailable'], 'no request id: refused too');
+  assert.ok(isFinalRefusal(402, { success: false, reason: 'unavailable' }), 'the store treats it as final: nothing was charged');
+  const svc = read('lib/billing/service.ts');
+  assert.doesNotMatch(svc, /findRecentAddon|ADDON_RETRY_WINDOW_MS|requestColumnMissing/, 'the 15-minute fallback is gone');
+  assert.doesNotMatch(read('lib/billing/repo.ts'), /findRecentAddon/);
 });
-
 await ok('the store\'s verdicts: "not charged" only when the server says so for that id', () => {
   assert.equal(requestVerdict({ state: 'succeeded' }), 'done');
   assert.equal(requestVerdict({ state: 'failed' }), 'declined');
   for (const st of ['pending', 'none', 'unreachable', 'untracked'] as const) assert.equal(requestVerdict({ state: st }), 'wait', st);
-  assert.equal(requestVerdict({ state: 'untracked', recent: 'succeeded' }), 'done', 'pre-migration fallback: a recent success of that pack');
-  assert.equal(requestVerdict({ state: 'untracked', recent: 'failed' }), 'wait', 'pre-migration: a recent failure may be an older attempt, not "not charged"');
   assert.equal(requestVerdict(null), 'wait');
   assert.match(requestStateHe({ state: 'failed' }), /לא חויבת/);
-  for (const st of ['pending', 'none', 'unreachable', 'untracked'] as const) assert.doesNotMatch(requestStateHe({ state: st, recent: 'failed' }), /לא חויבת/, st);
+  for (const st of ['pending', 'none', 'unreachable', 'untracked'] as const) assert.doesNotMatch(requestStateHe({ state: st }), /לא חויבת/, st);
   assert.doesNotMatch(LOST_ANSWER_HE, /לא חויבת/);
   assert.match(requestStateHe({ state: 'none' }), /^בודקות…/);
   for (const st of ['succeeded', 'failed', 'pending', 'none', 'unreachable'] as const) assert.ok(!/[—–]/.test(requestStateHe({ state: st })));
@@ -574,19 +571,20 @@ await ok('reopen after a lost answer: the store asks the server about that id, b
   const realFetch = globalThis.fetch;
   (globalThis as any).fetch = async (u: string) => { seen.push(String(u)); return { ok: true, json: async () => ({ success: true, request: { state: 'pending' } }) }; };
   try {
-    const a = await store.requestStatus('req-hhhhhhhh', 'reels');
+    const a = await store.requestStatus('req-hhhhhhhh');
     assert.deepEqual(a, { state: 'pending' });
-    assert.deepEqual(seen, ['/api/billing/upgrades?request=req-hhhhhhhh&pack=reels']);
+    assert.deepEqual(seen, ['/api/billing/upgrades?request=req-hhhhhhhh']);
     (globalThis as any).fetch = async () => { throw new Error('offline'); };
-    assert.deepEqual(await store.requestStatus('req-hhhhhhhh', 'reels'), { state: 'unreachable' }, 'a failed lookup is "could not check"');
+    assert.deepEqual(await store.requestStatus('req-hhhhhhhh'), { state: 'unreachable' }, 'a failed lookup is "could not check"');
     (globalThis as any).fetch = async () => ({ ok: false, status: 500, json: async () => { throw new Error('not json'); } });
-    assert.deepEqual(await store.requestStatus('req-hhhhhhhh', 'reels'), { state: 'unreachable' });
+    assert.deepEqual(await store.requestStatus('req-hhhhhhhh'), { state: 'unreachable' });
   } finally { (globalThis as any).fetch = realFetch; }
   const ui = read('app/UpgradesStore.jsx');
   const flow = ui.slice(ui.indexOf('const recheck = useCallback'), ui.indexOf('const switchAnnual'));
   assert.match(flow, /if \(isPack\) recheck\(pack\)/, 'reopening a pack checks its open intent first');
-  assert.match(flow, /const retry = !!openIntent\(key\);\s*const rid = purchaseIntent\(key\);/);
-  assert.match(flow, /a = await requestStatus\(rid, key\);/, 'verification is the lookup by id');
+  assert.match(flow, /const rid = purchaseIntent\(key\);/);
+  assert.doesNotMatch(flow, /const retry|retry:|, retry\b/, 'no client-side retry mode: the server answers the same id the same way');
+  assert.match(flow, /a = await requestStatus\(rid\);/, 'verification is the lookup by id');
   assert.doesNotMatch(flow, /Date\.now\(\)|new Date\(|recentAddons|knownAddonIds|newRequestId/, 'no clock, no baseline, no window, no fresh id mid-intent');
   assert.match(flow, /if \(v === 'declined'\) settleIntent\(key\);/);
 }));
@@ -603,7 +601,7 @@ await ok('the lookup route: owner only, her tenant only, rate-limited, the state
   const repo = read('lib/billing/repo.ts');
   assert.match(repo, /async findAddonByRequest[\s\S]*?eq\('tenant_id', tenantId\)[\s\S]*?return \{ supported: false, row: null \}[\s\S]*?fail\(error, 'findAddonByRequest'\)/, 'missing column = not tracked; any other error throws');
   const addon = read('app/api/billing/addon/route.ts');
-  assert.match(addon, /\{ requestId: rid \|\| null, retry: body\?\.retry === true \}/);
+  assert.match(addon, /\{ requestId: rid \|\| null \}\);/);
   assert.match(addon, /return status === 402 \? remember\(a\) : reply\(a\);/, 'a "pending" answer is never replayed from memory');
 });
 
@@ -612,6 +610,50 @@ await ok('the migration: one nullable column, a partial unique index, a clean co
   assert.match(sql, /alter table public\.billing_payments add column if not exists request_id text;/);
   assert.match(sql, /create unique index if not exists billing_payments_tenant_request\s+on public\.billing_payments \(tenant_id, request_id\)\s+where request_id is not null;/);
   assert.doesNotMatch(sql.replace(/^--.*$/gm, ''), /\b(drop|delete|update)\b/i, 'nothing is removed or changed');
+});
+
+
+await ok('the request-id probe: cheap, cached per instance; missing column = packs unavailable', async () => {
+  const { addonRequestIdReady, resetAddonRequestIdProbe } = await import('./lib/billing/requestIdReady.ts');
+  let calls = 0;
+  const db = (err: any) => ({ from: () => ({ select: (c: string) => ({ limit: async (n: number) => { calls++; assert.equal(c, 'request_id'); assert.equal(n, 0); return { data: [], error: err }; } }) }) });
+  resetAddonRequestIdProbe();
+  const missing = { code: '42703', message: 'column billing_payments.request_id does not exist' };
+  assert.equal(await addonRequestIdReady(db(missing), 1_000), false);
+  assert.equal(await addonRequestIdReady(db(missing), 30_000), false);
+  assert.equal(calls, 1, '"not ready" is cached for a minute');
+  assert.equal(await addonRequestIdReady(db(null), 70_000), true, 'asked again after a minute: the migration ran');
+  assert.equal(await addonRequestIdReady(db(missing), 80_000), true, '"ready" is cached for good');
+  assert.equal(calls, 2);
+  resetAddonRequestIdProbe();
+  assert.equal(await addonRequestIdReady(db({ code: '500', message: 'timeout' }), 1_000), false, 'any other error is "not ready" too (fail closed)');
+  resetAddonRequestIdProbe();
+  const up = read('app/api/billing/upgrades/route.ts');
+  assert.match(up, /if \(packsOn && await addonRequestIdReady\(db\)\) \{\s*out\.packs = await addonUsageFor\(tenantId\);/, 'the store gets no packs before the migration');
+  assert.doesNotMatch(up, /recent|ADDON_RETRY_WINDOW_MS/);
+  assert.match(read('app/api/billing/status/route.ts'), /if \(addonPacksEnabled\(\) && await addonRequestIdReady\(admin\(\)\)\) \{/, 'nor the billing card');
+});
+
+await ok('pre-migration (no packs from the server): no pack card, no chip, no cap-hit offer; yearly and referral unaffected', () => withFlags(ON, () => {
+  primeUpgrades(data({ packs: [] }));
+  const kinds = storeCards(store.currentUpgrades(), ON).map((c) => c.kind);
+  assert.deepEqual(kinds, ['annual', 'referral']);
+  for (const k of ADDON_PACK_KEYS) {
+    assert.equal(renderApp(UpgradeChip, { pack: k, meter: true }), '', `${k}: no chip`);
+    assert.equal(store.packAvailable(k), false, `${k}: no cap-hit offer`);
+  }
+  assert.doesNotMatch(renderApp(StoreBody, { d: store.currentUpgrades(), view: null }), /upgrade-card-(posts|reels|advisor|skinscan)/);
+  assert.equal(renderApp(UpgradesEntry, { variant: 'home' }), '', 'no "running out" card on home');
+  primeUpgrades(null);
+}));
+
+await ok('the billing card buys with the same intent rules', () => {
+  const card = read('app/BillingCard.jsx');
+  assert.match(card, /const rid = purchaseIntent\(key\);/);
+  assert.match(card, /JSON\.stringify\(\{ pack: key, requestId: rid \}\)/);
+  assert.match(card, /if \(r && isFinalRefusal\(r\.status, j\)\) \{ settleIntent\(key\);/);
+  assert.match(card, /const a = await requestStatus\(rid\);/);
+  assert.doesNotMatch(card, /לא חויבת/);
 });
 
 primeUpgrades(null);

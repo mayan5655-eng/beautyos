@@ -75,7 +75,7 @@ export async function POST(req: Request) {
   };
   try {
     const b = billing();
-    const r = await buyAddon({ repo: supabaseBillingRepo(admin()), payments: b.payments!, invoicing: b.invoicing! }, c.tenantId, pack, { requestId: rid || null, retry: body?.retry === true });
+    const r = await buyAddon({ repo: supabaseBillingRepo(admin()), payments: b.payments!, invoicing: b.invoicing! }, c.tenantId, pack, { requestId: rid || null });
     if (!r.ok) {
       console.warn('[billing] add-on not bought for tenant', c.tenantId, key, r.reason, r.error);
       const status = r.reason === 'pending' ? 202 : r.reason === 'in-progress' ? 409 : 402;

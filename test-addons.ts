@@ -117,6 +117,8 @@ function shop(opts: { card?: boolean; charge?: any; lookup?: any; addons?: boole
     insertPayment: async (r: any) => { const p = { ...r, id: `p${++id}`, created_at: NOW.toISOString() }; payments.push(p); return p; },
     updatePayment: async (pid: string, patch: any) => { Object.assign(payments.find((p) => p.id === pid)!, patch); },
     ...(opts.addons === false ? {} : { insertAddon: async (r: any) => { addons.push(r); } }),
+    // billing_payments.request_id exists (add_addon_request_id_2026-11-10.sql); without it no pack can be bought (test-upgrades-store.ts).
+    findAddonByRequest: async () => ({ supported: true, row: null }),
   };
   const d: Deps = {
     repo,
@@ -130,7 +132,7 @@ function shop(opts: { card?: boolean; charge?: any; lookup?: any; addons?: boole
 
 await ok('a confirmed charge credits the pack for this month, at the configured price', async () => {
   const s = shop();
-  const r = await buyAddon(s.d, T, ADDON_PACKS.reels);
+  const r = await buyAddon(s.d, T, ADDON_PACKS.reels, { requestId: 'req-test-0001' });
   assert.equal(r.ok, true);
   assert.equal(s.charges.length, 1);
   assert.equal(s.charges[0].amount, 29);
@@ -142,14 +144,14 @@ await ok('a confirmed charge credits the pack for this month, at the configured 
 
 await ok('no saved card: nothing is charged and nothing is credited', async () => {
   const s = shop({ card: false });
-  const r = await buyAddon(s.d, T, ADDON_PACKS.posts);
+  const r = await buyAddon(s.d, T, ADDON_PACKS.posts, { requestId: 'req-test-0001' });
   assert.deepEqual([r.ok, !r.ok && r.reason], [false, 'no-card']);
   assert.equal(s.charges.length + s.payments.length + s.addons.length, 0);
 });
 
 await ok('a declined card: the payment is failed and nothing is credited', async () => {
   const s = shop({ charge: { ok: false, code: 'declined', error: 'refused' } });
-  const r = await buyAddon(s.d, T, ADDON_PACKS.advisor);
+  const r = await buyAddon(s.d, T, ADDON_PACKS.advisor, { requestId: 'req-test-0001' });
   assert.deepEqual([r.ok, !r.ok && r.reason], [false, 'declined']);
   assert.equal(s.payments[0].status, 'failed');
   assert.equal(s.addons.length, 0);
@@ -157,11 +159,11 @@ await ok('a declined card: the payment is failed and nothing is credited', async
 
 await ok('a lost answer that the provider says was paid is credited once; an unsettled one credits nothing', async () => {
   const paid = shop({ charge: { ok: false, code: 'unreachable', error: 'timeout' }, lookup: { ok: true, found: true, status: 'paid', providerPaymentId: 'pp9' } });
-  assert.equal((await buyAddon(paid.d, T, ADDON_PACKS.skinscan)).ok, true);
+  assert.equal((await buyAddon(paid.d, T, ADDON_PACKS.skinscan, { requestId: 'req-test-0001' })).ok, true);
   assert.equal(paid.charges.length, 1, 'never charged again with a new identifier');
   assert.equal(paid.addons.length, 1);
   const unknown = shop({ charge: { ok: false, code: 'duplicate', error: 'seen' }, lookup: { ok: true, found: true, status: 'pending' } });
-  const r = await buyAddon(unknown.d, T, ADDON_PACKS.skinscan);
+  const r = await buyAddon(unknown.d, T, ADDON_PACKS.skinscan, { requestId: 'req-test-0001' });
   assert.deepEqual([r.ok, !r.ok && r.reason], [false, 'pending']);
   assert.equal(unknown.payments[0].status, 'unknown');
   assert.equal(unknown.addons.length, 0);
@@ -169,7 +171,7 @@ await ok('a lost answer that the provider says was paid is credited once; an uns
 
 await ok('a repo without billing_addons support cannot sell a pack', async () => {
   const s = shop({ addons: false });
-  const r = await buyAddon(s.d, T, ADDON_PACKS.reels);
+  const r = await buyAddon(s.d, T, ADDON_PACKS.reels, { requestId: 'req-test-0001' });
   assert.deepEqual([r.ok, !r.ok && r.reason], [false, 'unavailable']);
   assert.equal(s.charges.length, 0);
 });

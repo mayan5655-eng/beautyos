@@ -14,6 +14,7 @@ import { priceOf, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/se
 import { admin, billing, caller, callerIsOwner, tableMissing } from '../_shared';
 import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { addonUsageFor } from '@/lib/addonUsage';
+import { addonRequestIdReady } from '@/lib/billing/requestIdReady';
 
 const SUB_COLS = 'id, tenant_id, price, currency, status, next_charge_at, card_last4, card_brand, failed_attempts, past_due_since, last_attempt_at, canceled_at, ends_at';
 
@@ -79,7 +80,8 @@ export async function GET() {
     .limit(24);
   if (!p.error) out.payments = p.data || [];
   // Add-on packs (lib/pricing.ts): this month's use of each metered feature and the pack she can buy. Absent while packs are off.
-  if (addonPacksEnabled()) {
+  // Packs are purchasable only once billing_payments.request_id exists (fail closed): before that, no add-ons list at all.
+  if (addonPacksEnabled() && await addonRequestIdReady(admin())) {
     const addons = await addonUsageFor(c.tenantId);
     return NextResponse.json(forMember({ ...out, addons, ...(annual ? { annual } : {}) }, owner));
   }

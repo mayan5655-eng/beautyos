@@ -10,8 +10,9 @@
 //
 // GET ?request=<id>&pack=<key> -> what happened to ONE purchase, by the request id the store sent with it (owner only, her tenant only):
 //   { request: { state } }  'succeeded' | 'failed' (the provider said no: not charged) | 'pending' | 'none' (no charge saved with this id)
-//                           | 'untracked' (add_addon_request_id_2026-11-10.sql not run: `recent` is then the newest charge of that pack
-//                           in the last 15 minutes, a hint only). Never a provider id, a token or another business's row.
+//                           Never a provider id, a token or another business's row.
+// Packs are offered (and looked up) only once billing_payments.request_id exists (lib/billing/requestIdReady.ts): before
+// add_addon_request_id_2026-11-10.sql runs, packs are not purchasable and are reported as unavailable (no pack card, no chip).
 // Only the business's owner gets the card and anything chargeable (callerIsOwner): a member sees no pack, no yearly switch, no card.
 // Unlike /api/billing/status it never reads the payment history, so a screen can ask on every open. Read-only, rate-limited
 // ('billing-upgrades'). With every switch off it answers { hidden: true } and reads nothing.
@@ -21,9 +22,10 @@ import { callerTenantId } from '@/lib/tenantScope';
 import { billingUiEnabled } from '@/lib/billing/adapter';
 import { isDemoTenantId } from '@/lib/demoTenants';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
-import { ADDON_PACKS, addonPacksEnabled, annualPlanEnabled, annualPriceOf, type AddonPackKey } from '@/lib/pricing';
+import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { referralsEnabled } from '@/lib/referral';
-import { priceOf, ADDON_RETRY_WINDOW_MS } from '@/lib/billing/service';
+import { priceOf } from '@/lib/billing/service';
+import { addonRequestIdReady } from '@/lib/billing/requestIdReady';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
 
 import { addonUsageFor } from '@/lib/addonUsage';
@@ -49,7 +51,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const requestId = url.searchParams.get('request');
-  if (requestId !== null) return requestStatus(tenantId, user.id, requestId, url.searchParams.get('pack'), packsOn);
+  if (requestId !== null) return requestStatus(tenantId, user.id, requestId, packsOn);
 
   const ui = billingUiEnabled();
   const b = ui ? billing() : null;
@@ -92,7 +94,8 @@ export async function GET(request: Request) {
     if (sub.card_last4 && sub.status !== 'canceled') out.card = { last4: String(sub.card_last4) };
   }
 
-  if (packsOn) {
+  // Not purchasable before the request-id migration: no pack at all, exactly as with packs off.
+  if (packsOn && await addonRequestIdReady(db)) {
     out.packs = await addonUsageFor(tenantId);
   }
 
@@ -115,7 +118,7 @@ const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
 const stateOf = (status: string) => (status === 'succeeded' ? 'succeeded' : status === 'failed' ? 'failed' : 'pending');
 
 /** One purchase's outcome by its request id: owner only, her tenant only, the state and nothing else. */
-async function requestStatus(tenantId: string, userId: string, requestId: string, packKey: string | null, packsOn: boolean) {
+async function requestStatus(tenantId: string, userId: string, requestId: string, packsOn: boolean) {
   if (!packsOn || !billingUiEnabled()) return NextResponse.json({ success: false, hidden: true });
   if (!REQUEST_ID.test(requestId)) return NextResponse.json({ success: false, error: 'בקשה לא תקינה' }, { status: 400 });
   const db = admin();
@@ -123,11 +126,9 @@ async function requestStatus(tenantId: string, userId: string, requestId: string
   try {
     const repo = supabaseBillingRepo(db);
     const f = await repo.findAddonByRequest!(tenantId, requestId);
-    if (f.supported) return NextResponse.json({ success: true, request: { state: f.row ? stateOf(String(f.row.status)) : 'none' } });
-    // Before the migration: the newest charge of that pack in the last 15 minutes, as a hint the store may not read as "not charged".
-    const pack = packKey && ADDON_PACKS[packKey as AddonPackKey] ? packKey : null;
-    const recent = pack && repo.findRecentAddon ? await repo.findRecentAddon(tenantId, pack, new Date(Date.now() - ADDON_RETRY_WINDOW_MS).toISOString()) : null;
-    return NextResponse.json({ success: true, request: { state: 'untracked', recent: recent ? stateOf(String(recent.status)) : null } });
+    // Before the migration nothing can have been bought with an id, but the store must not read that as "not charged": 'untracked'.
+    if (!f.supported) return NextResponse.json({ success: true, request: { state: 'untracked' } });
+    return NextResponse.json({ success: true, request: { state: f.row ? stateOf(String(f.row.status)) : 'none' } });
   } catch (e) {
     console.error('[upgrades] request status read failed for tenant', tenantId, e instanceof Error ? e.message : String(e));
     return NextResponse.json({ success: false, error: 'לא הצלחנו לבדוק את החיוב' }, { status: 500 });
