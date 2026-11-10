@@ -4,6 +4,7 @@
 // session/tenant access, so Facebook reviewers and anyone can view it.
 
 import type { Metadata } from "next";
+import { metaPixelId } from "@/lib/metaPixel";
 import type { CSSProperties, ReactNode } from "react";
 import PublicFooterLinks from "../PublicFooterLinks";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
@@ -120,6 +121,23 @@ export default function PrivacyPage() {
             clients&apos; data to anyone.
           </En>
         </Section>
+
+        {/* Shown only while Kalmea's own Meta Pixel is on (NEXT_PUBLIC_META_PIXEL_ID, lib/metaPixel.ts): never copy for something that is off. */}
+        {metaPixelId() && (
+          <Section heHeading="מדידת מודעות באתר של קלמיה" enHeading="Ad Measurement on the Kalmea Site">
+            <He>
+              אתר השיווק של קלמיה (עמוד הבית ועמוד ההרשמה בלבד, לא דפי ההזמנה של העסקים) משתמש ב-Meta Pixel
+              כדי למדוד אילו מודעות מביאות הרשמות. לא נשלחים למטא שם, טלפון, אימייל או כל פרט אישי אחר,
+              ודפי ההזמנה, התשלום והטפסים של העסקים ושל הלקוחות שלהם לא נמדדים בכלל.
+            </He>
+            <En>
+              The Kalmea marketing site (the home page and the signup page only, not the businesses&apos; booking
+              pages) uses Meta Pixel to measure which ads bring signups. No name, phone, email or other personal
+              details are sent to Meta, and the businesses&apos; booking, payment and form pages, and their clients,
+              are never measured.
+            </En>
+          </Section>
+        )}
 
         <Section heHeading="אבטחת מידע" enHeading="Data Security">
           <He>

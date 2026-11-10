@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import { securityHeaders } from "./lib/securityHeaders";
+import { metaPixelId, META_PIXEL_PATHS } from "./lib/metaPixel";
 
 // Tenant photos live in Supabase storage and are served by the optimizer, so the
 // storage host has to be on the allowlist. Derived from the same env var the
@@ -65,6 +66,11 @@ const nextConfig: NextConfig = {
         source: "/pay/:token*",
         headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", grow: true }),
       },
+      // Kalmea's own Meta Pixel: the landing and the signup page only, and only when NEXT_PUBLIC_META_PIXEL_ID is set
+      // (lib/metaPixel.ts). Never the app, never a business's public pages.
+      ...(metaPixelId()
+        ? META_PIXEL_PATHS.map((source) => ({ source, headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", pixel: true }) }))
+        : []),
       // Apple Pay domain verification (Grow wallet): the file has no extension, so it was served as application/octet-stream and a
       // browser downloaded it. Apple and Grow want it readable as text at this exact path.
       {

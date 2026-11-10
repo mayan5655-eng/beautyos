@@ -14,6 +14,7 @@ import { daysHe } from '@/lib/planCopy'
 import { ConfirmDialog } from '../../MiniToast'
 import type { InstanceState } from '@/lib/greenApi/health'
 import ChromeFlowerBg from '../../ChromeFlowerBg'
+import { countBySource } from '@/lib/attribution'
 
 export interface AdminTenantRow {
   id: string
@@ -317,6 +318,16 @@ export default function AdminClient({
           <div style={{ fontSize:"var(--t-xs)", color: ink2 }}>סך הכל</div>
         </div>
       </div>
+
+      {/* Where signups came from: tenants.signup_source by channel (lib/attribution.js countBySource). Marketing links: docs/MARKETING_LINKS.md */}
+      {rows.length > 0 && (
+        <p data-testid="admin-source-counts" style={{ fontSize:"var(--t-sm)", color: ink2, margin: '-8px 0 18px', lineHeight: 1.7 }}>
+          <b style={{ color: ink }}>לפי מקור:</b>{' '}
+          {countBySource(rows.map((r) => r.tenant.signup_source)).map((c, i) => (
+            <span key={c.source}>{i > 0 && ' · '}<bdi>{c.source}</bdi> {c.count}</span>
+          ))}
+        </p>
+      )}
 
       {notice && (
         <div style={{

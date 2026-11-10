@@ -26,6 +26,9 @@ import { originLabelHe } from '@/lib/grow/paymentOrigin';
 
 // Grow's customer service, for connecting an account she already has (Grow, 2026-11).
 const GROW_SUPPORT = { email: 'support@grow.business', whatsapp: '052-7773144', whatsappUrl: 'https://wa.me/972527773144' };
+// Grow support (2026-11): an account already connected to another system must be disconnected there by Grow first;
+// in the first days she can reach Grow's customer service directly (the "have" door lists the email and WhatsApp).
+export const GROW_OTHER_SYSTEM_HE = 'כבר מחוברת ל-Grow דרך מערכת אחרת? צריך לבקש מ-Grow לנתק אותה לפני החיבור ל-Kalmea. בימים הראשונים אפשר לפנות ישירות לשירות הלקוחות של Grow.';
 const STATUS_HE = { created: 'ממתין לתשלום', paid: 'שולם', failed: 'נכשל', cancelled: 'בוטל', refunded: 'הוחזר' };
 const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
@@ -241,6 +244,8 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
           <button type="button" style={primary} onClick={() => setDoor('have')}>יש לי חשבון Grow</button>
           <button type="button" style={ghost} onClick={() => setDoor(s.registrationAvailable ? 'register' : 'need')}>אין לי עדיין Grow</button>
         </div>
+        {/* Grow support, 2026-11: an account already tied to another system has to be released by Grow first. */}
+        <p data-testid="grow-other-system" style={{ ...text, fontSize: 'var(--t-xs)', marginTop: 10 }}>{GROW_OTHER_SYSTEM_HE}</p>
       </>
     );
   }

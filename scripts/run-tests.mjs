@@ -58,6 +58,8 @@ const FAKE_ENV = {
   // Kalmea's own growth features (lib/referral.ts, lib/pricing.ts annual): off, whatever the deployment builds with.
   NEXT_PUBLIC_REFERRALS: '',
   NEXT_PUBLIC_ANNUAL_PLAN: '',
+  // Kalmea's own Meta Pixel (lib/metaPixel.ts): off, so no test ever sees a pixel unless it sets the id itself.
+  NEXT_PUBLIC_META_PIXEL_ID: '',
   WA_CLOUD_ENABLED: '',
   WA_CLOUD_MODE: '',
   WA_CLOUD_ACCESS_TOKEN: '',
