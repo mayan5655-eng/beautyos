@@ -126,4 +126,4 @@ export function intakeFormMessage(p: { name?: string | null; businessName?: stri
   ].join('\n');
 }
 
-export { INTAKE_CONFIRM_HE, INTAKE_CONFIRM_BTN_HE, patchTestConfirmHe, intakeFromBusinessHe } from './intakeCopy.ts';
+export { INTAKE_CONFIRM_HE, INTAKE_CONFIRM_BTN_HE, patchTestConfirmHe, intakeFromBusinessHe, intakePublicAnswer } from './intakeCopy.ts';

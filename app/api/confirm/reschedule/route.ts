@@ -16,6 +16,7 @@ import { runWaitlistOffer } from '@/lib/waitlistRuntime';
 import { publicContactFor } from '@/lib/publicContact';
 import {
   maxMovesFrom, cleanMoveCount, rescheduleDays, moveSlotProblem, addDays, movesUsedHe, ownerMoveMessage,
+  consentReadFrom, moveWindowHours, moveConsentUnreadableHe,
   MOVE_HELD_HE, RESCHEDULE_COPY, type BusyRange,
 } from '@/lib/reschedule';
 
@@ -101,21 +102,24 @@ export async function POST(request: NextRequest) {
 
     // ── Can this appointment be moved from the link at all? ─────────────────────────────────────────────────────
     if (await tenantIsBlocked(db, tenantId)) return refuse(`כדי להזיז את התור אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`, { tooLate: true });
+    if (appt.confirmation_status === 'cancelled') return refuse(`התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם ${brand.businessName || 'העסק'}.`);
+    // The Grow policy she agreed to, for EVERY move (not only a deposit hold): its snapshot window is what a later cancel is judged by
+    // (lib/grow/cancelFees.ts detect), so the move is judged by max(branding window, snapshot window). Read-only here: the consent
+    // row, its snapshot and its status are never written by a move, so a fee that applies keeps applying. Unreadable = refuse.
+    const consent = consentReadFrom(await db.from('appointment_policy_consents').select('status, snapshot').eq('appointment_id', id).eq('tenant_id', tenantId).maybeSingle());
+    const windowHours = moveWindowHours(rules.cancelWindowHours, consent);
+    if (windowHours === null) return refuse(moveConsentUnreadableHe(brand.businessName), { tooLate: true });
     const refusal = clientLinkRefusal({
       action: 'reschedule', status: appt.confirmation_status, date: oldDate, startMinute: oldStart,
-      cancelWindowHours: rules.cancelWindowHours, businessName: brand.businessName,
+      cancelWindowHours: windowHours, businessName: brand.businessName,
     });
-    if (appt.confirmation_status === 'cancelled') return refuse(`התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם ${brand.businessName || 'העסק'}.`);
     if (refusal) return refuse(refusal.error, refusal.tooLate ? { tooLate: true } : {});
     // A row without a start time, or one whose day is already behind her, is not moved from a link: clientLinkRefusal can only
     // see "past" when it knows the start, and the guarded update below needs the old start to pin the row it changes.
     if (oldStart == null || !/^\d{4}-\d{2}-\d{2}$/.test(oldDate) || oldDate < wallClockNow().date) {
       return refuse(`כדי לשנות את התור הזה אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`, { tooLate: true });
     }
-    if (appt.confirmation_status === 'pending') {
-      const { data: hold } = await db.from('appointment_policy_consents').select('status').eq('appointment_id', id).eq('tenant_id', tenantId).maybeSingle();
-      if (hold && hold.status === 'awaiting_deposit') return refuse(MOVE_HELD_HE);
-    }
+    if (consent.state === 'row' && consent.row.status === 'awaiting_deposit') return refuse(MOVE_HELD_HE);
     const maxMoves = maxMovesFrom(settings.branding);
     const hasCountColumn = Object.prototype.hasOwnProperty.call(appt, 'reschedule_count');
     // The column (add_reschedule_intake_2026-11-09.sql), and her 'reschedule' notifications for this appointment: before the

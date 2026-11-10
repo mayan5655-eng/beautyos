@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   resolveIntake, intakeToStore, intakeColumnReady, intakeBadges, intakeFormMessage, formLink, cleanFormType,
-  intakeFormChoices, INTAKE_MESSAGE_TYPE, INTAKE_CONFIRM_HE, patchTestConfirmHe, intakeFromBusinessHe, intakeByServiceName,
+  intakeFormChoices, INTAKE_MESSAGE_TYPE, INTAKE_CONFIRM_HE, patchTestConfirmHe, intakeFromBusinessHe, intakeByServiceName, intakePublicAnswer,
 } from './lib/intakeGate.ts';
 import { ensureIntakeForm, queueIntakeMessage, hadEarlierVisit } from './lib/intakeQueue.js';
 
@@ -80,6 +80,35 @@ ok('one row decides each name: active over archived, and its gate (off included)
   const lookup = route.slice(route.indexOf('.from("service_prices")'), route.indexOf('.limit(1)', route.indexOf('.from("service_prices")')));
   assert.ok(lookup.includes('.or(ACTIVE_OR_NULL)'), 'booking reads the active row only');
   assert.ok(route.includes('if (!svcRow || svcRow.active === false) {'), 'and refuses an archived one');
+});
+
+ok('public booking answer: byte-identical for a new number and for an existing client, no link', async () => {
+  const gate = resolveIntake({ intake: { form: true, form_type: 'general', patch_test: true } })!;
+  // The same service booked twice: once with a number that becomes a NEW card (a form is created), once with the number of a
+  // client who already has a pending form (it is reused) and once with one whose form is signed. The route runs ensureIntakeForm
+  // for each and then answers intakePublicAnswer(gate): nothing the form step learned can reach the response.
+  const db = fakeDb({ forms: [
+    { id: 'f-old', tenant_id: 'T', client_id: 'EXISTING', form_type: 'general', status: 'pending' },
+    { id: 'f-done', tenant_id: 'T', client_id: 'SIGNED', form_type: 'general', status: 'signed' },
+  ] });
+  const answers: string[] = [];
+  for (const clientId of ['NEW', 'EXISTING', 'SIGNED']) {
+    const f = await ensureIntakeForm({ db, tenantId: 'T', clientId, clientName: 'x', formType: gate.formType });
+    assert.ok(f.state === 'pending' || f.state === 'signed');
+    answers.push(JSON.stringify({ intake: intakePublicAnswer(gate) }));
+  }
+  assert.equal(new Set(answers).size, 1, 'one answer for all three');
+  assert.equal(answers[0], '{"intake":{"formFromBusiness":true,"patchTest":true}}');
+  assert.ok(!answers[0].includes('form?id') && !answers[0].includes('f-'), 'no form id or link');
+  // The function takes the gate only: no phone, card, or form state can be passed in.
+  assert.equal(intakePublicAnswer.length, 1);
+  assert.equal(intakePublicAnswer(null), null);
+  assert.deepEqual(intakePublicAnswer({ form: false, patchTest: true }), { formFromBusiness: false, patchTest: true });
+  // In the route, the response's intake field is that call and nothing else.
+  const route = read('./app/api/book-appointment/route.js');
+  const after = route.slice(route.indexOf('const intakeOut = intakePublicAnswer(intake);'));
+  assert.ok(!/intakeOut\s*=(?!=)/.test(after.slice('const intakeOut = intakePublicAnswer(intake);'.length)), 'never reassigned');
+  assert.ok(after.includes('intake: intakeOut,'));
 });
 
 ok('stored shape: both off stores nothing', () => {
@@ -175,17 +204,16 @@ ok('wiring: booking route, booking page, calendar card, services editor', () => 
   const route = read('./app/api/book-appointment/route.js');
   assert.ok(route.includes('const intake = resolveIntake(svcRow);'), 'only a gated service');
   assert.ok(route.indexOf('const intake = resolveIntake(svcRow);') > route.indexOf('writeWithApptBuffer({'), 'after the booking is saved');
-  assert.ok(route.includes('if (!heldForDeposit) {'), 'a held deposit is not queued');
+  assert.ok(route.includes('if (f.state === "pending" && !heldForDeposit) {'), 'a held deposit is not queued');
   assert.ok(route.includes('intake: intakeOut,'));
   // The public answer never depends on whose number was typed (security review, PR #52).
-  assert.ok(route.includes('if (createdClient && f.created === true) formPath ='), 'the link only for a card and form this booking created');
-  assert.ok(route.includes('const formFromBusiness = intake.form && !formPath;'));
-  assert.ok(route.includes('const patchTest = intake.patchTest === true;'), 'patch line not computed from her history');
+  assert.ok(route.includes('const intakeOut = intakePublicAnswer(intake);'), 'the answer comes from the gate alone');
+  assert.ok(!route.includes('/form?id='), 'no form link in the public booking response');
+  assert.ok(!route.includes('formUrl'), 'no formUrl field at all');
   assert.ok(!route.includes('hadEarlierVisit('), 'no history lookup on the public route');
   const page = read('./app/BookingPage.jsx');
-  assert.ok(page.includes('data-testid="intake-form-link"'));
   assert.ok(page.includes('data-testid="intake-from-business"'));
-  assert.ok(page.includes('result.intake.formUrl.startsWith("/form?id=")'), 'same-site link only');
+  assert.ok(!page.includes('intake-form-link') && !page.includes('formUrl'), 'the page renders no link from the public response');
   assert.ok(page.includes('from "@/lib/intakeCopy"') && !page.includes('from "@/lib/intakeGate"'), 'the public page does not bundle every form template');
   const app = read('./app/beautyos.jsx');
   assert.ok(app.includes('<IntakeBadge appointmentId={appt.id}/>') && app.includes('<IntakeBadge appointmentId={a.id}/>'));

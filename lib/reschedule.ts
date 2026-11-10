@@ -136,6 +136,59 @@ export function movesUsedHe(max: number, businessName?: string): string {
 }
 
 /** A deposit hold still waiting for payment is moved only after it is paid (or by her). */
+// ── The Grow policy the client agreed to (appointment_policy_consents) ───────────────────────────────────────
+//
+// A late cancel or no-show under her Grow policy is judged against the window in the consent SNAPSHOT (lib/grow/cancelFees.ts
+// detect(): classify(event, minutes, snap.window_hours)), not against branding's cancel_window_hours. If a move only looked at
+// branding, a visit an hour away could be moved to next week and then cancelled "on time": no late fee on the saved card, a
+// deposit returned that should have been kept (Vercel Security Review, PR #52). So a move is refused inside the LARGER of the two.
+
+/** What the route read: the consent row, nothing (no policy on this appointment), or a read that failed. */
+export type ConsentRead = { state: 'row'; row: { status?: unknown; snapshot?: unknown } } | { state: 'none' } | { state: 'unreadable' };
+
+/** Postgres / PostgREST "that table is not there" (the Grow migration has not run): no appointment can have a consent yet. */
+export function isTableMissingError(e: { code?: unknown; message?: unknown } | null | undefined): boolean {
+  if (!e) return false;
+  const code = String(e.code ?? '');
+  if (code === '42P01' || code === 'PGRST205') return true;
+  const msg = String(e.message ?? '');
+  return /relation .* does not exist|Could not find the table/i.test(msg) && !/column/i.test(msg);
+}
+
+/** The read result as a ConsentRead. Any error except a missing table is 'unreadable': the move then fails closed. */
+export function consentReadFrom(res: { data: unknown; error: unknown }): ConsentRead {
+  if (res.error) return isTableMissingError(res.error as { code?: unknown; message?: unknown }) ? { state: 'none' } : { state: 'unreadable' };
+  if (res.data && typeof res.data === 'object') return { state: 'row', row: res.data as { status?: unknown; snapshot?: unknown } };
+  return { state: 'none' };
+}
+
+/** The consent snapshot's window in hours, or 0 when there is none. A snapshot window that is not a clean number is treated as unknown (null). */
+export function snapshotWindowHours(row: { snapshot?: unknown } | null | undefined): number | null {
+  const snap = row && row.snapshot && typeof row.snapshot === 'object' ? (row.snapshot as Record<string, unknown>) : null;
+  if (!snap || snap.window_hours == null) return 0;
+  const n = Number(snap.window_hours);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * The window a self-service move is judged by: max(branding cancel window, the agreed snapshot window), or null when it cannot
+ * be known (the consent could not be read, or its window is garbage). null means refuse: a move never gets the benefit of a doubt
+ * that the cancel-fee rules would not give.
+ */
+export function moveWindowHours(brandingHours: number, consent: ConsentRead): number | null {
+  const b = Number.isFinite(Number(brandingHours)) && Number(brandingHours) > 0 ? Number(brandingHours) : 0;
+  if (consent.state === 'unreadable') return null;
+  if (consent.state === 'none') return b;
+  const s = snapshotWindowHours(consent.row);
+  return s === null ? null : Math.max(b, s);
+}
+
+/** Refused because the policy could not be read: the same "contact the business" ending as every other refusal. */
+export function moveConsentUnreadableHe(businessName?: string | null): string {
+  const who = String(businessName || '').trim() || 'העסק';
+  return `לא הצלחנו לבדוק את מדיניות הביטול של התור הזה, אז אי אפשר להזיז אותו מהקישור כרגע. אפשר לנסות שוב בעוד רגע, או ליצור קשר ישירות עם ${who}.`;
+}
+
 export const MOVE_HELD_HE = 'התור שמור עבורך עד שהמקדמה משולמת. אחרי התשלום אפשר יהיה להזיז אותו מכאן.';
 
 /** The owner's notification: who, from when to when, and that the old time is free again. */

@@ -57,6 +57,7 @@ import { feeAmount, policyAppliesToService } from "../../../lib/cancellationPoli
 import { cancelDeps } from "../grow/_cancel";
 // The pre-visit intake gate (lib/intakeGate.ts): off unless she turned it on for this service.
 import { resolveIntake } from "../../../lib/intakeGate";
+import { intakePublicAnswer } from "../../../lib/intakeCopy";
 import { ensureIntakeForm, queueIntakeMessage } from "../../../lib/intakeQueue.js";
 import { sendWhatsApp } from "../../../lib/whatsapp.js";
 import { hebrewDate } from "../../../lib/messages.js";
@@ -641,36 +642,22 @@ export async function POST(request) {
     // saved: nothing here can fail or undo it. The "send the form" message waits in HER manual queue, addressed to the number on the
     // client card (type intake_form is never sent by the system, lib/intakeQueue.js). A held deposit booking is not queued: it may
     // still be released, and its confirmation goes out when it is paid.
-    //
-    // This form is public and anyone can type any phone number into it, so the ANSWER must not depend on who that number belongs to:
-    //  - The form link is shown only when THIS booking created both the client card and the form. A returning client's form is
-    //    never handed to whoever typed her number: the link shows her name (app/api/forms GET) and would let a stranger sign her
-    //    health form. Everyone else is told the business sends the link ("if you have not filled it yet"), signed or not.
-    //  - The patch-test line is the same for everyone on a gated service ("if it is your first ..."), never computed from her
-    //    history, which would tell a stranger whether that number has visited before.
     //  - The gate is the one of svcRow: the ACTIVE row of this name (the lookup above filters ACTIVE_OR_NULL and refuses an archived
     //    one), off included. An archived namesake's setting never applies (same rule as intakeByServiceName in lib/intakeGate.ts).
-    let intakeOut = null;
+    //  - What the RESPONSE says comes from the gate alone (intakePublicAnswer): the same bytes for a new number and for one of her
+    //    clients, no form link, nothing about a card or a signed form. This form is public and takes any phone number.
     const intake = resolveIntake(svcRow);
-    if (intake) {
+    const intakeOut = intakePublicAnswer(intake);
+    if (intake && intake.form && clientId) {
       try {
-        let formPath = null;
-        if (intake.form && clientId) {
-          const f = await ensureIntakeForm({ db: supabase, tenantId: activeTenantId, clientId, clientName: name, formType: intake.formType });
-          if (f.state === "pending") {
-            if (createdClient && f.created === true) formPath = `/form?id=${encodeURIComponent(f.formId)}`;
-            if (!heldForDeposit) {
-              const formId = f.formId;
-              after(() => queueIntakeMessage({
-                db: supabase, send: sendWhatsApp, tenantId: activeTenantId, phone: phoneCheck.e164, name, businessName: settingsRow?.business_name || "",
-                service, when: `ב${hebrewDate(date)}`, formId, baseUrl: APP_URL,
-              }).then(() => undefined));
-            }
-          }
+        const f = await ensureIntakeForm({ db: supabase, tenantId: activeTenantId, clientId, clientName: name, formType: intake.formType });
+        if (f.state === "pending" && !heldForDeposit) {
+          const formId = f.formId;
+          after(() => queueIntakeMessage({
+            db: supabase, send: sendWhatsApp, tenantId: activeTenantId, phone: phoneCheck.e164, name, businessName: settingsRow?.business_name || "",
+            service, when: `ב${hebrewDate(date)}`, formId, baseUrl: APP_URL,
+          }).then(() => undefined));
         }
-        const formFromBusiness = intake.form && !formPath;
-        const patchTest = intake.patchTest === true;
-        if (formPath || formFromBusiness || patchTest) intakeOut = { formUrl: formPath, formFromBusiness, patchTest };
       } catch (intakeErr) {
         console.warn("[book-appointment] intake step failed:", intakeErr?.message || String(intakeErr));
       }

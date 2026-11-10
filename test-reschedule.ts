@@ -11,6 +11,7 @@ import {
 import { clientLinkRefusal, resolveBookingRules } from './lib/bookingPolicy.ts';
 import { signConfirm, verifyConfirm, confirmLinks } from './lib/confirmToken.ts';
 import { checkRescheduleLinkLimit, RESCHEDULE_PER_LINK } from './lib/rateLimit.ts';
+import { consentReadFrom, moveWindowHours, snapshotWindowHours, moveConsentUnreadableHe } from './lib/reschedule.ts';
 
 let passed = 0, failed = 0;
 const ok = (name: string, fn: () => void) => {
@@ -136,7 +137,7 @@ ok('route: atomic single-row move, guarded like the booking route, deposit carri
   assert.ok(move.includes('runWaitlistOffer({ tenantId, appt: freed, db })'), 'the freed slot goes to the waiting list (when on)');
   assert.ok(move.includes('askGapFillAfterClientCancel(db, { tenantId, appt: freed })'));
   assert.ok(r.includes('if (used >= maxMoves) return refuse(movesUsedHe('), 'the move limit');
-  assert.ok(r.includes("hold.status === 'awaiting_deposit') return refuse(MOVE_HELD_HE)"), 'an unpaid hold is not moved');
+  assert.ok(r.includes("if (consent.state === 'row' && consent.row.status === 'awaiting_deposit') return refuse(MOVE_HELD_HE);"), 'an unpaid hold is not moved');
   const peek = r.slice(r.indexOf('if (body.peek === true)'), r.indexOf('// ── The move'));
   for (const leak of ['client_id', 'tenant_id', 'appt.name', 'price', 'client_phone']) assert.ok(!peek.includes(leak), `peek does not return ${leak}`);
 });
@@ -219,6 +220,65 @@ ok('per-link limit: one appointment\'s link is capped on its own, after the sign
   const r = read('./app/api/confirm/reschedule/route.ts');
   assert.ok(r.indexOf('verifyConfirm(id, via, token)') < r.indexOf('checkRescheduleLinkLimit(id)'));
   assert.ok(r.indexOf('checkRescheduleLinkLimit(id)') < r.indexOf("checkTenantLimit(tenantId, 'reschedule')"));
+});
+
+// ── Grow policy window (Vercel Security Review, PR #52): a move must not reset late-cancel eligibility ─────────────
+// What the route does with what it read: moveWindowHours(branding, consentReadFrom(read)), then clientLinkRefusal with that window.
+const moveVerdict = (brandingHours: number, read: { data: unknown; error: unknown }, date: string, startMinute: number) => {
+  const w = moveWindowHours(brandingHours, consentReadFrom(read));
+  if (w === null) return 'refused:unreadable';
+  const r = clientLinkRefusal({ action: 'reschedule', status: 'confirmed', date, startMinute, cancelWindowHours: w, businessName: 'רונה' }, NOW);
+  return r ? `refused:${r.code}` : 'allowed';
+};
+const GROW_24H = { data: { status: 'card_saved', snapshot: { mode: 'saved_card', window_hours: 24, late_fee_amount: 100 } }, error: null };
+
+ok('Grow 24h policy, branding window unset, visit in 1 hour: the move is refused with the cancel wording', () => {
+  // NOW is Tuesday 10:00 Israel; the visit is at 11:00 the same day.
+  assert.equal(resolveBookingRules({ booking_rules: {} }).cancelWindowHours, 0, 'branding has no window');
+  assert.equal(moveVerdict(0, GROW_24H, '2026-11-10', 11 * 60), 'refused:window');
+  const w = moveWindowHours(0, consentReadFrom(GROW_24H))!;
+  const r = clientLinkRefusal({ action: 'reschedule', status: 'confirmed', date: '2026-11-10', startMinute: 11 * 60, cancelWindowHours: w, businessName: 'רונה' }, NOW)!;
+  assert.match(r.error, /עד 24 שעות לפני התור, כמו בביטול/);
+  assert.match(r.error, /ליצור קשר ישירות עם רונה/);
+  // A shorter branding window does not shrink the agreed one; a longer one still counts.
+  assert.equal(moveWindowHours(12, consentReadFrom(GROW_24H)), 24);
+  assert.equal(moveWindowHours(48, consentReadFrom(GROW_24H)), 48);
+  // A deposit policy the same way.
+  assert.equal(moveVerdict(0, { data: { status: 'deposit_paid', snapshot: { mode: 'deposit', window_hours: 24 } }, error: null }, '2026-11-10', 11 * 60), 'refused:window');
+});
+
+ok('Grow 24h policy, visit in 48 hours: the move is allowed', () => {
+  assert.equal(moveVerdict(0, GROW_24H, '2026-11-12', 10 * 60), 'allowed');
+  assert.equal(moveVerdict(0, { data: null, error: null }, '2026-11-10', 11 * 60), 'allowed', 'no policy, no window: as before');
+  assert.equal(moveVerdict(0, { data: null, error: { code: '42P01', message: 'relation "appointment_policy_consents" does not exist' } }, '2026-11-10', 11 * 60), 'allowed', 'Grow migration not run: no consent can exist');
+});
+
+ok('the consent cannot be read: the move is refused (fail closed)', () => {
+  assert.equal(moveVerdict(0, { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }, '2026-11-12', 10 * 60), 'refused:unreadable');
+  assert.equal(moveVerdict(0, { data: null, error: { code: 'PGRST116', message: 'multiple rows returned' } }, '2026-11-12', 10 * 60), 'refused:unreadable');
+  assert.equal(moveVerdict(0, { data: null, error: { message: 'column "snapshot" does not exist' } }, '2026-11-12', 10 * 60), 'refused:unreadable', 'a missing COLUMN is not a missing table');
+  assert.equal(snapshotWindowHours({ snapshot: { window_hours: 'abc' } }), null);
+  assert.equal(moveVerdict(0, { data: { snapshot: { window_hours: 'abc' } }, error: null }, '2026-11-12', 10 * 60), 'refused:unreadable', 'a garbage window is not 0');
+  assert.match(moveConsentUnreadableHe('רונה'), /ליצור קשר ישירות עם רונה/);
+  assert.ok(!moveConsentUnreadableHe('רונה').includes('—'));
+});
+
+ok('route: the consent is read for every move, judged by the larger window, and never written', () => {
+  const r = read('./app/api/confirm/reschedule/route.ts');
+  const read1 = ".from('appointment_policy_consents').select('status, snapshot').eq('appointment_id', id).eq('tenant_id', tenantId).maybeSingle()";
+  assert.equal(r.split(".from('appointment_policy_consents')").length - 1, 1, 'one read');
+  assert.ok(r.includes(read1), 'tenant-scoped');
+  assert.ok(!/if \(appt\.confirmation_status === 'pending'\) \{\s*const \{ data: hold \}/.test(r), 'not only for pending holds');
+  assert.ok(r.includes('const windowHours = moveWindowHours(rules.cancelWindowHours, consent);'));
+  assert.ok(r.includes('if (windowHours === null) return refuse(moveConsentUnreadableHe(brand.businessName), { tooLate: true });'));
+  assert.ok(r.includes('cancelWindowHours: windowHours,'));
+  assert.ok(!r.includes('cancelWindowHours: rules.cancelWindowHours'), 'branding alone never decides');
+  assert.ok(r.indexOf('moveWindowHours(') < r.indexOf('if (body.peek === true)'), 'before times are even shown');
+  // A move writes the appointments row only: the consent, its snapshot, card and fee rows are untouched.
+  const updates = r.match(/\.from\('([a-z_]+)'\)\.(update|insert|upsert|delete)\(/g) || [];
+  assert.deepEqual(updates, [".from('appointments').update("]);
+  assert.ok(!/policy_consents'\)\.(update|upsert|delete|insert)/.test(r));
+  assert.ok(!/cancellation_fees|grow_payments|card_consents/.test(r), 'no fee or payment table');
 });
 
 console.log(`test-reschedule: passed ${passed} failed ${failed}`);
