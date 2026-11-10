@@ -30,5 +30,8 @@ export async function caller() {
   if (!user) return { error: NextResponse.json({ success: false, error: 'לא מחוברת' }, { status: 401 }) } as const;
   const tenantId = await callerTenantId(session);
   if (!tenantId) return { error: NextResponse.json({ success: false, error: 'לא זוהה עסק' }, { status: 403 }) } as const;
-  return { session, tenantId, email: user.email || '' } as const;
+  return { session, tenantId, userId: user.id, email: user.email || '' } as const;
 }
+
+// Who may move money for the business (lib/billing/owner.ts): re-exported so every billing route imports it from one place.
+export { callerIsOwner, NOT_OWNER_HE } from '@/lib/billing/owner';

@@ -106,6 +106,8 @@ export type PaymentRecord = {
   created_at: string;
   /** 12 on an annual charge (add_referrals_annual_2026-11-08.sql); absent / 1 on every monthly one. */
   period_months?: number | null;
+  /** The purchase intent's id on an add-on charge (add_addon_request_id_2026-11-10.sql); absent before that migration. */
+  request_id?: string | null;
 };
 
 export type BillingRepo = {
@@ -126,6 +128,10 @@ export type BillingRepo = {
   setPlanStatus(tenantId: string, status: 'active' | 'expired'): Promise<void>;
   /** Credits an add-on pack after its charge succeeded (add_billing_addons.sql). Optional: absent = packs cannot be bought. */
   insertAddon?(row: { tenant_id: string; pack: string; units: number; usd_allowance: number; price: number; period_month: string; payment_id: string }): Promise<void>;
+  /** The newest pending / unknown add-on charge of this pack created since `sinceIso`, if any. Optional: absent = no check. */
+  findOpenAddon?(tenantId: string, packKey: string, sinceIso: string): Promise<PaymentRecord | null>;
+  /** The add-on charge saved with this request id. `supported` false before add_addon_request_id_2026-11-10.sql (no column). Throws on any other error. */
+  findAddonByRequest?(tenantId: string, requestId: string): Promise<{ supported: boolean; row: PaymentRecord | null }>;
   /** A succeeded ANNUAL subscription charge whose year covers this date (period_start <= date < period_end). Optional. */
   coveredByAnnual?(subId: string, periodStart: string): Promise<boolean>;
 };
@@ -463,8 +469,20 @@ async function issueInvoice(d: Deps, pay: PaymentRecord, tenant: TenantRow | nul
 // ── add-on packs ─────────────────────────────────────────────────────────────
 
 export type BuyAddonResult =
-  | { ok: true; payment: PaymentRecord }
-  | { ok: false; reason: 'no-card' | 'declined' | 'pending' | 'not-configured' | 'unavailable'; error: string };
+  | { ok: true; payment: PaymentRecord; replay?: boolean }
+  | { ok: false; reason: 'no-card' | 'declined' | 'pending' | 'not-configured' | 'unavailable' | 'in-progress'; error: string };
+
+/** How long an open (pending / unknown) charge of the same pack blocks a new one: a double tap, a second tab, a retry. */
+export const ADDON_OPEN_WINDOW_MS = 3 * 60 * 1000;
+
+/** What a saved add-on charge means for the purchase that made it: the same answer every time it is asked again. */
+export function addonOutcomeOf(row: PaymentRecord): BuyAddonResult {
+  if (row.status === 'succeeded') return { ok: true, payment: row, replay: true };
+  if (row.status === 'failed') return { ok: false, reason: 'declined', error: String(row.error || 'declined').slice(0, 200) };
+  return { ok: false, reason: 'pending', error: 'waiting for the provider' };
+}
+
+const requestIndexClash = (e: unknown) => /billing_payments_tenant_request|request_id/i.test(String((e as Error)?.message)) && /unique|duplicate|23505/i.test(String((e as Error)?.message));
 
 /**
  * She buys one add-on pack (lib/pricing.ts ADDON_PACKS) for THIS month: one charge to the card saved for her subscription, then the units are
@@ -473,11 +491,26 @@ export type BuyAddonResult =
  * identifier, and the units are credited only for a charge the provider confirmed. An unsettled charge ('pending') credits nothing; the
  * operator settles it from the provider's records.
  */
-export async function buyAddon(d: Deps, tenantId: string, pack: AddonPack): Promise<BuyAddonResult> {
+export async function buyAddon(d: Deps, tenantId: string, pack: AddonPack, opts: { requestId?: string | null } = {}): Promise<BuyAddonResult> {
   if (!d.repo.insertAddon) return { ok: false, reason: 'unavailable', error: 'add-on packs are not set up' };
   const now = clock(d);
+  // IDEMPOTENT BY REQUEST ID (2026-11-10): one purchase intent is one charge. The same id again (a double tap, a retry after a lost
+  // answer, the sheet reopened) gets the outcome of the charge already saved with it, and nothing is charged again. A read error throws.
+  // FAIL CLOSED: no request id, or no billing_payments.request_id column yet (add_addon_request_id_2026-11-10.sql not run), means a
+  // pack cannot be bought at all. Nothing is charged, so a lost answer can never become a second charge.
+  const rid = opts.requestId || null;
+  if (!rid || !d.repo.findAddonByRequest) return { ok: false, reason: 'unavailable', error: 'a request id is required' };
+  const f = await d.repo.findAddonByRequest(tenantId, rid);
+  if (!f.supported) return { ok: false, reason: 'unavailable', error: 'billing_payments.request_id is missing (add_addon_request_id_2026-11-10.sql)' };
+  if (f.row) return addonOutcomeOf(f.row);
   const sub = await d.repo.getSub(tenantId);
   if (!sub || !sub.token_ref || sub.status === 'canceled') return { ok: false, reason: 'no-card', error: 'no saved card' };
+  // A second request for the same pack while the first is still open (a double tap that reached another server instance, a second tab)
+  // never draws a second charge: it is answered "in progress". A read failure throws (fail closed), so nothing is charged on a guess.
+  if (d.repo.findOpenAddon) {
+    const open = await d.repo.findOpenAddon(tenantId, pack.key, new Date(now.getTime() - ADDON_OPEN_WINDOW_MS).toISOString());
+    if (open) return { ok: false, reason: 'in-progress', error: 'a charge for this pack is still open' };
+  }
   const tenant = await d.repo.getTenant(tenantId);
   const month = periodMonth(now);
   const description = `תוספת לקלמיה: +${pack.units} ${pack.unitHe}`;
@@ -488,8 +521,14 @@ export async function buyAddon(d: Deps, tenantId: string, pack: AddonPack): Prom
   for (let tries = 0; tries < 5 && !pay; tries++) {
     uid = (d.newIdentifier || newUniqueIdentifier)();
     try {
-      pay = await d.repo.insertPayment({ ...base, status: 'pending', provider_payment_id: null, error: null, invoice_status: 'none', invoice_number: null, invoice_url: null, unique_identifier: uid });
+      pay = await d.repo.insertPayment({ ...base, request_id: rid, status: 'pending', provider_payment_id: null, error: null, invoice_status: 'none', invoice_number: null, invoice_url: null, unique_identifier: uid });
     } catch (e) {
+      // The same request id reached another server at the same moment and saved its row first: answer with that row, never charge.
+      if (requestIndexClash(e)) {
+        const won = await d.repo.findAddonByRequest(tenantId, rid);
+        if (won.row) return addonOutcomeOf(won.row);
+        return { ok: false, reason: 'in-progress', error: 'the same request is being charged' };
+      }
       if (!/unique|duplicate|23505/i.test(String((e as Error)?.message))) throw e;
     }
   }

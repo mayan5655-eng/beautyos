@@ -447,6 +447,23 @@ export const RATE_POLICIES = {
     tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
   },
 
+  // Buying an add-on pack (app/api/billing/addon): a real charge. She buys one or two packs in a month; ten in ten minutes is a loop or a
+  // stuck button, never a person. The double tap itself is handled by the route and buyAddon, not by this cap.
+  'billing-addon': {
+    perIp: { limit: 10, windowMs: 10 * MINUTE },
+    perTenant: { limit: 10, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `היו כמה ניסיונות חיוב ברצף. אפשר לנסות שוב ${m}.`,
+  },
+
+  // The upgrades store and the chips on each screen (app/api/billing/upgrades): read-only counts, read once per screen open.
+  'billing-upgrades': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
+
   // Monthly / yearly choice (app/api/billing/period): she taps it once; this only stops a loop.
   'billing-period': {
     perIp: { limit: 20, windowMs: 10 * MINUTE },
