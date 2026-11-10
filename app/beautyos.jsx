@@ -27,8 +27,11 @@ import { firstBookingCardEnabled, firstBookingSteps, firstBookingRecord, firstBo
 import FeedbackBanner from "./FeedbackBanner";
 import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import BillingNotices from "./BillingNotices";
-import { addonPackForMessage, openAddons, OPEN_ADDONS_EVENT } from "@/lib/addonOffer";
+import { addonPackForMessage, OPEN_ADDONS_EVENT } from "@/lib/addonOffer";
+import { openUpgrades } from "@/lib/upgradesStore";
 import { addonButtonHe } from "@/lib/pricing";
+// "שדרוגים ✨": the one-tap store for what she buys from Kalmea, its entry points, and the chip on each metered screen.
+import UpgradesStore, { UpgradeChip, UpgradesEntry, loadUpgrades, packAvailable, setUpgradesIdentity, clearUpgrades } from "./UpgradesStore";
 import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const BusinessReferralCard = dynamic(() => import("./BusinessReferralCard"), { ssr: false });
@@ -1390,7 +1393,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // pack's button, which opens the add-ons in her billing settings. Recognised by its own wording (lib/addonOffer.ts).
     if (!action && type === "error") {
       const pack = addonPackForMessage(msg);
-      if (pack) action = { label: addonButtonHe(pack), onClick: openAddons };
+      if (pack && packAvailable(pack.key)) action = { label: addonButtonHe(pack), onClick: () => openUpgrades(pack.key) };
     }
     setToasts(prev => [...prev, { id, msg, type, action }]);
     // Error toasts stay until tapped: they carry real reasons now (an OAuth
@@ -1533,6 +1536,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       onConfirm: async () => {
         try {
           setBusyKey("logout", true);
+          clearUpgrades(); // the upgrades cache (usage, card last four) never outlives her session in this tab
           await supabase.auth.signOut();
           router.push("/login");
           router.refresh();
@@ -1651,13 +1655,25 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const openSetupTab = (tab, extra) => openSettings(tab, extra);
   // The add-on buttons (toast, reels, the post generator) all send one event; it opens Settings > העסק שלי at the add-ons.
   const openAddonsRef = useRef(null);
-  openAddonsRef.current = () => {
+  // `target` (the upgrades store): "billing-card" to save a card, "business-referral" for the invite link; default the add-ons.
+  openAddonsRef.current = (target = "billing-addons") => {
     setSettingsGroup("business");
     openSettings();
-    setTimeout(() => { try { document.getElementById("billing-addons")?.scrollIntoView({ block: "start", behavior: "smooth" }); } catch { /* not rendered yet */ } }, 700);
+    setTimeout(() => { try { document.getElementById(target)?.scrollIntoView({ block: "start", behavior: "smooth" }); } catch { /* not rendered yet */ } }, 700);
   };
+  // The upgrades store's cache is keyed by who is signed in (app/UpgradesStore.jsx): set it now, and on every sign-in, sign-out or switch.
   useEffect(() => {
-    const on = () => openAddonsRef.current?.();
+    let alive = true;
+    // No session yet (INITIAL_SESSION during a reload) is "not known", never a sign-out: her saved purchase ids must survive it.
+    supabase.auth.getSession().then(({ data }) => { if (alive) setUpgradesIdentity(data?.session?.user?.id || null); }).catch(() => {});
+    const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") clearUpgrades();
+      else setUpgradesIdentity(session?.user?.id || null);
+    });
+    return () => { alive = false; authSub?.subscription?.unsubscribe?.(); };
+  }, []);
+  useEffect(() => {
+    const on = (e) => openAddonsRef.current?.(e?.detail?.target);
     window.addEventListener(OPEN_ADDONS_EVENT, on);
     return () => window.removeEventListener(OPEN_ADDONS_EVENT, on);
   }, []);
@@ -7416,6 +7432,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       toast("שגיאה בסריקה", "error");
     } finally {
       setScanLoading(false);
+      loadUpgrades(true); // the meter and the chip show the scan she just used
     }
   };
 
@@ -7541,6 +7558,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       setReelError("אין חיבור. הרילס לא נוצר, אפשר לנסות שוב");
     } finally {
       setReelLoading(false);
+      loadUpgrades(true); // the meter and the chip show the reel she just used
     }
   };
 
@@ -7719,6 +7737,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       toast("אין חיבור. היועץ לא קיבל את השאלה, נסי שוב", "error");
     } finally {
       setAdvisorSending(false);
+      loadUpgrades(true); // the meter and the chip show the question she just asked
     }
   };
 
@@ -8489,6 +8508,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
       {photoPost&&<PhotoToPost open onClose={()=>setPhotoPost(null)} settings={settings} toast={toast} readOnly={readOnly} clientName={photoPost.clientName||""} onReel={()=>{setOwnReel({clientName:photoPost.clientName||""});setPhotoPost(null);}}/>}
       {ownReel&&<OwnReel open onClose={()=>setOwnReel(null)} settings={settings} toast={toast} readOnly={readOnly} clientName={ownReel.clientName||""}/>}
+
+      {/* "שדרוגים ✨" (app/UpgradesStore.jsx): renders nothing unless one of its switches is on. */}
+      <UpgradesStore toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}
+        onOpenCard={()=>{setSelectedClient(null);openAddonsRef.current?.("billing-card");}}
+        onOpenReferral={()=>{setSelectedClient(null);openAddonsRef.current?.("business-referral");}}/>
 
       {/* -- Onboarding walkthrough -- six steps, once per tenant, resumable -- */}
       {tourStep !== null && tourStep !== undefined && (
@@ -9322,6 +9346,7 @@ ${MARKETING_FOOTER}`)}`;
  <span style={{display:"block",fontSize:12.5,color:"var(--brand-muted)",marginTop:2}}>תמונה אחת ← פוסט וסטורי. כמה תמונות וסרטונים ← רילס</span>
  </span>
  </button>
+ <UpgradesEntry variant="home" style={{order:3}}/>
  <GoalsCard goals={resolveGoals(settings?.automations)} revenue={monthTotals.total} bookings={thisMonthAppts.filter(a=>a.confirmation_status!=="cancelled").length} hasActivity={monthTotals.total>0||thisMonthAppts.length>0} now={now} accent={pc} onSetGoals={()=>{setSettingsGroup("business");openSettings();}}/>
  {/* order 5: right after today's appointments and "needs attention" (.today-stack). */}
  {fbView!=="active"&&<MonthlyReportCard report={monthlyReportData} needsStatus={!settings?.business_tax_status} onChooseStatus={()=>openSettings("general")} accent={herAccent} businessName={settings?.business_name} toast={toast} onOpenIncome={()=>setActiveTab("tax")} fullHref={monthlyPageOn(settings)?"/dashboard/monthly":null} style={{order:5}}/>}
@@ -10921,13 +10946,14 @@ ${MARKETING_FOOTER}`)}`;
  <button onClick={generateReel} disabled={reelLoading} className="primary-btn" style={{width:"100%",padding:"13px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-md)"}}>
  {reelLoading?<Spinner inline label="יוצרת רילס"/>:<><Icon name="film" size={14}/> צרי לי רילס</>}
  </button>
+ <UpgradeChip pack="reels" meter/>
  </div>
 
  {reelError&&(
  <div style={{background:"var(--surface-2)",border:"1px solid rgba(242,184,75,0.16)",borderRadius:"var(--r-md)",padding:"12px 16px",marginBottom:16}}>
  <p style={{fontSize:"var(--t-sm)",color:pc,fontWeight:600}}>{reelError}</p>
- {addonPackForMessage(reelError)&&(
- <button type="button" data-testid="addon-offer-reels" onClick={openAddons} className="primary-btn" style={{marginTop:10,background:"var(--pc-grad)",color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:600,padding:"10px 16px",minHeight:44,borderRadius:"var(--r-sm)",border:"none",cursor:"pointer",fontFamily:"inherit"}}>{addonButtonHe(addonPackForMessage(reelError))}</button>
+ {addonPackForMessage(reelError)&&packAvailable(addonPackForMessage(reelError).key)&&(
+ <button type="button" data-testid="addon-offer-reels" onClick={()=>openUpgrades(addonPackForMessage(reelError).key)} className="primary-btn" style={{marginTop:10,background:"var(--pc-grad)",color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:600,padding:"10px 16px",minHeight:44,borderRadius:"var(--r-sm)",border:"none",cursor:"pointer",fontFamily:"inherit"}}>{addonButtonHe(addonPackForMessage(reelError))}</button>
  )}
  </div>
  )}
@@ -11278,6 +11304,7 @@ ${MARKETING_FOOTER}`)}`;
  <textarea value={advisorInput} onChange={e=>setAdvisorInput(e.target.value)} disabled={readOnly} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendAdvisor();}}} placeholder={readOnly?READ_ONLY_BADGE_HE:"כתבי שאלה עסקית… (Enter לשליחה)"} rows={1} style={{flex:1,border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"12px 14px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:"rtl",background:readOnly?"var(--surface-2)":"var(--surface)",resize:"none",maxHeight:120,boxShadow:"var(--shadow-xs)",opacity:readOnly?0.6:1,cursor:readOnly?"not-allowed":"auto"}}/>
  <button onClick={sendAdvisor} disabled={readOnly||advisorSending||!advisorInput.trim()} title={readOnly?DISABLED_REASON_HE:undefined} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"12px 22px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)",opacity:readOnly?0.5:1,cursor:readOnly?"not-allowed":"pointer"}}>{advisorSending?<Spinner inline label=""/>:"שליחה"}</button>
  </div>
+ <UpgradeChip pack="advisor" meter style={{textAlign:"center"}}/>
  </div>
           )}
 
@@ -12831,6 +12858,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
  <span style={{fontSize:"var(--t-xs)",color:pcDeep,fontWeight:700,flexShrink:0}}>{setupDone===setupTotal?"✨":`${setupDone}/${setupTotal}`}</span>
  </button>
+ <UpgradesEntry variant="settings"/>
  <div style={{display:"flex",gap:2,borderBottom:"1px solid var(--line)",flexWrap:"wrap"}}>
                 {[{k:"business",l:"העסק שלי"},{k:"page",l:"הדף שלי"},{k:"booking",l:"יומן ושירותים"},{k:"payments",l:"תשלומים"},{k:"messages",l:"הודעות"},{k:"clients",l:"לקוחות ופניות"},{k:"connections",l:"חיבורים"},{k:"advanced",l:"מתקדם"}].map(t=>(
  <button key={t.k} onClick={()=>setSettingsGroup(t.k)} style={{background:"none",border:"none",padding:"10px 12px",fontSize:"var(--t-sm)",fontWeight:settingsGroup===t.k?700:500,color:settingsGroup===t.k?pcDeep:"var(--ink-3)",borderBottom:settingsGroup===t.k?`2.5px solid ${pc}`:"2.5px solid transparent",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",transition:"color 0.2s"}}>{t.l}</button>
@@ -12930,6 +12958,7 @@ ${MARKETING_FOOTER}`)}`;
      a printed code and a bio link can never drift apart. */}
  {skinScanVisible(editSettings)&&(<div style={{background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"12px 12px 10px",marginBottom:8}}>
    <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--ink)",marginBottom:6}}>סורק העור, הקישור לשיתוף</p>
+   <UpgradeChip pack="skinscan" meter style={{marginTop:0,marginBottom:10}}/>
    {scanLink ? (
      <>
        <div style={{display:"flex",gap:6,alignItems:"stretch",marginBottom:8}}>
@@ -14107,6 +14136,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                     );})
                   )}
+                  {clientTab==="scans"&&<UpgradeChip pack="skinscan" style={{marginTop:0,marginBottom:8}}/>}
                   {clientTab==="scans"&&(
                     scansLoading?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}><Spinner inline label="טוענת סריקות"/></p>
                     :clientScans.length===0?<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)"}}>אין סריקות עדיין. לחצי על "סריקת עור AI" למעלה.</p>

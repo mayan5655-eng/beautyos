@@ -5,6 +5,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import BillingActions from './BillingActions'
+import AddonPurchasesAdmin from './AddonPurchasesAdmin'
+import { addonPacksEnabled } from '@/lib/pricing'
 
 type Row = { id: string; tenant_id: string; price: number | string; status: string; next_charge_at: string | null; card_last4: string | null; failed_attempts: number; past_due_since: string | null; ends_at: string | null }
 
@@ -83,6 +85,8 @@ export default async function BillingAdmin({ db }: { db: SupabaseClient }) {
           </table>
         </div>
       )}
+      {/* Add-on packs bought this month (who, what, how much). Only with packs switched on. */}
+      {addonPacksEnabled() && <AddonPurchasesAdmin db={db} />}
     </section>
   )
 }

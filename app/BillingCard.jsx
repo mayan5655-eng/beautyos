@@ -16,6 +16,8 @@ import { billingConsentTextHe, billingAnnualConsentTextHe, billingMonthlyConsent
 import { annualOfferHe } from '@/lib/planCopy';
 import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 import { priceHe } from '@/lib/pricing';
+import { isFinalRefusal, requestVerdict, requestStateHe, LOST_ANSWER_HE } from '@/lib/upgradesStore';
+import { purchaseIntent, settleIntent, requestStatus } from './UpgradesStore';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -79,18 +81,34 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     } finally { setBusy(false); }
   };
 
+  // The same purchase rules as the upgrades store (app/UpgradesStore.jsx): one request id per pack intent, kept until the server gives a
+  // definitive outcome, so a retry is never a second charge; a lost or unclear answer is checked by that id, never told "not charged".
   const buyPack = async (key) => {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key }) });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { toast?.(j?.error || 'החיוב לא הצליח, נסי שוב', r.status === 202 ? 'info' : 'error'); return; }
-      toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
+      const rid = purchaseIntent(key);
+      let r = null;
+      let j = null;
+      try {
+        r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid }) });
+        j = await r.json().catch(() => null);
+      } catch { r = null; }
+      if (r && r.ok && j?.success) {
+        settleIntent(key);
+        toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
+        setConfirmPack(null);
+        await load();
+        return;
+      }
+      if (r && isFinalRefusal(r.status, j)) { settleIntent(key); toast?.(j?.error || 'החיוב לא הצליח, נסי שוב', 'error'); return; }
+      toast?.(LOST_ANSWER_HE, 'info');
+      const a = await requestStatus(rid);
+      const v = requestVerdict(a);
+      if (v !== 'wait') settleIntent(key);
+      toast?.(requestStateHe(a), v === 'done' ? 'success' : 'info');
       setConfirmPack(null);
       await load();
-    } catch {
-      toast?.('אין חיבור. לא חויבת, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
 
@@ -170,6 +188,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         )}
         {cardErr && <p role="alert" data-testid="billing-card-error" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 8 }}>{cardErr}</p>}
         {/* Card payment not configured: no card form above, and no "not active yet" line either (2026-11-09 owner rule). */}
+        {s.owner === false && <p data-testid="billing-member" style={text}>את המנוי והכרטיס מנהלת בעלת העסק.</p>}
 
         {an && an.ready && (
           <div data-testid="billing-period" style={{ marginTop: 16 }}>
@@ -186,7 +205,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                     const on = nextPeriod === o.k;
                     return (
                       <button key={o.k} type="button" role="radio" aria-checked={on} data-testid={`billing-period-${o.k}`}
-                        disabled={busy || isDemo || !sub || sub.status === 'canceled'}
+                        disabled={busy || isDemo || s.owner === false || !sub || sub.status === 'canceled'}
                         onClick={() => { if (!on) { setPeriodAsk(o.k); setPeriodOk(false); } }}
                         style={{ textAlign: 'right', background: on ? pcTint : 'var(--surface)', border: on ? `1.5px solid ${pc}` : '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', cursor: on ? 'default' : 'pointer', fontFamily: 'inherit', minHeight: 44, color: 'var(--ink)' }}>
                         <b style={{ fontSize: 'var(--t-sm)' }}>{o.title}{on ? ' ✓' : ''}</b>
@@ -273,7 +292,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
           </div>
         )}
 
-        {!isDemo && sub && sub.status !== 'canceled' && (
+        {!isDemo && s.owner !== false && sub && sub.status !== 'canceled' && (
           <div style={{ marginTop: 14 }}>
             {!confirmCancel ? (
               <button type="button" style={ghost} onClick={() => setConfirmCancel(true)}>ביטול המנוי</button>
@@ -291,7 +310,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   }
 
   return (
-    <div data-testid="billing-card" style={box}>
+    <div id="billing-card" data-testid="billing-card" style={{ ...box, scrollMarginTop: 80 }}>
       <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>המנוי שלי בקלמיה</p>
       {s.mode === 'mock' && <p data-testid="billing-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
       {body}
