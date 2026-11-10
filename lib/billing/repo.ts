@@ -96,6 +96,21 @@ export function supabaseBillingRepo(db: SupabaseClient): BillingRepo {
       if (error) fail(error, 'findOpenAddon');
       return data && data[0] ? payOf(data[0] as Record<string, unknown>) : null;
     },
+    async findAddonByRequest(tenantId, requestId) {
+      const { data, error } = await db.from('billing_payments').select('*').eq('tenant_id', tenantId).eq('kind', 'addon').eq('request_id', requestId).limit(1);
+      if (error) {
+        // Before add_addon_request_id_2026-11-10.sql the column does not exist: not an error, just "not tracked". Anything else throws.
+        if (error.code === '42703' || /request_id.*(does not exist|schema cache)|(does not exist|schema cache).*request_id/i.test(error.message || '')) return { supported: false, row: null };
+        fail(error, 'findAddonByRequest');
+      }
+      return { supported: true, row: data && data[0] ? payOf(data[0] as Record<string, unknown>) : null };
+    },
+    async findRecentAddon(tenantId, packKey, sinceIso) {
+      const { data, error } = await db.from('billing_payments').select('*').eq('tenant_id', tenantId).eq('kind', 'addon').eq('note', packKey)
+        .gte('created_at', sinceIso).order('created_at', { ascending: false }).limit(1);
+      if (error) fail(error, 'findRecentAddon');
+      return data && data[0] ? payOf(data[0] as Record<string, unknown>) : null;
+    },
     async coveredByAnnual(subId, periodStart) {
       // add_referrals_annual_2026-11-08.sql adds period_months; before it runs there is no yearly charge to find.
       const { data, error } = await db.from('billing_payments').select('id').eq('subscription_id', subId).eq('kind', 'subscription').eq('status', 'succeeded')

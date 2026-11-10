@@ -43,12 +43,7 @@ export type UpgradesData = {
   packs: PackUsage[];
   annual: { ready: boolean; monthly: number; yearly: number; billingPeriod: 'monthly' | 'annual'; pendingPeriod: string | null } | null;
   referrals: boolean;
-  /** Her add-on charges of the last 15 minutes; absent or null when the ledger could not be read. */
-  recentAddons?: RecentAddon[] | null;
 };
-
-/** One of her own add-on charges as the server recorded it: the payment row's id, the pack, its status, the server's time. */
-export type RecentAddon = { id: string; pack: string; status: string; at: string };
 
 export type UsageLevel = 'unknown' | 'quiet' | 'near' | 'full';
 
@@ -165,9 +160,10 @@ export function openUpgrades(pack?: AddonPackKey, target: { dispatchEvent?: (e: 
 }
 
 // ── after a purchase request: what really happened ──────────────────────────────────────────────────────────────────────────────
-// Vercel review 2026-11-09: a LOST answer (no connection, a timeout, a body that is not JSON, a server error) must never say "not
-// charged": the server may already have charged the card. Only an explicit refusal, one that by construction never reached a charge,
-// may be shown as final. Everything else is checked against her real ledger (recentAddons from /api/billing/upgrades).
+// Rebuilt 2026-11-10 after three review rounds on the client-side reconciliation: the SERVER is the authority. Every purchase intent
+// carries one request id, saved on its charge (billing_payments.request_id, add_addon_request_id_2026-11-10.sql). The same id again is
+// never a second charge (lib/billing/service.ts buyAddon), and what happened to it is asked by that id (GET /api/billing/upgrades
+// ?request=<id>). No baselines, no time windows, no browser clock. "Not charged" is said only when the server says so for that id.
 
 /** Refusals the purchase route sends BEFORE any charge is attempted, or the provider's own "no". Shown as final. */
 const FINAL_REASONS = new Set(['no-card', 'declined', 'not-configured', 'unavailable', 'not-owner']);
@@ -180,40 +176,34 @@ export function isFinalRefusal(status: number, body: unknown): boolean {
   return b.hidden === true || status === 400 || status === 401 || status === 403 || status === 429;
 }
 
-export type PurchaseOutcome = 'succeeded' | 'pending' | 'failed' | 'none' | 'unknown';
-
-/** The ids of her charges the server already showed BEFORE the request was sent: the baseline a new charge is told apart from. */
-export function knownAddonIds(recent: RecentAddon[] | null | undefined): string[] | null {
-  return Array.isArray(recent) ? recent.map((r) => String(r.id)) : null;
-}
+/** The server's answer for one request id: 'unreachable' when the lookup itself failed. */
+export type RequestState = 'succeeded' | 'failed' | 'pending' | 'none' | 'untracked' | 'unreachable';
+export type RequestAnswer = { state: RequestState; recent?: 'succeeded' | 'failed' | 'pending' | null };
 
 /**
- * This request's charge, as the server recorded it. NEVER compares with the browser's clock (Vercel review 2026-11-09: a phone clock a
- * minute off hid a succeeded charge): a charge is "this one" when its server row id was not in the baseline read just before the request.
- * With no baseline (that read failed), any charge of this pack in the server's own 15-minute window counts. Rows are ordered by the
- * server's own times only. `recent` null = the ledger could not be read now.
+ * What the store does with that answer:
+ *   done      show the success screen (the pack landed)
+ *   declined  the provider said no for THIS id: "not charged", and the next tap is a new intent with a new id
+ *   wait      unresolved: say so, keep the SAME id (a retry of it can never be a second charge)
  */
-export function purchaseOutcome(recent: RecentAddon[] | null | undefined, pack: string, known: string[] | null): PurchaseOutcome {
-  if (!Array.isArray(recent)) return 'unknown';
-  const before = known ? new Set(known) : null;
-  const mine = recent.filter((r) => r.pack === pack && !(before && before.has(String(r.id)))).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-  const s = mine[0]?.status;
-  if (!s) return 'none';
-  if (s === 'succeeded') return 'succeeded';
-  if (s === 'failed') return 'failed';
-  return 'pending';
+export function requestVerdict(a: RequestAnswer | null | undefined): 'done' | 'declined' | 'wait' {
+  if (!a) return 'wait';
+  if (a.state === 'succeeded') return 'done';
+  if (a.state === 'failed') return 'declined';
+  // Before the migration: only a recent success of that pack is taken as this one (today's fallback). Its "failed" is NOT read as
+  // "not charged": it may be an earlier attempt.
+  if (a.state === 'untracked' && a.recent === 'succeeded') return 'done';
+  return 'wait';
 }
 
 export const LOST_ANSWER_HE = 'לא קיבלנו תשובה. בודקות אם החיוב עבר…';
 
-/** The request itself got no answer and no charge shows up yet: it may still be on its way, so this never says "not charged". */
-export const NOT_FOUND_YET_HE = 'עוד לא רואות חיוב חדש. אם הוא יעבור, החבילה תתווסף לבד. כדאי להציץ ברשימת החיובים במנוי לפני שמנסים שוב.';
-
-/** What she reads once the ledger was checked. Only 'failed' (the provider's recorded "no") and 'none' (no charge row exists) say she was not charged. */
-export function outcomeHe(o: PurchaseOutcome): string {
-  if (o === 'pending') return 'החיוב עוד בבדיקה מול חברת האשראי. אם הוא עבר, החבילה תתווסף לבד ונעדכן אותך. אין צורך ללחוץ שוב.';
-  if (o === 'failed') return 'חברת האשראי לא אישרה את החיוב, ולא חויבת. אפשר לנסות שוב.';
-  if (o === 'none') return 'החיוב לא התחיל, ולא חויבת. אפשר לנסות שוב.';
-  if (o === 'unknown') return 'לא הצלחנו לבדוק אם החיוב עבר. כדאי להציץ ברשימת החיובים במנוי שלך לפני שמנסים שוב.';
-  return 'החבילה נוספה 🌸';
+/** Her words for an answer. Only 'failed' says she was not charged. */
+export function requestStateHe(a: RequestAnswer | null | undefined): string {
+  const st = a?.state;
+  if (st === 'succeeded') return 'החבילה נוספה 🌸';
+  if (st === 'failed') return 'חברת האשראי לא אישרה את החיוב, ולא חויבת. אפשר לנסות שוב.';
+  if (st === 'pending') return 'החיוב עוד בבדיקה מול חברת האשראי. אם הוא עבר, החבילה תתווסף לבד. אין צורך ללחוץ שוב.';
+  if (st === 'none') return 'בודקות… עוד לא רואות את החיוב. אפשר ללחוץ שוב בבטחה: אותה בקשה לא תחויב פעמיים.';
+  return 'לא הצלחנו לבדוק אם החיוב עבר. כדאי להציץ ברשימת החיובים במנוי שלך לפני שמנסים שוב.';
 }

@@ -19,7 +19,7 @@
 // Flags: nothing renders and nothing is fetched unless one of NEXT_PUBLIC_ADDON_PACKS / NEXT_PUBLIC_ANNUAL_PLAN / NEXT_PUBLIC_REFERRALS
 // is on, and the server decides what is really offered (packs and yearly also need BILLING_UI_ENABLED). An empty store hides its entries.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Sheet from './Sheet';
 import { ADDON_PACKS, addonButtonHe, addonPacksEnabled, priceHe } from '@/lib/pricing';
@@ -29,7 +29,7 @@ import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 import {
   UPGRADES_EVENT, UPGRADES_CHANGED_EVENT, upgradesFlagsOn, storeCards, packFor, homeNudgePack, usageLevel, usagePct, usageLineHe,
   pageChipHe, packTitleHe, packWhatHe, priceNoteHe, confirmChargeHe, successHe, annualSavingHe, newRequestId, openUpgrades,
-  isFinalRefusal, purchaseOutcome, outcomeHe, knownAddonIds, LOST_ANSWER_HE, NOT_FOUND_YET_HE,
+  isFinalRefusal, requestVerdict, requestStateHe, LOST_ANSWER_HE,
 } from '@/lib/upgradesStore';
 
 /** Above every drawer and sheet that can hold a chip (the client drawer 1200, the scan report 1300, the "more" sheet 1401), below the
@@ -77,6 +77,41 @@ export async function loadUpgrades(force = false) {
 
 /** Can this pack be bought right now (the last answer from the server)? For buttons rendered outside a hook (the cap-hit toast). */
 export function packAvailable(key) { return addonPacksEnabled() && !!packFor(shared.data, key); }
+
+// ── purchase intents: one request id per pack until the server gives a definitive outcome ───────────────────────────────────────
+// Kept in memory and in sessionStorage (a reload in the same tab keeps it too; a blocked storage only loses that convenience).
+const intents = new Map();
+const INTENT_KEY = (k) => `kalmea:addon-intent:${k}`;
+
+/** The unresolved purchase id for this pack, or ''. */
+export function openIntent(key) {
+  if (intents.has(key)) return intents.get(key);
+  try { const v = window.sessionStorage.getItem(INTENT_KEY(key)); if (v) { intents.set(key, v); return v; } } catch { /* no storage */ }
+  return '';
+}
+/** The id to send for this pack: the unresolved one, or a fresh one that is kept until settled. */
+export function purchaseIntent(key) {
+  const have = openIntent(key);
+  if (have) return have;
+  const id = newRequestId();
+  intents.set(key, id);
+  try { window.sessionStorage.setItem(INTENT_KEY(key), id); } catch { /* no storage */ }
+  return id;
+}
+/** A definitive outcome (succeeded, or refused / declined for this id): the next purchase of this pack is a new intent. */
+export function settleIntent(key) {
+  intents.delete(key);
+  try { window.sessionStorage.removeItem(INTENT_KEY(key)); } catch { /* no storage */ }
+}
+
+/** What the server knows about one purchase id. A failed lookup is 'unreachable', never "not charged". */
+export async function requestStatus(rid, pack) {
+  try {
+    const r = await fetch(`/api/billing/upgrades?request=${encodeURIComponent(rid)}&pack=${encodeURIComponent(pack)}`, { cache: 'no-store' });
+    const j = await r.json().catch(() => null);
+    return r.ok && j?.success && j.request ? j.request : { state: 'unreachable' };
+  } catch { return { state: 'unreachable' }; }
+}
 
 export function useUpgrades() {
   const [d, setD] = useState(() => shared.data);
@@ -325,9 +360,18 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [consentOk, setConsentOk] = useState(false);
-  const rid = useRef('');
+  const goTo = useCallback((v) => { setView(v); setErr(''); setConsentOk(false); }, []);
 
-  const goTo = useCallback((v) => { setView(v); setErr(''); setConsentOk(false); rid.current = v?.kind === 'pack' ? newRequestId() : ''; }, []);
+  // Reopening a pack whose last purchase never got a clear answer: ask the server about THAT request first, so she sees where it stands.
+  const recheck = useCallback(async (key) => {
+    const rid = openIntent(key);
+    if (!rid) return;
+    const a = await requestStatus(rid, key);
+    const v = requestVerdict(a);
+    if (v === 'wait') { setErr(requestStateHe(a)); return; }
+    settleIntent(key);
+    if (v === 'done') { await loadUpgrades(true); try { window.dispatchEvent(new CustomEvent(UPGRADES_CHANGED_EVENT, { detail: { pack: key } })); } catch { /* old browser */ } }
+  }, []);
 
   useEffect(() => {
     if (!upgradesFlagsOn()) return undefined;
@@ -335,64 +379,66 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
     const on = (e) => {
       const pack = e?.detail?.pack;
       setOpen(true);
-      goTo(pack && ADDON_PACKS[pack] ? { kind: 'pack', key: pack } : null);
+      const isPack = !!(pack && ADDON_PACKS[pack]);
+      goTo(isPack ? { kind: 'pack', key: pack } : null);
       loadUpgrades(true);
+      if (isPack) recheck(pack);
     };
     window.addEventListener(UPGRADES_EVENT, on);
     return () => { window.removeEventListener(UPGRADES_EVENT, on); window.__kalmeaUpgradesMounted = false; };
-  }, [goTo]);
+  }, [goTo, recheck]);
 
   if (!upgradesFlagsOn()) return null;
 
   const close = () => { if (!busy) { setOpen(false); goTo(null); } };
 
   const landed = async (key) => {
+    settleIntent(key);
+    await loadUpgrades(true);
     try { window.dispatchEvent(new CustomEvent(UPGRADES_CHANGED_EVENT, { detail: { pack: key } })); } catch { /* old browser */ }
     setView({ kind: 'success', key });
     toast?.('החבילה נוספה, אפשר להמשיך ליצור 🌸');
   };
 
-  // The answer was lost or is not a clear refusal: read her real ledger instead of guessing. Twice, a few seconds apart, because a lost
-  // answer can mean the server is still charging. Never says "not charged" unless the ledger shows no charge, or the provider's "no".
-  const verify = async (key, known, answered) => {
+  // The answer was lost or is not a clear one: ask the server what happened to THIS request id. A few tries, a few seconds apart,
+  // because a lost answer can mean the server is still charging. The id is kept until the server gives a definitive outcome.
+  const verify = async (key, rid) => {
     setErr(LOST_ANSWER_HE);
-    let o = 'unknown';
-    for (let i = 0; i < 2; i++) {
-      if (i) await new Promise((res) => setTimeout(res, 3000));
-      const fresh = await loadUpgrades(true);
-      o = fresh ? purchaseOutcome(fresh.recentAddons, key, known) : 'unknown';
-      if (o === 'succeeded' || o === 'failed') break;
+    let a = null;
+    for (let i = 0; i < 3; i++) {
+      if (i) await new Promise((res) => setTimeout(res, 2000 * i));
+      a = await requestStatus(rid, key);
+      if (requestVerdict(a) !== 'wait') break;
     }
-    if (o === 'succeeded') { setErr(''); await landed(key); return; }
-    // No answer at all and nothing in the ledger yet: the request may still be on its way, so never "not charged", and the same id stays.
-    if (o === 'none' && !answered) { setErr(NOT_FOUND_YET_HE); return; }
-    setErr(outcomeHe(o));
-    // A recorded "no", or the server answered and no charge row exists: a second tap is a new, deliberate request.
-    if (o === 'failed' || o === 'none') rid.current = newRequestId();
+    const v = requestVerdict(a);
+    if (v === 'done') { setErr(''); await landed(key); return; }
+    if (v === 'declined') settleIntent(key);
+    setErr(requestStateHe(a));
   };
 
   const buy = async (key) => {
     if (busy) return;
     setBusy(true); setErr('');
     try {
-      // The baseline, read from the server right before the charge: the charges that already existed. A new one is told apart by its
-      // server row id, never by her phone's clock. A failed read leaves no baseline (null), and then the server's window decides.
-      const base = await loadUpgrades(true);
-      const known = base ? knownAddonIds(base.recentAddons) : null;
+      // One id per purchase intent, kept until a definitive outcome: a retry, a double tap, or the sheet reopened all send the same id,
+      // and the server never charges one id twice (lib/billing/service.ts buyAddon).
+      const retry = !!openIntent(key);
+      const rid = purchaseIntent(key);
       let r = null;
       let j = null;
       try {
-        r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid.current }) });
+        r = await fetch('/api/billing/addon', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pack: key, requestId: rid, retry }) });
         j = await r.json().catch(() => null);
       } catch { r = null; }
-      if (r && r.ok && j?.success) { await loadUpgrades(true); await landed(key); return; }
+      if (r && r.ok && j?.success) { await landed(key); return; }
       if (r && isFinalRefusal(r.status, j)) {
+        // Refused before any charge, or the provider's "no" for this id: definitive. The next tap is a new intent.
+        settleIntent(key);
         setErr(j?.error || 'החיוב לא הצליח, נסי שוב');
-        rid.current = newRequestId();
         return;
       }
-      // No answer, a body that is not JSON, a server error, "pending", "in progress": the card may have been charged. Check.
-      await verify(key, known, !!r);
+      // No answer, a body that is not JSON, a server error, "pending", "in progress": ask the server about this id.
+      await verify(key, rid);
     } finally { setBusy(false); }
   };
 

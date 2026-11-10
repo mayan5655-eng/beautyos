@@ -75,11 +75,13 @@ export async function POST(req: Request) {
   };
   try {
     const b = billing();
-    const r = await buyAddon({ repo: supabaseBillingRepo(admin()), payments: b.payments!, invoicing: b.invoicing! }, c.tenantId, pack);
+    const r = await buyAddon({ repo: supabaseBillingRepo(admin()), payments: b.payments!, invoicing: b.invoicing! }, c.tenantId, pack, { requestId: rid || null, retry: body?.retry === true });
     if (!r.ok) {
       console.warn('[billing] add-on not bought for tenant', c.tenantId, key, r.reason, r.error);
       const status = r.reason === 'pending' ? 202 : r.reason === 'in-progress' ? 409 : 402;
-      return remember({ status, body: { success: false, reason: r.reason, error: REFUSAL_HE[r.reason] || 'החיוב לא הצליח, נסי שוב' } });
+      const a = { status, body: { success: false, reason: r.reason, error: REFUSAL_HE[r.reason] || 'החיוב לא הצליח, נסי שוב' } };
+      // Only a definitive answer is remembered: "pending" or "in progress" must be asked again, the ledger may have settled since.
+      return status === 402 ? remember(a) : reply(a);
     }
     forgetPurchased(c.tenantId);
     console.log('[billing] add-on bought', c.tenantId, key, pack.price);

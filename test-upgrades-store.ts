@@ -14,7 +14,7 @@ import {
 import { OPEN_ADDONS_EVENT } from './lib/addonOffer.ts';
 import { buyAddon, ADDON_OPEN_WINDOW_MS, type Deps, type PaymentRecord } from './lib/billing/service.ts';
 import { RATE_POLICIES } from './lib/rateLimit.ts';
-import { isFinalRefusal, purchaseOutcome, outcomeHe, knownAddonIds, LOST_ANSWER_HE, NOT_FOUND_YET_HE } from './lib/upgradesStore.ts';
+import { isFinalRefusal, requestVerdict, requestStateHe, LOST_ANSWER_HE } from './lib/upgradesStore.ts';
 import { callerIsOwner } from './lib/billing/owner.ts';
 
 let n = 0;
@@ -352,7 +352,7 @@ await ok('wiring (source, app/beautyos.jsx cannot render alone): the reels, advi
   assert.match(read('app/BillingCard.jsx'), /id="billing-card"/, 'no card: the store sends her to the existing card flow');
   assert.match(read('app/BusinessReferralCard.jsx'), /id="business-referral"/);
   const ui = read('app/UpgradesStore.jsx');
-  assert.match(ui, /requestId: rid\.current/, 'one id per confirm sheet');
+  assert.match(ui, /requestId: rid, retry/, 'one id per purchase intent, sent with every try');
   assert.match(ui, /if \(busy\) return;/);
   assert.doesNotMatch(ui, /--brand-|pcTint|herAccent/, 'Kalmea\'s own store wears Kalmea chrome, not her accent');
 });
@@ -401,35 +401,6 @@ await ok('review 2: the store renders above the client drawer, in a portal', () 
   assert.match(app, /onOpenCard=\{\(\)=>\{setSelectedClient\(null\);openAddonsRef/, 'sending her to save a card closes the client drawer first');
 });
 
-await ok('review 3: a lost answer never says "not charged"; only an explicit refusal is final', () => {
-  assert.equal(isFinalRefusal(402, { success: false, reason: 'declined' }), true);
-  assert.equal(isFinalRefusal(402, { success: false, reason: 'no-card' }), true);
-  assert.equal(isFinalRefusal(403, { success: false, reason: 'not-owner' }), true);
-  assert.equal(isFinalRefusal(429, { success: false, error: 'limit' }), true);
-  assert.equal(isFinalRefusal(500, { success: false, error: 'x' }), false, 'a server error may come after the charge');
-  assert.equal(isFinalRefusal(202, { success: false, reason: 'pending' }), false);
-  assert.equal(isFinalRefusal(409, { success: false, reason: 'in-progress' }), false);
-  assert.equal(isFinalRefusal(502, null), false, 'a body that is not JSON');
-  assert.equal(isFinalRefusal(0, undefined), false, 'no answer at all');
-  const known = ['p-old'];
-  const rows = [{ id: 'p-new', pack: 'reels', status: 'succeeded', at: '2026-11-09T09:00:05Z' }, { id: 'p-f', pack: 'posts', status: 'failed', at: '2026-11-09T09:00:06Z' }, { id: 'p-old', pack: 'reels', status: 'failed', at: '2026-11-09T08:58:00Z' }];
-  assert.equal(purchaseOutcome(rows, 'reels', known), 'succeeded');
-  assert.equal(purchaseOutcome(rows, 'posts', known), 'failed');
-  assert.equal(purchaseOutcome([{ id: 'p1', pack: 'reels', status: 'unknown', at: '2026-11-09T09:00:05Z' }], 'reels', []), 'pending');
-  assert.equal(purchaseOutcome([{ id: 'p-old', pack: 'reels', status: 'succeeded', at: '2026-11-09T08:58:00Z' }], 'reels', known), 'none', 'a charge that existed before the request is not this one');
-  assert.equal(purchaseOutcome(null, 'reels', known), 'unknown', 'an unreadable ledger is "could not check", never "no charge"');
-  assert.ok(!/לא חויבת/.test(outcomeHe('pending')) && !/לא חויבת/.test(outcomeHe('unknown')) && !/לא חויבת/.test(LOST_ANSWER_HE));
-  assert.ok(/לא חויבת/.test(outcomeHe('failed')) && /לא חויבת/.test(outcomeHe('none')), 'only a recorded "no" or no charge row says so');
-  const ui = read('app/UpgradesStore.jsx');
-  assert.doesNotMatch(ui, /אין חיבור\. לא חויבת/);
-  assert.match(ui, /await verify\(key, known, !!r\)/);
-  assert.match(ui, /if \(o === 'none' && !answered\) \{ setErr\(NOT_FOUND_YET_HE\); return; \}/, 'no answer at all and no row yet: never "not charged"');
-  assert.ok(!/לא חויבת/.test(NOT_FOUND_YET_HE));
-  assert.doesNotMatch(read('app/BillingCard.jsx'), /אין חיבור\. לא חויבת/, 'the billing card had the same sentence');
-  const up = read('app/api/billing/upgrades/route.ts');
-  assert.match(up, /out\.recentAddons = ra\.error \? null :/, 'a failed ledger read is null, not an empty list');
-});
-
 const ownerDb = (tenant: any, member: any, fail = false) => ({
   from: (t: string) => {
     const row = t === 'tenants' ? tenant : member;
@@ -461,29 +432,6 @@ await ok('security: only the owner moves money; a member, or an unreadable answe
 });
 
 
-await ok('review 3b: a skewed phone clock never hides a succeeded charge (matched by server row id, not by time)', () => {
-  // The server's rows carry the server's times. Her phone runs 10 minutes FAST, then 10 minutes SLOW: the answer is the same.
-  const before = [{ id: 'p1', pack: 'reels', status: 'succeeded', at: '2026-11-09T08:50:00Z' }];
-  const after = [{ id: 'p2', pack: 'reels', status: 'succeeded', at: '2026-11-09T09:00:01Z' }, ...before];
-  const RealDate = Date;
-  for (const skewMin of [10, -10, 600]) {
-    const fake = class extends RealDate { constructor(...a: any[]) { super(...(a.length ? a : [RealDate.now() + skewMin * 60_000]) as []); } static now() { return RealDate.now() + skewMin * 60_000; } };
-    (globalThis as any).Date = fake;
-    try {
-      const known = knownAddonIds(before);
-      assert.equal(purchaseOutcome(after, 'reels', known), 'succeeded', `clock ${skewMin} min off: the new charge is found`);
-      assert.equal(purchaseOutcome(before, 'reels', known), 'none', `clock ${skewMin} min off: the old one is not mistaken for it`);
-    } finally { (globalThis as any).Date = RealDate; }
-  }
-  assert.equal(knownAddonIds(null), null, 'no baseline: the server window decides');
-  assert.equal(purchaseOutcome(after, 'reels', null), 'succeeded');
-  const ui = read('app/UpgradesStore.jsx');
-  const buyFn = ui.slice(ui.indexOf('const buy = async'), ui.indexOf('const switchAnnual'));
-  assert.doesNotMatch(buyFn + ui.slice(ui.indexOf('const verify = async'), ui.indexOf('const buy = async')), /Date\.now\(\)|new Date\(/, 'the purchase check never reads the browser clock');
-  assert.match(buyFn, /const base = await loadUpgrades\(true\);\s*const known = base \? knownAddonIds\(base\.recentAddons\) : null;/, 'the baseline is read from the server right before the charge');
-  assert.match(read('app/api/billing/upgrades/route.ts'), /select\('id, note, status, created_at'\)/, 'only her own row ids, pack, status, time: no provider ids or tokens');
-});
-
 await ok('security: replacing the card, cancelling, and the billing details are owner-only', () => {
   for (const f of ['app/api/billing/card/route.ts', 'app/api/billing/cancel/route.ts']) {
     const src = read(f);
@@ -498,6 +446,172 @@ await ok('security: replacing the card, cancelling, and the billing details are 
   const card = read('app/BillingCard.jsx');
   assert.match(card, /s\.owner === false \? <p data-testid="billing-member"/);
   assert.match(card, /!isDemo && s\.owner !== false && sub && sub\.status !== 'canceled'/, 'no cancel button for a member');
+});
+
+
+// ── purchase idempotency by request id (2026-11-10): the server is the authority ─────────────────────────────────────────────────
+function ledger(opts: { tracked?: boolean; charge?: any; insertFailsOnceWith?: string } = {}) {
+  const tracked = opts.tracked !== false;
+  const payments: any[] = [];
+  const charges: any[] = [];
+  let id = 0;
+  let failOnce = opts.insertFailsOnceWith || '';
+  const repo: any = {
+    getSub: async () => ({ id: 'sub1', tenant_id: T, price: 349, status: 'active', token_ref: 'tok_1', card_last4: '4242' }),
+    getTenant: async () => ({ id: T, name: 'בדיקה', phone: '0500000000' }),
+    insertPayment: async (r: any) => {
+      await Promise.resolve();
+      if (failOnce) { const m = failOnce; failOnce = ''; throw new Error(m); }
+      if (!tracked && 'request_id' in r) throw new Error('column "request_id" of relation "billing_payments" does not exist');
+      // The partial unique index (tenant_id, request_id) where request_id is not null.
+      if (r.request_id && payments.some((p) => p.tenant_id === r.tenant_id && p.request_id === r.request_id)) throw new Error('duplicate key value violates unique constraint "billing_payments_tenant_request"');
+      const p = { ...r, id: `p${++id}`, created_at: NOW.toISOString() }; payments.push(p); return p;
+    },
+    updatePayment: async (pid: string, patch: any) => { Object.assign(payments.find((p) => p.id === pid)!, patch); },
+    insertAddon: async () => {},
+    findOpenAddon: async () => null,
+    findAddonByRequest: async (t: string, rid: string) => (tracked ? { supported: true, row: payments.find((p) => p.tenant_id === t && p.request_id === rid) || null } : { supported: false, row: null }),
+    findRecentAddon: async (t: string, pack: string) => [...payments].reverse().find((p) => p.tenant_id === t && p.note === pack) || null,
+  };
+  const d: Deps = {
+    repo,
+    payments: { createCardSession: async () => ({ url: '' }), charge: async (i: unknown) => { charges.push(i); await Promise.resolve(); return opts.charge ?? { ok: true, providerPaymentId: `pp${charges.length}` }; } } as any,
+    invoicing: { issueInvoice: async () => ({ ok: true, number: '1', url: 'https://example.test/doc' }) } as any,
+    now: () => NOW,
+    newIdentifier: (() => { let u = 1000; return () => ++u; })(),
+  };
+  return { d, payments, charges };
+}
+
+await ok('lost answer, then a retry with the same id: the first charge\'s outcome, never a second charge', async () => {
+  const l = ledger();
+  const first = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-aaaaaaaa' });
+  assert.equal(first.ok, true);                                     // the answer to this one is "lost" on the way back
+  const again = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-aaaaaaaa', retry: true });
+  assert.equal(again.ok, true);
+  assert.equal(again.ok && again.replay, true, 'answered from the saved charge');
+  assert.equal(l.charges.length, 1, 'one intent, one charge');
+  assert.equal(l.payments.length, 1);
+  assert.equal(l.payments[0].request_id, 'req-aaaaaaaa', 'the id is saved on the charge');
+  const other = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-bbbbbbbb' });
+  assert.equal(other.ok, true);
+  assert.equal(l.charges.length, 2, 'a NEW intent (a new id) is a new purchase');
+});
+
+await ok('double tap: the same id twice at the same moment is one charge (the unique index decides)', async () => {
+  const l = ledger();
+  const [a, b] = await Promise.all([
+    buyAddon(l.d, T, ADDON_PACKS.posts, { requestId: 'req-cccccccc' }),
+    buyAddon(l.d, T, ADDON_PACKS.posts, { requestId: 'req-cccccccc' }),
+  ]);
+  assert.equal(l.charges.length, 1, 'never two charges');
+  assert.equal(l.payments.length, 1);
+  assert.ok([a, b].some((r) => r.ok), 'one of them charged');
+  assert.ok([a, b].every((r) => r.ok || (!r.ok && (r.reason === 'pending' || r.reason === 'in-progress'))), 'the other is answered from that row, not refused as "not charged"');
+});
+
+await ok('a retried id whose charge is still open, or was declined, gets that outcome', async () => {
+  const pend = ledger({ charge: { ok: false, code: 'duplicate', error: 'seen' } });
+  (pend.d.payments as any).lookup = async () => ({ ok: true, found: true, status: 'pending' });
+  const r1 = await buyAddon(pend.d, T, ADDON_PACKS.advisor, { requestId: 'req-dddddddd' });
+  assert.deepEqual([r1.ok, !r1.ok && r1.reason], [false, 'pending']);
+  const r2 = await buyAddon(pend.d, T, ADDON_PACKS.advisor, { requestId: 'req-dddddddd', retry: true });
+  assert.deepEqual([r2.ok, !r2.ok && r2.reason], [false, 'pending']);
+  assert.equal(pend.charges.length, 1, 'still the one charge attempt');
+  const dec = ledger({ charge: { ok: false, code: 'declined', error: 'refused' } });
+  await buyAddon(dec.d, T, ADDON_PACKS.advisor, { requestId: 'req-eeeeeeee' });
+  const r3 = await buyAddon(dec.d, T, ADDON_PACKS.advisor, { requestId: 'req-eeeeeeee', retry: true });
+  assert.deepEqual([r3.ok, !r3.ok && r3.reason], [false, 'declined'], 'the provider\'s "no" for this id, said again');
+  assert.equal(dec.charges.length, 1);
+});
+
+await ok('before the migration: the purchase still works, and a retry is matched to the recent charge, never charged again', async () => {
+  const l = ledger({ tracked: false });
+  const first = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-ffffffff' });
+  assert.equal(first.ok, true);
+  assert.equal(l.payments[0].request_id, undefined, 'no column, no id written');
+  const retry = await buyAddon(l.d, T, ADDON_PACKS.reels, { requestId: 'req-ffffffff', retry: true });
+  assert.equal(retry.ok, true);
+  assert.equal(l.charges.length, 1, 'the retry was answered by the recent charge of the same pack');
+  // A deploy that runs between the read and the insert (the column vanished): the insert falls back without the id, once.
+  const m = ledger({ insertFailsOnceWith: 'column "request_id" of relation "billing_payments" does not exist' });
+  const r = await buyAddon(m.d, T, ADDON_PACKS.posts, { requestId: 'req-gggggggg' });
+  assert.equal(r.ok, true);
+  assert.equal(m.charges.length, 1);
+});
+
+await ok('the store\'s verdicts: "not charged" only when the server says so for that id', () => {
+  assert.equal(requestVerdict({ state: 'succeeded' }), 'done');
+  assert.equal(requestVerdict({ state: 'failed' }), 'declined');
+  for (const st of ['pending', 'none', 'unreachable', 'untracked'] as const) assert.equal(requestVerdict({ state: st }), 'wait', st);
+  assert.equal(requestVerdict({ state: 'untracked', recent: 'succeeded' }), 'done', 'pre-migration fallback: a recent success of that pack');
+  assert.equal(requestVerdict({ state: 'untracked', recent: 'failed' }), 'wait', 'pre-migration: a recent failure may be an older attempt, not "not charged"');
+  assert.equal(requestVerdict(null), 'wait');
+  assert.match(requestStateHe({ state: 'failed' }), /לא חויבת/);
+  for (const st of ['pending', 'none', 'unreachable', 'untracked'] as const) assert.doesNotMatch(requestStateHe({ state: st, recent: 'failed' }), /לא חויבת/, st);
+  assert.doesNotMatch(LOST_ANSWER_HE, /לא חויבת/);
+  assert.match(requestStateHe({ state: 'none' }), /^בודקות…/);
+  for (const st of ['succeeded', 'failed', 'pending', 'none', 'unreachable'] as const) assert.ok(!/[—–]/.test(requestStateHe({ state: st })));
+  assert.ok(isFinalRefusal(402, { success: false, reason: 'declined' }));
+  assert.ok(!isFinalRefusal(500, { success: false }) && !isFinalRefusal(202, { success: false, reason: 'pending' }) && !isFinalRefusal(0, null));
+});
+
+await ok('one id per intent: kept across a lost answer, a retry and a reopened sheet; a new one only after a definitive outcome', () => {
+  const { purchaseIntent, openIntent, settleIntent } = store;
+  settleIntent('reels');
+  assert.equal(openIntent('reels'), '');
+  const a = purchaseIntent('reels');
+  assert.equal(purchaseIntent('reels'), a, 'a retry sends the same id');
+  assert.equal(openIntent('reels'), a, 'reopening the sheet finds it');
+  assert.notEqual(purchaseIntent('posts'), a, 'each pack has its own intent');
+  settleIntent('reels');
+  assert.notEqual(purchaseIntent('reels'), a, 'after a definitive outcome, a new intent');
+  settleIntent('reels'); settleIntent('posts');
+});
+
+await ok('reopen after a lost answer: the store asks the server about that id, by id only', async () => withFlags(ON, async () => {
+  const seen: string[] = [];
+  const realFetch = globalThis.fetch;
+  (globalThis as any).fetch = async (u: string) => { seen.push(String(u)); return { ok: true, json: async () => ({ success: true, request: { state: 'pending' } }) }; };
+  try {
+    const a = await store.requestStatus('req-hhhhhhhh', 'reels');
+    assert.deepEqual(a, { state: 'pending' });
+    assert.deepEqual(seen, ['/api/billing/upgrades?request=req-hhhhhhhh&pack=reels']);
+    (globalThis as any).fetch = async () => { throw new Error('offline'); };
+    assert.deepEqual(await store.requestStatus('req-hhhhhhhh', 'reels'), { state: 'unreachable' }, 'a failed lookup is "could not check"');
+    (globalThis as any).fetch = async () => ({ ok: false, status: 500, json: async () => { throw new Error('not json'); } });
+    assert.deepEqual(await store.requestStatus('req-hhhhhhhh', 'reels'), { state: 'unreachable' });
+  } finally { (globalThis as any).fetch = realFetch; }
+  const ui = read('app/UpgradesStore.jsx');
+  const flow = ui.slice(ui.indexOf('const recheck = useCallback'), ui.indexOf('const switchAnnual'));
+  assert.match(flow, /if \(isPack\) recheck\(pack\)/, 'reopening a pack checks its open intent first');
+  assert.match(flow, /const retry = !!openIntent\(key\);\s*const rid = purchaseIntent\(key\);/);
+  assert.match(flow, /a = await requestStatus\(rid, key\);/, 'verification is the lookup by id');
+  assert.doesNotMatch(flow, /Date\.now\(\)|new Date\(|recentAddons|knownAddonIds|newRequestId/, 'no clock, no baseline, no window, no fresh id mid-intent');
+  assert.match(flow, /if \(v === 'declined'\) settleIntent\(key\);/);
+}));
+
+await ok('the lookup route: owner only, her tenant only, rate-limited, the state and nothing else', () => {
+  const up = read('app/api/billing/upgrades/route.ts');
+  const fn = up.slice(up.indexOf('async function requestStatus'));
+  assert.ok(up.indexOf("checkTenantLimit(tenantId, 'billing-upgrades')") < up.indexOf('return requestStatus('), 'rate-limited before the lookup');
+  assert.match(fn, /callerIsOwner\(db, tenantId, userId\)/);
+  assert.match(fn, /findAddonByRequest!\(tenantId, requestId\)/, 'scoped to her tenant');
+  assert.match(fn, /request: \{ state: f\.row \? stateOf\(String\(f\.row\.status\)\) : 'none' \}/, 'only the state leaves the server');
+  assert.match(fn, /REQUEST_ID\.test\(requestId\)/);
+  assert.doesNotMatch(up, /recentAddons/, 'the store no longer needs a list of her charges');
+  const repo = read('lib/billing/repo.ts');
+  assert.match(repo, /async findAddonByRequest[\s\S]*?eq\('tenant_id', tenantId\)[\s\S]*?return \{ supported: false, row: null \}[\s\S]*?fail\(error, 'findAddonByRequest'\)/, 'missing column = not tracked; any other error throws');
+  const addon = read('app/api/billing/addon/route.ts');
+  assert.match(addon, /\{ requestId: rid \|\| null, retry: body\?\.retry === true \}/);
+  assert.match(addon, /return status === 402 \? remember\(a\) : reply\(a\);/, 'a "pending" answer is never replayed from memory');
+});
+
+await ok('the migration: one nullable column, a partial unique index, a clean copy to run', () => {
+  const sql = read('supabase/migrations/add_addon_request_id_2026-11-10.sql');
+  assert.match(sql, /alter table public\.billing_payments add column if not exists request_id text;/);
+  assert.match(sql, /create unique index if not exists billing_payments_tenant_request\s+on public\.billing_payments \(tenant_id, request_id\)\s+where request_id is not null;/);
+  assert.doesNotMatch(sql.replace(/^--.*$/gm, ''), /\b(drop|delete|update)\b/i, 'nothing is removed or changed');
 });
 
 primeUpgrades(null);

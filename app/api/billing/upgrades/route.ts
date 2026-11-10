@@ -7,8 +7,11 @@
 //   packs                         this month's use of each metered AI feature, from the server's real counts (lib/addonUsage.ts)
 //   annual                        only with NEXT_PUBLIC_ANNUAL_PLAN=1, the same shape as /api/billing/status
 //   referrals                     NEXT_PUBLIC_REFERRALS is on and its tables exist
-//   recentAddons                  her add-on charges of the last 15 minutes ({ id, pack, status, at }; her own rows only, no provider ids): after a lost purchase answer the store
-//                                 reads the REAL outcome from here instead of guessing (app/UpgradesStore.jsx)
+//
+// GET ?request=<id>&pack=<key> -> what happened to ONE purchase, by the request id the store sent with it (owner only, her tenant only):
+//   { request: { state } }  'succeeded' | 'failed' (the provider said no: not charged) | 'pending' | 'none' (no charge saved with this id)
+//                           | 'untracked' (add_addon_request_id_2026-11-10.sql not run: `recent` is then the newest charge of that pack
+//                           in the last 15 minutes, a hint only). Never a provider id, a token or another business's row.
 // Only the business's owner gets the card and anything chargeable (callerIsOwner): a member sees no pack, no yearly switch, no card.
 // Unlike /api/billing/status it never reads the payment history, so a screen can ask on every open. Read-only, rate-limited
 // ('billing-upgrades'). With every switch off it answers { hidden: true } and reads nothing.
@@ -18,9 +21,11 @@ import { callerTenantId } from '@/lib/tenantScope';
 import { billingUiEnabled } from '@/lib/billing/adapter';
 import { isDemoTenantId } from '@/lib/demoTenants';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
-import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
+import { ADDON_PACKS, addonPacksEnabled, annualPlanEnabled, annualPriceOf, type AddonPackKey } from '@/lib/pricing';
 import { referralsEnabled } from '@/lib/referral';
-import { priceOf } from '@/lib/billing/service';
+import { priceOf, ADDON_RETRY_WINDOW_MS } from '@/lib/billing/service';
+import { supabaseBillingRepo } from '@/lib/billing/repo';
+
 import { addonUsageFor } from '@/lib/addonUsage';
 import { admin, billing, callerIsOwner, tableMissing } from '../_shared';
 
@@ -42,6 +47,10 @@ export async function GET(request: Request) {
   const limited = checkTenantLimit(tenantId, 'billing-upgrades');
   if (limited) return limited;
 
+  const url = new URL(request.url);
+  const requestId = url.searchParams.get('request');
+  if (requestId !== null) return requestStatus(tenantId, user.id, requestId, url.searchParams.get('pack'), packsOn);
+
   const ui = billingUiEnabled();
   const b = ui ? billing() : null;
   const out = {
@@ -53,7 +62,6 @@ export async function GET(request: Request) {
     card: null as { last4: string } | null,
     subStatus: null as string | null,
     nextChargeAt: null as string | null,
-    recentAddons: [] as { id: string; pack: string; status: string; at: string }[] | null,
     packs: [] as unknown[],
     annual: null as Record<string, unknown> | null,
     referrals: false,
@@ -86,11 +94,6 @@ export async function GET(request: Request) {
 
   if (packsOn) {
     out.packs = await addonUsageFor(tenantId);
-    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    const ra = await db.from('billing_payments').select('id, note, status, created_at').eq('tenant_id', tenantId).eq('kind', 'addon')
-      .gte('created_at', since).order('created_at', { ascending: false }).limit(10);
-    // null, not [], when the read fails: "could not check" must never look like "no charge".
-    out.recentAddons = ra.error ? null : (ra.data || []).map((r) => ({ id: String(r.id), pack: String(r.note || ''), status: String(r.status || ''), at: String(r.created_at || '') }));
   }
 
   if (annualOn) {
@@ -106,4 +109,27 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json(out);
+}
+
+const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
+const stateOf = (status: string) => (status === 'succeeded' ? 'succeeded' : status === 'failed' ? 'failed' : 'pending');
+
+/** One purchase's outcome by its request id: owner only, her tenant only, the state and nothing else. */
+async function requestStatus(tenantId: string, userId: string, requestId: string, packKey: string | null, packsOn: boolean) {
+  if (!packsOn || !billingUiEnabled()) return NextResponse.json({ success: false, hidden: true });
+  if (!REQUEST_ID.test(requestId)) return NextResponse.json({ success: false, error: 'בקשה לא תקינה' }, { status: 400 });
+  const db = admin();
+  if (!(await callerIsOwner(db, tenantId, userId))) return NextResponse.json({ success: false, error: 'רק בעלת העסק יכולה לבדוק חיוב' }, { status: 403 });
+  try {
+    const repo = supabaseBillingRepo(db);
+    const f = await repo.findAddonByRequest!(tenantId, requestId);
+    if (f.supported) return NextResponse.json({ success: true, request: { state: f.row ? stateOf(String(f.row.status)) : 'none' } });
+    // Before the migration: the newest charge of that pack in the last 15 minutes, as a hint the store may not read as "not charged".
+    const pack = packKey && ADDON_PACKS[packKey as AddonPackKey] ? packKey : null;
+    const recent = pack && repo.findRecentAddon ? await repo.findRecentAddon(tenantId, pack, new Date(Date.now() - ADDON_RETRY_WINDOW_MS).toISOString()) : null;
+    return NextResponse.json({ success: true, request: { state: 'untracked', recent: recent ? stateOf(String(recent.status)) : null } });
+  } catch (e) {
+    console.error('[upgrades] request status read failed for tenant', tenantId, e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ success: false, error: 'לא הצלחנו לבדוק את החיוב' }, { status: 500 });
+  }
 }
