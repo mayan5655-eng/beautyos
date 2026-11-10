@@ -44,8 +44,11 @@ export type UpgradesData = {
   annual: { ready: boolean; monthly: number; yearly: number; billingPeriod: 'monthly' | 'annual'; pendingPeriod: string | null } | null;
   referrals: boolean;
   /** Her add-on charges of the last 15 minutes; absent or null when the ledger could not be read. */
-  recentAddons?: { pack: string; status: string; at: string }[] | null;
+  recentAddons?: RecentAddon[] | null;
 };
+
+/** One of her own add-on charges as the server recorded it: the payment row's id, the pack, its status, the server's time. */
+export type RecentAddon = { id: string; pack: string; status: string; at: string };
 
 export type UsageLevel = 'unknown' | 'quiet' | 'near' | 'full';
 
@@ -179,11 +182,21 @@ export function isFinalRefusal(status: number, body: unknown): boolean {
 
 export type PurchaseOutcome = 'succeeded' | 'pending' | 'failed' | 'none' | 'unknown';
 
-/** The newest charge of this pack since the request began, as the server recorded it. `recent` null = the ledger could not be read. */
-export function purchaseOutcome(recent: { pack: string; status: string; at: string }[] | null | undefined, pack: string, sinceIso: string): PurchaseOutcome {
+/** The ids of her charges the server already showed BEFORE the request was sent: the baseline a new charge is told apart from. */
+export function knownAddonIds(recent: RecentAddon[] | null | undefined): string[] | null {
+  return Array.isArray(recent) ? recent.map((r) => String(r.id)) : null;
+}
+
+/**
+ * This request's charge, as the server recorded it. NEVER compares with the browser's clock (Vercel review 2026-11-09: a phone clock a
+ * minute off hid a succeeded charge): a charge is "this one" when its server row id was not in the baseline read just before the request.
+ * With no baseline (that read failed), any charge of this pack in the server's own 15-minute window counts. Rows are ordered by the
+ * server's own times only. `recent` null = the ledger could not be read now.
+ */
+export function purchaseOutcome(recent: RecentAddon[] | null | undefined, pack: string, known: string[] | null): PurchaseOutcome {
   if (!Array.isArray(recent)) return 'unknown';
-  const since = Date.parse(sinceIso);
-  const mine = recent.filter((r) => r.pack === pack && (!Number.isFinite(since) || Date.parse(r.at) >= since)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  const before = known ? new Set(known) : null;
+  const mine = recent.filter((r) => r.pack === pack && !(before && before.has(String(r.id)))).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   const s = mine[0]?.status;
   if (!s) return 'none';
   if (s === 'succeeded') return 'succeeded';
@@ -192,6 +205,9 @@ export function purchaseOutcome(recent: { pack: string; status: string; at: stri
 }
 
 export const LOST_ANSWER_HE = 'לא קיבלנו תשובה. בודקות אם החיוב עבר…';
+
+/** The request itself got no answer and no charge shows up yet: it may still be on its way, so this never says "not charged". */
+export const NOT_FOUND_YET_HE = 'עוד לא רואות חיוב חדש. אם הוא יעבור, החבילה תתווסף לבד. כדאי להציץ ברשימת החיובים במנוי לפני שמנסים שוב.';
 
 /** What she reads once the ledger was checked. Only 'failed' (the provider's recorded "no") and 'none' (no charge row exists) say she was not charged. */
 export function outcomeHe(o: PurchaseOutcome): string {

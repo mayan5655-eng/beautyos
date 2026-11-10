@@ -171,7 +171,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
           <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>חידוש המנוי בכרטיס אשראי</button>
         )}
         {cardErr && <p role="alert" data-testid="billing-card-error" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 8 }}>{cardErr}</p>}
-        {!s.configured && <p style={text}>התשלום בכרטיס אשראי עוד לא פעיל. כשיהיה זמין תוכלי להוסיף כרטיס כאן.</p>}
+        {s.owner === false ? <p data-testid="billing-member" style={text}>את המנוי והכרטיס מנהלת בעלת העסק.</p> : !s.configured && <p style={text}>התשלום בכרטיס אשראי עוד לא פעיל. כשיהיה זמין תוכלי להוסיף כרטיס כאן.</p>}
 
         {an && (
           <div data-testid="billing-period" style={{ marginTop: 16 }}>
@@ -188,7 +188,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                     const on = nextPeriod === o.k;
                     return (
                       <button key={o.k} type="button" role="radio" aria-checked={on} data-testid={`billing-period-${o.k}`}
-                        disabled={busy || isDemo || !sub || sub.status === 'canceled'}
+                        disabled={busy || isDemo || s.owner === false || !sub || sub.status === 'canceled'}
                         onClick={() => { if (!on) { setPeriodAsk(o.k); setPeriodOk(false); } }}
                         style={{ textAlign: 'right', background: on ? pcTint : 'var(--surface)', border: on ? `1.5px solid ${pc}` : '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', cursor: on ? 'default' : 'pointer', fontFamily: 'inherit', minHeight: 44, color: 'var(--ink)' }}>
                         <b style={{ fontSize: 'var(--t-sm)' }}>{o.title}{on ? ' ✓' : ''}</b>
@@ -275,7 +275,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
           </div>
         )}
 
-        {!isDemo && sub && sub.status !== 'canceled' && (
+        {!isDemo && s.owner !== false && sub && sub.status !== 'canceled' && (
           <div style={{ marginTop: 14 }}>
             {!confirmCancel ? (
               <button type="button" style={ghost} onClick={() => setConfirmCancel(true)}>ביטול המנוי</button>

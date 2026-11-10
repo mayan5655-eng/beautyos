@@ -14,7 +14,7 @@ import {
 import { OPEN_ADDONS_EVENT } from './lib/addonOffer.ts';
 import { buyAddon, ADDON_OPEN_WINDOW_MS, type Deps, type PaymentRecord } from './lib/billing/service.ts';
 import { RATE_POLICIES } from './lib/rateLimit.ts';
-import { isFinalRefusal, purchaseOutcome, outcomeHe, LOST_ANSWER_HE } from './lib/upgradesStore.ts';
+import { isFinalRefusal, purchaseOutcome, outcomeHe, knownAddonIds, LOST_ANSWER_HE, NOT_FOUND_YET_HE } from './lib/upgradesStore.ts';
 import { callerIsOwner } from './lib/billing/owner.ts';
 
 let n = 0;
@@ -411,18 +411,20 @@ await ok('review 3: a lost answer never says "not charged"; only an explicit ref
   assert.equal(isFinalRefusal(409, { success: false, reason: 'in-progress' }), false);
   assert.equal(isFinalRefusal(502, null), false, 'a body that is not JSON');
   assert.equal(isFinalRefusal(0, undefined), false, 'no answer at all');
-  const since = '2026-11-09T09:00:00Z';
-  const rows = [{ pack: 'reels', status: 'succeeded', at: '2026-11-09T09:00:05Z' }, { pack: 'posts', status: 'failed', at: '2026-11-09T09:00:06Z' }];
-  assert.equal(purchaseOutcome(rows, 'reels', since), 'succeeded');
-  assert.equal(purchaseOutcome(rows, 'posts', since), 'failed');
-  assert.equal(purchaseOutcome([{ pack: 'reels', status: 'unknown', at: '2026-11-09T09:00:05Z' }], 'reels', since), 'pending');
-  assert.equal(purchaseOutcome([{ pack: 'reels', status: 'succeeded', at: '2026-11-09T08:00:00Z' }], 'reels', since), 'none', 'an older purchase is not this one');
-  assert.equal(purchaseOutcome(null, 'reels', since), 'unknown', 'an unreadable ledger is "could not check", never "no charge"');
+  const known = ['p-old'];
+  const rows = [{ id: 'p-new', pack: 'reels', status: 'succeeded', at: '2026-11-09T09:00:05Z' }, { id: 'p-f', pack: 'posts', status: 'failed', at: '2026-11-09T09:00:06Z' }, { id: 'p-old', pack: 'reels', status: 'failed', at: '2026-11-09T08:58:00Z' }];
+  assert.equal(purchaseOutcome(rows, 'reels', known), 'succeeded');
+  assert.equal(purchaseOutcome(rows, 'posts', known), 'failed');
+  assert.equal(purchaseOutcome([{ id: 'p1', pack: 'reels', status: 'unknown', at: '2026-11-09T09:00:05Z' }], 'reels', []), 'pending');
+  assert.equal(purchaseOutcome([{ id: 'p-old', pack: 'reels', status: 'succeeded', at: '2026-11-09T08:58:00Z' }], 'reels', known), 'none', 'a charge that existed before the request is not this one');
+  assert.equal(purchaseOutcome(null, 'reels', known), 'unknown', 'an unreadable ledger is "could not check", never "no charge"');
   assert.ok(!/לא חויבת/.test(outcomeHe('pending')) && !/לא חויבת/.test(outcomeHe('unknown')) && !/לא חויבת/.test(LOST_ANSWER_HE));
   assert.ok(/לא חויבת/.test(outcomeHe('failed')) && /לא חויבת/.test(outcomeHe('none')), 'only a recorded "no" or no charge row says so');
   const ui = read('app/UpgradesStore.jsx');
   assert.doesNotMatch(ui, /אין חיבור\. לא חויבת/);
-  assert.match(ui, /await verify\(key, sinceIso\)/);
+  assert.match(ui, /await verify\(key, known, !!r\)/);
+  assert.match(ui, /if \(o === 'none' && !answered\) \{ setErr\(NOT_FOUND_YET_HE\); return; \}/, 'no answer at all and no row yet: never "not charged"');
+  assert.ok(!/לא חויבת/.test(NOT_FOUND_YET_HE));
   assert.doesNotMatch(read('app/BillingCard.jsx'), /אין חיבור\. לא חויבת/, 'the billing card had the same sentence');
   const up = read('app/api/billing/upgrades/route.ts');
   assert.match(up, /out\.recentAddons = ra\.error \? null :/, 'a failed ledger read is null, not an empty list');
@@ -456,6 +458,46 @@ await ok('security: only the owner moves money; a member, or an unreadable answe
   assert.match(up, /if \(!\(await callerIsOwner\(db, tenantId, user\.id\)\)\) return NextResponse\.json\(\{ \.\.\.out, configured: false \}\)/, 'a member gets no card digits and nothing chargeable');
   assert.ok(up.indexOf('callerIsOwner(db') < up.indexOf("card_last4"), 'before the card is read');
   assert.match(up, /select\('id, price, status, next_charge_at, card_last4'\)/, 'only the last four, never the brand, token or anything else');
+});
+
+
+await ok('review 3b: a skewed phone clock never hides a succeeded charge (matched by server row id, not by time)', () => {
+  // The server's rows carry the server's times. Her phone runs 10 minutes FAST, then 10 minutes SLOW: the answer is the same.
+  const before = [{ id: 'p1', pack: 'reels', status: 'succeeded', at: '2026-11-09T08:50:00Z' }];
+  const after = [{ id: 'p2', pack: 'reels', status: 'succeeded', at: '2026-11-09T09:00:01Z' }, ...before];
+  const RealDate = Date;
+  for (const skewMin of [10, -10, 600]) {
+    const fake = class extends RealDate { constructor(...a: any[]) { super(...(a.length ? a : [RealDate.now() + skewMin * 60_000]) as []); } static now() { return RealDate.now() + skewMin * 60_000; } };
+    (globalThis as any).Date = fake;
+    try {
+      const known = knownAddonIds(before);
+      assert.equal(purchaseOutcome(after, 'reels', known), 'succeeded', `clock ${skewMin} min off: the new charge is found`);
+      assert.equal(purchaseOutcome(before, 'reels', known), 'none', `clock ${skewMin} min off: the old one is not mistaken for it`);
+    } finally { (globalThis as any).Date = RealDate; }
+  }
+  assert.equal(knownAddonIds(null), null, 'no baseline: the server window decides');
+  assert.equal(purchaseOutcome(after, 'reels', null), 'succeeded');
+  const ui = read('app/UpgradesStore.jsx');
+  const buyFn = ui.slice(ui.indexOf('const buy = async'), ui.indexOf('const switchAnnual'));
+  assert.doesNotMatch(buyFn + ui.slice(ui.indexOf('const verify = async'), ui.indexOf('const buy = async')), /Date\.now\(\)|new Date\(/, 'the purchase check never reads the browser clock');
+  assert.match(buyFn, /const base = await loadUpgrades\(true\);\s*const known = base \? knownAddonIds\(base\.recentAddons\) : null;/, 'the baseline is read from the server right before the charge');
+  assert.match(read('app/api/billing/upgrades/route.ts'), /select\('id, note, status, created_at'\)/, 'only her own row ids, pack, status, time: no provider ids or tokens');
+});
+
+await ok('security: replacing the card, cancelling, and the billing details are owner-only', () => {
+  for (const f of ['app/api/billing/card/route.ts', 'app/api/billing/cancel/route.ts']) {
+    const src = read(f);
+    assert.match(src, /if \(!\(await callerIsOwner\(admin\(\), c\.tenantId, c\.userId\)\)\) return NextResponse\.json\(\{ success: false, code: 'not-owner'/, f);
+    const at = src.indexOf('callerIsOwner(admin()');
+    assert.ok(at > 0 && at < src.indexOf('billing()') && (src.indexOf('cancelSubscription(') < 0 || at < src.lastIndexOf('cancelSubscription(')), `${f}: checked before anything happens`);
+  }
+  const st = read('app/api/billing/status/route.ts');
+  assert.match(st, /const owner = await callerIsOwner\(admin\(\), c\.tenantId, c\.userId\);/);
+  assert.match(st, /card_last4: null, card_brand: null \} : null, payments: \[\], addons: undefined, owner: false/, 'a member gets no card digits, no history, no packs');
+  assert.equal((st.match(/forMember\(/g) || []).length, 2, 'both answers with data go through it');
+  const card = read('app/BillingCard.jsx');
+  assert.match(card, /s\.owner === false \? <p data-testid="billing-member"/);
+  assert.match(card, /!isDemo && s\.owner !== false && sub && sub\.status !== 'canceled'/, 'no cancel button for a member');
 });
 
 primeUpgrades(null);

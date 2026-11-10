@@ -6,12 +6,14 @@ import { NextResponse } from 'next/server';
 import { isDemoTenantId } from '@/lib/demoTenants';
 import { cancelSubscription } from '@/lib/billing/service';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
-import { admin, billing, caller } from '../_shared';
+import { admin, billing, caller, callerIsOwner, NOT_OWNER_HE } from '../_shared';
 
 export async function POST() {
   const c = await caller();
   if ('error' in c) return c.error;
   if (isDemoTenantId(c.tenantId)) return NextResponse.json({ success: false, error: 'זו תצוגה, אי אפשר לבטל מנוי בחשבון הדגמה' }, { status: 403 });
+  // Only the business's owner replaces the card / cancels (lib/billing/owner.ts, fails closed); a member of the business never can.
+  if (!(await callerIsOwner(admin(), c.tenantId, c.userId))) return NextResponse.json({ success: false, code: 'not-owner', error: NOT_OWNER_HE }, { status: 403 });
   try {
     const b = billing();
     const r = await cancelSubscription(

@@ -29,7 +29,7 @@ import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 import {
   UPGRADES_EVENT, UPGRADES_CHANGED_EVENT, upgradesFlagsOn, storeCards, packFor, homeNudgePack, usageLevel, usagePct, usageLineHe,
   pageChipHe, packTitleHe, packWhatHe, priceNoteHe, confirmChargeHe, successHe, annualSavingHe, newRequestId, openUpgrades,
-  isFinalRefusal, purchaseOutcome, outcomeHe, LOST_ANSWER_HE,
+  isFinalRefusal, purchaseOutcome, outcomeHe, knownAddonIds, LOST_ANSWER_HE, NOT_FOUND_YET_HE,
 } from '@/lib/upgradesStore';
 
 /** Above every drawer and sheet that can hold a chip (the client drawer 1200, the scan report 1300, the "more" sheet 1401), below the
@@ -354,27 +354,31 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
 
   // The answer was lost or is not a clear refusal: read her real ledger instead of guessing. Twice, a few seconds apart, because a lost
   // answer can mean the server is still charging. Never says "not charged" unless the ledger shows no charge, or the provider's "no".
-  const verify = async (key, sinceIso) => {
+  const verify = async (key, known, answered) => {
     setErr(LOST_ANSWER_HE);
     let o = 'unknown';
     for (let i = 0; i < 2; i++) {
       if (i) await new Promise((res) => setTimeout(res, 3000));
       const fresh = await loadUpgrades(true);
-      o = fresh ? purchaseOutcome(fresh.recentAddons, key, sinceIso) : 'unknown';
+      o = fresh ? purchaseOutcome(fresh.recentAddons, key, known) : 'unknown';
       if (o === 'succeeded' || o === 'failed') break;
     }
     if (o === 'succeeded') { setErr(''); await landed(key); return; }
+    // No answer at all and nothing in the ledger yet: the request may still be on its way, so never "not charged", and the same id stays.
+    if (o === 'none' && !answered) { setErr(NOT_FOUND_YET_HE); return; }
     setErr(outcomeHe(o));
-    // A recorded "no", or no charge at all: a second tap is a new, deliberate request. Pending / unknown keep the same id.
+    // A recorded "no", or the server answered and no charge row exists: a second tap is a new, deliberate request.
     if (o === 'failed' || o === 'none') rid.current = newRequestId();
   };
 
   const buy = async (key) => {
     if (busy) return;
     setBusy(true); setErr('');
-    // A little before now, so a server clock slightly behind hers still counts this charge as this request's.
-    const sinceIso = new Date(Date.now() - 60_000).toISOString();
     try {
+      // The baseline, read from the server right before the charge: the charges that already existed. A new one is told apart by its
+      // server row id, never by her phone's clock. A failed read leaves no baseline (null), and then the server's window decides.
+      const base = await loadUpgrades(true);
+      const known = base ? knownAddonIds(base.recentAddons) : null;
       let r = null;
       let j = null;
       try {
@@ -388,7 +392,7 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
         return;
       }
       // No answer, a body that is not JSON, a server error, "pending", "in progress": the card may have been charged. Check.
-      await verify(key, sinceIso);
+      await verify(key, known, !!r);
     } finally { setBusy(false); }
   };
 

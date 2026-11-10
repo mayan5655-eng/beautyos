@@ -11,16 +11,22 @@
 //                            before add_referrals_annual_2026-11-08.sql). Absent while the flag is off, so the card is as before.
 import { NextResponse } from 'next/server';
 import { priceOf, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/service';
-import { admin, billing, caller, tableMissing } from '../_shared';
+import { admin, billing, caller, callerIsOwner, tableMissing } from '../_shared';
 import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { addonUsageFor } from '@/lib/addonUsage';
 
 const SUB_COLS = 'id, tenant_id, price, currency, status, next_charge_at, card_last4, card_brand, failed_attempts, past_due_since, last_attempt_at, canceled_at, ends_at';
 
+/** What a member (not the owner) may see: the plan only. */
+const forMember = <T extends Record<string, unknown>>(o: T, owner: boolean): T => (owner ? o : { ...o, configured: false, subscription: o.subscription ? { ...(o.subscription as Record<string, unknown>), card_last4: null, card_brand: null } : null, payments: [], addons: undefined, owner: false });
+
 export async function GET() {
   const c = await caller();
   if ('error' in c) return c.error;
   const b = billing();
+  // A member of the business (not its owner) sees the plan, but no card digits, no billing history and no way to add a card or buy:
+  // those routes refuse her anyway (lib/billing/owner.ts).
+  const owner = await callerIsOwner(admin(), c.tenantId, c.userId);
   const out = {
     success: true, ui: true, mode: b.mode, configured: b.configured, tableReady: true, inviteDays: INVITE_DAYS,
     plan: { status: 'active' as string, trialEndsAt: null as string | null, price: priceOf(null) },
@@ -75,7 +81,7 @@ export async function GET() {
   // Add-on packs (lib/pricing.ts): this month's use of each metered feature and the pack she can buy. Absent while packs are off.
   if (addonPacksEnabled()) {
     const addons = await addonUsageFor(c.tenantId);
-    return NextResponse.json({ ...out, addons, ...(annual ? { annual } : {}) });
+    return NextResponse.json(forMember({ ...out, addons, ...(annual ? { annual } : {}) }, owner));
   }
-  return NextResponse.json(annual ? { ...out, annual } : out);
+  return NextResponse.json(forMember(annual ? { ...out, annual } : out, owner));
 }

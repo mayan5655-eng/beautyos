@@ -7,7 +7,7 @@
 //   packs                         this month's use of each metered AI feature, from the server's real counts (lib/addonUsage.ts)
 //   annual                        only with NEXT_PUBLIC_ANNUAL_PLAN=1, the same shape as /api/billing/status
 //   referrals                     NEXT_PUBLIC_REFERRALS is on and its tables exist
-//   recentAddons                  her add-on charges of the last 15 minutes ({ pack, status, at }): after a lost purchase answer the store
+//   recentAddons                  her add-on charges of the last 15 minutes ({ id, pack, status, at }; her own rows only, no provider ids): after a lost purchase answer the store
 //                                 reads the REAL outcome from here instead of guessing (app/UpgradesStore.jsx)
 // Only the business's owner gets the card and anything chargeable (callerIsOwner): a member sees no pack, no yearly switch, no card.
 // Unlike /api/billing/status it never reads the payment history, so a screen can ask on every open. Read-only, rate-limited
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     card: null as { last4: string } | null,
     subStatus: null as string | null,
     nextChargeAt: null as string | null,
-    recentAddons: [] as { pack: string; status: string; at: string }[] | null,
+    recentAddons: [] as { id: string; pack: string; status: string; at: string }[] | null,
     packs: [] as unknown[],
     annual: null as Record<string, unknown> | null,
     referrals: false,
@@ -87,10 +87,10 @@ export async function GET(request: Request) {
   if (packsOn) {
     out.packs = await addonUsageFor(tenantId);
     const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    const ra = await db.from('billing_payments').select('note, status, created_at').eq('tenant_id', tenantId).eq('kind', 'addon')
+    const ra = await db.from('billing_payments').select('id, note, status, created_at').eq('tenant_id', tenantId).eq('kind', 'addon')
       .gte('created_at', since).order('created_at', { ascending: false }).limit(10);
     // null, not [], when the read fails: "could not check" must never look like "no charge".
-    out.recentAddons = ra.error ? null : (ra.data || []).map((r) => ({ pack: String(r.note || ''), status: String(r.status || ''), at: String(r.created_at || '') }));
+    out.recentAddons = ra.error ? null : (ra.data || []).map((r) => ({ id: String(r.id), pack: String(r.note || ''), status: String(r.status || ''), at: String(r.created_at || '') }));
   }
 
   if (annualOn) {
