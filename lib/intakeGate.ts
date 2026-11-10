@@ -45,6 +45,31 @@ export function resolveIntake(service: { intake?: unknown } | null | undefined):
   return { form, formType: cleanFormType(o.form_type), patchTest };
 }
 
+/**
+ * The gate of each service NAME, from her service rows (active and archived mixed, as `select *` returns them).
+ *
+ * One row decides each name: the active one wins over an archived one of the same name, then the first in the list.
+ * That row's gate is the answer, off included: an archived row's old setting never fills in for an active row whose
+ * gate is off (Vercel review, PR #52). Names are trimmed. Only gated names are in the returned map.
+ */
+export function intakeByServiceName(rows: Array<Record<string, unknown>> | null | undefined): Map<string, Intake> {
+  const chosen = new Map<string, Record<string, unknown>>();
+  for (const s of rows || []) {
+    if (!s || typeof s !== 'object') continue;
+    const name = typeof s.name === 'string' ? s.name.trim() : '';
+    if (!name) continue;
+    const prev = chosen.get(name);
+    // Replace only an archived pick with an active row; never the other way round.
+    if (!prev || (prev.active === false && s.active !== false)) chosen.set(name, s);
+  }
+  const out = new Map<string, Intake>();
+  for (const [name, row] of chosen) {
+    const gate = resolveIntake(row as { intake?: unknown });
+    if (gate) out.set(name, gate);
+  }
+  return out;
+}
+
 /** What the services editor stores. Both off = null, so a turned-off gate leaves no trace on the row. */
 export function intakeToStore(v: { form?: boolean; formType?: string; patchTest?: boolean } | null | undefined): { form: boolean; form_type: string; patch_test: boolean } | null {
   if (!v || (v.form !== true && v.patchTest !== true)) return null;

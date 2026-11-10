@@ -648,6 +648,8 @@ export async function POST(request) {
     //    health form. Everyone else is told the business sends the link ("if you have not filled it yet"), signed or not.
     //  - The patch-test line is the same for everyone on a gated service ("if it is your first ..."), never computed from her
     //    history, which would tell a stranger whether that number has visited before.
+    //  - The gate is the one of svcRow: the ACTIVE row of this name (the lookup above filters ACTIVE_OR_NULL and refuses an archived
+    //    one), off included. An archived namesake's setting never applies (same rule as intakeByServiceName in lib/intakeGate.ts).
     let intakeOut = null;
     const intake = resolveIntake(svcRow);
     if (intake) {

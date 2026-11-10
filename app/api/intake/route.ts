@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/lib/supabase/server';
-import { resolveIntake, intakeBadges, INTAKE_COLUMN, type Intake } from '@/lib/intakeGate';
+import { intakeByServiceName, intakeBadges, INTAKE_COLUMN, type Intake } from '@/lib/intakeGate';
 import { ensureIntakeForm, queueIntakeMessage } from '@/lib/intakeQueue.js';
 import { addDays } from '@/lib/reschedule';
 import { wallClockNow } from '@/lib/bookingPolicy';
@@ -47,14 +47,8 @@ async function gatedServices(db: ReturnType<typeof admin>, tenantId: string): Pr
   if (error) throw new Error(error.message);
   const rows = (data || []) as Row[];
   if (!rows.some((s) => Object.prototype.hasOwnProperty.call(s, INTAKE_COLUMN))) return null;
-  const out = new Map<string, Intake>();
-  // An active row wins over an archived one of the same name.
-  for (const s of [...rows].sort((a, b) => Number(a.active === false) - Number(b.active === false))) {
-    const name = typeof s.name === 'string' ? s.name.trim() : '';
-    const gate = resolveIntake(s);
-    if (name && gate && !out.has(name)) out.set(name, gate);
-  }
-  return out;
+  // One row per name (active over archived), and THAT row's gate, off included (lib/intakeGate.ts).
+  return intakeByServiceName(rows);
 }
 
 async function gatedAppointments(db: ReturnType<typeof admin>, tenantId: string, gates: Map<string, Intake>, from: string, to: string) {

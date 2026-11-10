@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   resolveIntake, intakeToStore, intakeColumnReady, intakeBadges, intakeFormMessage, formLink, cleanFormType,
-  intakeFormChoices, INTAKE_MESSAGE_TYPE, INTAKE_CONFIRM_HE, patchTestConfirmHe, intakeFromBusinessHe,
+  intakeFormChoices, INTAKE_MESSAGE_TYPE, INTAKE_CONFIRM_HE, patchTestConfirmHe, intakeFromBusinessHe, intakeByServiceName,
 } from './lib/intakeGate.ts';
 import { ensureIntakeForm, queueIntakeMessage, hadEarlierVisit } from './lib/intakeQueue.js';
 
@@ -56,6 +56,30 @@ ok('off by default: no column, null, garbage, or a false flag is no gate', () =>
   assert.deepEqual(resolveIntake({ intake: { form: true } }), { form: true, formType: 'general', patchTest: false });
   assert.deepEqual(resolveIntake({ intake: { form: true, form_type: 'laser', patch_test: true } }), { form: true, formType: 'laser', patchTest: true });
   assert.equal(cleanFormType('../etc'), 'general', 'an unknown template falls back');
+});
+
+ok('one row decides each name: active over archived, and its gate (off included) is final', () => {
+  const ON = { form: true, form_type: 'laser', patch_test: true };
+  // The review case: archived row gated, active namesake off. Either order.
+  for (const rows of [
+    [{ name: 'לייזר', active: false, intake: ON }, { name: 'לייזר', active: true, intake: null }],
+    [{ name: 'לייזר', active: true, intake: null }, { name: 'לייזר', active: false, intake: ON }],
+    [{ name: 'לייזר ', active: false, intake: ON }, { name: 'לייזר', intake: { form: false, patch_test: false } }],
+  ]) assert.equal(intakeByServiceName(rows).has('לייזר'), false, 'the archived gate does not fall through');
+  // Active gated, archived off: on.
+  const m = intakeByServiceName([{ name: 'פילינג', active: false, intake: null }, { name: 'פילינג', active: true, intake: ON }]);
+  assert.deepEqual(m.get('פילינג'), { form: true, formType: 'laser', patchTest: true });
+  // Only archived rows: that row decides (it can match an old appointment's name), and two actives: the first.
+  assert.equal(intakeByServiceName([{ name: 'ישן', active: false, intake: ON }]).has('ישן'), true);
+  assert.equal(intakeByServiceName([{ name: 'כפול', intake: null }, { name: 'כפול', intake: ON }]).has('כפול'), false);
+  assert.equal(intakeByServiceName(null).size, 0);
+  // Both places that resolve a gate by service name use this rule.
+  const api = read('./app/api/intake/route.ts');
+  assert.ok(api.includes('return intakeByServiceName(rows);') && !api.includes('resolveIntake('), '/api/intake picks the row first');
+  const route = read('./app/api/book-appointment/route.js');
+  const lookup = route.slice(route.indexOf('.from("service_prices")'), route.indexOf('.limit(1)', route.indexOf('.from("service_prices")')));
+  assert.ok(lookup.includes('.or(ACTIVE_OR_NULL)'), 'booking reads the active row only');
+  assert.ok(route.includes('if (!svcRow || svcRow.active === false) {'), 'and refuses an archived one');
 });
 
 ok('stored shape: both off stores nothing', () => {
