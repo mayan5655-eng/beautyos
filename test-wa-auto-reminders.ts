@@ -659,7 +659,7 @@ await ok('recipient ceiling: hourly reminders across hourly windows count and ar
   assert.equal(r3.sent, 0); assert.equal(r3.queued, 1, 'hour 3: still limited');
   assert.equal(a.sent.length, 1);
   assert.ok(queued.every((q) => q.opts.forceManual === true && q.opts.type === 'reminder'), 'her manual queue, not another automatic channel');
-  assert.equal(tables.wa_auto_claims.find((c: any) => c.appointment_id === aid(42)).status, 'fallback');
+  assert.equal(tables.wa_auto_claims.find((c: any) => c.appointment_id === aid(42))!.status, 'fallback');
   // Hour 4: the same reminders are not queued a second time.
   await runAutoMessages({ db, env: LIVE, now: new Date(NOW.getTime() + 3 * 3600_000), deps: runDeps(a, queued) });
   assert.equal(queued.length, 2);
@@ -700,7 +700,7 @@ await ok('platform switch off or unreadable: no automatic send for a confirmatio
     const r = await runAutoMessages({ db, env: LIVE, now: NOW, deps: runDeps(a, queued) });
     assert.equal(r.sent, 0); assert.equal(queued.length, 1, `${variant}: the reminder waits in her queue`);
     assert.equal(queued[0].opts.forceManual, true);
-    assert.equal(tables.wa_auto_claims.find((x: any) => x.appointment_id === APPT).status, 'fallback');
+    assert.equal(tables.wa_auto_claims.find((x: any) => x.appointment_id === APPT)!.status, 'fallback');
   }
   // Deferred at night while the switch was on, switched off by the morning.
   let clockNow = NIGHT;
@@ -724,7 +724,7 @@ await ok('her pause: wa_auto_messages on + paused on means no automatic reminder
   const { db, tables } = memDb({ settings: [{ tenant_id: T, business_name: 'סטודיו נועה', branding: {}, automations: PAUSED.automations }], appointments: [apptRow(APPT, T)] });
   assert.deepEqual(await sendAutoMessage({ ...baseInput(db), settingsRow: PAUSED, adapter: a }), { outcome: 'paused' }, 'a reminder');
   assert.deepEqual(await sendAutoMessage({ ...baseInput(db), appointmentId: APPT2, kind: 'booking_confirm', settingsRow: PAUSED, adapter: a }), { outcome: 'paused' }, 'a confirmation');
-  assert.equal(tables.wa_auto_claims.find((c: any) => c.appointment_id === APPT).status, 'skipped');
+  assert.equal(tables.wa_auto_claims.find((c: any) => c.appointment_id === APPT)!.status, 'skipped');
   // Read from her settings row when the caller does not hold it.
   const fresh = memDb({ settings: [{ tenant_id: T, automations: PAUSED.automations }] });
   assert.deepEqual(await sendAutoMessage({ ...baseInput(fresh.db), settingsRow: undefined, adapter: a }), { outcome: 'paused' });
