@@ -118,6 +118,8 @@ const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: fals
 // audit; the app chunk was ~311 KB gzipped). Same pattern as GrowCard.
 const ClientPrivacyPanel = dynamic(() => import("./ClientPrivacyPanel"), { ssr: false });
 const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
+// "מעבר מתוכנה אחרת": a CSV / Excel export from any system. Renders nothing unless NEXT_PUBLIC_IMPORT_TOOL is on.
+const ImportFromSystem = dynamic(() => import("./ImportFromSystem"), { ssr: false });
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
 const WaAutoMessagesSetting = dynamic(() => import("./WaAutoMessagesSetting"), { ssr: false });
 const RebookSetting = dynamic(() => import("./RebookSetting"), { ssr: false });
@@ -11800,6 +11802,7 @@ ${MARKETING_FOOTER}`)}`;
           and the drawers still come out on top. */}
       {showImportHub&&(
  <Sheet open onClose={()=>setShowImportHub(false)} width={440} zIndex={1050} className="pop-in" title="ייבוא נתונים">
+ <ImportFromSystem pc={pc} pcTint={pcTint} pcGrad={pcGrad} zIndex={1070} onImported={()=>{ loadAll(); }}/>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>יש לך רשימה באקסל, בטלפון או בתוכנה אחרת? אפשר להעביר אותה לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
                 {renderImportChooser()}
  <button onClick={()=>setShowImportHub(false)} style={{width:"100%",marginTop:14,padding:"11px 0",background:"var(--surface)",color:"var(--ink-2)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit"}}>אולי מאוחר יותר</button>
@@ -13761,6 +13764,7 @@ ${MARKETING_FOOTER}`)}`;
  })()}
               {inG("clients")&&(
  <div>
+ <ImportFromSystem pc={pc} pcTint={pcTint} pcGrad={pcGrad} zIndex={1070} onImported={()=>{ loadAll(); }}/>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.7,marginBottom:16}}>יש לך רשימה באקסל, בטלפון או בתוכנה אחרת? אפשר להעביר אותה לכאן בכמה דקות, בלי להקליד הכל מחדש. בחרי מה להעביר:</p>
                   {renderImportChooser()}
  <LeadSourcesEditor sources={resolveLeadSources(editSettings.automations)} pc={pc} pcTint={pcTint} onChange={(list)=>setEditSettings(prev=>{const a=(prev.automations&&typeof prev.automations==="object")?prev.automations:{};return {...prev,automations:{...a,lead_sources:list}};})}/>

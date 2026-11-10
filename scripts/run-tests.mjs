@@ -58,6 +58,8 @@ const FAKE_ENV = {
   // Kalmea's own growth features (lib/referral.ts, lib/pricing.ts annual): off, whatever the deployment builds with.
   NEXT_PUBLIC_REFERRALS: '',
   NEXT_PUBLIC_ANNUAL_PLAN: '',
+  // Import from another system (lib/importFile.ts): off, whatever the deployment builds with. test-import-from-system.ts sets it itself.
+  NEXT_PUBLIC_IMPORT_TOOL: '',
   WA_CLOUD_ENABLED: '',
   WA_CLOUD_MODE: '',
   WA_CLOUD_ACCESS_TOKEN: '',
