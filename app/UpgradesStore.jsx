@@ -168,7 +168,6 @@ export function useUpgrades() {
   const [d, setD] = useState(() => visible());
   useEffect(() => {
     listeners.add(setD);
-    setD(visible());
     loadUpgrades();
     return () => { listeners.delete(setD); };
   }, []);
