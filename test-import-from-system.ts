@@ -84,6 +84,32 @@ await ok('cell readers: day first, month first when chosen, Excel serial, date+t
   assert.equal(parseFileTime('14:30:00'), 870);
   assert.equal(parseFileTime('0.604166667'), 870);
   assert.equal(parseFileTime('2pm'), 840);
+  assert.equal(parseFileDate('12/08/2026 2:30 PM'), '2026-08-12');
+});
+
+await ok('times with AM / PM: h:mm, h, with seconds, Hebrew לפנה"צ / אחה"צ; nonsense refused', () => {
+  assert.equal(parseFileTime('2:30 PM'), 870);
+  assert.equal(parseFileTime('2:30pm'), 870);
+  assert.equal(parseFileTime('02:30:00 PM'), 870);
+  assert.equal(parseFileTime('2 PM'), 840);
+  assert.equal(parseFileTime('2:30 p.m.'), 870);
+  assert.equal(parseFileTime('9:15 AM'), 555);
+  assert.equal(parseFileTime('12:00 AM'), 0);
+  assert.equal(parseFileTime('12:30 PM'), 750);
+  assert.equal(parseFileTime('2:30 אחה"צ'), 870);
+  assert.equal(parseFileTime('9:00 לפנה״צ'), 540);
+  assert.equal(parseFileTime('14'), 840);
+  assert.equal(parseFileTime('14:30 PM'), null);
+  assert.equal(parseFileTime('13 AM'), null);
+  assert.equal(parseFileTime('2:75 PM'), null);
+  assert.equal(parseFileTime('25:00'), null);
+  assert.equal(parseFileTime('בקרוב'), null);
+  // A future appointment written "2:30 PM" (separate column, or in the date cell) is imported, not skipped as "no time".
+  const plan = buildImportPlan(
+    [['12/11/2026', '2:30 PM', 'דנה', '0501234567'], ['13/11/2026 9:00 AM', '', 'מיכל', '0529876543']],
+    ['date', 'time', 'name', 'phone'], empty(), baseOpts({ clients: false, appts: true }));
+  assert.equal(plan.appts.noTime, 0);
+  assert.deepEqual(plan.appts.toCreate.map((a) => [a.date, a.startMinute]), [['2026-11-12', 870], ['2026-11-13', 540]]);
   assert.equal(detectDateOrder(['13/01/2026', '02/02/2026']), 'dmy');
   assert.equal(detectDateOrder(['01/13/2026']), 'mdy');
   assert.equal(detectDateOrder(['01/02/2026']), 'unknown');
@@ -202,12 +228,13 @@ const TENANT = '33333333-3333-4333-8333-333333333333';
 const OTHER = '44444444-4444-4444-8444-444444444444';
 
 type Row = Record<string, any>;
-function makeDb(tables: Record<string, Row[]>, opts: { tenant?: string | null } = {}) {
+function makeDb(tables: Record<string, Row[]>, opts: { tenant?: string | null; failInsert?: (table: string, rows: Row[]) => boolean } = {}) {
   const writes: { table: string; rows: Row[] }[] = [];
   let seq = 0;
   const query = (table: string) => {
     const st = { filters: [] as ((r: Row) => boolean)[], insert: null as Row[] | null, range: null as [number, number] | null };
     const run = () => {
+      if (st.insert && opts.failInsert && opts.failInsert(table, st.insert)) return { data: null, error: { code: '23514', message: 'new row violates check constraint' } };
       if (st.insert) {
         const rows: Row[] = st.insert.map((r) => ({ id: `${table}-${++seq}`, ...r }));
         // the database's own no-overlap constraint, for appointments
@@ -377,6 +404,27 @@ await ok('a slot taken between the preview and the insert is caught by the datab
   assert.equal(r.body.added.appts, 1);
   assert.equal(r.body.summary.appts.conflictCount, 1);
   assert.equal(r.body.summary.appts.conflicts[0].name, 'ליה');
+});
+
+await ok('a client card that fails to save holds back its appointments (never client_id null), and a re-import repairs it', async () => {
+  let broken = true;
+  const w = makeDb({ clients: [], service_prices: [], appointments: [] }, { failInsert: (t) => broken && t === 'clients' });
+  (globalThis as any).__TEST_SUPABASE__ = w.db;
+  const csv = ['תאריך,שעה,שם,טלפון', `${dmy(TOMORROW)},2:30 PM,ליה,0501110000`, `${dmy(IN_3)},10:00,מאיה,0501110001`].join('\n');
+  const fields = { step: 'import', confirm: 'yes', mapping: JSON.stringify(['date', 'time', 'name', 'phone']), appts: '1' };
+  const r = await call(fields, csv);
+  assert.equal(r.body.success, false);
+  assert.equal(r.body.added.appts, 0);
+  assert.equal(r.body.apptsNoClient, 2);
+  assert.deepEqual(r.body.apptsNoClientRows.map((x: any) => [x.row, x.name, x.time]), [[2, 'ליה', '14:30'], [3, 'מאיה', '10:00']]);
+  assert.match(r.body.error, /לייבא את אותו קובץ שוב/);
+  assert.equal(w.tables.appointments.length, 0, 'no appointment without a client card');
+
+  broken = false;
+  const again = await call(fields, csv);
+  assert.deepEqual(again.body.added, { services: 0, clients: 2, appts: 2 });
+  assert.equal(again.body.apptsNoClient, 0);
+  assert.ok(w.tables.appointments.every((a) => w.tables.clients.some((c) => c.id === a.client_id)), 'every appointment is linked');
 });
 
 await ok('no notifications: no network call happened, only the three import tables were written', () => {

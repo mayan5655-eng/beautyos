@@ -329,6 +329,11 @@ export default function ImportFromSystem({ pc = 'var(--pc)', pcTint = 'var(--pc-
                     נוספו {result.added.clients} לקוחות, {result.added.services} טיפולים ו-{result.added.appts} תורים.
                     {result.failed ? ` ${result.failed} שורות לא נשמרו.` : ''}
                   </p>
+                  {result.apptsNoClient > 0 && (
+                    <p data-testid="import-no-client" style={{ ...small, marginTop: 6 }}>
+                      {result.apptsNoClient} תורים חיכו כי לא הצלחנו לפתוח כרטיס ללקוחה שלהם. אפשר להעלות את אותו קובץ שוב והם ייכנסו.
+                    </p>
+                  )}
                 </div>
               )}
               {conflictCount > 0 && (

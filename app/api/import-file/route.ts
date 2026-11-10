@@ -199,8 +199,19 @@ export async function POST(request: Request) {
     const toConflict = (a: (typeof plan.appts.toCreate)[number]): Conflict =>
       ({ row: a.row, date: a.date, time: fmtTime(a.startMinute), name: a.name, service: a.service, with: 'תור שנקבע בזמן הייבוא' });
 
-    for (let i = 0; i < plan.appts.toCreate.length; i += APPT_CHUNK) {
-      const drafts = plan.appts.toCreate.slice(i, i + APPT_CHUNK);
+    // An appointment whose client card could not be created (her chunk failed) is NOT written. Written with client_id null it
+    // would be a loose name on the calendar that a re-import could never repair, because the re-import sees the slot as taken
+    // and skips it (Vercel Agent review on #59). Left out and reported, the same file imported again creates the client first
+    // and then the appointment.
+    const noClient: { row: number; date: string; time: string; name: string }[] = [];
+    const linkable = plan.appts.toCreate.filter((a) => {
+      if (clientIdByKey.get(a.clientKey)) return true;
+      noClient.push({ row: a.row, date: a.date, time: fmtTime(a.startMinute), name: a.name });
+      return false;
+    });
+
+    for (let i = 0; i < linkable.length; i += APPT_CHUNK) {
+      const drafts = linkable.slice(i, i + APPT_CHUNK);
       const { data, error } = await writeWithApptBuffer(drafts.map(apptRow), (r) => session.from('appointments').insert(r).select('id'));
       if (!error) { added.appts += Array.isArray(data) ? data.length : 0; continue; }
       if (!isOverlap(error)) { failed += drafts.length; errors.push(error.message || 'insert failed'); continue; }
@@ -213,12 +224,15 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log(`[import-file] tenant ${tid}: +${added.clients} clients, +${added.services} services, +${added.appts} appointments, ${failed} failed, ${plan.appts.conflictCount + lateConflicts.length} conflicts`);
+    console.log(`[import-file] tenant ${tid}: +${added.clients} clients, +${added.services} services, +${added.appts} appointments, ${failed} failed, ${noClient.length} appointments held back (no client card), ${plan.appts.conflictCount + lateConflicts.length} conflicts`);
     return NextResponse.json({
-      success: failed === 0,
+      success: failed === 0 && noClient.length === 0,
       wroteAnything: added.clients + added.services + added.appts > 0,
       added, failed,
-      error: failed ? 'חלק מהשורות לא נשמרו. אפשר לייבא את אותו קובץ שוב: מה שכבר נכנס לא ייכנס פעמיים.' : null,
+      // Appointments not written because their client card could not be saved. Importing the same file again adds them.
+      apptsNoClient: noClient.length,
+      apptsNoClientRows: noClient.slice(0, 200),
+      error: failed || noClient.length ? 'חלק מהשורות לא נשמרו. אפשר לייבא את אותו קובץ שוב: מה שכבר נכנס לא ייכנס פעמיים, ומה שחסר יתווסף.' : null,
       summary: { ...summary, appts: { ...summary.appts, conflicts: [...plan.appts.conflicts, ...lateConflicts], conflictCount: plan.appts.conflictCount + lateConflicts.length } },
     });
   } catch (err: unknown) {

@@ -7,7 +7,7 @@
 // What it reuses rather than copies:
 //   lib/leads/readUpload.ts   bytes -> {headers, rows}: CSV in any of the encodings Israeli Excel writes, .xlsx and .xls, with
 //                             phones and dates kept as she sees them in Excel (the server route calls it).
-//   lib/importMapping.js      the paste wizard's cell readers: parseImportDate (day first), parseImportTime, parseMoney,
+//   lib/importMapping.js      the paste wizard's cell readers: parseImportDate (day first), parseMoney,
 //                             parseMinutes and importPhoneKey (the one "same person" key both imports dedupe on).
 //   lib/phone.ts              normalizeIsraeliMobile, so "+972 (0)52-...", "052..." and "52..." are one client.
 //   lib/apptTime.ts, lib/serviceBuffer.ts   the same [start, end) + stored-buffer overlap test the calendar and the database use.
@@ -18,7 +18,7 @@
 //
 // Hidden behind NEXT_PUBLIC_IMPORT_TOOL (importToolEnabled below): empty means the card, the sheet and the route do not exist.
 
-import { parseImportDate, parseImportTime, parseMoney, parseMinutes, importPhoneKey } from './importMapping.js';
+import { parseImportDate, parseMoney, parseMinutes, importPhoneKey } from './importMapping.js';
 import { normalizeIsraeliMobile } from './phone.ts';
 import { startMinute, endMinute, fmtTime } from './apptTime.ts';
 import { bufferedRange } from './serviceBuffer.ts';
@@ -244,8 +244,9 @@ function excelSerialToIso(n: number): string | null {
 /** Split "12/08/2026 14:30" into its date and time parts. A cell with only one of them gives '' for the other. */
 function splitDateTime(raw: string): { d: string; t: string } {
   const s = raw.trim().replace(/T/, ' ');
-  const m = s.match(/^(\S+)\s+(\d{1,2}[:.]\d{2})(?::\d{2})?(?:\s*(am|pm))?$/i);
-  if (m) return { d: m[1], t: m[2] + (m[3] ? ' ' + m[3] : '') };
+  // "12/08/2026 2:30 PM", "12/08/2026 14:30:00", "12/08/2026 2:30 אחה"צ": everything after the first space is the time, when it reads as one.
+  const m = s.match(/^(\S+)\s+(\d.*)$/);
+  if (m && parseFileTime(m[2]) !== null) return { d: m[1], t: m[2] };
   return { d: s, t: '' };
 }
 
@@ -263,17 +264,38 @@ export function parseFileDate(raw: unknown, order: DateOrder = 'dmy'): string | 
   return parseImportDate(d);
 }
 
-/** "14:30", "14.30", "2pm", "14:30:00" -> minutes from midnight, or null. */
+/** AM / PM words, Latin and Hebrew, after quotes and dots are removed: "לפנה"צ" -> "לפנהצ", "p.m." -> "pm". */
+const AM_MARK = /^(am|a|לפנהצ|לפני הצהריים|בבוקר)$/;
+const PM_MARK = /^(pm|p|אחהצ|אחר הצהריים|בערב|בלילה)$/;
+
+/**
+ * "14:30", "14.30", "14:30:00", "14", "2:30 PM", "2:30pm", "2 PM", "02:30:00 PM", "2:30 אחה"צ", "9:00 לפנה"צ" -> minutes from
+ * midnight, or null. With AM / PM the hour must be 1-12 (12 AM = 00:00, 12 PM = noon); without, it is read as 24-hour.
+ * "2:30 PM" used to come back null, and a valid future appointment was skipped as "no time" (Vercel Agent review on #59).
+ */
 export function parseFileTime(raw: unknown): number | null {
-  const s = String(raw ?? '').trim().replace(/^(\d{1,2}:\d{2}):\d{2}$/, '$1');
+  const s = String(raw ?? '').trim();
   if (!s) return null;
   // A time-only cell Excel stored as a fraction of a day (0.604166 = 14:30).
   if (/^0?\.\d+$/.test(s)) {
     const mins = Math.round(Number(s) * 1440);
     return mins >= 0 && mins < 1440 ? mins : null;
   }
-  const r = parseImportTime(s);
-  return r ? r.startMinute : null;
+  const m = s.match(/^(\d{1,2})(?:[:.](\d{2})(?::\d{2})?)?\s*(.*)$/);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = m[2] === undefined ? 0 : Number(m[2]);
+  if (min > 59) return null;
+  const mark = m[3].toLowerCase().replace(/["'״׳.]/g, '').replace(/\s+/g, ' ').trim();
+  if (mark) {
+    const am = AM_MARK.test(mark), pm = PM_MARK.test(mark);
+    if (!am && !pm) return null;
+    if (h < 1 || h > 12) return null;
+    if (pm && h < 12) h += 12;
+    if (am && h === 12) h = 0;
+  }
+  if (h > 23) return null;
+  return h * 60 + min;
 }
 
 /**
