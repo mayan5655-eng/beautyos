@@ -309,6 +309,9 @@ const DAYS_HE = ["ראשון","שני","שלישי","רביעי","חמישי","�
 // wait feels alive and progressing rather than frozen.
 const SCAN_STEPS = ["בודקת גוון עור...","מזהה מרקם ולחות...","מאתרת אזורי טיפול...","מכינה המלצות מותאמות..."];
 import { HELP_TITLE, HELP_INTRO, helpSectionsFor, TUTORIAL_TITLES, tutorialHref } from "@/lib/helpSections";
+// What is switched on for her (2026-11-09: nothing inactive is shown, help included): her settings plus the server-only switches.
+import { helpGatesFor } from "@/lib/helpVisibility";
+import { useDeployFlags } from "./useDeployFlags";
 
 // "**x**" -> <b>x</b>; everything else passes through untouched.
 const helpInline = (text) => text.split(/(\*\*[^*]+\*\*)/g).map((part,i) =>
@@ -1030,6 +1033,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // WhatsApp tab sub-views: the send tools, or the log of what was already sent.
   const [waView,         setWaView]         = useState("send"); // send | log
   const [waMessages,     setWaMessages]     = useState(null);   // null = not loaded yet
+  // Grow, billing and automatic WhatsApp sending, as the server sees them for her business (all false until known).
+  const deployFlags = useDeployFlags();
   // Her connection to a registered receipt provider (Morning), or null until loaded.
   // Optional: with no connection the till works exactly as it always has.
   const [legalAccount, setLegalAccount] = useState(null);
@@ -11477,7 +11482,7 @@ ${MARKETING_FOOTER}`)}`;
             // the setup checklist: a collapsed line per section, the body
             // revealed on request. The first section is open on arrival so the
             // page never reads empty.
-            const helpSections = helpSectionsFor(businessFieldsOf(settings));
+            const helpSections = helpSectionsFor(businessFieldsOf(settings), helpGatesFor(settings, deployFlags));
             const openKey = expandedHelpKey ?? (helpSections[0]||{}).key;
             return (
  <div style={{maxWidth:760,marginLeft:"auto",marginRight:"auto"}}>

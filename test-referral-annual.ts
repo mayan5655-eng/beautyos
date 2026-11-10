@@ -536,7 +536,7 @@ await ok('wiring: the cron passes the referral repo; the routes check their flag
   assert.ok(/const on = referralsEnabled\(\);/.test(card) && /if \(!on\) return;\s*\n\s*let alive/.test(card), 'with the flag off the card fetches nothing');
   assert.ok(!/wa\.me\/\d/.test(card) && !/fetch\([^)]*send/.test(card), 'share opens her own WhatsApp, Kalmea sends nothing');
   const billingCard = read('app/BillingCard.jsx');
-  assert.ok(/\{an && \(/.test(billingCard), 'the annual choice renders only when the status route sends it (flag on)');
+  assert.ok(/\{an && an\.ready && \(/.test(billingCard), 'the annual choice renders only when the status route sends it (flag on), and only once it is ready');
   assert.ok(/if \(annualPlanEnabled\(\)\)/.test(read('app/api/billing/status/route.ts')), 'and the route sends it only with the flag');
   const signup = read('app/signup/page.tsx');
   assert.ok(/referralsEnabled\(\)/.test(signup) && /kl_ref/.test(signup));

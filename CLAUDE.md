@@ -13,6 +13,8 @@
   demo tenant or a dedicated test tenant, and clean up what you create.
 - Anything that costs money (paid APIs beyond normal usage, Grow charges) needs her approval first.
 - Nothing gets deleted from the product (hide behind a flag instead).
+- Never show anything in the product that is not active yet (flag off, not configured, not live): no buttons, cards, settings,
+  menu items, tutorials, help text, 'coming soon' or copy promising it. Hide behind the flag; never delete.
 - Merging to main and pushing is allowed only after build and all tests pass and the change was checked on the branch's
   Vercel preview, unless she says otherwise. If a push is blocked, tell her and she runs it.
 - Text for her terminal is in English (Hebrew renders reversed there); product copy stays Hebrew.

@@ -55,6 +55,10 @@
 // the sign glued to the digits, and no caption line starts with a digit.
 //
 // Music: as morning-motion.mjs (not committed; without it the video gets a silent track and says so).
+// The section 9 videos (2026-11-10) carry Kalmea's own music instead, made in-repo with nothing to license: the calm "spa" mood
+// of lib/design/reelMusic.js (72 BPM, pad and electric piano, almost no drums), rendered as
+//   renderMood('spa', { durationMs: 64000, endStartMs: 64000, seed: 3 }) -> encodeWav -> ffmpeg -af volume=0.5dB -b:a 192k mp3
+// and saved under the MUSIC filename above (about -14 LUFS; the volume=0.5 below brings it to about -20 LUFS under the visuals).
 
 import fs from 'node:fs';
 import path from 'node:path';

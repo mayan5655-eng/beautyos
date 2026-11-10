@@ -7,7 +7,9 @@
 // own heading (#t-<id>). The help page shows them as "▶" links under the text (2026-11-04: written help and videos together).
 import { growCostLineHe, growCostDetailsHe } from "./growPricing.ts";
 
-export type HelpSection = { key: string; icon: string; title: string; body: string[]; videos?: string[] }
+// gate: the section is shown only while at least one of these is on (lib/helpVisibility.ts computes them, 2026-11-09 owner rule:
+// nothing that is not active may be shown, help text included).
+export type HelpSection = { key: string; icon: string; title: string; body: string[]; videos?: string[]; gate?: HelpGate[] }
 
 /** The video titles shown on the help page's links. Same ids and titles as app/tutorials/page.tsx (a test keeps them in step). */
 export const TUTORIAL_TITLES: Record<string, string> = {
@@ -54,9 +56,44 @@ export const TUTORIAL_FLAG: Record<string, TutorialFlag> = {
   "grow-refunds": "grow",
   referral: "referral",
 };
-/** Is this video's feature switched on? `on` omitted: every video counts as on (the browser cannot read the server's switches). */
+/** Is this video's feature switched on? `on` omitted: every video counts as on (only the tests and legacy callers omit it). */
 export const tutorialOn = (id: string, on?: Partial<Record<TutorialFlag, boolean>>): boolean =>
   !on || !TUTORIAL_FLAG[id] || on[TUTORIAL_FLAG[id]] === true;
+
+// ── What can hide a piece of help (2026-11-09 owner rule) ─────────────────────
+// Nothing that is not active may be shown: not a button, not a card, and not a line of help that explains it. Each gate is one
+// switch, computed by lib/helpVisibility.ts helpGatesFor() from her settings row and the deployment's switches (the browser reads
+// the server-only ones from /api/feature-visibility). HIDDEN, NOT DELETED: the text stays here and comes back with its switch.
+//   deployment, ON ONLY WHEN TRUE (a missing value is off):
+//     grow           GROW_UI_ENABLED (and GROW_ALLOWED_TENANTS) for her business
+//     referral       the video "חודש במתנה ומנוי שנתי": NEXT_PUBLIC_REFERRALS or the yearly plan
+//     bizReferral    "חברה מביאה חברה" (NEXT_PUBLIC_REFERRALS)
+//     annual         the yearly plan in "המנוי שלך" (NEXT_PUBLIC_ANNUAL_PLAN with BILLING_UI_ENABLED)
+//     autoSend       the central number sends WhatsApp messages by itself (platform_settings.whatsapp_auto_utility_enabled).
+//                    Off, which is the case today: every message waits for her tap, and the text says exactly that.
+//     voucherOnline  gift vouchers bought online (needs Grow)
+//     bot            the WhatsApp bot connected to her business (settings.green_api_instance)
+//   her business, ON UNLESS EXPLICITLY FALSE (the platform and tab switches, all of them default on):
+//     waitlist, rebook, vouchers, products, reviews, monthly, skinScan, leads, advisor, packages, reelTemplates
+export type HelpGate = TutorialFlag | "bizReferral" | "annual" | "autoSend" | "voucherOnline" | "bot"
+  | "waitlist" | "rebook" | "vouchers" | "products" | "reviews" | "monthly" | "skinScan" | "leads" | "advisor" | "packages" | "reelTemplates";
+export type HelpOn = Partial<Record<HelpGate, boolean>>;
+const STRICT_GATES: readonly HelpGate[] = ["grow", "referral", "bizReferral", "annual", "autoSend", "voucherOnline", "bot"];
+/** Is this gate on? `on` omitted: everything is on (the legacy, ungated text). */
+export const gateOn = (on: HelpOn | undefined, g: HelpGate): boolean =>
+  !on || (STRICT_GATES.includes(g) ? on[g] === true : on[g] !== false);
+/** The per-business switches a video's feature lives behind (any one on shows it), on top of TUTORIAL_FLAG. */
+export const VIDEO_GATE: Record<string, HelpGate[]> = {
+  "skin-scan": ["skinScan"],
+  "waitlist-rebook": ["waitlist", "rebook"],
+  "gift-vouchers": ["vouchers"],
+  products: ["products"],
+  reviews: ["reviews"],
+  monthly: ["monthly"],
+};
+/** May the help page and the help chat point her to this video? */
+export const helpVideoOn = (id: string, on?: HelpOn): boolean =>
+  tutorialOn(id, on) && (!on || !VIDEO_GATE[id] || VIDEO_GATE[id].some((g) => gateOn(on, g)));
 
 // Help page (nav "עזרה"). The text of help-content.md, one entry per "##"
 // heading, embedded verbatim rather than fetched: the page must work offline
@@ -115,7 +152,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     "אם הטיפול המומלץ קיים ברשימת השירותים שלך, יופיע כפתור לקביעת התור ישירות. הסריקה נשמרת אוטומטית בכרטיס הלקוחה.",
     "⚠️ יש מכסת סריקות חודשית, מוצגת בהגדרות → לקוחות ופניות.",
   ]},
-  { key:"leads", icon:"chat", title:"פניות", body:[
+  { key:"leads", gate:["leads"], icon:"chat", title:"פניות", body:[
     "כל מי שפנתה אליך ועדיין לא הפכה ללקוחה, מהאתר, מפייסבוק או שהזנת ידנית.",
     "- סינון לפי סטטוס: חדש, אין מענה, ממתינה לתשובה, בטיפול, נשלח מחיר, נקבע תור, לא הגיע, למעקב בהמשך, נסגר, לא רלוונטי",
     "- **✦ פנייה חדשה** להוספה ידנית, **⇪ ייבוא פניות** מקובץ",
@@ -128,21 +165,23 @@ export const HELP_SECTIONS: HelpSection[] = [
     "ההיסטוריה של כל טיפול שנתת נשמרת בכרטיס הלקוחה, בלשונית **היסטוריה**: יחד עם התמונות לפני/אחרי.",
   ]},
   { key:"marketing", icon:"megaphone", title:"שיווק", videos:["ai"], body:[
-    "ארבעה כלים בלשונית אחת:",
-    "### 🖊️ יצירת פוסטים",
-    "כותבת מה את רוצה לפרסם, ואם בא לך מוסיפה עוד פרטים. לוחצת **✦ צרי לי 5 פוסטים**. מקבלת אסטרטגיה קצרה וחמישה פוסטים מוכנים, כל אחד עם כותרת, טקסט, קריאה לפעולה והאשטגים.",
-    "מכל פוסט אפשר: **להעתיק**, **לשתף לפייסבוק**, או **להוריד תמונה**. לאינסטגרם, מורידים את התמונה ומדביקים את הטקסט ידנית.",
-    "כפתור **✦ שמרי את הקמפיין** שומר הכל תחת **הקמפיינים שלי**.",
+    "בלשונית **תוכן** יש שני חלקים: **פוסטים ותבניות**, ו**קמפיינים**.",
+    "### השבוע",
+    "- **מה מפרסמים השבוע**: פוסטים שכבר מוכנים בצבעים שלך, לפי החגים, היומן והטיפולים שלך. בוחרים אחד, משנים מילה ומורידים.",
+    "- **מה לצלם השבוע**: 3 עד 5 רעיונות של עשר דקות בעסק, לפי השירותים והיומן שלך. מכל רעיון אפשר **להפוך לרילס**.",
+    "### תבניות",
+    "תבניות מוכנות, כבר בצבעים שלך: כל תבנית מתמלאת בלוגו, בשם העסק, בצבע המותג ובתמונות מהגלריה. בוחרים אחת, משנים מה שרוצים, ומורידים.",
+    "### רילסים",
+    "- **רילס מהצילומים שלי**: בוחרים תמונות וסרטונים שלך מהעבודה, לפני ואחרי, ומקבלים רילס מוכן בעיצוב שלך.",
+    "- **תבניות רילס**: רשימת צילומים מוכנה, מוזיקה, מעברים ואפקטים. מצלמות לפי הרשימה ומקבלות רילס.",
+    "- **תסריט לצילום**: ה-AI כותב תסריט קצר לרילס, סצנה אחרי סצנה, על נושא שתבחרי.",
+    "### עם AI",
+    "**מילוי עם AI**: משפט אחד, וה-AI כותב את הטקסטים לתבנית, טקסט לפוסט וכיוונים לתמונה.",
     "⚠️ טיפולים רפואיים כמו בוטוקס ומילויים מסוננים אוטומטית מהפוסטים.",
-    "### 📋 מה לצלם השבוע",
-    "לחיצה אחת, בלי להקליד כלום. מקבלת 3-5 רעיונות לצילום, מותאמים לשירותים שלך ולתורים של השבוע הקרוב. חלקם מסומנים \"בלי להצטלם\" אם את לא רוצה להיות בתמונה. מכל רעיון אפשר לעבור ישר ל**🎬 צרי ריל מזה**.",
-    "### 🎬 רילסים",
-    "כותבת על מה הריל, בוחרת אורך (15/30/60 שניות) ווייב (רגוע ומפנק, אנרגטי וקצבי). מקבלת תסריט מלא, סצנה־סצנה עם מה אומרים, מה כתוב על המסך, ואיך לצלם. בסוף: תיאור לפוסט וסגנון מוזיקה מומלץ.",
-    "ומתחת, **הפכי את התסריט לסרטון**: מוסיפה תמונה לכל סצנה, הכתוביות והתזמונים כבר מוכנים, אפשר להוסיף מוזיקה, ולוחצת **צרי סרטון**. הסרטון יורד למכשיר ואת מעלה אותו לאינסטגרם או לסטטוס.",
-    "### הקמפיינים שלי",
-    "כל קמפיין ששמרת, עם הפוסטים שלו. אפשר להעתיק או למחוק.",
+    "### קמפיינים",
+    "מתחברים לפייסבוק, ורואים את ביצועי המודעות בפייסבוק ובאינסטגרם: הוצאה, פניות ומחיר לפנייה.",
   ]},
-  { key:"advisor", icon:"robot", title:"יועץ AI", videos:["ai"], body:[
+  { key:"advisor", gate:["advisor"], icon:"robot", title:"יועץ AI", videos:["ai"], body:[
     "צ'אט אישי שמכיר את הנתונים האמיתיים של העסק שלך, התורים, התשלומים, הלקוחות והפניות. שואלת שאלה עסקית, מקבלת תשובה מבוססת על המספרים שלך, לא עצה כללית.",
     "יש ארבע שאלות מוכנות להתחלה: איך להעלות הכנסות החודש, מה כדאי לתמחר מחדש, איך להחזיר לקוחות רדומות, ורעיון לקמפיין לחודש חלש.",
     "הרבה פעמים התשובה תכלול גם הודעה מוכנה לשליחה ללקוחות. השיחה נשמרת, אפשר לחזור אליה בכל זמן.",
@@ -154,7 +193,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     "אישור תשלום הוא לא קבלה חוקית. קבלה או חשבונית חוקית יוצאת מתוכנה רשומה, כמו מורנינג. אפשר לחבר אחת בהגדרות, תחת **חיבורים**.",
     "אם ביטלת תשלום בטעות, אפשר לבטל אותו מתוך האישור, והמקור נשמר ברישום.",
   ]},
-  { key:"grow", icon:"receipt", title:"סליקת אשראי (Grow)", videos:["grow-connect","grow-till","pay-page","deposits","grow-refunds"], body:[
+  { key:"grow", gate:["grow"], icon:"receipt", title:"סליקת אשראי (Grow)", videos:["grow-connect","grow-till","pay-page","deposits","grow-refunds"], body:[
     "הלקוחות משלמות באשראי, בביט, ב-Apple Pay או ב-Google Pay, והכסף נכנס לחשבון ה-Grow שלך. Grow מפיקה את הקבלה החוקית.",
     "- **חיבור**: בהגדרות, תחת **חיבורים**, בכרטיס **סליקת אשראי (Grow)**. אין לך Grow? בוחרים מסלול, ממלאים תעודת זהות או מספר עוסק ונייד, ו-Grow שולחת SMS עם טופס קצר. יש לך Grow? פונים לשירות הלקוחות של Grow ומדביקים את קוד העסק שמגיע במייל.",
     "- **בקופה**: אחרי שבוחרים לקוחה וטיפול, לוחצים **בקשת תשלום** בתיבה של Grow. דף התשלום נפתח, ואפשר לשלוח אותו בוואטסאפ או להראות קוד QR. כשהלקוחה משלמת, אישור התשלום נרשם לבד, אז לא לוחצים גם **רשמי תשלום**.",
@@ -164,7 +203,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     "- **כל התשלומים האחרונים ב-Grow**: בקופה, ומתחת לכל תשלום כתוב מאיפה הגיע: מהקופה, מדף ההזמנה, משובר מתנה או מבקשת תשלום.",
     "- הלקוחה פותחת את הקישור מוואטסאפ והחלון לא נפתח? הדף מסביר לה לפתוח אותו בדפדפן של הטלפון, והיא לא חויבה.",
   ]},
-  { key:"vouchers-products", icon:"receipt", title:"שוברי מתנה ומוצרים", videos:["gift-vouchers","products"], body:[
+  { key:"vouchers-products", gate:["vouchers","products"], icon:"receipt", title:"שוברי מתנה ומוצרים", videos:["gift-vouchers","products"], body:[
     "### 🎁 שוברי מתנה",
     "השוברים כבר פועלים: מוכרים ומממשים בקופה, בלשונית **שוברי מתנה**. אם Grow מחובר, אפשר לקנות שובר גם אונליין מהדף שלך, והקונה שולחת אותו בעצמה בוואטסאפ. סכומים, תוקף ועיצוב משנים בהגדרות, תחת **העסק שלי**.",
     "- **מימוש**: בקופה מקלידים את קוד השובר, והסכום יורד מהתשלום. היתרה נשארת בשובר.",
@@ -174,7 +213,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     "- **עדכון מלאי**: כשמגיע משלוח, נזק או ספירה, עם סיבה שנשמרת ביומן המלאי.",
     "- מלאי נמוך מסומן, ומכירה לא נחסמת גם כשהמלאי נגמר.",
   ]},
-  { key:"waitlist-rebook", icon:"calendar", title:"רשימת המתנה ותור הבא", videos:["waitlist-rebook"], body:[
+  { key:"waitlist-rebook", gate:["waitlist","rebook"], icon:"calendar", title:"רשימת המתנה ותור הבא", videos:["waitlist-rebook"], body:[
     "שתי עזרות שמפעילים בהגדרות, תחת **הודעות**. שתיהן כבויות עד שתפעילי.",
     "- **הצעה אוטומטית לרשימת ההמתנה**: לקוחה שלא מצאה שעה בדף שלך נרשמת לרשימת ההמתנה. כשתור מתבטל, מי שהתור מתאים לה מקבלת הצעה עם קישור, והראשונה שלוחצת מקבלת. ביומן רואים מה קרה.",
     "- **תזכורת לקבוע את התור הבא**: לקוחה בלי תור עתידי מקבלת תזכורת חמה כשמגיע הזמן, רק אם הסכימה לקבל הודעות. רואים מראש **מי תקבל תזכורת היום?**",
@@ -206,7 +245,8 @@ export const HELP_SECTIONS: HelpSection[] = [
   { key:"settings", icon:"settings", title:"הגדרות", videos:["services-hours","morning","grow-connect","referral"], body:[
     "כאן מגדירים את המערכת פעם אחת, ואחר כך כמעט לא נוגעים.",
     "- **העסק שלי**: שם העסק, שם המטפלת, טלפון העסק (גם לביט), סוג העסק (פטור, מורשה או חברה), תחומי העיסוק, יעדים, שוברי מתנה ומוצרים",
-    "- **חברה מביאה חברה** ו**המנוי שלך** (גם ב״העסק שלי״, כשהם פעילים בחשבון): קישור אישי להזמנת בעלת עסק אחרת, וכשהיא משלמת בפעם הראשונה שתיכן מקבלות חודש מנוי במתנה. במנוי אפשר לעבור לתשלום שנתי, חודשיים במתנה, והמעבר נכנס לתוקף בחידוש הבא.",
+    "- **חברה מביאה חברה** (ב״העסק שלי״): קישור אישי להזמנת בעלת עסק אחרת, וכשהיא משלמת בפעם הראשונה שתיכן מקבלות חודש מנוי במתנה.",
+    "- **המנוי שלך** (ב״העסק שלי״): אפשר לעבור לתשלום שנתי, חודשיים במתנה, והמעבר נכנס לתוקף בחידוש הבא.",
     "- **הדף שלי**: הדף הציבורי שלך: תמונות, צבעים, טקסטים, גלריה ורשתות",
     "- **יומן ושירותים**: הטיפולים והמחירים שלך, ושעות הפתיחה לכל יום",
     "- **תשלומים**: כל מה שקשור למקדמה בקביעת תור, במקום אחד: סכום המקדמה ואיך משלמים אותה (למשל בביט). הלקוחה רואה אותה בדף ההזמנה ומאשרת לפני שהתור נקבע",
@@ -246,9 +286,75 @@ export const COSMETICS_ONLY_VIDEOS: readonly string[] = ["skin-scan", "forms"];
 export const isNailsOnly = (fields: unknown): boolean =>
   Array.isArray(fields) && fields.includes("nails") && !fields.includes("cosmetics");
 /** The tutorial videos this business may be pointed to. */
-export const tutorialIdsFor = (fields: unknown, on?: Partial<Record<TutorialFlag, boolean>>): string[] =>
-  Object.keys(TUTORIAL_TITLES).filter((id) => !(isNailsOnly(fields) && COSMETICS_ONLY_VIDEOS.includes(id)) && tutorialOn(id, on));
-export const helpSectionsFor = (fields: unknown): HelpSection[] => {
+export const tutorialIdsFor = (fields: unknown, on?: HelpOn): string[] =>
+  Object.keys(TUTORIAL_TITLES).filter((id) => !(isNailsOnly(fields) && COSMETICS_ONLY_VIDEOS.includes(id)) && helpVideoOn(id, on));
+
+// A help line that describes a gated feature: dropped while its gate is off (matched by the line's start, before any rewrite).
+export const HELP_LINE_GATES: ReadonlyArray<[string, HelpGate]> = [
+  ["- **סריקות עור**", "skinScan"],
+  ["### ✦ סריקת עור AI", "skinScan"],
+  ["מצלמת פנים של הלקוחה", "skinScan"],
+  ["אם הטיפול המומלץ קיים ברשימת השירותים", "skinScan"],
+  ["⚠️ יש מכסת סריקות חודשית", "skinScan"],
+  ["- **חבילות**:", "packages"],
+  ["### 🎁 שוברי מתנה", "vouchers"],
+  ["השוברים כבר פועלים", "vouchers"],
+  ["- **מימוש**:", "vouchers"],
+  ["- שובר נספר בהכנסות", "vouchers"],
+  ["### 🧴 מוצרים ומלאי", "products"],
+  ["בקופה, בלשונית **מוצרים**", "products"],
+  ["- **עדכון מלאי**", "products"],
+  ["- מלאי נמוך מסומן", "products"],
+  ["- **הצעה אוטומטית לרשימת ההמתנה**", "waitlist"],
+  ["- **תזכורת לקבוע את התור הבא**", "rebook"],
+  ["אם השליחה מהמספר המרכזי לא פעילה", "autoSend"],
+  ["### ביקורות בשני צעדים", "reviews"],
+  ["אחרי טיפול מוכנה לך בקשה קצרה", "reviews"],
+  ["- **מה הלקוחות אמרו**", "reviews"],
+  ["- **הדוח החודשי**", "monthly"],
+  ["- **חברה מביאה חברה**", "bizReferral"],
+  ["- **המנוי שלך**", "annual"],
+  ["- **סליקת אשראי (Grow)**", "grow"],
+  ["- **בוט וואטסאפ ושאלות ותשובות**", "bot"],
+  ["- **תבניות רילס**", "reelTemplates"],
+];
+// While a gate is off, these words are rewritten so the line stops promising it (applied after the drops above).
+const WAITLIST_ONE = "עזרה שמפעילים בהגדרות, תחת **הודעות**. היא כבויה עד שתפעילי.";
+const WAITLIST_TWO = "שתי עזרות שמפעילים בהגדרות, תחת **הודעות**. שתיהן כבויות עד שתפעילי.";
+export const HELP_OFF_REPLACE: ReadonlyArray<[HelpGate, string, string]> = [
+  ["skinScan", "ארבעה כפתורים בראש הכרטיס: **וואטסאפ**, **✎ עריכה**, **✦ קביעת תור**, ו־**✦ סריקת עור AI**.", "שלושה כפתורים בראש הכרטיס: **וואטסאפ**, **✎ עריכה**, ו־**✦ קביעת תור**."],
+  ["grow", "סליקת אשראי דרך Grow, קבלות", "קבלות"],
+  ["voucherOnline", " אם Grow מחובר, אפשר לקנות שובר גם אונליין מהדף שלך, והקונה שולחת אותו בעצמה בוואטסאפ.", ""],
+  ["waitlist", WAITLIST_TWO, WAITLIST_ONE],
+  ["rebook", WAITLIST_TWO, WAITLIST_ONE],
+  // No automatic sending today: the offer and the nudge are prepared, and she sends each one with a tap.
+  ["autoSend", "**הצעה אוטומטית לרשימת ההמתנה**", "**הצעה לרשימת ההמתנה כשתור מתבטל**"],
+  ["autoSend", "כשתור מתבטל, מי שהתור מתאים לה מקבלת הצעה עם קישור, והראשונה שלוחצת מקבלת.", "כשתור מתבטל, מוכנה לך ב**הודעות מוכנות לשליחה** הצעה עם קישור למי שהתור מתאים לה. את שולחת בלחיצה, והראשונה שלוחצת על הקישור מקבלת."],
+  ["autoSend", "לקוחה בלי תור עתידי מקבלת תזכורת חמה כשמגיע הזמן, רק אם הסכימה לקבל הודעות.", "ללקוחה בלי תור עתידי מוכנה תזכורת חמה כשמגיע הזמן, רק אם הסכימה לקבל הודעות. את שולחת אותה בלחיצה, מ**הודעות מוכנות לשליחה**."],
+  ["monthly", "### הדוח החודשי והסיכום השבועי", "### הסיכום השבועי"],
+  // Settings line and section title: the word goes with its feature (the settings line before the title, which it contains).
+  ["vouchers", "יעדים, שוברי מתנה ומוצרים", "יעדים ומוצרים"],
+  ["vouchers", "שוברי מתנה ומוצרים", "מוצרים"],
+  ["products", "יעדים, שוברי מתנה ומוצרים", "יעדים ושוברי מתנה"],
+  ["products", "יעדים ומוצרים", "יעדים"],
+  ["products", "שוברי מתנה ומוצרים", "שוברי מתנה"],
+];
+const rewrite = (t: string, on: HelpOn) => HELP_OFF_REPLACE.reduce((s, [g, a, b]) => (gateOn(on, g) ? s : s.split(a).join(b)), t);
+/** The help text with every gated part applied: `on` omitted keeps the full, ungated text. */
+const gated = (sections: HelpSection[], on?: HelpOn): HelpSection[] => {
+  if (!on) return sections;
+  return sections
+    .filter((sec) => !sec.gate || sec.gate.some((g) => gateOn(on, g)))
+    .map((sec) => ({ ...sec,
+      title: rewrite(sec.title, on),
+      ...(sec.videos ? { videos: sec.videos.filter((v) => helpVideoOn(v, on)) } : {}),
+      body: sec.body
+        .filter((line) => !HELP_LINE_GATES.some(([start, g]) => line.startsWith(start) && !gateOn(on, g)))
+        .map((line) => rewrite(line, on)),
+    }));
+};
+export const helpSectionsFor = (fields: unknown, on?: HelpOn): HelpSection[] => gated(helpSectionsForFields(fields), on);
+const helpSectionsForFields = (fields: unknown): HelpSection[] => {
   if (!Array.isArray(fields) || fields.includes("cosmetics") || !fields.includes("nails")) return HELP_SECTIONS;
   return HELP_SECTIONS.map((sec) => ({...sec, videos: sec.videos?.filter((v) => !COSMETICS_ONLY_VIDEOS.includes(v)), body: sec.body
     .filter((line: string) => !NAILS_HELP_DROP.some(d => line.startsWith(d)))
