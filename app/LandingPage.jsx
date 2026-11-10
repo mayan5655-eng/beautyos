@@ -23,6 +23,8 @@ import { PLAN_PRICES, priceHe, annualPlanEnabled } from "@/lib/pricing";
 import { annualOfferHe } from "@/lib/planCopy";
 import PublicAnalytics from "./PublicAnalytics";
 import MetaPixel from "./MetaPixel";
+import Testimonials from "./landing/Testimonials";
+import { landingClaims } from "@/lib/landingClaims";
 
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
@@ -35,17 +37,35 @@ const COST_ROWS = [
 const TOTAL_LOW = COST_ROWS.reduce((s, r) => s + r.low, 0);
 const TOTAL_HIGH = COST_ROWS.reduce((s, r) => s + r.high, 0);
 
+// Every "with" side is live for every business. The no-show row depends on a deployment switch and is decided per request by
+// beforeAfterRows() below (lib/landingClaims.ts): the deposit claim only while Grow deposits are really on for everyone.
+const NO_SHOW_READY = { icon: "clock", before: "לקוחות שלא מגיעות לתורים", after: "תזכורות מוכנות לשליחה, יום לפני כל טיפול" };
+const NO_SHOW_DEPOSIT = { icon: "card", before: "לקוחות שלא מגיעות לתורים", after: "מקדמה כבר בקביעת התור, ומדיניות ביטול שהלקוחה מאשרת מראש" };
+const NO_SHOW_DEPOSIT_BIT = { icon: "card", before: "לקוחות שלא מגיעות לתורים", after: "מקדמה בכרטיס או בביט כבר בקביעת התור, ומדיניות ביטול שהלקוחה מאשרת מראש" };
+// Self-reschedule (lib/reschedule.ts, app/confirm/RescheduleFlow.jsx) works for every business, from the link in her reminder.
+const RESCHEDULE = { icon: "move", before: "לקוחה רוצה להזיז תור", after: "מזיזה לבד, לפי מדיניות הביטול שלך" };
+
 const BEFORE_AFTER = [
   { icon: "chat", before: "הודעות וואטסאפ שלא נגמרות", after: "לקוחות קובעות תורים בעצמן, 24/7" },
-  { icon: "clock", before: "לקוחות שלא מגיעות לתורים", after: "תזכורות מוכנות לשליחה, יום לפני כל טיפול" },
+  NO_SHOW_READY,
+  RESCHEDULE,
   { icon: "calendar", before: "חורים ריקים ביומן", after: "תור שהתפנה? Kalmea שואלת אם להציע אותו" },
   { icon: "heart", before: "לקוחות קבועות שנעלמות בלי ששמת לב", after: "הודעת חזרה מוכנה ללקוחה שלא הגיעה מזמן" },
   { icon: "spark", before: "שעות על יצירת פוסטים ושיווק", after: "פוסטים וקמפיינים בעזרת AI, בצבעים שלך" },
   { icon: "wallet", before: "שכחת לגבות או לתעד תשלום", after: "קופה ומעקב אחר תשלומים וחבילות" },
   { icon: "layers", before: "מעבר בין כמה מערכות ואפליקציות", after: "יומן, לקוחות ושיווק במקום אחד" },
   { icon: "chart", before: "אין לך מושג ברור כמה הרווחת", after: "דוחות שמראים לך מה קורה בעסק" },
-  { icon: "person", before: "את גם המטפלת, גם המזכירה וגם מנהלת השיווק", after: "כלי AI שעוזרים לך בניהול היומיומי" },
+  // The intake gate (lib/intakeGate.ts), live since add_reschedule_intake_2026-11-09.sql ran (verified 2026-11-10). She turns it on
+  // per service. The form is a digital link; the patch test is a flag and a line to the client, not a digital test, so the copy says so.
+  { icon: "doc", before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה" },
 ];
+
+function beforeAfterRows(claims) {
+  if (!claims.deposits) return BEFORE_AFTER;
+  // With deposits on, the no-show row speaks about the deposit; the ready reminders keep their place in "a real day" below.
+  const deposit = claims.depositBit ? NO_SHOW_DEPOSIT_BIT : NO_SHOW_DEPOSIT;
+  return BEFORE_AFTER.map((r) => (r === NO_SHOW_READY ? deposit : r));
+}
 
 // The moments of the day. Made-up names; each "with" side is what the product really does, and what needs her OK waits for it.
 const MOMENTS = [
@@ -142,6 +162,7 @@ function SectionEyebrow({ children }) {
 }
 
 export default function LandingPage({ signedIn = false }) {
+  const claims = landingClaims();
   return (
     <div dir="rtl" className="lp-page">
       <PublicAnalytics />
@@ -158,9 +179,10 @@ export default function LandingPage({ signedIn = false }) {
       {/* ── 2. HERO: who it is for, in the headline, before any scroll. ───── */}
       <section className="lp-hero">
         <div className="lp-hero-text">
+          <p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות</p>
           <h1 className="serif lp-h1">קוסמטיקאית או מניקוריסטית שעובדת לבד?</h1>
           <p className="lp-h1-sub">את מטפלת בלקוחות. Kalmea עוזרת לך לטפל בעסק.</p>
-          <p className="lp-hero-desc">שיווק, ניהול ומכירות, הכול במערכת חכמה אחת. יומן תורים, ניהול לקוחות, הודעות, קמפיינים וכלי AI שעוזרים לך לעשות יותר, בפחות התעסקות.</p>
+          <p className="lp-hero-desc">{claims.deposits ? "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד." : "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות ומזיזות תור לבד."}</p>
           <div className="lp-hero-cta">
             <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
             <p className="lp-cta-note">בלי כרטיס אשראי ובלי התחייבות</p>
@@ -184,7 +206,8 @@ export default function LandingPage({ signedIn = false }) {
         <div className="lp-wrap">
           <Reveal as="h2" className="serif lp-h2">אותו עסק. יום עבודה אחר לגמרי.</Reveal>
           <Reveal delay={60} className="lp-lead"><p>את לא צריכה לעבוד יותר קשה. את צריכה מערכת שתעזור לך לעבוד חכם יותר.</p></Reveal>
-          <BeforeAfter rows={BEFORE_AFTER} />
+          <BeforeAfter rows={beforeAfterRows(claims)} />
+          {claims.deposits && <p className="lp-fine" data-testid="deposit-note">מקדמה ומדיניות ביטול פועלות אחרי חיבור לסליקה של Grow.</p>}
           <div className="lp-cta-block">
             <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
             <p className="lp-cta-note">בלי כרטיס אשראי</p>
@@ -250,6 +273,8 @@ export default function LandingPage({ signedIn = false }) {
             </p>
             {/* No end date and no automatic expiry: the launch price stays on the page until the owner removes it by hand. */}
             <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר היכרות {priceHe(PLAN_PRICES.launch)} לזמן מוגבל</p>
+            {/* True: Kalmea charges only the subscription. Card clearing fees, once she connects Grow, go to Grow (lib/growPricing.ts). */}
+            <p data-testid="price-no-cut" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Kalmea לא לוקחת אחוזים מהמכירות שלך</p>
             {/* The yearly plan, only with NEXT_PUBLIC_ANNUAL_PLAN=1 (its price is pending the owner's confirmation, lib/pricing.ts). */}
             {annualPlanEnabled() && <p data-testid="price-annual" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{annualOfferHe(PLAN_PRICES.regular)}</p>}
             <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--brand-accent)" }}>החודש הראשון עלינו, בלי כרטיס אשראי.</p>
@@ -259,6 +284,9 @@ export default function LandingPage({ signedIn = false }) {
           </div>
         </div>
       </section>
+
+      {/* ── 8a. TESTIMONIALS: renders nothing at all while lib/testimonials.ts is empty. */}
+      <Testimonials />
 
       {/* ── 8b. WHO IS BEHIND KALMEA ─────────────────────────────────────── */}
       <section className="lp-sec">
