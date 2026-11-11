@@ -14,8 +14,9 @@ import {
 import type { Prospect } from './lib/prospects.ts'
 import {
   personalize, whatsappMessage, instagramMessage, prospectWaLink, instagramDmLink, messageTemplate, tailoredLine, outreachLink,
-  BASE_TAILORED_LINE,
+  BASE_TAILORED_LINE, OPT_OUT_LINE,
 } from './lib/prospectTemplates.ts'
+import { matchIsraeliCity, ISRAEL_CITY_COUNT } from './lib/israelCities.ts'
 import { toProspect } from './lib/prospectsData.ts'
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n')
@@ -42,18 +43,18 @@ const p = (id: string, o: Partial<Prospect> = {}): Prospect => ({
 const APPROVED_DM = "היי {name}, נעים מאוד, אני מעיין 🌸\n\nהקמתי את Kalmea, מערכת לקוסמטיקאיות ומניקוריסטיות שמנהלת לך את כל העסק במקום אחד, כדי שתוכלי להתמקד בטיפולים ולגדול:\n\n📅 יומן וניהול: אתר אישי משלך שבו הלקוחות קובעות ומזיזות תור לבד, עם מקדמה בכרטיס או בביט. פחות וואטסאפ, פחות לקוחות שלא מגיעות.\n📣 שיווק: פוסטים ורילסים לאינסטגרם עם AI, בעיצוב של העסק שלך, תוך דקות.\n💰 מכירות: קופה וסליקה, כרטיסיית ניקובים, שוברי מתנה ודוח חודשי שמראה כמה הרווחת ומאיפה.\n\nהכל בתוכנה אחת, במקום שלוש אפליקציות ומחברת ✨\n\nאם תרצי, אני מקימה לך את הכל בעצמי תוך 10 דקות, וחודש ראשון עליי 💛\nלהצצה: https://kalmea.app/?utm_source=instagram&utm_medium=dm\n\nמוזמנת לעקוב אחרינו ב-@kal.mea לטיפים ועדכונים 🌸\nלכל שאלה אני זמינה לך באופן אישי, כאן או בוואטסאפ: 054-2845655"
 const allMessages = () => CURRENT_SYSTEMS.flatMap((sys) => TREATMENTS.flatMap((t) => (['instagram', 'whatsapp'] as const).map((ch) => ({ sys, t, ch, m: messageTemplate(ch, t, sys) }))))
 
-ok('the approved DM is the base: unknown system + "other" on Instagram is it word for word, plus utm_campaign', () => {
-  assert.equal(messageTemplate('instagram', 'other', 'unknown'), APPROVED_DM.replace('utm_medium=dm', 'utm_medium=dm&utm_campaign=other'))
+ok('the approved DM is the base: unknown system + "other" on Instagram is it word for word, plus utm_campaign and the opt-out line', () => {
+  assert.equal(messageTemplate('instagram', 'other', 'unknown'), `${APPROVED_DM.replace('utm_medium=dm', 'utm_medium=dm&utm_campaign=other')}\n\n${OPT_OUT_LINE}`)
   assert.equal(tailoredLine('other', 'unknown'), BASE_TAILORED_LINE)
 })
 
 ok('every message differs from the approved one in exactly one line (the tailored one), the link and the contact line', () => {
-  const base = APPROVED_DM.split('\n')
+  const base = `${APPROVED_DM}\n\n${OPT_OUT_LINE}`.split('\n')
   for (const { sys, t, ch, m } of allMessages()) {
     const lines = m.split('\n')
     assert.equal(lines.length, base.length, `${sys}/${t}/${ch}`)
     const diff = lines.map((l, i) => (l === base[i] ? -1 : i)).filter((i) => i >= 0)
-    const allowed = new Set([base.indexOf(BASE_TAILORED_LINE), base.findIndex((l) => l.startsWith('להצצה:')), base.length - 1])
+    const allowed = new Set([base.indexOf(BASE_TAILORED_LINE), base.findIndex((l) => l.startsWith('להצצה:')), base.findIndex((l) => l.startsWith('לכל שאלה'))])
     for (const i of diff) assert.ok(allowed.has(i), `${sys}/${t}/${ch}: line ${i} changed: ${lines[i]}`)
   }
 })
@@ -61,6 +62,8 @@ ok('every message differs from the approved one in exactly one line (the tailore
 ok('every message: signed by מעיין, the free first month, the tagged link, nothing not live, no em dash', () => {
   for (const { sys, t, ch, m } of allMessages()) {
     assert.match(m, /אני מעיין/)
+    assert.ok(m.endsWith(`\n\n${OPT_OUT_LINE}`), `${sys}/${t}/${ch}: the opt-out line is the very last line`)
+    assert.equal(m.split(OPT_OUT_LINE).length, 2, 'exactly once')
     assert.match(m, /חודש ראשון עליי/)
     assert.ok(m.includes(`https://kalmea.app/?utm_source=${ch}&utm_medium=dm&utm_campaign=${t}`), `${sys}/${t}/${ch}`)
     assert.equal((m.match(/https?:\/\//g) || []).length, 1, 'one link only')
@@ -89,8 +92,14 @@ ok('tailoring: WhatsApp by hand gets the evenings in WhatsApp; another system ge
   assert.notEqual(whatsappMessage('brows', 'x', 'whatsapp_manual'), whatsappMessage('brows', 'x', 'pink'))
   assert.notEqual(whatsappMessage('brows', 'x', 'unknown'), whatsappMessage('nails', 'x', 'unknown'))
   // WhatsApp asks to answer right here; Instagram gives the number
-  assert.match(whatsappMessage('brows', 'x'), /כאן בוואטסאפ$/)
-  assert.match(instagramMessage('x'), /בוואטסאפ: 054-2845655$/)
+  assert.match(whatsappMessage('brows', 'x'), /כאן בוואטסאפ\n\n/)
+  assert.match(instagramMessage('x'), /בוואטסאפ: 054-2845655\n\n/)
+  assert.equal(OPT_OUT_LINE, 'ואם זה לא רלוונטי לך, רק תכתבי לי ולא אפנה שוב 🙏')
+  // what she actually sends (name filled in, wa.me decoded) still ends with it
+  for (const m of [whatsappMessage('nails', 'נועה', 'pink'), instagramMessage('', 'face', 'whatsapp_manual'),
+    decodeURIComponent(prospectWaLink('972541234567', 'lashes', 'דנה', 'excel_or_notebook')!.split('?text=')[1])]) {
+    assert.ok(m.endsWith(OPT_OUT_LINE))
+  }
 })
 
 ok('personalized with her first name only; no name gives a clean greeting with no placeholder left', () => {
@@ -287,6 +296,8 @@ ok('paste with the new columns: city, @handle, followers and system in any order
   assert.deepEqual(r.repeated.map((x) => x.line), [4])
   assert.deepEqual(r.invalid, [])
   // the two-column format still works exactly as before
+  assert.deepEqual(parsePastedProspects('נועה, כהן, 050-123-4567').rows, [{ name: 'נועה כהן', phone: '972501234567' }])
+  assert.deepEqual(parsePastedProspects('נועה, בת, שבע, לוי, 050-123-4567').rows, [{ name: 'נועה בת שבע', phone: '972501234567' }], 'up to 3 name parts')
   assert.deepEqual(parsePastedProspects('נועה כהן, 050-123-4567').rows, [{ name: 'נועה כהן', phone: '972501234567' }])
 })
 
@@ -448,6 +459,69 @@ ok('the enrich migration: additive, nullable, checked, every system listed, no d
   const code = sql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n')
   assert.doesNotMatch(code, /\bdrop\b|\bdelete\b|\btruncate\b|\bgrant\b|create policy|add column[^;]*not null|set not null/i)
   assert.match(code.trim(), /^begin;[\s\S]*commit;$/)
+})
+
+ok('Vercel review (4539220963): a handle with six or more digits is a handle, never a phone, before or after the phone', () => {
+  const r = parsePastedProspects([
+    'נועה, @nails_123456, 050-123-4567',
+    'דנה, 0521112233, @brows.9876543',
+    'שירה, @lash_2024000',
+    'מיכל, instagram.com/nails_555555/, 0549998877',
+  ].join('\n'))
+  assert.deepEqual(r.invalid, [])
+  assert.deepEqual(r.rows.map((x) => [x.name, x.phone, x.instagram]), [
+    ['נועה', '972501234567', 'nails_123456'], ['דנה', '972521112233', 'brows.9876543'], ['שירה', null, 'lash_2024000'],
+    ['מיכל', '972549998877', 'nails_555555'],
+  ])
+  // a landline is still refused as a mobile; a broken handle is reported, not guessed
+  assert.deepEqual(parsePastedProspects('רותם, 03-1234567').invalid.map((x) => x.error), ['מספר נייד לא תקין'])
+  assert.deepEqual(parsePastedProspects('רותם, @!!!, 0541234567').invalid.map((x) => x.error), ['שם משתמש באינסטגרם לא תקין'])
+})
+
+ok('Vercel review (4539220954): "3,400" and "200000" are followers; numbers never leak into her name or city', () => {
+  const r = parsePastedProspects([
+    'נועה כהן, 050-123-4567, 3,400, חיפה',
+    'דנה, 0521112233, 200000',
+    'שירה, 0549998877, 10,000,000',
+    'מיכל, 0541112233, 1,250, 77, תל אביב', // the second number is dropped, not added to her name
+    'רותם, 0541112234, 99999999', // over 10M: dropped
+    'גלית, 0541112235, 0541112236', // a second phone: ignored
+  ].join('\n'))
+  assert.deepEqual(r.invalid, [])
+  assert.deepEqual(r.rows.map((x) => [x.name, x.city ?? null, x.followers ?? null]), [
+    ['נועה כהן', 'חיפה', 3400], ['דנה', null, 200000], ['שירה', null, 10_000_000], ['מיכל', 'תל אביב', 1250], ['רותם', null, null],
+    ['גלית', null, null],
+  ])
+  assert.equal(r.rows[5].phone, '972541112235')
+  for (const row of r.rows) assert.doesNotMatch(`${row.name} ${row.city ?? ''}`, /\d/)
+})
+
+ok('paste: a plain cell is the city only when it is a known Israeli city or starts with "עיר:"; otherwise it is her name', () => {
+  const r = parsePastedProspects([
+    'נועה, כהן, 050-123-4567', // כהן is not a city
+    'דנה לוי, ת"א, 0521112233',
+    'שירה, פ״ת, 0549998877',
+    'מיכל, קרית גת, 0541112233',
+    'רותם, ב"ש, 0541112234',
+    'גלית, עיר: אריאל, 0541112235', // a first name, so only with the prefix
+    'יעל, אריאל, 0541112236', // without it: part of her name
+    'חיפה, הדס, 0541112237', // a city first, the other cell is the name
+    'ראשל"צ, 0541112238', // the only plain cell is always the name
+  ].join('\n'))
+  assert.deepEqual(r.rows.map((x) => [x.name, x.city ?? null]), [
+    ['נועה כהן', null], ['דנה לוי', 'תל אביב'], ['שירה', 'פתח תקווה'], ['מיכל', 'קריית גת'], ['רותם', 'באר שבע'],
+    ['גלית', 'אריאל'], ['יעל אריאל', null], ['הדס', 'חיפה'], ['ראשל"צ', null],
+  ])
+  assert.equal(matchIsraeliCity('תל-אביב'), 'תל אביב')
+  assert.equal(matchIsraeliCity('תל אביב יפו'), 'תל אביב')
+  assert.equal(matchIsraeliCity('ראשון לציון'), 'ראשון לציון')
+  assert.equal(matchIsraeliCity('ראשל״צ'), 'ראשון לציון')
+  assert.equal(matchIsraeliCity('באר-שבע'), 'באר שבע')
+  assert.equal(matchIsraeliCity('פתח תקוה'), 'פתח תקווה')
+  assert.equal(matchIsraeliCity('נצרת עילית'), 'נוף הגליל')
+  assert.equal(matchIsraeliCity('עיר: מושב בני דרור'), 'מושב בני דרור')
+  for (const name of ['כהן', 'לוי', 'אריאל', 'אפרת', 'עומר', 'אלעד', 'נועה', 'שלומי', 'סביון']) assert.equal(matchIsraeliCity(name), null, name)
+  assert.ok(ISRAEL_CITY_COUNT >= 120, `only ${ISRAEL_CITY_COUNT} cities`)
 })
 
 // ── migration ────────────────────────────────────────────────────────────────

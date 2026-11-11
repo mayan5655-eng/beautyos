@@ -11,6 +11,7 @@
 // Rules every message keeps (test-admin-outreach.ts checks them):
 //   - signed by מעיין, a person writing to a colleague, not a company;
 //   - "חודש ראשון עליי": the free first month;
+//   - the very last line is OPT_OUT_LINE, so a no is easy and final (חוק התקשורת, סעיף 30א);
 //   - nothing that is not live: no automatic WhatsApp reminders, never the word "קבלה";
 //   - no em dash.
 // Nothing here sends anything: the WhatsApp text opens in wa.me on her phone, the Instagram text is copied and pasted by her.
@@ -22,6 +23,9 @@ export const SITE_URL = 'https://kalmea.app/'
 export const PHONE_DISPLAY = '054-2845655'
 /** The line that is swapped for the tailored one. Kept as is when nothing is known about her. */
 export const BASE_TAILORED_LINE = 'הכל בתוכנה אחת, במקום שלוש אפליקציות ומחברת ✨'
+
+/** Israeli law (חוק התקשורת, סעיף 30א): a one-time offer to a business must let her refuse. The very last line of every message. */
+export const OPT_OUT_LINE = 'ואם זה לא רלוונטי לך, רק תכתבי לי ולא אפנה שוב 🙏'
 
 export type MessageChannel = 'instagram' | 'whatsapp'
 
@@ -64,6 +68,8 @@ const BASE = [
   '',
   'מוזמנת לעקוב אחרינו ב-@kal.mea לטיפים ועדכונים 🌸',
   '{contact}',
+  '',
+  OPT_OUT_LINE,
 ].join('\n')
 
 const CONTACT: Record<MessageChannel, string> = {

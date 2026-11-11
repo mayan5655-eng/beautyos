@@ -10,6 +10,7 @@
 // presses send herself.
 import { normalizeIsraeliMobile } from './phone.ts'
 import type { PhoneResult } from './phone.ts'
+import { matchIsraeliCity } from './israelCities.ts'
 
 export const PROSPECT_STATUSES = ['new', 'messaged', 'replied', 'trial', 'paying', 'not_interested', 'opted_out'] as const
 export type ProspectStatus = (typeof PROSPECT_STATUSES)[number]
@@ -39,6 +40,8 @@ export const NAME_MAX = 80
 export const CITY_MAX = 60
 export const INSTAGRAM_MAX = 40
 export const NOTES_MAX = 1000
+/** A pasted line's name is at most this many plain cells. */
+export const NAME_PARTS_MAX = 3
 /** How many prospects one paste (or one request) may add. */
 export const ADD_MAX = 300
 /** A second message within this many days gets a warning (never a block). */
@@ -281,12 +284,21 @@ export type PasteResult = {
   repeated: Array<{ line: number; text: string }>
 }
 
-const FOLLOWERS_CELL = /^\d+(?:[.,]\d+)?\s*(k|m|אלף|מיליון)(\s*(עוקבים|עוקבות|followers))?$|^\d[\d,.]*\s*(עוקבים|עוקבות|followers)$|^\d{1,5}$/iu
+/** A follower count: "12.5K", "1.2M", "3,400", "200000", "980 עוקבות". Plain digits only up to 8 (10,000,000 at most). */
+const FOLLOWERS_CELL = /^\d+(?:[.,]\d+)?\s*(k|m|אלף|מיליון)(\s*(עוקבים|עוקבות|followers))?$|^\d[\d,.]*\s*(עוקבים|עוקבות|followers)$|^\d{1,3}(,\d{3})+$|^\d{1,8}$/iu
+/** Looks like a phone once spaces, dashes, dots, brackets and a leading + are stripped: 9 to 12 digits (mobile or landline). */
+const looksLikePhone = (cell: string): boolean => /^\+?[\d\s().-]+$/.test(cell) && /^\d{9,12}$/.test(cell.replace(/[\s().+-]/g, ''))
+/** Only digits and number punctuation (with an optional followers word): never part of a name or a city. */
+const isNumericCell = (cell: string): boolean => /^[\d\s,.+()-]+\s*(k|m|אלף|מיליון)?\s*(עוקבים|עוקבות|followers)?$/iu.test(cell) && /\d/.test(cell)
+/** "3,400" inside a line is one number, not two cells: a comma between digits with exactly three after it. */
+const THOUSANDS_COMMA = /(\d),(?=\d{3}(?!\d))/g
+const COMMA_MARK = '\u0000'
 
 /**
  * One prospect per line: "name, phone" (a tab, a semicolon or " - " also separate; the order may be either way round).
  * Optional cells, in any order: an Instagram handle (@noa.brows), a follower count ("12.5K", "3400"), the system she uses
- * ("קלמרק", "Pink", "ווטסאפ", "מחברת") and a city (the first plain text cell after the name). A line needs a phone or a handle.
+ * ("קלמרק", "Pink", "ווטסאפ", "מחברת") and a city (a known Israeli city, or a cell starting "עיר:"). Other plain cells are her
+ * name (up to three parts). A line needs a phone or a handle.
  * Phones are normalized to 9725XXXXXXXX and a phone or handle that repeats inside the paste is kept once.
  */
 export function parsePastedProspects(text: string): PasteResult {
@@ -296,34 +308,50 @@ export function parsePastedProspects(text: string): PasteResult {
   lines.forEach((rawLine, i) => {
     const line = rawLine.trim()
     if (!line) return
-    const parts = line.split(/\s*[,\t;]\s*|\s+-\s+/).map((p) => p.trim()).filter(Boolean)
+    const parts = line.replace(THOUSANDS_COMMA, `$1${COMMA_MARK}`).split(/\s*[,\t;]\s*|\s+-\s+/)
+      .map((p) => p.split(COMMA_MARK).join(',').trim()).filter(Boolean)
     let phone: string | null = null
     let instagram: string | undefined
     let followers: number | undefined
     let currentSystem: CurrentSystem | undefined
     const texts: string[] = []
     for (const p of parts) {
+      // A handle is a handle, whatever digits it has ("@nails_123456"): never read as a phone.
+      if (/^@/.test(p) || /instagram\.com\//i.test(p)) {
+        const h = cleanInstagram(p)
+        if (!h) { out.invalid.push({ line: i + 1, text: line, error: 'שם משתמש באינסטגרם לא תקין' }); return }
+        if (!instagram) instagram = h
+        continue
+      }
+      if (looksLikePhone(p)) {
+        if (phone) continue // a second number on the line is ignored, never added to her name
+        const n: PhoneResult = normalizeIsraeliMobile(p)
+        if (!n.ok) { out.invalid.push({ line: i + 1, text: line, error: 'מספר נייד לא תקין' }); return }
+        phone = n.e164
+        continue
+      }
       if (followers === undefined && FOLLOWERS_CELL.test(p)) {
         const f = parseFollowers(p)
         if (f !== null) { followers = f; continue }
       }
-      const n: PhoneResult | null = !phone && /\d{6,}|\d[\d\s-]{7,}/.test(p) ? normalizeIsraeliMobile(p) : null
-      if (n && n.ok) { phone = n.e164; continue }
-      if (n && !n.ok) { out.invalid.push({ line: i + 1, text: line, error: 'מספר נייד לא תקין' }); return }
-      if (!instagram && (/^@/.test(p) || /instagram\.com\//i.test(p))) {
-        const h = cleanInstagram(p)
-        if (h) { instagram = h; continue }
-      }
+      if (isNumericCell(p)) continue // a number that is neither a phone nor a count: never part of her name or city
       if (!currentSystem) {
         const sys = parseCurrentSystem(p)
         if (sys) { currentSystem = sys; continue }
       }
       texts.push(p)
     }
-    // The first plain cell is her name; a second one is the city; anything after that joins the name, as before.
-    const [first = '', second, ...rest] = texts
-    const name = [first, ...rest].join(' ').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX)
-    const city = second ? second.replace(/\s+/g, ' ').trim().slice(0, CITY_MAX) : undefined
+    // A plain cell is the city ONLY when it is a known Israeli city (lib/israelCities.ts) or starts with "עיר:", and never when
+    // it is the only plain cell (that one is her name). Every other plain cell is part of her name, up to NAME_PARTS_MAX parts,
+    // so "נועה, כהן, 050..." stays "נועה כהן".
+    let city: string | undefined
+    const nameParts: string[] = []
+    for (const t of texts) {
+      const c = !city && texts.length > 1 ? matchIsraeliCity(t) : null
+      if (c) city = c.slice(0, CITY_MAX)
+      else if (nameParts.length < NAME_PARTS_MAX) nameParts.push(t)
+    }
+    const name = nameParts.join(' ').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX)
     if (!phone && !instagram) { out.invalid.push({ line: i + 1, text: line, error: 'לא נמצא מספר טלפון' }); return }
     if (!name) { out.invalid.push({ line: i + 1, text: line, error: 'חסר שם' }); return }
     if ((phone && seen.has(phone)) || (instagram && seen.has(`@${instagram}`))) { out.repeated.push({ line: i + 1, text: line }); return }
