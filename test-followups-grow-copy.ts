@@ -63,7 +63,7 @@ ok('the route: one rule for the peek and the real request, refusal before any up
   assert.ok(route.indexOf('if (!verifyConfirm(') < route.indexOf('clientLinkRefusal({'), 'after the signature check');
   assert.ok(route.indexOf('clientLinkRefusal({') < route.indexOf('if (body.peek === true)'), 'computed before the peek');
   const peek = route.slice(route.indexOf('if (body.peek === true)'), route.indexOf('// Idempotent'));
-  assert.match(peek, /\.\.\.\(action === 'cancel' && refusal \? \{ refusal: \{ error: refusal\.error/);
+  assert.match(peek, /\.\.\.\(action === 'cancel' && refusal \? \{ refusal: \{ error: tr\(refusal\.error\)/); // in her language (lib/i18n)
   assert.ok(!/\.update\(/.test(peek), 'the peek changes nothing');
   assert.ok(route.indexOf('if (refusal) {') < route.indexOf("from('appointments').update(patch)"), 'the real request still refuses (the authority)');
   assert.ok(!/minutesUntilIsrael|isInsideCancelWindow\(/.test(route), 'no second copy of the rule in the route');
@@ -81,7 +81,7 @@ ok('the page: a peek refusal shows the calm refusal at once, never after she alr
   assert.match(block, /setTooLate\(d\.refusal\.tooLate === true\)/);
   assert.match(page, /contact\.bookUrl && !tooLate && <a/, 'inside the window: no "book another time" next to a booking that still stands');
   assert.match(page, /className=\{tooLate \? 'pub-pill' : 'pub-pill pub-pill-quiet'\}/, 'writing to her is the main way out');
-  assert.match(page, /title: action === 'cancel' \? 'אי אפשר לבטל מהקישור'/, 'the calm title, not "אופס!"');
+  assert.match(page, /title: action === 'cancel' \? ['"]אי אפשר לבטל מהקישור['"]/, 'the calm title, not "אופס!"');
   assert.match(page, /\(status === 'ready' \|\| \(status === 'error' && refused && action === 'cancel'\)\) && peekAppt/, 'still says which appointment');
 });
 

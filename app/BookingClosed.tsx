@@ -7,20 +7,25 @@
 
 import { waLink } from '@/lib/phone'
 import { BOOKING_CLOSED_TITLE_HE, BOOKING_CLOSED_BODY_HE } from '@/lib/planCopy'
+import { trFor } from "@/lib/i18n/publicTr";
+import { dirOf, normalizeLang } from "@/lib/i18n/core";
 
-type ClosedBrand = { businessName?: string; primary?: string; onPrimary?: string; whatsapp?: string; logoUrl?: string } | null | undefined
+type ClosedBrand = { businessName?: string; primary?: string; onPrimary?: string; whatsapp?: string; logoUrl?: string; language?: string } | null | undefined
 
 export default function BookingClosed({ brand, fallbackName = '' }: { brand: ClosedBrand; fallbackName?: string }) {
+  const lang = normalizeLang(brand?.language)
+  const tr = trFor(lang)
   const name = brand?.businessName || fallbackName
   const accent = brand?.primary || '#1F3A30'
   const onAccent = brand?.onPrimary || '#FFFFFF'
-  const wa = waLink(brand?.whatsapp, name ? `היי ${name}, אשמח לקבוע תור` : 'היי, אשמח לקבוע תור')
+  const wa = waLink(brand?.whatsapp, name ? tr('היי {0}, אשמח לקבוע תור', [name]) : tr('היי, אשמח לקבוע תור'))
   const telDigits = String(brand?.whatsapp || '').replace(/[^\d+]/g, '')
   const tel = telDigits.length >= 7 ? `tel:${telDigits}` : null
 
   return (
     <div
-      dir="rtl"
+      dir={dirOf(lang)}
+      lang={lang}
       data-testid="booking-closed"
       style={{ minHeight: '100dvh', background: '#FBF8F1', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '28px 16px', fontFamily: "'Assistant', system-ui, sans-serif", color: '#1F3A30' }}
     >
@@ -30,17 +35,17 @@ export default function BookingClosed({ brand, fallbackName = '' }: { brand: Clo
           <img src={brand.logoUrl} alt="" width={72} height={72} style={{ width: 72, height: 72, objectFit: 'contain', borderRadius: 16, margin: '0 auto 12px', display: 'block' }} />
         ) : null}
         {name && <h1 style={{ margin: '0 0 6px', fontSize: 24, fontWeight: 700 }}>{name}</h1>}
-        <p style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 600 }}>{BOOKING_CLOSED_TITLE_HE}</p>
-        <p style={{ margin: '0 0 20px', fontSize: 16, lineHeight: 1.7, color: '#3F4F47' }}>{BOOKING_CLOSED_BODY_HE}</p>
+        <p style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 600 }}>{tr(BOOKING_CLOSED_TITLE_HE)}</p>
+        <p style={{ margin: '0 0 20px', fontSize: 16, lineHeight: 1.7, color: '#3F4F47' }}>{tr(BOOKING_CLOSED_BODY_HE)}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {wa && (
             <a href={wa} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, background: accent, color: onAccent, borderRadius: 12, fontSize: 16, fontWeight: 700, textDecoration: 'none' }}>
-              לקביעת תור בוואטסאפ
+              {tr("לקביעת תור בוואטסאפ")}
             </a>
           )}
           {tel && (
             <a href={tel} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 48, border: `1px solid ${accent}`, color: '#1F3A30', borderRadius: 12, fontSize: 16, fontWeight: 600, textDecoration: 'none' }}>
-              התקשרות
+              {tr("התקשרות")}
             </a>
           )}
         </div>

@@ -17,6 +17,7 @@ import { suggestPosts } from "@/lib/design/suggestions";
 import { holidayTemplates } from "@/lib/design/holidayTemplates";
 import { businessFieldsOf } from "@/lib/businessFields";
 import { reviewTargets, reviewMessage, todaysPost } from "@/lib/marketingToday";
+import { tr, trv } from "@/lib/i18n/tr";
 
 const row = { display: "flex", alignItems: "center", gap: 10, padding: "11px 0", borderTop: "1px solid var(--line)" };
 const label = { flex: 1, minWidth: 0, fontSize: 14, color: "var(--ink)", lineHeight: 1.5 };
@@ -90,17 +91,17 @@ export default function MarketingToday({ settings, appointments, clients, servic
   const hasAnyLink = (links && Object.keys(links).length > 0) || !!googleUrl;
 
   return (
-    <section className="glass-card card-boxed" aria-label="שיווק היום" data-testid="marketing-today" style={{ padding: "14px 17px 6px", marginBottom: 12, maxWidth: 1180, marginInline: "auto" }}>
-      <p style={{ fontFamily: "var(--font-frank),'Frank Ruhl Libre',serif", fontWeight: 700, fontSize: 17, color: "var(--ink)", margin: "0 0 4px" }}>שיווק היום</p>
+    <section className="glass-card card-boxed" aria-label={tr("שיווק היום")} data-testid="marketing-today" style={{ padding: "14px 17px 6px", marginBottom: 12, maxWidth: 1180, marginInline: "auto" }}>
+      <p style={{ fontFamily: "var(--font-frank),'Frank Ruhl Libre',serif", fontWeight: 700, fontSize: 17, color: "var(--ink)", margin: "0 0 4px" }}>{tr("שיווק היום")}</p>
 
       {showWinback && (
         <div style={row}>
           <span aria-hidden="true" style={{ color: pc, fontSize: 16 }}>✦</span>
           <span style={label}>
-            {coldCount === 1 ? "לקוחה אחת לא הגיעה" : `${coldCount} לקוחות לא הגיעו`} מעל {winbackDays} יום
-            <span style={sub}>הודעה אישית קטנה מחזירה הרבה מהן</span>
+            {coldCount === 1 ? tr("לקוחה אחת לא הגיעה") : tr("{0} לקוחות לא הגיעו", [coldCount])} {tr("מעל")} {winbackDays} {tr("יום")}
+            <span style={sub}>{tr("הודעה אישית קטנה מחזירה הרבה מהן")}</span>
           </span>
-          <button type="button" onClick={onOpenWinback} style={btn}>לרשימה</button>
+          <button type="button" onClick={onOpenWinback} style={btn}>{tr("לרשימה")}</button>
         </div>
       )}
 
@@ -109,44 +110,44 @@ export default function MarketingToday({ settings, appointments, clients, servic
           <div style={{ ...row, borderTop: "none" }}>
             <span aria-hidden="true" style={{ color: pc, fontSize: 16 }}>★</span>
             <span style={label}>
-              {targets.length === 1 ? "לקוחה אחת הייתה אצלך השבוע" : `${targets.length} לקוחות היו אצלך השבוע`}
-              <span style={sub}>ביקורת טובה מביאה לקוחות חדשות</span>
+              {targets.length === 1 ? tr("לקוחה אחת הייתה אצלך השבוע") : tr("{0} לקוחות היו אצלך השבוע", [targets.length])}
+              <span style={sub}>{tr("ביקורת טובה מביאה לקוחות חדשות")}</span>
             </span>
-            <button type="button" onClick={openReviews} aria-expanded={reviewsOpen} style={btn}>{reviewsOpen ? "סגירה" : "לבקש ביקורת"}</button>
+            <button type="button" onClick={openReviews} aria-expanded={reviewsOpen} style={btn}>{reviewsOpen ? tr("סגירה") : tr("לבקש ביקורת")}</button>
           </div>
           {reviewsOpen && (
             <div style={{ paddingBottom: 10 }}>
-              {linksBusy && <p style={{ ...sub, padding: "4px 0" }}>מכינה קישורים…</p>}
+              {linksBusy && <p style={{ ...sub, padding: "4px 0" }}>{tr("מכינה קישורים…")}</p>}
               {!linksBusy && links === null && linksError && (
                 <p style={{ ...sub, padding: "4px 0" }}>
-                  לא הצלחנו להכין את הקישורים.{" "}
-                  <button type="button" onClick={() => { setReviewsOpen(false); openReviews(); }} style={{ border: "none", background: "none", color: pc, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0, textDecoration: "underline" }}>לנסות שוב</button>
+                  {tr("לא הצלחנו להכין את הקישורים.")}{" "}
+                  <button type="button" onClick={() => { setReviewsOpen(false); openReviews(); }} style={{ border: "none", background: "none", color: pc, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0, textDecoration: "underline" }}>{tr("לנסות שוב")}</button>
                 </p>
               )}
               {!linksBusy && links !== null && !hasAnyLink && (
                 <p style={{ fontSize: 12.5, color: "var(--ink-2)", background: pcTint, borderRadius: 10, padding: "8px 10px", margin: "2px 0 8px", lineHeight: 1.5 }}>
-                  ההודעה תצא בלי קישור. כדאי להוסיף את לינק הביקורת שלך בגוגל בהגדרות, כדי שיהיה להן איפה לכתוב.
+                  {tr("ההודעה תצא בלי קישור. כדאי להוסיף את לינק הביקורת שלך בגוגל בהגדרות, כדי שיהיה להן איפה לכתוב.")}
                 </p>
               )}
               {!linksBusy && links !== null && (showAll ? targets : targets.slice(0, REVIEWS_FIRST)).map((t) => {
                 const href = waLink(t.phone, reviewMessage({ name: t.name, businessName, link: links[t.appointmentId] || null, googleUrl }));
                 return (
                   <div key={t.clientId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0" }}>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--ink)", overflowWrap: "anywhere" }}>{t.name || "לקוחה"}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--ink)", overflowWrap: "anywhere" }}>{t.name || tr("לקוחה")}</span>
                     {href ? (
                       <a href={href} target="_blank" rel="noreferrer" onClick={() => setSent((s) => ({ ...s, [t.clientId]: true }))}
                         style={{ ...btn, display: "inline-flex", alignItems: "center", gap: 6, background: sent[t.clientId] ? pcTint : "var(--surface)" }}>
-                        <Icon name="whatsapp" size={14} /> {sent[t.clientId] ? "נפתח ✓" : "שליחה"}
+                        <Icon name="whatsapp" size={14} /> {sent[t.clientId] ? tr("נפתח ✓") : tr("שליחה")}
                       </a>
                     ) : (
-                      <span style={sub}>אין מספר תקין</span>
+                      <span style={sub}>{tr("אין מספר תקין")}</span>
                     )}
                   </div>
                 );
               })}
               {!linksBusy && links !== null && !showAll && targets.length > REVIEWS_FIRST && (
                 <button type="button" onClick={() => setShowAll(true)} style={{ ...btn, marginTop: 4, border: "1px solid var(--line-2)", color: "var(--ink-2)" }}>
-                  עוד {targets.length - REVIEWS_FIRST}
+                  {tr("עוד")} {targets.length - REVIEWS_FIRST}
                 </button>
               )}
             </div>
@@ -158,12 +159,12 @@ export default function MarketingToday({ settings, appointments, clients, servic
         <div style={{ ...row, alignItems: "flex-start" }}>
           <span aria-hidden="true" style={{ color: pc, fontSize: 16, lineHeight: 1.5 }}>✎</span>
           <span style={label}>
-            מה מפרסמים היום
+            {tr("מה מפרסמים היום")}
             <span style={sub}>{post.suggestion.reason}</span>
-            <span style={{ display: "block", marginTop: 6, padding: "8px 10px", borderRadius: 10, background: pcTint, fontSize: 13, color: "var(--ink-2)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{post.caption}</span>
+            <span style={{ display: "block", marginTop: 6, padding: "8px 10px", borderRadius: 10, background: pcTint, fontSize: 13, color: "var(--ink-2)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{trv(post.caption)}</span>
             <span style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={copyCaption} style={btn}>העתקת הטקסט</button>
-              <button type="button" onClick={onOpenContent} style={{ ...btn, border: "1px solid var(--line-2)", color: "var(--ink-2)" }}>לעיצוב התמונה</button>
+              <button type="button" onClick={copyCaption} style={btn}>{tr("העתקת הטקסט")}</button>
+              <button type="button" onClick={onOpenContent} style={{ ...btn, border: "1px solid var(--line-2)", color: "var(--ink-2)" }}>{tr("לעיצוב התמונה")}</button>
             </span>
           </span>
         </div>

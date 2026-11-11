@@ -23,7 +23,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div style={{ minHeight: '100dvh', direction: 'rtl' }}>
+    <div style={{ minHeight: '100dvh' }}>
       {/*
         Horizontal padding is 0, and that is the whole point of this comment.
 

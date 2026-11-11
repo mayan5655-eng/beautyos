@@ -3,6 +3,12 @@ import { useState, useEffect, useRef } from "react";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
 import { accentStyle } from "@/lib/theme";
+// Languages (lib/i18n): the form opens in the business's language and the client can switch it here, independently of
+// the language the business runs its system in. Display only: answers are stored as the Hebrew options, whatever she reads.
+import { normalizeLang, isLang, dirOf, makeT } from "@/lib/i18n/core";
+import { LangPicker, useDocumentLang } from "@/lib/i18n/react";
+import { FORM_DICT } from "@/lib/i18n/dict/form";
+import { formTitle, formIntro, itemText } from "@/lib/i18n/formTemplatesI18n";
 // The templates live in lib/formTemplates.ts (2026-11-04), shared with the owner's answers view in the client card.
 // Every template that was defined here is there word for word under the same key, so a link already sent opens the
 // same form, and answers are still keyed by the question's index.
@@ -16,7 +22,7 @@ const chipStyle = (selected, { grow = false, yes = false } = {}) => ({
   background: selected ? (yes ? "var(--pc-tint, #FDF6F6)" : grow ? "var(--success, #46B37B)" : "var(--pc-tint, #FDF6F6)") : "var(--brand-cream, #FBF8F1)",
   color: "var(--ink, #1F3A30)", fontSize: "var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", lineHeight: 1.3,
 });
-const noteStyle = { width: "100%", marginTop: 8, border: "1.5px solid var(--pc-tint-2)", borderRadius: "var(--r-xs)", padding: "8px 12px", fontSize: "var(--t-md)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--pc-tint, #FDF6F6)", resize: "none", boxSizing: "border-box" };
+const noteStyle = { width: "100%", marginTop: 8, border: "1.5px solid var(--pc-tint-2)", borderRadius: "var(--r-xs)", padding: "8px 12px", fontSize: "var(--t-md)", fontFamily: "inherit", outline: "none", background: "var(--pc-tint, #FDF6F6)", resize: "none", boxSizing: "border-box" };
 const textStyle = { ...noteStyle, marginTop: 0, minHeight: 44, background: "var(--brand-cream, #FBF8F1)", border: "1.5px solid var(--pc-soft)", fontSize: 16 };
 
 export default function FormPage() {
@@ -44,11 +50,28 @@ export default function FormPage() {
   const [showMissing, setShowMissing] = useState(false);
   const canvasRef = useRef(null);
   const lastPos = useRef(null);
+  // The language she reads the form in. null until the form loads: then ?lang= (a link that names one, or her own pick
+  // before a reload), else the business's language. The picker changes only this page.
+  const [lang, setLang] = useState(null);
+  const shownLang = lang || "he";
+  const t = makeT(FORM_DICT, shownLang);
+  const dir = dirOf(shownLang);
+  useDocumentLang(lang);
+  const chooseLang = (l) => {
+    setLang(l);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("lang", l);
+      window.history.replaceState(null, "", url.toString());
+    } catch { /* the choice still holds for this visit */ }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
     setFormId(id);
+    const asked = params.get("lang");
+    if (isLang(asked)) setLang(asked); // a link that names a language: even "loading" says it in that language
     if (id) {
       loadForm(id);
     } else {
@@ -70,11 +93,15 @@ export default function FormPage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetch(`/api/forms?id=${encodeURIComponent(id)}`);
+      // blang: only the development fixture reads it (app/api/forms, id=demo-fixture-*).
+      const blang = new URLSearchParams(window.location.search).get("blang");
+      const res = await fetch(`/api/forms?id=${encodeURIComponent(id)}${blang ? `&blang=${encodeURIComponent(blang)}` : ""}`);
       const data = await res.json().catch(() => null);
       if (res.ok && data && data.success && data.form) {
         setFormData(data.form);
         setBrandInfo({ businessName: data.businessName || "", logoUrl: data.logoUrl || "", primaryColor: data.primaryColor || "" });
+        const asked = new URLSearchParams(window.location.search).get("lang");
+        setLang(isLang(asked) ? asked : normalizeLang(data.language));
       } else if (data && data.notFound) {
         setLoadError("notfound");   // genuinely missing
       } else {
@@ -131,12 +158,10 @@ export default function FormPage() {
     const unanswered = missingRequired(formTemplate, answers);
     if (unanswered.length > 0) {
       setShowMissing(true);
-      setSubmitError(unanswered.length === 1
-        ? "נשארה שאלה אחת בלי תשובה, היא מסומנת למעלה"
-        : `נשארו ${unanswered.length} שאלות בלי תשובה, הן מסומנות למעלה`);
+      setSubmitError(unanswered.length === 1 ? t("missingOne") : t("missingMany", { n: unanswered.length }));
       return;
     }
-    if (!signed) { setSubmitError("חסרה חתימה, אפשר לחתום ואז לשלוח"); return; }
+    if (!signed) { setSubmitError(t("noSignature")); return; }
     if (submitting) return;
     const canvas = canvasRef.current;
     const signature = canvas.toDataURL();
@@ -163,9 +188,10 @@ export default function FormPage() {
         }
         return;
       }
-      setSubmitError((data && data.error) || "לא הצלחנו לשמור את הטופס. נסי שוב.");
+      // The route's own message is Hebrew: in another language she reads ours.
+      setSubmitError((shownLang === "he" && data && data.error) || t("saveFailed"));
     } catch {
-      setSubmitError("לא הצלחנו לשמור את הטופס. בדקי את החיבור ונסי שוב.");
+      setSubmitError(t("connectionFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -173,7 +199,7 @@ export default function FormPage() {
 
   if (loading) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",fontSize:"var(--t-xl)",fontFamily:"Heebo"}}>
-      <Spinner inline label="טוענת טופס" />
+      <Spinner inline label={t("loading")} />
     </div>
   );
 
@@ -181,25 +207,25 @@ export default function FormPage() {
   // Conflating "could not load" with "does not exist" is what made this page's
   // failure invisible for months.
   if (loadError === "failed") return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
+    <div dir={dir} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
       <div style={{marginBottom:14,color:"var(--danger)"}}><Icon name="warning" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>לא הצלחנו לטעון את הטופס</h2>
+      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>{t("failedTitle")}</h2>
       <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)",marginBottom:20,maxWidth:320,lineHeight:1.7}}>
-        הטופס קיים, פשוט לא הצלחנו להביא אותו כרגע. אפשר לנסות שוב.
+        {t("failedBody")}
       </p>
       <button
         type="button"
         onClick={() => formId && loadForm(formId)}
         style={{padding:"12px 28px",borderRadius:"var(--r-full)",border:"none",background:"var(--ink, #1F3A30)",color:"#fff",fontSize:"var(--t-lg)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}
       >
-        נסי שוב
+        {t("retry")}
       </button>
     </div>
   );
 
   if (loadError === "notfound" || !formData) return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",fontSize:"var(--t-xl)",fontFamily:"Heebo"}}>
-      הטופס לא נמצא
+      {t("notFound")}
     </div>
   );
 
@@ -207,27 +233,27 @@ export default function FormPage() {
   // and NOT the same as a missing form - saying "not found" here sends her
   // chasing a link that is perfectly fine.
   if (!formTemplate) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
+    <div dir={dir} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
       <div style={{marginBottom:14,color:"var(--danger)"}}><Icon name="warning" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>לא הצלחנו להציג את הטופס</h2>
+      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>{t("unknownTitle")}</h2>
       <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)",maxWidth:320,lineHeight:1.7}}>
-        סוג הטופס אינו מוכר למערכת. כדאי לפנות לעסק ששלח לך את הקישור.
+        {t("unknownBody")}
       </p>
     </div>
   );
 
   if (submitted) return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
+    <div dir={dir} lang={shownLang} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
       <div style={{marginBottom:16,color:"var(--success)"}}><Icon name="check" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>הטופס נחתם בהצלחה!</h2>
-      <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)"}}>תודה {formData.client_name}, הטופס נשמר בכרטיס שלך</p>
+      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>{t("signedTitle")}</h2>
+      <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)"}}>{t("signedBody", { name: formData.client_name })}</p>
     </div>
   );
 
   if (formData.status === "signed") return (
-    <div dir="rtl" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
+    <div dir={dir} lang={shownLang} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
       <div style={{marginBottom:16,color:"var(--success)"}}><Icon name="check" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)"}}>הטופס כבר נחתם</h2>
+      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)"}}>{t("alreadySigned")}</h2>
     </div>
   );
 
@@ -236,31 +262,39 @@ export default function FormPage() {
   const hasSections = formTemplate.questions.some(isSection);
   const setAnswer = (key, value) => setAnswers((prev) => ({ ...prev, [key]: value }));
   let questionNo = 0;
+  const formType = formData.form_type;
+  const title = formTitle(formType, shownLang);
+  const intro = formIntro(formType, shownLang);
 
   return (
-    <div dir="rtl" style={{...accentStyle(brandInfo.primaryColor || null),fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FBF8F1)",minHeight:"100dvh",padding:"24px 16px"}}>
+    <div dir={dir} lang={shownLang} data-testid="form-page" data-lang={shownLang} style={{...accentStyle(brandInfo.primaryColor || null),fontFamily:"'Heebo','Assistant',sans-serif",background:"var(--brand-cream, #FBF8F1)",minHeight:"100dvh",padding:"24px 16px"}}>
       <div style={{maxWidth:500,margin:"0 auto"}}>
+
+        {/* Her language, not the business's: a client who reads Arabic or English better picks it here. */}
+        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+          <LangPicker value={shownLang} onChange={chooseLang} label={t("pickerLabel")} testId="form-lang" compact />
+        </div>
 
         {/* Brand row: her logo at natural aspect (contain, capped, never
             cropped), else the business name. No logo and no name → nothing. */}
         {(brandInfo.logoUrl || brandInfo.businessName) && (
           <div style={{textAlign:"center",marginBottom:16}}>
             {brandInfo.logoUrl
-              ? <img src={brandInfo.logoUrl} alt={brandInfo.businessName || "לוגו"} style={{maxHeight:56,maxWidth:180,width:"auto",height:"auto",objectFit:"contain",display:"block",margin:"0 auto"}}/>
+              ? <img src={brandInfo.logoUrl} alt={brandInfo.businessName || t("logoAlt")} style={{maxHeight:56,maxWidth:180,width:"auto",height:"auto",objectFit:"contain",display:"block",margin:"0 auto"}}/>
               : <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",margin:0}}>{brandInfo.businessName}</p>}
           </div>
         )}
 
         <div style={{background:"var(--ink, #1F3A30)",borderRadius:"var(--r-md)",padding:"20px 24px",marginBottom:20,textAlign:"center"}}>
           <div style={{marginBottom:4,color:"var(--pc-tint)"}}><Icon name="gem" size={24}/></div>
-          <h1 style={{color:"var(--brand-cream, #FBF8F1)",fontSize:"var(--t-xl)",fontWeight:800,margin:0}}>{formTemplate.title}</h1>
-          <p style={{color:"var(--pc-tint)",fontSize:"var(--t-md)",marginTop:4}}>שלום {formData.client_name} 👋</p>
+          <h1 style={{color:"var(--brand-cream, #FBF8F1)",fontSize:"var(--t-xl)",fontWeight:800,margin:0}}>{title}</h1>
+          <p style={{color:"var(--pc-tint)",fontSize:"var(--t-md)",marginTop:4}}>{t("hello", { name: formData.client_name })}</p>
         </div>
 
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-sm)",padding:"10px 16px",marginBottom:16,border:"1px solid var(--pc-soft)"}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",marginBottom:6}}>
-            <span>התקדמות</span>
-            <span>{answeredCount}/{requiredCount} שאלות</span>
+            <span>{t("progress")}</span>
+            <span>{t("progressCount", { done: answeredCount, total: requiredCount })}</span>
           </div>
           <div style={{background:"var(--pc-soft)",borderRadius:"var(--r-sm)",height:8}}>
             <div style={{background:"var(--pc, #E9A9A1)",borderRadius:"var(--r-sm)",height:8,width:`${progress}%`,transition:"width 0.3s"}}/>
@@ -268,20 +302,21 @@ export default function FormPage() {
         </div>
 
         <div style={{background:"var(--brand-cream, #FBF8F1)",border:"1px solid var(--warning, #F2B84B)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)"}}>
-          ⚠️ כדאי לענות בכנות על כל השאלות. המידע חסוי ומיועד לצורכי הטיפול בלבד.
+          {t("honesty")}
         </div>
 
-        {formTemplate.intro && (
-          <p data-testid="form-intro" style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",lineHeight:1.7,margin:"-6px 0 20px",padding:"0 4px"}}>{formTemplate.intro}</p>
+        {intro && (
+          <p data-testid="form-intro" style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",lineHeight:1.7,margin:"-6px 0 20px",padding:"0 4px"}}>{intro}</p>
         )}
 
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>
           {/* A template with its own headings shows them; the older ones keep their single heading. */}
-          {!hasSections && <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:16}}>שאלות רפואיות</h3>}
+          {!hasSections && <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:16}}>{t("medicalQuestions")}</h3>}
           {formTemplate.questions.map((item, i) => {
             const last = i === formTemplate.questions.length - 1;
+            const words = itemText(formType, shownLang, i, item);
             if (isSection(item)) return (
-              <h3 key={i} data-testid="form-section" style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",margin:i===0?"0 0 14px":"22px 0 14px",paddingBottom:6,borderBottom:"2px solid var(--pc-soft)"}}>{item.section}</h3>
+              <h3 key={i} data-testid="form-section" style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",margin:i===0?"0 0 14px":"22px 0 14px",paddingBottom:6,borderBottom:"2px solid var(--pc-soft)"}}>{words.text}</h3>
             );
             const q = normalizeQuestion(item);
             questionNo += 1;
@@ -292,23 +327,23 @@ export default function FormPage() {
             <div key={i} data-testid="form-question" data-missing={missing ? "true" : undefined}
               style={{marginBottom:16,paddingBottom:16,borderBottom:last||nextIsSection?"none":"1px solid var(--brand-cream, #FBF8F1)",...(missing?{borderInlineStart:"3px solid var(--danger, #C2557A)",paddingInlineStart:10}:{})}}>
               <p style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",marginBottom:8,lineHeight:1.5}}>
-                {questionNo}. {q.q}
-                {q.optional && <span style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)"}}> (לא חובה)</span>}
+                {questionNo}. {words.text}
+                {q.optional && <span style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)"}}> {t("optional")}</span>}
               </p>
               {q.type === "yesno" && (
                 <div style={{display:"flex",gap:8}}>
                   {[YES, NO].map(ans => (
                     <button key={ans} type="button" aria-pressed={value===ans} onClick={()=>setAnswer(i, ans)} style={chipStyle(value===ans, { grow: true, yes: ans===YES })}>
-                      {ans===YES?"✓ כן":"✗ לא"}
+                      {ans===YES?t("yes"):t("no")}
                     </button>
                   ))}
                 </div>
               )}
               {q.type === "choice" && (
-                <div role="radiogroup" aria-label={q.q} style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                <div role="radiogroup" aria-label={words.text} style={{display:"flex",flexWrap:"wrap",gap:8}}>
                   {(q.options || []).map(opt => (
                     <button key={opt} type="button" role="radio" aria-checked={value===opt} onClick={()=>setAnswer(i, opt)} style={chipStyle(value===opt)}>
-                      {value===opt ? `✓ ${opt}` : opt}
+                      {value===opt ? `✓ ${words.optionLabel(opt)}` : words.optionLabel(opt)}
                     </button>
                   ))}
                 </div>
@@ -317,13 +352,13 @@ export default function FormPage() {
                 const picked = splitMulti(value);
                 return (
                   <>
-                    <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",margin:"-4px 0 8px"}}>אפשר לבחור כמה</p>
-                    <div role="group" aria-label={q.q} style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                    <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",margin:"-4px 0 8px"}}>{t("pickSeveral")}</p>
+                    <div role="group" aria-label={words.text} style={{display:"flex",flexWrap:"wrap",gap:8}}>
                       {(q.options || []).map(opt => {
                         const on = picked.includes(opt);
                         return (
                           <button key={opt} type="button" aria-pressed={on} onClick={()=>setAnswer(i, toggleMulti(q, value, opt))} style={chipStyle(on)}>
-                            {on ? `✓ ${opt}` : opt}
+                            {on ? `✓ ${words.optionLabel(opt)}` : words.optionLabel(opt)}
                           </button>
                         );
                       })}
@@ -332,46 +367,46 @@ export default function FormPage() {
                 );
               })()}
               {q.type === "text" && (
-                <input type="text" value={value} maxLength={500} aria-label={q.q} placeholder={q.placeholder || ""} onChange={e=>setAnswer(i, e.target.value)} style={textStyle}/>
+                <input type="text" value={value} maxLength={500} aria-label={words.text} placeholder={words.placeholder || ""} onChange={e=>setAnswer(i, e.target.value)} style={textStyle}/>
               )}
               {q.type === "longtext" && (
-                <textarea value={value} maxLength={2000} rows={3} aria-label={q.q} placeholder={q.placeholder || ""} onChange={e=>setAnswer(i, e.target.value)} style={{...textStyle, resize:"vertical"}}/>
+                <textarea value={value} maxLength={2000} rows={3} aria-label={words.text} placeholder={words.placeholder || ""} onChange={e=>setAnswer(i, e.target.value)} style={{...textStyle, resize:"vertical"}}/>
               )}
               {showsNote(item, answers, i) && (
                 <textarea value={typeof answers[`${i}_note`] === "string" ? answers[`${i}_note`] : ""} onChange={e=>setAnswer(`${i}_note`, e.target.value)}
-                  maxLength={1000} aria-label={q.type === "multi" ? "אחר, פירוט" : "פרטים נוספים"}
-                  placeholder={q.type === "multi" ? "מה עוד?" : "פרטים נוספים..."} rows={2}
+                  maxLength={1000} aria-label={q.type === "multi" ? t("otherDetailLabel") : t("moreDetailsLabel")}
+                  placeholder={q.type === "multi" ? t("otherPlaceholder") : t("moreDetailsPlaceholder")} rows={2}
                   style={noteStyle}/>
               )}
-              {missing && <p style={{fontSize:"var(--t-sm)",color:"var(--danger, #C2557A)",fontWeight:600,margin:"6px 0 0"}}>חסרה כאן תשובה</p>}
+              {missing && <p style={{fontSize:"var(--t-sm)",color:"var(--danger, #C2557A)",fontWeight:600,margin:"6px 0 0"}}>{t("missingHere")}</p>}
             </div>
             );
           })}
         </div>
 
         <div style={{background:"var(--brand-surface, #FDFBF9)",borderRadius:"var(--r-md)",padding:24,marginBottom:20,border:"1px solid var(--pc-soft)"}}>
-          <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:4}}><Icon name="pen" size={16}/> חתימה דיגיטלית</h3>
-          <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",marginBottom:12}}>חתמי באצבע או בעכבר בתוך המסגרת</p>
+          <h3 style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink, #1F3A30)",marginBottom:4}}><Icon name="pen" size={16}/> {t("signatureTitle")}</h3>
+          <p style={{fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",marginBottom:12}}>{t("signatureHint")}</p>
           <canvas ref={canvasRef} width={460} height={130}
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={()=>setDrawing(false)}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={()=>setDrawing(false)}
             style={{width:"100%",height:130,border:"1.5px solid var(--pc-soft)",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FBF8F1)",cursor:"crosshair",touchAction:"none",display:"block"}}/>
           <button onClick={clearSignature}
             style={{marginTop:8,background:"none",border:"none",fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
-            מחקי חתימה
+            {t("signatureClear")}
           </button>
         </div>
 
         <div style={{background:"var(--brand-cream, #FBF8F1)",borderRadius:"var(--r-sm)",padding:"12px 16px",marginBottom:20,fontSize:"var(--t-xs)",color:"var(--brand-muted, #7D8D87)",textAlign:"center",lineHeight:1.6}}>
-          בחתימתי אני מאשרת שקראתי את השאלות, עניתי עליהן בכנות,<br/>
-          והמידע שמסרתי נכון ומדויק. אני מסכימה לקבלת הטיפול.<br/>
-          המידע הרפואי נשמר אצל העסק רק כדי לתת לי טיפול בטוח, ולא משמש לשיווק. אפשר לקרוא עוד במדיניות הפרטיות:{" "}
+          {t("declare1")}<br/>
+          {t("declare2")}<br/>
+          {t("declare3")}{" "}
           <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{color:"inherit",textDecoration:"underline"}}>kalmea.app/privacy</a>
         </div>
 
         <label data-testid="marketing-consent-checkbox" style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:"var(--r-sm)",border:"1px solid var(--line-2, #E5E0EA)",background:"var(--brand-cream, #FBF8F1)",marginBottom:14,cursor:"pointer"}}>
-          <input type="checkbox" checked={marketingOk} onChange={(e)=>setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{width:20,height:20,marginTop:2,flexShrink:0,accentColor:"var(--pc)"}}/>
-          <span style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",lineHeight:1.6}}>אשמח לקבל עדכונים ומבצעים</span>
+          <input type="checkbox" checked={marketingOk} onChange={(e)=>setMarketingOk(e.target.checked)} aria-label={t("marketing")} style={{width:20,height:20,marginTop:2,flexShrink:0,accentColor:"var(--pc)"}}/>
+          <span style={{fontSize:"var(--t-md)",color:"var(--ink, #1F3A30)",lineHeight:1.6}}>{t("marketing")}</span>
         </label>
 
         {submitError && (
@@ -382,7 +417,7 @@ export default function FormPage() {
 
         <button onClick={handleSubmit} disabled={submitting}
           style={{width:"100%",background:submitting?"var(--brand-muted, #7D8D87)":"var(--pc)",color:"var(--pc-contrast, #FFFFFF)",border:"none",borderRadius:"var(--r-sm)",padding:"16px",fontSize:"var(--t-lg)",fontWeight:700,cursor:submitting?"default":"pointer",fontFamily:"inherit",marginBottom:40,boxShadow:"var(--shadow-md)"}}>
-          {submitting ?<Spinner inline label="שולחת"/>: "שליחה וחתימה ✓"}
+          {submitting ?<Spinner inline label={t("sending")}/>: t("submit")}
         </button>
       </div>
     </div>

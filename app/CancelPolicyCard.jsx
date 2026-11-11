@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { defaultPolicyText, describeFee } from '@/lib/cancellationPolicy';
 import { growPolicyChanged } from './useGrowPolicy';
 import { setPendingSave } from './pendingSaves';
+import { tr, trv } from "@/lib/i18n/tr";
 
 const MODES = [
   { k: 'off', l: 'כבויה' },
@@ -24,8 +25,8 @@ function FeeInput({ label, spec, onChange, ids }) {
   const inp = { border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', fontSize: 'var(--t-md)', fontFamily: 'inherit', background: 'var(--surface-2)', color: 'var(--ink)', minHeight: 44, width: 84, direction: 'ltr' };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-      <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', minWidth: 110 }}>{label}</span>
-      <input aria-label={label} data-testid={ids} inputMode="decimal" value={spec.value} onChange={(e) => onChange({ ...spec, value: e.target.value.replace(/[^\d.]/g, '') })} style={inp} />
+      <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', minWidth: 110 }}>{trv(label)}</span>
+      <input aria-label={trv(label)} data-testid={ids} inputMode="decimal" value={spec.value} onChange={(e) => onChange({ ...spec, value: e.target.value.replace(/[^\d.]/g, '') })} style={inp} />
       <span style={{ display: 'inline-flex', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', overflow: 'hidden' }}>
         {[['fixed', '₪'], ['percent', '%']].map(([t, sym]) => (
           <button key={t} type="button" aria-pressed={spec.type === t} onClick={() => onChange({ ...spec, type: t })} style={{ minWidth: 44, minHeight: 44, border: 'none', background: spec.type === t ? 'var(--ink)' : 'var(--surface)', color: spec.type === t ? 'var(--surface)' : 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{sym}</button>
@@ -104,62 +105,62 @@ export default function CancelPolicyCard({ pc, pcTint, toast, isDemo }) {
 
   return (
     <div data-testid="cancel-policy-card" style={box}>
-      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>מדיניות ביטולים</p>
+      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{tr("מדיניות ביטולים")}</p>
       {state.tableReady === false ? (
-        <p style={lbl}>מדיניות ביטולים עוד לא הופעלה בחשבון. נעדכן כשהיא זמינה.</p>
+        <p style={lbl}>{tr("מדיניות ביטולים עוד לא הופעלה בחשבון. נעדכן כשהיא זמינה.")}</p>
       ) : (
         <>
-          <p style={{ ...lbl, lineHeight: 1.7, marginBottom: 10 }}>אפשר להגן על התורים שלך בדמי ביטול או במקדמה. הלקוחה מאשרת את המדיניות כשהיא קובעת תור, ואת מחליטה בכל מקרה אם לגבות.</p>
+          <p style={{ ...lbl, lineHeight: 1.7, marginBottom: 10 }}>{tr("אפשר להגן על התורים שלך בדמי ביטול או במקדמה. הלקוחה מאשרת את המדיניות כשהיא קובעת תור, ואת מחליטה בכל מקרה אם לגבות.")}</p>
 
           <label style={{ display: 'block', marginBottom: 10 }}>
-            <span style={lbl}>מצב</span>
-            <select aria-label="מצב מדיניות ביטולים" data-testid="policy-mode" value={p.mode} onChange={(e) => set({ mode: e.target.value })} style={{ ...inp, display: 'block', width: '100%', marginTop: 4 }}>
-              {MODES.map((m) => <option key={m.k} value={m.k}>{m.l}</option>)}
+            <span style={lbl}>{tr("מצב")}</span>
+            <select aria-label={tr("מצב מדיניות ביטולים")} data-testid="policy-mode" value={p.mode} onChange={(e) => set({ mode: e.target.value })} style={{ ...inp, display: 'block', width: '100%', marginTop: 4 }}>
+              {MODES.map((m) => <option key={m.k} value={m.k}>{trv(m.l)}</option>)}
             </select>
           </label>
 
           {p.mode !== 'off' && (
             <>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', minWidth: 110 }}>ביטול חינם עד</span>
-                <input aria-label="שעות לפני התור" data-testid="policy-window" inputMode="numeric" value={p.windowHours} onChange={(e) => set({ windowHours: e.target.value.replace(/\D/g, '') })} style={{ ...inp, width: 84, direction: 'ltr' }} />
-                <span style={lbl}>שעות לפני התור</span>
+                <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', minWidth: 110 }}>{tr("ביטול חינם עד")}</span>
+                <input aria-label={tr("שעות לפני התור")} data-testid="policy-window" inputMode="numeric" value={p.windowHours} onChange={(e) => set({ windowHours: e.target.value.replace(/\D/g, '') })} style={{ ...inp, width: 84, direction: 'ltr' }} />
+                <span style={lbl}>{tr("שעות לפני התור")}</span>
               </label>
 
               {p.mode === 'saved_card' && (
                 <>
-                  <FeeInput label="ביטול מאוחר" ids="policy-late" spec={p.lateFee} onChange={(v) => set({ lateFee: v })} />
-                  <FeeInput label="אי הגעה" ids="policy-noshow" spec={p.noShowFee} onChange={(v) => set({ noShowFee: v })} />
+                  <FeeInput label={tr("ביטול מאוחר")} ids="policy-late" spec={p.lateFee} onChange={(v) => set({ lateFee: v })} />
+                  <FeeInput label={tr("אי הגעה")} ids="policy-noshow" spec={p.noShowFee} onChange={(v) => set({ noShowFee: v })} />
                 </>
               )}
               {p.mode === 'deposit' && (
                 <>
-                  <FeeInput label="מקדמה" ids="policy-deposit" spec={p.deposit} onChange={(v) => set({ deposit: v })} />
+                  <FeeInput label={tr("מקדמה")} ids="policy-deposit" spec={p.deposit} onChange={(v) => set({ deposit: v })} />
                   <div style={{ marginBottom: 10 }}>
-                    <span style={lbl}>ביטול בזמן: מה קורה למקדמה</span>
+                    <span style={lbl}>{tr("ביטול בזמן: מה קורה למקדמה")}</span>
                     <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                       {[['refund', 'מחזירים ללקוחה בכרטיס'], ['credit', 'נשמרת כקרדיט לתור הבא']].map(([k, l]) => (
                         <button key={k} type="button" aria-pressed={p.timelyCancel === k} onClick={() => set({ timelyCancel: k })} style={{ ...ghost, background: p.timelyCancel === k ? 'var(--ink)' : 'var(--surface)', color: p.timelyCancel === k ? 'var(--surface)' : 'var(--ink)' }}>{l}</button>
                       ))}
                     </div>
-                    <p style={{ ...lbl, marginTop: 6 }}>ביטול מאוחר או אי הגעה: המקדמה נשארת אצלך. כשאת מבטלת בעצמך, היא חוזרת ללקוחה.</p>
+                    <p style={{ ...lbl, marginTop: 6 }}>{tr("ביטול מאוחר או אי הגעה: המקדמה נשארת אצלך. כשאת מבטלת בעצמך, היא חוזרת ללקוחה.")}</p>
                   </div>
                 </>
               )}
 
               <label style={{ display: 'block', marginBottom: 8 }}>
-                <span style={lbl}>הנוסח שהלקוחה רואה ומאשרת</span>
-                <textarea aria-label="נוסח המדיניות" data-testid="policy-text" rows={6} maxLength={1200} value={p.text} onChange={(e) => set({ text: e.target.value })} style={{ ...inp, display: 'block', width: '100%', marginTop: 4, lineHeight: 1.6, resize: 'vertical' }} />
+                <span style={lbl}>{tr("הנוסח שהלקוחה רואה ומאשרת")}</span>
+                <textarea aria-label={tr("נוסח המדיניות")} data-testid="policy-text" rows={6} maxLength={1200} value={p.text} onChange={(e) => set({ text: e.target.value })} style={{ ...inp, display: 'block', width: '100%', marginTop: 4, lineHeight: 1.6, resize: 'vertical' }} />
               </label>
-              <button type="button" style={{ ...ghost, marginBottom: 10 }} onClick={resetText}>נוסח ברירת מחדל לפי המספרים</button>
-              {p.mode === 'saved_card' && <p style={{ ...lbl, marginBottom: 8 }}>למשל: ביטול מאוחר {describeFee(numeric(p.lateFee))}, אי הגעה {describeFee(numeric(p.noShowFee))}.</p>}
+              <button type="button" style={{ ...ghost, marginBottom: 10 }} onClick={resetText}>{tr("נוסח ברירת מחדל לפי המספרים")}</button>
+              {p.mode === 'saved_card' && <p style={{ ...lbl, marginBottom: 8 }}>{tr("למשל: ביטול מאוחר")} {describeFee(numeric(p.lateFee))}{tr(", אי הגעה")} {describeFee(numeric(p.noShowFee))}.</p>}
             </>
           )}
 
           {!isDemo && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <button type="button" data-testid="policy-save" style={{ ...primary, opacity: busy || !dirty ? 0.55 : 1, cursor: busy || !dirty ? 'default' : 'pointer' }} disabled={busy || !dirty} onClick={save}>{busy ? 'שומרת…' : 'שמירת המדיניות'}</button>
-              <span role="status" style={lbl}>{dirty ? 'יש שינוי שעוד לא נשמר' : 'שמור'}</span>
+              <button type="button" data-testid="policy-save" style={{ ...primary, opacity: busy || !dirty ? 0.55 : 1, cursor: busy || !dirty ? 'default' : 'pointer' }} disabled={busy || !dirty} onClick={save}>{busy ? tr("שומרת…") : tr("שמירת המדיניות")}</button>
+              <span role="status" style={lbl}>{dirty ? tr("יש שינוי שעוד לא נשמר") : tr("שמור")}</span>
             </div>
           )}
         </>

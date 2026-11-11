@@ -18,6 +18,7 @@
 // /api/grow/register, which checks it against the same list and sends it to Grow as price_quote.
 import { useEffect, useRef, useState } from 'react';
 import { GROW_PLANS, DEFAULT_GROW_PLAN, GROW_FEES_URL, growPlanPriceHe } from '@/lib/grow/plans';
+import { tr, trv } from "@/lib/i18n/tr";
 
 const digits = (v) => String(v || '').replace(/\D/g, '');
 
@@ -41,8 +42,8 @@ function GrowFormFrame({ url, onSuccess, onClose }) {
   if (!origin) return null;
   return (
     <div data-testid="grow-reg-frame" style={{ marginTop: 12, border: '1px solid var(--line)', borderRadius: 'var(--r-md)', overflow: 'hidden', background: 'var(--surface)', boxShadow: 'var(--shadow-sm)' }}>
-      <iframe src={url} title="טופס ההרשמה של Grow" style={{ width: '100%', height: 640, border: 0, display: 'block' }} />
-      <button type="button" onClick={onClose} style={{ width: '100%', minHeight: 46, border: 0, borderTop: '1px solid var(--line)', background: 'var(--surface-2)', fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', color: 'var(--ink)' }}>סגירת הטופס</button>
+      <iframe src={url} title={tr("טופס ההרשמה של Grow")} style={{ width: '100%', height: 640, border: 0, display: 'block' }} />
+      <button type="button" onClick={onClose} style={{ width: '100%', minHeight: 46, border: 0, borderTop: '1px solid var(--line)', background: 'var(--surface-2)', fontFamily: 'inherit', fontWeight: 700, cursor: 'pointer', color: 'var(--ink)' }}>{tr("סגירת הטופס")}</button>
     </div>
   );
 }
@@ -83,7 +84,7 @@ function Steps({ states, sub }) {
 function PlanPicker({ value, onChange, pc, pcTint }) {
   return (
     <fieldset data-testid="grow-plan-picker" style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
-      <legend style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink-2)', marginBottom: 6, padding: 0 }}>מסלול הסליקה ב-Grow</legend>
+      <legend style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink-2)', marginBottom: 6, padding: 0 }}>{tr("מסלול הסליקה ב-Grow")}</legend>
       <div role="radiogroup" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {GROW_PLANS.map((p) => {
           const on = p.code === value;
@@ -104,8 +105,8 @@ function PlanPicker({ value, onChange, pc, pcTint }) {
         })}
       </div>
       <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', margin: '6px 0 0', lineHeight: 1.6 }}>
-        כל המחירים לפני מע״מ.{' '}
-        <a href={GROW_FEES_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700 }}>כל התנאים באתר Grow</a>
+        {tr("כל המחירים לפני מע״מ.")}{' '}
+        <a href={GROW_FEES_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700 }}>{tr("כל התנאים באתר Grow")}</a>
       </p>
     </fieldset>
   );
@@ -140,31 +141,31 @@ export default function GrowRegistration({ registration, pc, pcTint, isDemo, bus
     const r = await onStart({ businessNumber: bn, phone: ph, plan: form.plan });
     if (!r) return;
     if (r.success) { setSent({ phoneMasked: r.phoneMasked || '', url: r.url || '' }); setFixPhone(false); }
-    else setFailure({ code: r.code || '', error: r.error || 'לא הצלחנו לפתוח את ההרשמה, נסי שוב', growId: r.growId || '' });
+    else setFailure({ code: r.code || '', error: r.error || tr("לא הצלחנו לפתוח את ההרשמה, נסי שוב"), growId: r.growId || '' });
   };
 
   const fields = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <label>
-        <span style={label}>תעודת זהות או מספר עוסק</span>
-        <input value={form.businessNumber} onChange={set('businessNumber')} inputMode="numeric" autoComplete="off" placeholder="9 ספרות" style={inp} />
+        <span style={label}>{tr("תעודת זהות או מספר עוסק")}</span>
+        <input value={form.businessNumber} onChange={set('businessNumber')} inputMode="numeric" autoComplete="off" placeholder={tr("9 ספרות")} style={inp} />
       </label>
       <label>
-        <span style={label}>נייד</span>
+        <span style={label}>{tr("נייד")}</span>
         <input value={form.phone} onChange={set('phone')} inputMode="tel" autoComplete="tel" placeholder="05X-XXXXXXX" style={inp} />
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', marginTop: 6, lineHeight: 1.5 }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden style={{ flexShrink: 0 }}><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M11 18h2" /></svg>
-          ה-SMS יגיע לנייד הזה, ואת הטופס ממלאים מהטלפון הזה.
+          {tr("ה-SMS יגיע לנייד הזה, ואת הטופס ממלאים מהטלפון הזה.")}
         </span>
       </label>
       <PlanPicker value={form.plan} onChange={(plan) => setForm((f) => ({ ...f, plan }))} pc={pc} pcTint={pcTint} />
       {failure && (
         <div data-testid="grow-reg-error" role="alert" style={soft}>
-          <p style={{ ...text, color: 'var(--ink)', fontWeight: 700 }}>{failure.error}</p>
+          <p style={{ ...text, color: 'var(--ink)', fontWeight: 700 }}>{trv(failure.error)}</p>
           {failure.code === 'exists' && onHaveAccount && (
-            <button type="button" style={{ ...primary(false), marginTop: 10 }} onClick={onHaveAccount}>יש לי חשבון Grow</button>
+            <button type="button" style={{ ...primary(false), marginTop: 10 }} onClick={onHaveAccount}>{tr("יש לי חשבון Grow")}</button>
           )}
-          {failure.growId && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', margin: '6px 0 0' }}>קוד שגיאה <bdi>{failure.growId}</bdi></p>}
+          {failure.growId && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', margin: '6px 0 0' }}>{tr("קוד שגיאה")} <bdi>{failure.growId}</bdi></p>}
         </div>
       )}
     </div>
@@ -176,15 +177,15 @@ export default function GrowRegistration({ registration, pc, pcTint, isDemo, bus
     // In the card only when the page's CSP allows exactly that origin; otherwise Grow's own page in a new tab.
     const canFrame = (() => { try { return !!url && !!frameOrigin && new URL(url).origin === frameOrigin; } catch { return false; } })();
     const smsLine = sent && sent.phoneMasked
-      ? <>נשלח לנייד <span dir="ltr">{sent.phoneMasked}</span>. ממלאים מהטלפון הזה, או כאן.</>
+      ? <>{tr("נשלח לנייד")} <span dir="ltr">{sent.phoneMasked}</span>{tr(". ממלאים מהטלפון הזה, או כאן.")}</>
       : 'ממלאים מה-SMS, או כאן.';
     return (
       <div data-testid="grow-reg-waiting">
         <Steps states={['done', 'active', 'todo']} sub={[null, smsLine, 'בדרך כלל תוך כמה ימי עבודה.']} />
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
-          {canFrame && !frame && <button type="button" style={primary(false)} onClick={() => setFrame(true)}>למלא את הטופס כאן</button>}
-          {url && !canFrame && <a href={url} target="_blank" rel="noreferrer" style={primary(false)}>לפתוח את הטופס של Grow</a>}
-          <button type="button" style={{ ...link, alignSelf: 'center' }} onClick={() => { setFixPhone(true); setFrame(false); }}>הנייד לא נכון?</button>
+          {canFrame && !frame && <button type="button" style={primary(false)} onClick={() => setFrame(true)}>{tr("למלא את הטופס כאן")}</button>}
+          {url && !canFrame && <a href={url} target="_blank" rel="noreferrer" style={primary(false)}>{tr("לפתוח את הטופס של Grow")}</a>}
+          <button type="button" style={{ ...link, alignSelf: 'center' }} onClick={() => { setFixPhone(true); setFrame(false); }}>{tr("הנייד לא נכון?")}</button>
         </div>
         {canFrame && frame && (
           <GrowFormFrame url={url} onClose={() => setFrame(false)} onSuccess={() => { setFrame(false); onFormDone?.(); }} />
@@ -196,11 +197,11 @@ export default function GrowRegistration({ registration, pc, pcTint, isDemo, bus
   if (fixPhone) {
     return (
       <div data-testid="grow-reg-fix-phone">
-        <p style={{ ...text, marginBottom: 12 }}>אותו מספר עוסק, והנייד הנכון. Grow תעדכן את אותה בקשה ותשלח SMS חדש.</p>
+        <p style={{ ...text, marginBottom: 12 }}>{tr("אותו מספר עוסק, והנייד הנכון. Grow תעדכן את אותה בקשה ותשלח SMS חדש.")}</p>
         {fields}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4, marginTop: 14 }}>
-          <button type="button" disabled={off} onClick={start} style={primary(off)}>{busy ? 'שולחת…' : 'עדכון הנייד'}</button>
-          <button type="button" style={{ ...link, alignSelf: 'center' }} onClick={() => setFixPhone(false)}>חזרה</button>
+          <button type="button" disabled={off} onClick={start} style={primary(off)}>{busy ? tr("שולחת…") : tr("עדכון הנייד")}</button>
+          <button type="button" style={{ ...link, alignSelf: 'center' }} onClick={() => setFixPhone(false)}>{tr("חזרה")}</button>
         </div>
       </div>
     );
@@ -210,22 +211,22 @@ export default function GrowRegistration({ registration, pc, pcTint, isDemo, bus
     <div data-testid="grow-reg-form">
       {registration && registration.status === 'rejected' && (
         <div data-testid="grow-reg-rejected" style={{ ...soft, marginBottom: 14 }}>
-          <p style={{ ...text, fontWeight: 700, color: 'var(--ink)' }}>Grow לא אישרה את פתיחת החשבון</p>
-          {registration.message && <p style={text}>מה שנמסר מ-Grow: {registration.message}</p>}
-          <p style={text}>אפשר לנסות שוב עם פרטים מעודכנים, או להשאיר פרטים ונעזור.</p>
+          <p style={{ ...text, fontWeight: 700, color: 'var(--ink)' }}>{tr("Grow לא אישרה את פתיחת החשבון")}</p>
+          {registration.message && <p style={text}>{tr("מה שנמסר מ-Grow:")} {trv(registration.message)}</p>}
+          <p style={text}>{tr("אפשר לנסות שוב עם פרטים מעודכנים, או להשאיר פרטים ונעזור.")}</p>
         </div>
       )}
-      <p style={{ ...text, fontSize: 'var(--t-md)', color: 'var(--ink)', marginBottom: 12 }}>פותחים חשבון סליקה ב-Grow בשלושה צעדים. התשלומים נכנסים לחשבון שלך, ו-Grow מפיקה את הקבלה.</p>
+      <p style={{ ...text, fontSize: 'var(--t-md)', color: 'var(--ink)', marginBottom: 12 }}>{tr("פותחים חשבון סליקה ב-Grow בשלושה צעדים. התשלומים נכנסים לחשבון שלך, ו-Grow מפיקה את הקבלה.")}</p>
       <Steps states={['active', 'todo', 'todo']} />
       {fields}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4, marginTop: 14 }}>
         {/* When Grow says she already has an account, that door is the primary one and this steps back to an outline. */}
         <button type="button" disabled={off} onClick={start}
           style={failure && failure.code === 'exists' && !off ? { ...primary(false), background: 'transparent', color: 'var(--pc-text)', border: `1.5px solid ${pc}`, boxShadow: 'none' } : primary(off)}>
-          {busy ? 'פותחת את ההרשמה…' : 'פתיחת חשבון ב-Grow'}
+          {busy ? tr("פותחת את ההרשמה…") : tr("פתיחת חשבון ב-Grow")}
         </button>
-        <p style={{ ...text, fontSize: 'var(--t-xs)', textAlign: 'center', color: 'var(--ink-3)', marginTop: 6 }}>ההרשמה עצמה בלי כרטיס אשראי ובלי חיוב.</p>
-        <button type="button" style={{ ...link, alignSelf: 'center' }} onClick={onFallback}>מעדיפה שנחזור אלייך? להשאיר פרטים</button>
+        <p style={{ ...text, fontSize: 'var(--t-xs)', textAlign: 'center', color: 'var(--ink-3)', marginTop: 6 }}>{tr("ההרשמה עצמה בלי כרטיס אשראי ובלי חיוב.")}</p>
+        <button type="button" style={{ ...link, alignSelf: 'center' }} onClick={onFallback}>{tr("מעדיפה שנחזור אלייך? להשאיר פרטים")}</button>
       </div>
     </div>
   );

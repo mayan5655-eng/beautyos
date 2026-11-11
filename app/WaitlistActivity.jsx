@@ -4,6 +4,7 @@
 // a wrong history; the card above it still works.
 import { useEffect, useState } from "react";
 import { useDeployFlags } from "./useDeployFlags";
+import { tr, trv } from "@/lib/i18n/tr";
 
 // What it says depends on whether the central number sends by itself: today it does not, so the offer is "prepared for you to send",
 // never "offered automatically" (2026-11-09 owner rule). Exported for test-hide-inactive.ts.
@@ -34,16 +35,16 @@ export default function WaitlistActivity({ onOpenSettings }) {
         {data.on ? WAITLIST_ACTIVITY_ON[mode] : WAITLIST_ACTIVITY_OFF[mode]}
         {onOpenSettings && (
           <button type="button" onClick={onOpenSettings} style={{ background: "none", border: "none", color: "var(--ink)", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", minHeight: 44, padding: "0 4px" }}>
-            {data.on ? "הגדרות" : "להפעלה"}
+            {data.on ? tr("הגדרות") : tr("להפעלה")}
           </button>
         )}
       </p>
       {data.items.length > 0 && (
         <>
-          <p style={{ margin: "4px 0 4px", fontWeight: 700, color: "var(--ink)" }}>מה קרה לאחרונה</p>
+          <p style={{ margin: "4px 0 4px", fontWeight: 700, color: "var(--ink)" }}>{tr("מה קרה לאחרונה")}</p>
           <ul style={{ margin: 0, paddingInlineStart: 18 }}>
             {data.items.map((x) => (
-              <li key={x.key} style={{ marginBottom: 4, color: x.outcome === "won" ? "var(--ink)" : "var(--ink-2)" }}>{x.line}</li>
+              <li key={x.key} style={{ marginBottom: 4, color: x.outcome === "won" ? "var(--ink)" : "var(--ink-2)" }}>{trv(x.line)}</li>
             ))}
           </ul>
         </>

@@ -13,6 +13,7 @@ import { drawText } from '@/lib/design/canvasText';
 import { resolveFamily } from './design/canvasRender';
 import { deliverFile, deliveryToast } from '@/lib/deliverFile';
 import { contrastOn, readableAccentText, BRAND_INK, DEFAULT_ACCENT } from '@/lib/theme';
+import { tr } from "@/lib/i18n/tr";
 
 const SERIF = "var(--font-frank),'Frank Ruhl Libre',serif";
 const SANS = "var(--font-assistant),'Assistant',sans-serif";
@@ -81,16 +82,16 @@ export default function MonthlyReportCard({ report, accent, businessName, toast,
   // No registration chosen yet: the income screen asks instead of guessing, and so does this.
   if (needsStatus) {
     return (
-      <section className="glass-card card-boxed" data-testid="monthly-report" data-state="needs-status" aria-label="הדוח החודשי" style={shell}>
+      <section className="glass-card card-boxed" data-testid="monthly-report" data-state="needs-status" aria-label={tr("הדוח החודשי")} style={shell}>
         <span data-testid="monthly-report-stripe" aria-hidden style={{ position: 'absolute', insetBlock: 0, insetInlineStart: 0, width: 5, background: accent || DEFAULT_ACCENT }} />
-        <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 6px' }}>הדוח החודשי שלי · {report.monthName}</p>
+        <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 6px' }}>{tr("הדוח החודשי שלי ·")} {report.monthName}</p>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, margin: 0 }}>
-          כדי לחשב את הדוח צריך לדעת איזה סוג עוסקת את: פטור, מורשה או חברה. עוד לא בחרת, ואנחנו לא מנחשים.
+          {tr("כדי לחשב את הדוח צריך לדעת איזה סוג עוסקת את: פטור, מורשה או חברה. עוד לא בחרת, ואנחנו לא מנחשים.")}
         </p>
         {onChooseStatus && (
           <button type="button" onClick={onChooseStatus} data-testid="monthly-report-choose-status"
             style={{ background: 'none', border: 'none', padding: '10px 4px', minHeight: 44, color: 'var(--pc-deep, var(--ink))', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-            לבחירת סוג העסק ←
+            {tr("לבחירת סוג העסק ←")}
           </button>
         )}
       </section>
@@ -99,11 +100,11 @@ export default function MonthlyReportCard({ report, accent, businessName, toast,
 
   if (!report.hasData) {
     return (
-      <section className="glass-card card-boxed" data-testid="monthly-report" data-state="empty" aria-label="הדוח החודשי" style={shell}>
+      <section className="glass-card card-boxed" data-testid="monthly-report" data-state="empty" aria-label={tr("הדוח החודשי")} style={shell}>
         <span data-testid="monthly-report-stripe" aria-hidden style={{ position: 'absolute', insetBlock: 0, insetInlineStart: 0, width: 5, background: accent || DEFAULT_ACCENT }} />
-        <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 6px' }}>הדוח החודשי שלי · {report.monthName}</p>
+        <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 6px' }}>{tr("הדוח החודשי שלי ·")} {report.monthName}</p>
         <p data-testid="monthly-report-empty" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, margin: 0 }}>
-          עוד אין נתונים לחודש הזה. ברגע שתרשמי את התשלום הראשון, כאן יחכה לך סיכום קצר של החודש.
+          {tr("עוד אין נתונים לחודש הזה. ברגע שתרשמי את התשלום הראשון, כאן יחכה לך סיכום קצר של החודש.")}
         </p>
         {onOpenIncome && <IncomeLink onClick={onOpenIncome} />}
         {fullHref && <FullLink href={fullHref} />}
@@ -115,16 +116,16 @@ export default function MonthlyReportCard({ report, accent, businessName, toast,
     if (!blob) { toast?.('התמונה עוד מתכוננת, עוד רגע ונסי שוב', 'error'); return; }
     // First thing in the tap, nothing awaited before it: the share sheet needs a live tap.
     const o = await deliverFile(blob, `kalmea-month-report-${new Date().toISOString().slice(0, 7)}.png`);
-    const msg = deliveryToast(o, { what: 'התמונה', downloaded: 'התמונה ירדה' });
+    const msg = deliveryToast(o, { what: tr("התמונה"), downloaded: 'התמונה ירדה' });
     if (msg) toast?.(msg.text, msg.kind);
   };
 
   return (
-    <section className="glass-card card-boxed" data-testid="monthly-report" data-state="data" aria-label="הדוח החודשי" style={shell}>
+    <section className="glass-card card-boxed" data-testid="monthly-report" data-state="data" aria-label={tr("הדוח החודשי")} style={shell}>
         <span data-testid="monthly-report-stripe" aria-hidden style={{ position: 'absolute', insetBlock: 0, insetInlineStart: 0, width: 5, background: accent || DEFAULT_ACCENT }} />
-      <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 2px' }}>הדוח החודשי שלי · {report.monthName}</p>
+      <p style={{ fontFamily: SERIF, fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 2px' }}>{tr("הדוח החודשי שלי ·")} {report.monthName}</p>
       <p data-testid="monthly-report-income" style={{ fontFamily: SERIF, fontWeight: 900, fontSize: 38, letterSpacing: '-0.02em', color: accentText, lineHeight: 1.05, margin: '4px 0 0' }}>{nis(report.income)}</p>
-      <p style={{ fontSize: 12.5, color: 'var(--brand-muted)', margin: '2px 0 8px' }}>{report.netOfVat ? 'הכנסות החודש, לפני מע"מ' : 'הכנסות החודש'}</p>
+      <p style={{ fontSize: 12.5, color: 'var(--brand-muted)', margin: '2px 0 8px' }}>{report.netOfVat ? tr("הכנסות החודש, לפני מע\"מ") : tr("הכנסות החודש")}</p>
       <div data-testid="monthly-report-text" style={{ display: 'grid', gap: 8 }}>
         {sentences.map((s, i) => (
           <p key={i} style={{ margin: 0, fontSize: 'var(--t-md, 15px)', lineHeight: 1.6, color: 'var(--ink)' }}>{s}</p>
@@ -133,7 +134,7 @@ export default function MonthlyReportCard({ report, accent, businessName, toast,
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
         <button type="button" onClick={share} data-testid="monthly-report-share" className="secondary-btn"
           style={{ minHeight: 44, padding: '10px 18px', fontSize: 'var(--t-sm)', border: `1px solid ${accentText}`, background: 'var(--surface)', color: 'var(--ink)', borderRadius: 'var(--r-full, 999px)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-          שיתוף
+          {tr("שיתוף")}
         </button>
         {onOpenIncome && <IncomeLink onClick={onOpenIncome} />}
         {fullHref && <FullLink href={fullHref} />}
@@ -146,7 +147,7 @@ function IncomeLink({ onClick }) {
   return (
     <button type="button" onClick={onClick} data-testid="monthly-report-to-income"
       style={{ background: 'none', border: 'none', padding: '10px 4px', minHeight: 44, color: 'var(--pc-deep, var(--ink))', fontSize: 'var(--t-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-      לסיכום ההכנסות המלא ←
+      {tr("לסיכום ההכנסות המלא ←")}
     </button>
   );
 }
@@ -156,7 +157,7 @@ function FullLink({ href }) {
   return (
     <a href={href} data-testid="monthly-report-full"
       style={{ display: 'inline-flex', alignItems: 'center', padding: '10px 4px', minHeight: 44, color: 'var(--pc-deep, var(--ink))', fontSize: 'var(--t-sm)', fontWeight: 600, fontFamily: 'inherit', textDecoration: 'none' }}>
-      לדוח החודשי המלא ←
+      {tr("לדוח החודשי המלא ←")}
     </a>
   );
 }

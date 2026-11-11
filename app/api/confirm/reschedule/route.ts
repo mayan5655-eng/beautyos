@@ -4,6 +4,9 @@ import { verifyConfirm } from '@/lib/confirmToken';
 import { publicAccent } from '@/lib/branding';
 import { resolveBookingRules, clientLinkRefusal, wallClockNow } from '@/lib/bookingPolicy';
 import { hebrewDate } from '@/lib/messages.js';
+import { langOfSettings, type Lang } from '@/lib/i18n/core';
+import { dateLabel } from '@/lib/i18n/dates';
+import { trFor } from '@/lib/i18n/publicTr';
 import { fmtApptTime, fmtTime, startMinute as apptStart, endMinute as apptEnd, startFields } from '@/lib/apptTime';
 import { resolveLunch } from '@/lib/lunchBreak';
 import { bufferLookup, businessBufferDefault, serviceBufferMinutes, bufferedRange } from '@/lib/serviceBuffer';
@@ -49,6 +52,12 @@ const LIVE = ['pending', 'confirmed'];
 type Appt = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const whenHe = (date: string, start: number | null) => `ב${hebrewDate(date)}${start != null ? `, בשעה ${fmtTime(start)}` : ''}`;
+// The same, for the client, in the business's language (lib/i18n). Her own notification keeps whenHe.
+const whenIn = (lang: Lang, date: string, start: number | null) => {
+  if (lang === 'he') return whenHe(date, start);
+  const T = trFor(lang);
+  return start != null ? T('ב{0}, בשעה {1}', [dateLabel(date, lang), fmtTime(start)]) : T('ב{0}', [dateLabel(date, lang)]);
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -90,19 +99,22 @@ export async function POST(request: NextRequest) {
       businessName: String(settings.business_name || ''),
       logoUrl: String((settings.branding as { logo_url?: string } | null)?.logo_url || ''),
       primaryColor: publicAccent(st),
+      language: langOfSettings(st),
     };
+    const lang = brand.language;
+    const tr = trFor(lang);
     const contact = await publicContactFor(db, tenantId, st as never);
     const rules = resolveBookingRules(settings.branding);
     const oldStart = apptStart(appt);
     const oldDate = String(appt.date || '');
-    const summary = { service: String(appt.service || ''), date: oldDate ? hebrewDate(oldDate) : '', time: fmtApptTime(appt) };
+    const summary = { service: String(appt.service || ''), date: oldDate ? dateLabel(oldDate, lang) : '', time: fmtApptTime(appt) };
 
     const refuse = (error: string, extra: Record<string, unknown> = {}) =>
       NextResponse.json({ success: false, refused: true, ...brand, ...contact, appointment: summary, error, ...extra }, { status: 409 });
 
     // ── Can this appointment be moved from the link at all? ─────────────────────────────────────────────────────
-    if (await tenantIsBlocked(db, tenantId)) return refuse(`כדי להזיז את התור אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`, { tooLate: true });
-    if (appt.confirmation_status === 'cancelled') return refuse(`התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם ${brand.businessName || 'העסק'}.`);
+    if (await tenantIsBlocked(db, tenantId)) return refuse(tr('כדי להזיז את התור אפשר ליצור קשר ישירות עם {0}.', [brand.businessName || tr('העסק')]), { tooLate: true });
+    if (appt.confirmation_status === 'cancelled') return refuse(tr('התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם {0}.', [brand.businessName || tr('העסק')]));
     // The Grow policy she agreed to, for EVERY move (not only a deposit hold): its snapshot window is what a later cancel is judged by
     // (lib/grow/cancelFees.ts detect), so the move is judged by max(branding window, snapshot window). Read-only here: the consent
     // row, its snapshot and its status are never written by a move, so a fee that applies keeps applying. Unreadable = refuse.
@@ -117,7 +129,7 @@ export async function POST(request: NextRequest) {
     // A row without a start time, or one whose day is already behind her, is not moved from a link: clientLinkRefusal can only
     // see "past" when it knows the start, and the guarded update below needs the old start to pin the row it changes.
     if (oldStart == null || !/^\d{4}-\d{2}-\d{2}$/.test(oldDate) || oldDate < wallClockNow().date) {
-      return refuse(`כדי לשנות את התור הזה אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`, { tooLate: true });
+      return refuse(tr('כדי לשנות את התור הזה אפשר ליצור קשר ישירות עם {0}.', [brand.businessName || tr('העסק')]), { tooLate: true });
     }
     if (consent.state === 'row' && consent.row.status === 'awaiting_deposit') return refuse(MOVE_HELD_HE);
     const maxMoves = maxMovesFrom(settings.branding);
@@ -140,7 +152,7 @@ export async function POST(request: NextRequest) {
       .eq('tenant_id', tenantId).gte('date', today).lte('date', addDays(today, rules.maxDaysAhead))
       .neq('confirmation_status', 'cancelled').neq('id', id).limit(2000);
     // "Nothing is booked" and "I could not find out" are different answers: an unreadable calendar offers nothing.
-    if (calErr) return NextResponse.json({ error: 'לא הצלחנו לטעון את היומן, אפשר לנסות שוב בעוד רגע?' }, { status: 503 });
+    if (calErr) return NextResponse.json({ error: tr('לא הצלחנו לטעון את היומן, אפשר לנסות שוב בעוד רגע?') }, { status: 503 });
     const busyByDate: Record<string, BusyRange[]> = {};
     for (const a of (rows || []) as Appt[]) {
       const s = apptStart(a), e = apptEnd(a);
@@ -153,7 +165,7 @@ export async function POST(request: NextRequest) {
       const days = rescheduleDays({ ...q, skip: oldStart != null ? { date: oldDate, start: oldStart } : null });
       return NextResponse.json({
         success: true, peek: true, ...brand, ...contact, appointment: summary, movesLeft: maxMoves - used,
-        days: days.map((d) => ({ date: d.date, label: hebrewDate(d.date), slots: d.slots.map((m) => ({ start: m, label: fmtTime(m) })) })),
+        days: days.map((d) => ({ date: d.date, label: dateLabel(d.date, lang), slots: d.slots.map((m) => ({ start: m, label: fmtTime(m) })) })),
       });
     }
 
@@ -162,10 +174,10 @@ export async function POST(request: NextRequest) {
     const date = typeof body.date === 'string' ? body.date : '';
     const newStart = typeof body.startMinute === 'number' && Number.isInteger(body.startMinute) ? body.startMinute : Number.NaN;
     const problem = moveSlotProblem({ ...q, date, start: newStart });
-    if (problem === 'bad') return NextResponse.json({ success: false, error: 'השעה שנבחרה לא תקינה, אפשר לבחור שוב?' }, { status: 400 });
+    if (problem === 'bad') return NextResponse.json({ success: false, error: tr('השעה שנבחרה לא תקינה, אפשר לבחור שוב?') }, { status: 400 });
     if (problem === 'taken') return NextResponse.json({ success: false, code: 'slot_taken', error: RESCHEDULE_COPY.taken }, { status: 409 });
-    if (problem) return NextResponse.json({ success: false, code: 'slot_unavailable', error: 'השעה הזו כבר לא פנויה להזזה, אפשר לבחור שעה אחרת?' }, { status: 409 });
-    if (date === oldDate && newStart === oldStart) return NextResponse.json({ success: false, error: 'זו השעה שכבר קבועה לך. אפשר לבחור שעה אחרת.' }, { status: 400 });
+    if (problem) return NextResponse.json({ success: false, code: 'slot_unavailable', error: tr('השעה הזו כבר לא פנויה להזזה, אפשר לבחור שעה אחרת?') }, { status: 409 });
+    if (date === oldDate && newStart === oldStart) return NextResponse.json({ success: false, error: tr('זו השעה שכבר קבועה לך. אפשר לבחור שעה אחרת.') }, { status: 400 });
 
     // ONE update of the same row: the old time is freed and the new one held in the same statement, and the database's
     // uniq_appt_slot_active / appointments_no_overlap refuse a time a parallel booking took (lib/booking.ts). The filters on
@@ -191,9 +203,9 @@ export async function POST(request: NextRequest) {
       const code = (res.error as { code?: string }).code;
       if (code === '23505' || code === '23P01') return NextResponse.json({ success: false, code: 'slot_taken', error: RESCHEDULE_COPY.taken }, { status: 409 });
       console.error('reschedule: update failed', (res.error as { message?: string }).message);
-      return NextResponse.json({ success: false, error: 'לא הצלחנו להזיז את התור, אפשר לנסות שוב בעוד רגע?' }, { status: 500 });
+      return NextResponse.json({ success: false, error: tr('לא הצלחנו להזיז את התור, אפשר לנסות שוב בעוד רגע?') }, { status: 500 });
     }
-    if (!res.data) return refuse(`התור הזה עודכן ממש עכשיו. לכל שינוי אפשר ליצור קשר ישירות עם ${brand.businessName || 'העסק'}.`);
+    if (!res.data) return refuse(tr('התור הזה עודכן ממש עכשיו. לכל שינוי אפשר ליצור קשר ישירות עם {0}.', [brand.businessName || tr('העסק')]));
 
     const fromWhen = whenHe(oldDate, oldStart);
     const toWhen = whenHe(date, newStart);
@@ -212,9 +224,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true, moved: true, ...brand, ...contact,
-      message: `נתראה ${toWhen} 🌸`,
-      appointment: { service: summary.service, date: hebrewDate(date), time: fmtTime(newStart) },
-      invite: { date, startMinute: newStart, duration, title: `${summary.service || 'תור'} · ${brand.businessName || 'תור'}` },
+      message: tr('נתראה {0} 🌸', [whenIn(lang, date, newStart)]),
+      appointment: { service: summary.service, date: dateLabel(date, lang), time: fmtTime(newStart) },
+      invite: { date, startMinute: newStart, duration, title: `${summary.service || tr('תור')} · ${brand.businessName || tr('תור')}` },
       movesLeft: Math.max(0, maxMoves - used - 1),
     });
   } catch (err) {

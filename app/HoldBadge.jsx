@@ -5,6 +5,7 @@
 // "ממתינה למקדמה · נשארו 22 דקות": a booking in deposit mode is held as pending for 30 minutes while the client pays; this label says so on the
 // calendar card and in the appointment. Renders nothing for any other appointment, and nothing at all while the Grow screens are off.
 import { useHold } from './useHolds';
+import { tr } from "@/lib/i18n/tr";
 
 export default function HoldBadge({ appointmentId, onDark = false }) {
   const hold = useHold(appointmentId);
@@ -21,7 +22,7 @@ export default function HoldBadge({ appointmentId, onDark = false }) {
         fontSize: 'var(--t-sm)', fontWeight: 700, whiteSpace: 'nowrap',
       }}
     >
-      ממתינה למקדמה · {left}
+      {tr("ממתינה למקדמה ·")} {left}
     </span>
   );
 }

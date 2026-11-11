@@ -89,6 +89,8 @@ const FAKE_ENV = {
 
 const files = readdirSync('.')
   .filter((f) => /^test-.*\.(js|ts)$/.test(f))
+  // node scripts/run-tests.mjs test-a.ts test-b.ts: just those (while fixing); no arguments: all of them.
+  .filter((f) => process.argv.length <= 2 || process.argv.slice(2).includes(f))
   .sort();
 
 if (files.length === 0) {
@@ -111,7 +113,7 @@ for (const file of files) {
   // no-op for .js, so one invocation covers both.
   const run = spawnSync(
     process.execPath,
-    ['--experimental-strip-types', '--no-warnings', file],
+    ['--experimental-strip-types', '--no-warnings', '--import', './scripts/test-source-view.mjs', file],
     // FAKE_ENV goes LAST so it wins. It used to go first, which let the real
     // variables override it: on Vercel (whose build runs this) every test then
     // held the production Supabase service key, and the stubbed AI tests wrote

@@ -26,11 +26,18 @@ import Spinner from "../Spinner";
 import { GOOGLE_REVIEW_NOTE } from "@/lib/reviewCopy";
 import { ICON_QUESTION } from "@/lib/brand";
 import { PublicPage, BusinessHeader, LineIcon } from "../PublicChrome";
+import { useTr } from "@/lib/i18n/useTr";
+import { normalizeLang } from "@/lib/i18n/core";
+import { useDocumentLang } from "@/lib/i18n/react";
 
 // "2026-10-29" -> "29.10": the client reads a date, not an ISO string. Anything else is shown as it came.
 const heDate = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || '')); return m ? `${Number(m[3])}.${Number(m[2])}` : (d || ''); };
 
 export default function ReviewPage() {
+  // The business's language (lib/i18n), from /api/reviews. The page shows only a spinner until it arrives.
+  const [lang, setLang] = useState(null);
+  useDocumentLang(lang);
+  const tr = useTr(lang);
   const [state, setState] = useState("loading"); // loading | choose | happy | unhappy | noted | form | sent | already | error
   const [info, setInfo] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -55,12 +62,13 @@ export default function ReviewPage() {
     // that is the difference nobody should pay for a query-string check.
     Promise.resolve()
       .then(() => {
-        if (!search) throw new Error("הקישור אינו תקין");
+        if (!search) throw new Error(tr("הקישור אינו תקין"));
         return fetch(`/api/reviews${search}`).then((r) => r.json());
       })
       .then((d) => {
-        if (!d?.success) throw new Error(d?.error || "הקישור אינו תקין");
+        if (!d?.success) throw new Error(d?.error || tr("הקישור אינו תקין"));
         setInfo(d);
+        if (typeof d.language === "string") setLang(normalizeLang(d.language));
         setGoGoogleHref(`/api/reviews/go${search}`);
         // Already reviewed is not a failure and must not read like one: she
         // tapped a link she used before, which is an ordinary thing to do.
@@ -71,7 +79,7 @@ export default function ReviewPage() {
       })
       .catch((err) => {
         setState("error");
-        setErrorMsg(err?.message || "לא הצלחנו לטעון את הפרטים");
+        setErrorMsg(err?.message || tr("לא הצלחנו לטעון את הפרטים"));
       });
   }, []);
 
@@ -86,9 +94,9 @@ export default function ReviewPage() {
       });
       const d = await res.json().catch(() => ({}));
       if (d?.success) { setState(d.alreadyReviewed ? "already" : "sent"); return; }
-      setErrorMsg(d?.error || "לא הצלחנו לשמור את הביקורת");
+      setErrorMsg(d?.error || tr("לא הצלחנו לשמור את הביקורת"));
     } catch {
-      setErrorMsg("לא הצלחנו לשמור את הביקורת. נא לנסות שוב.");
+      setErrorMsg(tr("לא הצלחנו לשמור את הביקורת. נא לנסות שוב."));
     } finally {
       setSubmitting(false);
     }
@@ -105,9 +113,9 @@ export default function ReviewPage() {
       });
       const d = await res.json().catch(() => ({}));
       if (res.status === 503 || d?.needsMigration) return "unavailable";
-      return d?.success ? "ok" : (d?.error || "לא הצלחנו לשמור. נא לנסות שוב.");
+      return d?.success ? "ok" : (d?.error || tr("לא הצלחנו לשמור. נא לנסות שוב."));
     } catch {
-      return "לא הצלחנו לשמור. נא לנסות שוב.";
+      return tr("לא הצלחנו לשמור. נא לנסות שוב.");
     }
   };
 
@@ -135,7 +143,7 @@ export default function ReviewPage() {
 
   // Before the link has been checked there is no business to show: Kalmea's own frame, just the spinner.
   if (state === "loading") {
-    return <PublicPage owner="kalmea"><Spinner label="טוענת" /></PublicPage>;
+    return <PublicPage owner="kalmea"><Spinner label={tr("טוענת")} /></PublicPage>;
   }
 
   if (state === "error") {
@@ -145,7 +153,7 @@ export default function ReviewPage() {
         <div className="pub-card">
           <LineIcon src={ICON_QUESTION} />
           <h1 className="pub-h1">{errorMsg}</h1>
-          <p className="pub-p">אפשר לבקש קישור חדש מהעסק.</p>
+          <p className="pub-p">{tr("אפשר לבקש קישור חדש מהעסק.")}</p>
         </div>
       </PublicPage>
     );
@@ -157,22 +165,22 @@ export default function ReviewPage() {
   // thing that is obvious from the outside and worth nothing when it is noticed.
   if (state === "sent" || state === "already") {
     return (
-      <PublicPage primary={info?.primaryColor || null}>
+      <PublicPage primary={info?.primaryColor || null} lang={lang}>
         <div className="pub-card">
-          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} lang={lang} />
           <svg viewBox="0 0 24 24" width="58" height="58" fill="none" stroke="var(--pc-deep)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: "block", margin: "0 auto 14px" }}>
             <circle cx="12" cy="12" r="9.2" /><path d="M7.8 12.4l2.9 2.9 5.5-5.9" />
           </svg>
-          <h1 className="pub-h1">{state === "already" ? "כבר קיבלנו את הביקורת שלך" : "תודה רבה!"}</h1>
+          <h1 className="pub-h1">{state === "already" ? tr("כבר קיבלנו את הביקורת שלך") : tr("תודה רבה!")}</h1>
           <p className="pub-p">
             {state === "already"
-              ? "הביקורת שהשארת נשמרה, ואי אפשר לשנות אותה מכאן."
-              : `הביקורת שלך תופיע בעמוד של ${info?.businessName || "העסק"}.`}
+              ? tr("הביקורת שהשארת נשמרה, ואי אפשר לשנות אותה מכאן.")
+              : tr("הביקורת שלך תופיע בעמוד של {0}.", [info?.businessName || tr("העסק")])}
           </p>
           {info?.googleReviewUrl && (
             <div style={{ marginTop: 22 }}>
               <p style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 12 }}>{GOOGLE_REVIEW_NOTE}</p>
-              <a href={info.twoStep ? goGoogleHref : info.googleReviewUrl} target="_blank" rel="noreferrer" className="pub-pill">ביקורת בגוגל</a>
+              <a href={info.twoStep ? goGoogleHref : info.googleReviewUrl} target="_blank" rel="noreferrer" className="pub-pill">{tr("ביקורת בגוגל")}</a>
             </div>
           )}
         </div>
@@ -180,19 +188,19 @@ export default function ReviewPage() {
     );
   }
 
-  const biz = info?.businessName || "העסק";
+  const biz = info?.businessName || tr("העסק");
 
   if (state === "choose") {
     return (
-      <PublicPage primary={info?.primaryColor || null}>
+      <PublicPage primary={info?.primaryColor || null} lang={lang}>
         <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-choose">
-          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
-          <h1 className="pub-h1">{info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}</h1>
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} lang={lang} />
+          <h1 className="pub-h1">{info?.clientName ? tr("{0}, איך היה?", [info.clientName]) : tr("איך היה?")}</h1>
           <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${heDate(info.date)}` : heDate(info?.date)}</p>
           {/* Two big answers, nothing else competing for the tap. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <button type="button" onClick={chooseHappy} className="pub-pill" data-testid="review-happy" style={{ width: "100%", minHeight: 56 }}>היה מעולה 😍</button>
-            <button type="button" onClick={chooseUnhappy} className="pub-pill pub-pill-quiet" data-testid="review-unhappy" style={{ width: "100%", minHeight: 56 }}>משהו היה פחות טוב</button>
+            <button type="button" onClick={chooseHappy} className="pub-pill" data-testid="review-happy" style={{ width: "100%", minHeight: 56 }}>{tr("היה מעולה 😍")}</button>
+            <button type="button" onClick={chooseUnhappy} className="pub-pill pub-pill-quiet" data-testid="review-unhappy" style={{ width: "100%", minHeight: 56 }}>{tr("משהו היה פחות טוב")}</button>
           </div>
         </div>
       </PublicPage>
@@ -201,14 +209,14 @@ export default function ReviewPage() {
 
   if (state === "happy") {
     return (
-      <PublicPage primary={info?.primaryColor || null}>
+      <PublicPage primary={info?.primaryColor || null} lang={lang}>
         <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-happy-screen">
-          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
-          <h1 className="pub-h1">איזה כיף לשמוע! 🌸</h1>
-          <p className="pub-p" style={{ marginBottom: 20 }}>{GOOGLE_REVIEW_NOTE} זה לוקח פחות מדקה.</p>
-          <a href={goGoogleHref} className="pub-pill" data-testid="review-google" style={{ width: "100%", minHeight: 56, boxSizing: "border-box" }}>כתיבת ביקורת בגוגל</a>
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} lang={lang} />
+          <h1 className="pub-h1">{tr("איזה כיף לשמוע! 🌸")}</h1>
+          <p className="pub-p" style={{ marginBottom: 20 }}>{GOOGLE_REVIEW_NOTE} {tr("זה לוקח פחות מדקה.")}</p>
+          <a href={goGoogleHref} className="pub-pill" data-testid="review-google" style={{ width: "100%", minHeight: 56, boxSizing: "border-box" }}>{tr("כתיבת ביקורת בגוגל")}</a>
           <button type="button" onClick={() => setState("form")} style={{ display: "block", margin: "16px auto 0", background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-md)", fontWeight: 600, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", minHeight: 44 }}>
-            או דירוג קצר כאן, בעמוד של {biz}
+            {tr("או דירוג קצר כאן, בעמוד של")} {biz}
           </button>
         </div>
       </PublicPage>
@@ -217,27 +225,27 @@ export default function ReviewPage() {
 
   if (state === "unhappy") {
     return (
-      <PublicPage primary={info?.primaryColor || null}>
+      <PublicPage primary={info?.primaryColor || null} lang={lang}>
         <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-unhappy-screen">
-          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
-          <h1 className="pub-h1">תודה שאת מספרת</h1>
-          <p className="pub-p" style={{ marginBottom: 16 }}>מה היה פחות טוב? מה שתכתבי כאן מגיע רק אל {biz}, ולא מתפרסם בשום מקום.</p>
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} lang={lang} />
+          <h1 className="pub-h1">{tr("תודה שאת מספרת")}</h1>
+          <p className="pub-p" style={{ marginBottom: 16 }}>{tr("מה היה פחות טוב? מה שתכתבי כאן מגיע רק אל")} {biz}{tr(", ולא מתפרסם בשום מקום.")}</p>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={5} maxLength={1000}
-            aria-label="מה היה פחות טוב" placeholder="אפשר לכתוב בחופשיות"
+            aria-label={tr("מה היה פחות טוב")} placeholder={tr("אפשר לכתוב בחופשיות")}
             style={{ width: "100%", boxSizing: "border-box", border: "1px solid var(--pc-tint-2)", borderRadius: "var(--r-md)",
                      padding: "12px 14px", fontSize: "var(--t-lg)", fontFamily: "inherit", outline: "none",
                      background: "var(--brand-surface, #fff)", color: "var(--ink)", resize: "vertical", marginBottom: 14 }} />
           {errorMsg && <p role="alert" style={{ fontSize: "var(--t-md)", color: "var(--danger, #E05B6F)", fontWeight: 600, marginBottom: 12 }}>{errorMsg}</p>}
           <button type="button" onClick={submitNote} disabled={!note.trim() || submitting} className="pub-pill" data-testid="review-note-send" style={{ width: "100%", minHeight: 56 }}>
-            {submitting ? <Spinner inline label="שולחת" /> : `שליחה אל ${biz}`}
+            {submitting ? <Spinner inline label={tr("שולחת")} /> : tr("שליחה אל {0}", [biz])}
           </button>
           {/* Not review gating: the public review is offered right here, before and without the private note. */}
           <p data-testid="review-unhappy-public" style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginTop: 18 }}>
-            מעדיפה לכתוב ביקורת פומבית?{" "}
+            {tr("מעדיפה לכתוב ביקורת פומבית?")}{" "}
             {info?.googleReviewUrl
-              ? <a href={goGoogleHref} style={{ color: "var(--pc-deep)", fontWeight: 700 }}>אפשר בגוגל</a>
-              : <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>אפשר כאן</button>}
-            {info?.googleReviewUrl && <> או <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>כאן</button></>}
+              ? <a href={goGoogleHref} style={{ color: "var(--pc-deep)", fontWeight: 700 }}>{tr("אפשר בגוגל")}</a>
+              : <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>{tr("אפשר כאן")}</button>}
+            {info?.googleReviewUrl && <> {tr("או")} <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>{tr("כאן")}</button></>}
           </p>
         </div>
       </PublicPage>
@@ -246,18 +254,18 @@ export default function ReviewPage() {
 
   if (state === "noted") {
     return (
-      <PublicPage primary={info?.primaryColor || null}>
+      <PublicPage primary={info?.primaryColor || null} lang={lang}>
         <div className="pub-card" style={{ textAlign: "center" }} data-testid="review-noted">
-          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
-          <h1 className="pub-h1">תודה, זה הגיע אליה</h1>
-          <p className="pub-p">מה שכתבת הגיע רק אל {biz}. חשוב לה לשמוע, גם כשמשהו לא היה מושלם.</p>
+          <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} lang={lang} />
+          <h1 className="pub-h1">{tr("תודה, זה הגיע אליה")}</h1>
+          <p className="pub-p">{tr("מה שכתבת הגיע רק אל")} {biz}{tr(". חשוב לה לשמוע, גם כשמשהו לא היה מושלם.")}</p>
           {/* Not review gating: a public review stays one tap away for her too. */}
           <p style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.7, marginTop: 22 }}>
-            רוצה לכתוב גם ביקורת פומבית?{" "}
+            {tr("רוצה לכתוב גם ביקורת פומבית?")}{" "}
             {info?.googleReviewUrl
-              ? <a href={goGoogleHref} style={{ color: "var(--pc-deep)", fontWeight: 700 }}>אפשר בגוגל</a>
-              : <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>אפשר כאן</button>}
-            {info?.googleReviewUrl && <> או <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>כאן</button></>}
+              ? <a href={goGoogleHref} style={{ color: "var(--pc-deep)", fontWeight: 700 }}>{tr("אפשר בגוגל")}</a>
+              : <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>{tr("אפשר כאן")}</button>}
+            {info?.googleReviewUrl && <> {tr("או")} <button type="button" onClick={() => setState("form")} style={{ background: "none", border: "none", padding: 0, color: "var(--pc-deep)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>{tr("כאן")}</button></>}
           </p>
         </div>
       </PublicPage>
@@ -265,11 +273,11 @@ export default function ReviewPage() {
   }
 
   return (
-    <PublicPage primary={info?.primaryColor || null}>
+    <PublicPage primary={info?.primaryColor || null} lang={lang}>
       <div className="pub-card" style={{ textAlign: "center" }}>
         {/* Her logo and name first, large: this page is hers. */}
-        <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} />
-        <h1 className="pub-h1">{info?.clientName ? `${info.clientName}, איך היה?` : "איך היה?"}</h1>
+        <BusinessHeader logoUrl={info?.logoUrl} name={info?.businessName} lang={lang} />
+        <h1 className="pub-h1">{info?.clientName ? tr("{0}, איך היה?", [info.clientName]) : tr("איך היה?")}</h1>
         <p className="pub-p" style={{ marginBottom: 22 }}>{info?.service ? `${info.service} · ${heDate(info.date)}` : heDate(info?.date)}</p>
 
         {/* Big targets. This is read one-handed, on a phone, by someone who is
@@ -277,7 +285,7 @@ export default function ReviewPage() {
             else on screen competing for the tap. */}
         <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 20, direction: "ltr" }}>
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} onClick={() => setRating(n)} aria-label={`${n} כוכבים`}
+            <button key={n} onClick={() => setRating(n)} aria-label={tr("{0} כוכבים", [n])}
               style={{ background: "none", border: "none", cursor: "pointer", padding: 4, minWidth: 44, minHeight: 44,
                        fontSize: "var(--t-hero)", lineHeight: 1, color: pc, opacity: n <= rating ? 1 : 0.4 }}>
               {n <= rating ? "★" : "☆"}
@@ -289,7 +297,7 @@ export default function ReviewPage() {
             review, and asking for words as though they were required is how a
             form gets abandoned at the last step. */}
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
-          maxLength={2000} placeholder="משהו שתרצי להוסיף? (לא חובה)"
+          maxLength={2000} placeholder={tr("משהו שתרצי להוסיף? (לא חובה)")}
           style={{ width: "100%", boxSizing: "border-box", border: "1px solid var(--pc-tint-2)", borderRadius: "var(--r-md)",
                    padding: "12px 14px", fontSize: "var(--t-lg)", fontFamily: "inherit", outline: "none",
                    background: "var(--brand-surface, #fff)", color: "var(--ink)", resize: "vertical", marginBottom: 14 }} />
@@ -299,11 +307,11 @@ export default function ReviewPage() {
         )}
 
         <button onClick={submit} disabled={!rating || submitting} className="pub-pill">
-          {submitting ? <Spinner inline label="שולחת" /> : "שליחת הביקורת"}
+          {submitting ? <Spinner inline label={tr("שולחת")} /> : tr("שליחת הביקורת")}
         </button>
 
         <p style={{ fontSize: "var(--t-md)", color: "var(--ink-3)", lineHeight: 1.6, marginTop: 12 }}>
-          הביקורת תופיע בעמוד של העסק עם שמך הפרטי.
+          {tr("הביקורת תופיע בעמוד של העסק עם שמך הפרטי.")}
         </p>
       </div>
     </PublicPage>

@@ -23,6 +23,7 @@ import GrowRegistration from './GrowRegistration';
 import GrowCostNote from './GrowCostNote';
 import { METHOD_LABEL_HE } from '@/lib/grow/methods';
 import { originLabelHe } from '@/lib/grow/paymentOrigin';
+import { tr, trv } from "@/lib/i18n/tr";
 
 // Grow's customer service, for connecting an account she already has (Grow, 2026-11).
 const GROW_SUPPORT = { email: 'support@grow.business', whatsapp: '052-7773144', whatsappUrl: 'https://wa.me/972527773144' };
@@ -73,12 +74,12 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
     try {
       const r = await fetch('/api/grow/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) return { success: false, code: j?.code || '', growId: j?.growId || '', error: j?.error || 'לא הצלחנו לפתוח את ההרשמה, נסי שוב' };
+      if (!r.ok || !j?.success) return { success: false, code: j?.code || '', growId: j?.growId || '', error: j?.error || tr("לא הצלחנו לפתוח את ההרשמה, נסי שוב") };
       toast?.('Grow שולחת לך SMS עם קישור לטופס');
       await load();
       return j;
     } catch {
-      return { success: false, error: 'לא הצלחנו להתחבר, נסי שוב' };
+      return { success: false, error: tr("לא הצלחנו להתחבר, נסי שוב") };
     } finally { setBusy(false); }
   };
 
@@ -99,7 +100,7 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
 
   let body;
   if (s.tableReady === false) {
-    body = <p style={text}>הסליקה בכרטיס אשראי דרך Grow עוד לא הופעלה בחשבון. נעדכן כשהיא זמינה, ועד אז הקופה ממשיכה לעבוד כרגיל.</p>;
+    body = <p style={text}>{tr("הסליקה בכרטיס אשראי דרך Grow עוד לא הופעלה בחשבון. נעדכן כשהיא זמינה, ועד אז הקופה ממשיכה לעבוד כרגיל.")}</p>;
   } else if (s.account.connected) {
     body = (
       <>
@@ -107,47 +108,47 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
           const live = s.account.enabled && s.platform.configured;
           return (
             <div data-testid="grow-connected-status" role="status" style={{ background: live ? pcTint : 'var(--surface-2)', border: `1px solid ${live ? pc : 'var(--line-2)'}`, borderRadius: 'var(--r-sm)', padding: '10px 12px', marginBottom: 10 }}>
-              <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)' }}>{live ? '✓ מחוברת ל-Grow. הסליקה פעילה' : s.account.enabled ? 'מחוברת ל-Grow. הסליקה תתחיל לעבוד כשהיא תופעל במערכת' : 'מחוברת ל-Grow. הסליקה כבויה'}</p>
-              <p style={{ ...text, marginTop: 2 }}>{live ? 'בקופה מופיע "חיוב בכרטיס אשראי", ובדף ההזמנה הלקוחות רואות שאפשר לשלם אצלך באשראי.' : 'כדי להפעיל, מסמנים את התיבה למטה. השינוי נשמר מיד, בלי כפתור שמירה.'}</p>
+              <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)' }}>{live ? tr("✓ מחוברת ל-Grow. הסליקה פעילה") : s.account.enabled ? tr("מחוברת ל-Grow. הסליקה תתחיל לעבוד כשהיא תופעל במערכת") : tr("מחוברת ל-Grow. הסליקה כבויה")}</p>
+              <p style={{ ...text, marginTop: 2 }}>{live ? tr("בקופה מופיע \"חיוב בכרטיס אשראי\", ובדף ההזמנה הלקוחות רואות שאפשר לשלם אצלך באשראי.") : tr("כדי להפעיל, מסמנים את התיבה למטה. השינוי נשמר מיד, בלי כפתור שמירה.")}</p>
             </div>
           );
         })()}
         <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: isDemo ? 'default' : 'pointer', minHeight: 44 }}>
           <input type="checkbox" checked={s.account.enabled} disabled={busy || isDemo} onChange={(e) => call('/api/grow/account', 'POST', { enabled: e.target.checked }, e.target.checked ? 'הסליקה הופעלה ונשמרה' : 'הסליקה כובתה ונשמרה')} style={{ accentColor: pc, width: 20, height: 20 }} />
-          <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>חיוב בכרטיס אשראי מהקופה <span style={{ color: 'var(--ink-3)' }}>({s.account.userIdMasked} · נשמר אוטומטית)</span></span>
+          <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>{tr("חיוב בכרטיס אשראי מהקופה")} <span style={{ color: 'var(--ink-3)' }}>({s.account.userIdMasked} {tr("· נשמר אוטומטית)")}</span></span>
         </label>
-        {!s.platform.configured && <p style={{ ...text, marginTop: 6 }}>החיבור שלך שמור. הסליקה עצמה תתחיל לעבוד ברגע שהיא תופעל במערכת.</p>}
+        {!s.platform.configured && <p style={{ ...text, marginTop: 6 }}>{tr("החיבור שלך שמור. הסליקה עצמה תתחיל לעבוד ברגע שהיא תופעל במערכת.")}</p>}
         {s.platform.configured && Array.isArray(s.methods) && s.methods.length > 0 && (
-          <p data-testid="grow-methods" style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לקוחות יכולות לשלם ב: {s.methods.map((m) => METHOD_LABEL_HE[m] || m).join(' · ')}</p>
+          <p data-testid="grow-methods" style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>{tr("לקוחות יכולות לשלם ב:")} {s.methods.map((m) => METHOD_LABEL_HE[m] || m).join(' · ')}</p>
         )}
         {s.payments.length > 0 ? (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
             {s.payments.map((p) => (
               <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: pcTint, borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                <span>{p.client_name || 'לקוחה'} · {money(p.amount)}{originLabelHe(p) && <span data-testid="grow-origin" style={{ display: 'block', fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{originLabelHe(p)}</span>}</span>
+                <span>{p.client_name || tr("לקוחה")} · {money(p.amount)}{originLabelHe(p) && <span data-testid="grow-origin" style={{ display: 'block', fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{originLabelHe(p)}</span>}</span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   <b style={{ color: p.status === 'paid' ? 'var(--success)' : 'var(--ink-3)' }}>{STATUS_HE[p.status] || p.status}</b>
-                  {/^second_tx:/.test(p.error || '') && <b data-testid="grow-paid-twice" style={{ color: 'var(--danger)' }}>שולם פעמיים · צריך להחזיר אחד בלוח הבקרה של Grow</b>}
-                  {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>מסמך Grow</a>}
+                  {/^second_tx:/.test(p.error || '') && <b data-testid="grow-paid-twice" style={{ color: 'var(--danger)' }}>{tr("שולם פעמיים · צריך להחזיר אחד בלוח הבקרה של Grow")}</b>}
+                  {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>{tr("מסמך Grow")}</a>}
                   {p.status === 'paid' && s.wallet && !isDemo && !/^מקדמה/.test(p.description || '') && (refunding === p.id ? (
                     <>
-                      <button type="button" data-testid="grow-refund-yes" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/refund', 'POST', { paymentId: p.id }, 'הכסף הוחזר ללקוחה. את מסמך הזיכוי על המסמך של Grow מפיקים בחשבון Grow.')) setRefunding(null); }}>כן, להחזיר {money(p.amount)}</button>
-                      <button type="button" style={ghost} onClick={() => setRefunding(null)}>ביטול</button>
+                      <button type="button" data-testid="grow-refund-yes" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/refund', 'POST', { paymentId: p.id }, 'הכסף הוחזר ללקוחה. את מסמך הזיכוי על המסמך של Grow מפיקים בחשבון Grow.')) setRefunding(null); }}>{tr("כן, להחזיר")} {money(p.amount)}</button>
+                      <button type="button" style={ghost} onClick={() => setRefunding(null)}>{tr("ביטול")}</button>
                     </>
                   ) : (
-                    <button type="button" data-testid="grow-refund" style={ghost} onClick={() => setRefunding(p.id)}>החזר</button>
+                    <button type="button" data-testid="grow-refund" style={ghost} onClick={() => setRefunding(p.id)}>{tr("החזר")}</button>
                   ))}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 8 }}>עוד לא היו חיובים. בקופה יופיע כפתור &quot;חיוב בכרטיס אשראי&quot;.</p>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 8 }}>{tr("עוד לא היו חיובים. בקופה יופיע כפתור \"חיוב בכרטיס אשראי\".")}</p>
         )}
         {onOpenPolicy ? (
           <div data-testid="grow-policy-link" style={{ marginTop: 12, padding: '10px 12px', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)', background: 'var(--surface-2)' }}>
-            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: 0, lineHeight: 1.6 }}>מדיניות ביטולים ומקדמה באשראי נמצאות עכשיו בהגדרות, בלשונית תשלומים.</p>
-            <button type="button" onClick={onOpenPolicy} style={{ background: 'none', border: 'none', padding: '8px 0', minHeight: 40, color: 'var(--pc-deep, var(--ink))', fontWeight: 700, fontSize: 'var(--t-sm)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>לתשלומים ←</button>
+            <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: 0, lineHeight: 1.6 }}>{tr("מדיניות ביטולים ומקדמה באשראי נמצאות עכשיו בהגדרות, בלשונית תשלומים.")}</p>
+            <button type="button" onClick={onOpenPolicy} style={{ background: 'none', border: 'none', padding: '8px 0', minHeight: 40, color: 'var(--pc-deep, var(--ink))', fontWeight: 700, fontSize: 'var(--t-sm)', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>{tr("לתשלומים ←")}</button>
           </div>
         ) : (
           <CancelPolicyCard key={s.account.enabled ? "on" : "off"} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
@@ -155,12 +156,12 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
         {!isDemo && (
           <div style={{ marginTop: 12 }}>
             {!confirmOff ? (
-              <button type="button" style={ghost} onClick={() => setConfirmOff(true)}>ניתוק מ-Grow</button>
+              <button type="button" style={ghost} onClick={() => setConfirmOff(true)}>{tr("ניתוק מ-Grow")}</button>
             ) : (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={text}>לנתק? התשלומים והקבלות שכבר נרשמו נשארים.</span>
-                <button type="button" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/account', 'DELETE', null, 'Grow נותקה')) setConfirmOff(false); }}>כן, לנתק</button>
-                <button type="button" style={ghost} onClick={() => setConfirmOff(false)}>ביטול</button>
+                <span style={text}>{tr("לנתק? התשלומים והקבלות שכבר נרשמו נשארים.")}</span>
+                <button type="button" style={ghost} disabled={busy} onClick={async () => { if (await call('/api/grow/account', 'DELETE', null, 'Grow נותקה')) setConfirmOff(false); }}>{tr("כן, לנתק")}</button>
+                <button type="button" style={ghost} onClick={() => setConfirmOff(false)}>{tr("ביטול")}</button>
               </div>
             )}
           </div>
@@ -171,78 +172,78 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
     body = (
       <>
         <GrowRegistration registration={door === 'register' ? null : s.registration} pc={pc} pcTint={pcTint} isDemo={isDemo} busy={busy} onStart={startRegistration} onFallback={() => setDoor('need')} onHaveAccount={() => setDoor('have')} frameOrigin={s.registrationFrame || null} onFormDone={() => { toast?.('הטופס נשלח ל-Grow. נעדכן כאן כשהחשבון יאושר'); load(); }} />
-        {door === 'register' && <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor(null)}>חזרה</button></div>}
+        {door === 'register' && <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor(null)}>{tr("חזרה")}</button></div>}
       </>
     );
   } else if (s.request?.sent && door !== 'need') {
     body = (
       <>
-        <p style={text}>קיבלנו את הפרטים שלך ונעביר אותם ל-Grow. כשהחשבון מוכן, תקבלי ממנה מזהה עסק: חזרי לכאן והדביקי אותו.</p>
+        <p style={text}>{tr("קיבלנו את הפרטים שלך ונעביר אותם ל-Grow. כשהחשבון מוכן, תקבלי ממנה מזהה עסק: חזרי לכאן והדביקי אותו.")}</p>
         {!isDemo && s.platform.configured && (
           <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-            <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder="מזהה עסק ב-Grow" aria-label="מזהה עסק ב-Grow" style={{ ...inp, ...ltr }} />
-            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={{ ...primary, ...off(busy || userId.length < 4) }}>חיבור</button>
+            <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder={tr("מזהה עסק ב-Grow")} aria-label={tr("מזהה עסק ב-Grow")} style={{ ...inp, ...ltr }} />
+            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={{ ...primary, ...off(busy || userId.length < 4) }}>{tr("חיבור")}</button>
           </div>
         )}
-        <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor('need')}>לעדכן את הפרטים ששלחתי</button></div>
+        <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor('need')}>{tr("לעדכן את הפרטים ששלחתי")}</button></div>
       </>
     );
   } else if (door === 'have') {
     body = (
       <>
         <div data-testid="grow-have-steps">
-          <p style={{ ...text, color: 'var(--ink)', fontWeight: 700, marginBottom: 6 }}>מחברים חשבון Grow קיים בפנייה אחת לשירות הלקוחות של Grow:</p>
+          <p style={{ ...text, color: 'var(--ink)', fontWeight: 700, marginBottom: 6 }}>{tr("מחברים חשבון Grow קיים בפנייה אחת לשירות הלקוחות של Grow:")}</p>
           <ol style={{ ...text, margin: '0 0 10px', paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <li>פונים רק מהמייל או מהנייד שרשומים בחשבון ה-Grow שלך.</li>
+            <li>{tr("פונים רק מהמייל או מהנייד שרשומים בחשבון ה-Grow שלך.")}</li>
             <li>
-              מבקשים לחבר את החשבון ל-Kalmea. במייל:{' '}
+              {tr("מבקשים לחבר את החשבון ל-Kalmea. במייל:")}{' '}
               <a href={`mailto:${GROW_SUPPORT.email}`} dir="ltr" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700, whiteSpace: 'nowrap' }}>{GROW_SUPPORT.email}</a>
-              {' '}או בוואטסאפ:{' '}
+              {' '}{tr("או בוואטסאפ:")}{' '}
               <a href={GROW_SUPPORT.whatsappUrl} target="_blank" rel="noreferrer" dir="ltr" style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700, whiteSpace: 'nowrap' }}>{GROW_SUPPORT.whatsapp}</a>
             </li>
-            <li>אם החשבון מחובר היום למערכת אחרת, מבקשים מ-Grow לנתק אותו משם ולחבר ל-Kalmea.</li>
+            <li>{tr("אם החשבון מחובר היום למערכת אחרת, מבקשים מ-Grow לנתק אותו משם ולחבר ל-Kalmea.")}</li>
           </ol>
-          <p style={{ ...text, marginBottom: 12 }}>אחרי שהם מחברים, תקבלי מ-Grow במייל "קוד עסק". מדביקים אותו כאן למטה ולוחצים "חיבור". את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.</p>
+          <p style={{ ...text, marginBottom: 12 }}>{tr("אחרי שהם מחברים, תקבלי מ-Grow במייל \"קוד עסק\". מדביקים אותו כאן למטה ולוחצים \"חיבור\". את סולקת לחשבון שלך, ו-Grow מפיקה את הקבלה החוקית.")}</p>
         </div>
         {!isDemo && s.platform.configured && (
-          <p style={{ ...text, fontSize: 'var(--t-xs)', marginBottom: 6 }}>קיבלת מ-Grow מזהה עסק? אפשר גם להדביק אותו כאן:</p>
+          <p style={{ ...text, fontSize: 'var(--t-xs)', marginBottom: 6 }}>{tr("קיבלת מ-Grow מזהה עסק? אפשר גם להדביק אותו כאן:")}</p>
         )}
         {!isDemo && (s.platform.configured ? (
           <div style={{ display: 'flex', gap: 6 }}>
-            <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder="מזהה עסק ב-Grow" aria-label="מזהה עסק ב-Grow" style={{ ...inp, ...ltr }} />
-            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={{ ...primary, ...off(busy || userId.length < 4) }}>חיבור</button>
+            <input value={userId} onChange={(e) => setUserId(e.target.value.trim())} placeholder={tr("מזהה עסק ב-Grow")} aria-label={tr("מזהה עסק ב-Grow")} style={{ ...inp, ...ltr }} />
+            <button type="button" disabled={busy || userId.length < 4} onClick={async () => { if (await call('/api/grow/account', 'POST', { userId, enabled: true }, 'נשמר')) setUserId(''); }} style={{ ...primary, ...off(busy || userId.length < 4) }}>{tr("חיבור")}</button>
           </div>
         ) : (
-          <p style={text}>החיבור עוד לא פתוח במערכת. כשיהיה, תוכלי להדביק את המזהה כאן.</p>
+          <p style={text}>{tr("החיבור עוד לא פתוח במערכת. כשיהיה, תוכלי להדביק את המזהה כאן.")}</p>
         ))}
-        <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor(null)}>חזרה</button></div>
+        <div style={{ marginTop: 8 }}><button type="button" style={ghost} onClick={() => setDoor(null)}>{tr("חזרה")}</button></div>
       </>
     );
   } else if (door === 'need') {
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
     body = (
       <>
-        <p style={{ ...text, marginBottom: 10 }}>נשאיר ל-Grow את הפרטים שלך והם ייצרו איתך קשר לפתיחת חשבון. אין כאן כרטיס אשראי ואין חיוב.</p>
+        <p style={{ ...text, marginBottom: 10 }}>{tr("נשאיר ל-Grow את הפרטים שלך והם ייצרו איתך קשר לפתיחת חשבון. אין כאן כרטיס אשראי ואין חיוב.")}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input value={form.name} onChange={set('name')} placeholder="שם מלא" aria-label="שם מלא" autoComplete="name" style={inp} />
-          <input value={form.phone} onChange={set('phone')} placeholder="נייד" aria-label="נייד" inputMode="tel" autoComplete="tel" style={{ ...inp, ...ltr }} />
-          <input value={form.businessName} onChange={set('businessName')} placeholder="שם העסק" aria-label="שם העסק" style={inp} />
-          <input value={form.businessId} onChange={set('businessId')} placeholder="מספר עוסק או ח.פ." aria-label="מספר עוסק או ח.פ." inputMode="numeric" style={{ ...inp, ...ltr }} />
+          <input value={form.name} onChange={set('name')} placeholder={tr("שם מלא")} aria-label={tr("שם מלא")} autoComplete="name" style={inp} />
+          <input value={form.phone} onChange={set('phone')} placeholder={tr("נייד")} aria-label={tr("נייד")} inputMode="tel" autoComplete="tel" style={{ ...inp, ...ltr }} />
+          <input value={form.businessName} onChange={set('businessName')} placeholder={tr("שם העסק")} aria-label={tr("שם העסק")} style={inp} />
+          <input value={form.businessId} onChange={set('businessId')} placeholder={tr("מספר עוסק או ח.פ.")} aria-label={tr("מספר עוסק או ח.פ.")} inputMode="numeric" style={{ ...inp, ...ltr }} />
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <button type="button" disabled={busy || isDemo || !formOk} onClick={async () => { if (await call('/api/grow/request', 'POST', form, 'הפרטים נשלחו')) setDoor(null); }} style={{ ...primary, ...off(busy || isDemo || !formOk) }}>{busy ? 'שולחת…' : 'שליחת הפרטים'}</button>
-          <button type="button" style={ghost} onClick={() => setDoor(null)}>חזרה</button>
+          <button type="button" disabled={busy || isDemo || !formOk} onClick={async () => { if (await call('/api/grow/request', 'POST', form, 'הפרטים נשלחו')) setDoor(null); }} style={{ ...primary, ...off(busy || isDemo || !formOk) }}>{busy ? tr("שולחת…") : tr("שליחת הפרטים")}</button>
+          <button type="button" style={ghost} onClick={() => setDoor(null)}>{tr("חזרה")}</button>
         </div>
-        {!formOk && <p style={{ ...text, marginTop: 6 }}>כדי לשלוח חסר: {formMissing}</p>}
+        {!formOk && <p style={{ ...text, marginTop: 6 }}>{tr("כדי לשלוח חסר:")} {formMissing}</p>}
       </>
     );
   } else {
     body = (
       <>
-        <p style={{ ...text, marginBottom: 10 }}>את סולקת לחשבון ה-Grow שלך, ו-Grow מפיקה את הקבלה החוקית. הקבלות והתשלומים יופיעו גם כאן.</p>
+        <p style={{ ...text, marginBottom: 10 }}>{tr("את סולקת לחשבון ה-Grow שלך, ו-Grow מפיקה את הקבלה החוקית. הקבלות והתשלומים יופיעו גם כאן.")}</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" style={primary} onClick={() => setDoor('have')}>יש לי חשבון Grow</button>
-          <button type="button" style={ghost} onClick={() => setDoor(s.registrationAvailable ? 'register' : 'need')}>אין לי עדיין Grow</button>
+          <button type="button" style={primary} onClick={() => setDoor('have')}>{tr("יש לי חשבון Grow")}</button>
+          <button type="button" style={ghost} onClick={() => setDoor(s.registrationAvailable ? 'register' : 'need')}>{tr("אין לי עדיין Grow")}</button>
         </div>
         {/* Grow support, 2026-11: an account already tied to another system has to be released by Grow first. */}
         <p data-testid="grow-other-system" style={{ ...text, fontSize: 'var(--t-xs)', marginTop: 10 }}>{GROW_OTHER_SYSTEM_HE}</p>
@@ -252,11 +253,11 @@ export default function GrowCard({ pc, pcTint, toast, isDemo, onOpenPolicy }) {
 
   return (
     <div data-testid="grow-card" style={box}>
-      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>סליקת אשראי (Grow)</p>
-      {s.mode === 'mock' && <p data-testid="grow-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
+      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>{tr("סליקת אשראי (Grow)")}</p>
+      {s.mode === 'mock' && <p data-testid="grow-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>{tr("מצב בדיקה: לא נגבה כסף אמיתי")}</p>}
       {/* What Grow charges her, before she connects and after: never a surprise (lib/growPricing.ts). */}
       <GrowCostNote style={{ marginBottom: 10 }} />
-      {body}
+      {trv(body)}
     </div>
   );
 }

@@ -4,6 +4,7 @@
 // platform flag (automations.feature_flags.waitlist_offers === false) hides the whole row.
 import { DEFAULT_DAILY_CAP } from "@/lib/waitlistFlag.js";
 import { useDeployFlags } from "./useDeployFlags";
+import { tr, trv } from "@/lib/i18n/tr";
 
 // While the central number does not send by itself (today), the copy says what happens: the offer is prepared and she sends it with a
 // tap. It never promises an automatic message that will not go out (2026-11-09 owner rule). With automatic sending on: unchanged.
@@ -24,14 +25,14 @@ export default function WaitlistOfferSetting({ autos, setAutos, pc, Row }) {
   const cap = CAPS.includes(Number(autos.waitlist_daily_cap)) ? Number(autos.waitlist_daily_cap) : DEFAULT_DAILY_CAP;
   return (
     <div data-testid="waitlist-offer-setting">
-      <Row pc={pc} label={WAITLIST_LABEL[mode]} on={on} onChange={() => setAutos({ ...autos, waitlist_offers: !on })}
-        desc={WAITLIST_DESC[mode]} />
+      <Row pc={pc} label={trv(WAITLIST_LABEL[mode])} on={on} onChange={() => setAutos({ ...autos, waitlist_offers: !on })}
+        desc={trv(WAITLIST_DESC[mode])} />
       {on && (
         <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, fontSize: "var(--t-sm)", color: "var(--ink)" }}>
-          <span>תקרה יומית להצעות</span>
+          <span>{tr("תקרה יומית להצעות")}</span>
           <select data-testid="waitlist-cap" value={cap} onChange={(e) => setAutos({ ...autos, waitlist_daily_cap: Number(e.target.value) })}
             style={{ minHeight: 44, fontSize: 16, fontFamily: "inherit", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "0 10px", background: "var(--surface-2)", color: "var(--ink)" }}>
-            {CAPS.map((n) => <option key={n} value={n}>{n} ביום</option>)}
+            {CAPS.map((n) => <option key={n} value={n}>{n} {tr("ביום")}</option>)}
           </select>
         </label>
       )}

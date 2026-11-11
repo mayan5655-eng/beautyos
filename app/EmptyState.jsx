@@ -24,6 +24,7 @@
 
 import { ICON_FLOWER, ICON_CALENDAR } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
+import { trv } from "@/lib/i18n/tr";
 
 // Named icons that have a large-raster counterpart in the ad-aligned icon
 // set, used in place of the small stroked-SVG circle badge below when
@@ -170,11 +171,11 @@ export default function EmptyState({
         // hero; this is a card mid-dashboard, so the size is scaled down
         // here while keeping the class's weight/family/tracking/color.
         <p className="brand-headline" style={{ position: "relative", fontSize: "var(--t-2xl)", marginBottom: 7 }}>
-          {title}
+          {trv(title)}
         </p>
       ) : (
         <p style={{ position: "relative", fontSize: compact ? "var(--t-sm)" : "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginBottom: 5 }}>
-          {title}
+          {trv(title)}
         </p>
       )}
       {body && (
@@ -188,7 +189,7 @@ export default function EmptyState({
             margin: "0 auto",
           }}
         >
-          {body}
+          {trv(body)}
         </p>
       )}
 
@@ -230,7 +231,7 @@ export default function EmptyState({
                     }
               }
             >
-              {a.label}
+              {trv(a.label)}
               {i === 0 && isMoment && <span className="chevron" aria-hidden> ←</span>}
             </button>
           ))}

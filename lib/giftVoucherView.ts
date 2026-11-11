@@ -13,8 +13,9 @@ import { publicVoucherView, voucherConfig, isVoucherToken, isMissingVoucherSchem
 import { ensureVoucherForPayment, paymentForToken } from './giftVoucherIssue.ts';
 import { VOUCHER_COLS } from './giftVoucherRepo.ts';
 import { storageHostOf, type VoucherDesign } from './giftVoucherDesign.ts';
+import type { Lang } from './i18n/core.ts';
 
-export type PublicBrand = { name: string; primary: string; deep: string; onPrimary: string; secondary: string; logoUrl: string; slug: string | null };
+export type PublicBrand = { name: string; language?: Lang; primary: string; deep: string; onPrimary: string; secondary: string; logoUrl: string; slug: string | null };
 
 export type PublicVoucherState =
   | { state: 'ready'; voucher: PublicVoucher; brand: PublicBrand; design: VoucherDesign }
@@ -29,7 +30,7 @@ async function brandOf(db: SupabaseClient, tenantId: string): Promise<{ brand: P
   const b = resolveBranding(st || {});
   const t = (tn || {}) as { name?: string; slug?: string };
   return {
-    brand: { name: b.businessName || String(t.name || ''), primary: b.primary, deep: b.deep, onPrimary: b.onPrimary, secondary: b.secondary, logoUrl: b.logoUrl, slug: t.slug || null },
+    brand: { name: b.businessName || String(t.name || ''), language: b.language, primary: b.primary, deep: b.deep, onPrimary: b.onPrimary, secondary: b.secondary, logoUrl: b.logoUrl, slug: t.slug || null },
     // Her design, validated on the way out (lib/giftVoucherDesign.ts sanitizeDesign): only her own upload survives as an image.
     ...(() => { const c = voucherConfig(st as never, tenantId, storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL)); return { note: c.note, design: c.design }; })(),
   };

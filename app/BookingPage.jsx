@@ -46,6 +46,9 @@ import Image from "next/image";
 import { CARD_CONSENT_TEXT_HE } from "@/lib/grow/tokenFlow";
 import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from "@/lib/paymentTerms";
 import { patchTestConfirmHe, intakeFromBusinessHe } from "@/lib/intakeCopy";
+import { useTr } from "@/lib/i18n/useTr";
+import { useLang } from "@/lib/i18n/react";
+import { dirOf, localeOf } from "@/lib/i18n/core";
 
 // ============================================================
 // PUBLIC BOOKING PAGE  —  /book
@@ -162,6 +165,7 @@ function ValueIcon({ i }) {
 // mouse both work; vertical scrolling stays with the page) or use the arrow
 // keys on the hidden range input.
 function BeforeAfterSlider({ before, after }) {
+  const tr = useTr();
   const [pos, setPos] = useState(50);
   const move = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -180,9 +184,9 @@ function BeforeAfterSlider({ before, after }) {
       <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: pos + "%", width: 2, marginLeft: -1, background: "#fff", boxShadow: "var(--shadow-sm)" }}>
         <span style={{ position: "absolute", top: "50%", left: "50%", width: 30, height: 30, marginTop: -15, marginLeft: -15, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-sm)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "var(--t-sm)", color: "#555" }}>‹›</span>
       </div>
-      <span aria-hidden="true" style={{ position: "absolute", bottom: 8, left: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>לפני</span>
-      <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>אחרי</span>
-      <input type="range" min="0" max="100" value={Math.round(pos)} onChange={(e) => setPos(Number(e.target.value))} aria-label="השוואת לפני ואחרי"
+      <span aria-hidden="true" style={{ position: "absolute", bottom: 8, left: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>{tr("לפני")}</span>
+      <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>{tr("אחרי")}</span>
+      <input type="range" min="0" max="100" value={Math.round(pos)} onChange={(e) => setPos(Number(e.target.value))} aria-label={tr("השוואת לפני ואחרי")}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, pointerEvents: "none", margin: 0 }} />
     </div>
   );
@@ -192,12 +196,13 @@ function BeforeAfterSlider({ before, after }) {
 // readable. Caption, session count and the before/after slider live in the
 // full-size view (ResultLightbox); a small pill says there is a "before".
 function ResultThumb({ result, onOpen, label }) {
+  const tr = useTr();
   return (
     <button onClick={onOpen} aria-label={label} className="bk-btn"
       style={{ position: "relative", display: "block", width: "100%", padding: 0, aspectRatio: "1 / 1", borderRadius: "var(--r-sm)", overflow: "hidden", border: "1px solid " + HAIR, background: "none" }}>
       <Photo src={result.after} sizes="(max-width: 540px) 50vw, 270px" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
       {result.before && (
-        <span aria-hidden="true" style={{ position: "absolute", bottom: 6, insetInlineEnd: 6, padding: "1px 8px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: "var(--t-xs)", fontWeight: 600 }}>לפני · אחרי</span>
+        <span aria-hidden="true" style={{ position: "absolute", bottom: 6, insetInlineEnd: 6, padding: "1px 8px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: "var(--t-xs)", fontWeight: 600 }}>{tr("לפני · אחרי")}</span>
       )}
     </button>
   );
@@ -207,6 +212,7 @@ function ResultThumb({ result, onOpen, label }) {
 // Esc, the backdrop and the close button all close it; the page behind does not
 // scroll while it is open.
 function ResultLightbox({ items, index, title, onClose, onStep }) {
+  const tr = useTr();
   const closeRef = useRef(null);
   const r = items[index];
   useEffect(() => {
@@ -229,7 +235,7 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
         style={{ width: "min(100%, 440px)", maxHeight: "100%", overflowY: "auto", background: "var(--brand-cream, #FBF8F1)", borderRadius: "var(--r-card)", padding: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
           <p className="serif" style={{ margin: 0, fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink, #1F3A30)" }}>{title}</p>
-          <button ref={closeRef} onClick={onClose} aria-label="סגירה" style={{ ...arrow, fontSize: "var(--t-xl)", padding: "0 6px" }}>×</button>
+          <button ref={closeRef} onClick={onClose} aria-label={tr("סגירה")} style={{ ...arrow, fontSize: "var(--t-xl)", padding: "0 6px" }}>×</button>
         </div>
         <div style={{ width: "min(100%, calc(66vh * 0.75))", margin: "0 auto" }}>
           {r.before ? (
@@ -237,7 +243,7 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
           ) : (
             <div style={{ position: "relative", aspectRatio: "3 / 4", borderRadius: "var(--r-md)", overflow: "hidden", border: "1px solid " + HAIR }}>
               <Photo src={r.after} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
-              <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>אחרי</span>
+              <span aria-hidden="true" style={{ position: "absolute", bottom: 8, right: 8, padding: "2px 10px", borderRadius: "var(--r-full)", background: "rgba(0,0,0,0.45)", color: "#fff", fontSize: "var(--t-sm)", fontWeight: 600 }}>{tr("אחרי")}</span>
             </div>
           )}
         </div>
@@ -245,14 +251,14 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
           <p style={{ margin: "12px 0 0", fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.6, textAlign: "center" }}>
             {r.caption}
             {r.caption && r.sessions ? " · " : ""}
-            {r.sessions ? r.sessions + " טיפולים" : ""}
+            {r.sessions ? tr("{0} טיפולים", [r.sessions]) : ""}
           </p>
         )}
         {items.length > 1 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8 }}>
-            <button onClick={() => onStep(-1)} aria-label="הקודמת" style={arrow}>›</button>
+            <button onClick={() => onStep(-1)} aria-label={tr("הקודמת")} style={arrow}>›</button>
             <span style={{ fontSize: "var(--t-sm)", color: "var(--brand-muted, #7D8D87)" }}>{index + 1} / {items.length}</span>
-            <button onClick={() => onStep(1)} aria-label="הבאה" style={arrow}>‹</button>
+            <button onClick={() => onStep(1)} aria-label={tr("הבאה")} style={arrow}>‹</button>
           </div>
         )}
       </div>
@@ -274,6 +280,8 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
  * is exactly what it always did.
  */
 export default function BookingPage({ tenantId: tenantIdProp, initialSettings = /** @type {any} */ (null), initialServices = /** @type {any} */ (null) }) {
+  const tr = useTr();
+  const lang = useLang();
   // === DATA ===
   // /[slug] reads the public settings and the service list on the server and
   // hands them in, so the first HTML already contains her hero, treatments and
@@ -370,8 +378,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       const r = await fetch("/api/grow/booking-pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: tenantId, appointmentId: bookedId }) });
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success && j.url) { window.location.href = j.url; return; }
-      setPayErr(j?.error || "התשלום באשראי לא זמין כרגע. אפשר לשלם בעסק.");
-    } catch { setPayErr("התשלום באשראי לא זמין כרגע. אפשר לשלם בעסק."); }
+      setPayErr(j?.error || tr("התשלום באשראי לא זמין כרגע. אפשר לשלם בעסק."));
+    } catch { setPayErr(tr("התשלום באשראי לא זמין כרגע. אפשר לשלם בעסק.")); }
     setPayBusy(false);
   };
   const [policyOk, setPolicyOk] = useState(false);
@@ -390,8 +398,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       const r = await fetch("/api/grow/deposit/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: tenantId, appointmentId: bookedId, kind: policyStep.kind === "saved_card" ? "card" : "deposit" }) });
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success && j.url) { window.location.href = j.url; return; }
-      setPayErr(j?.error || "לא הצלחנו לפתוח את דף התשלום, נסי שוב");
-    } catch { setPayErr("אין חיבור כרגע. נסי שוב בעוד רגע."); }
+      setPayErr(j?.error || tr("לא הצלחנו לפתוח את דף התשלום, נסי שוב"));
+    } catch { setPayErr(tr("אין חיבור כרגע. נסי שוב בעוד רגע.")); }
     setPayBusy(false);
   };
   // Deposit mode covers only the services she marked "requires deposit"; any other service books exactly as before (no policy block, no tick, no deposit).
@@ -662,16 +670,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
   const handleConfirm = async () => {
     setErrorMsg("");
-    if (!name.trim()) { setErrorMsg("איך קוראים לך? חסר שם"); return; }
+    if (!name.trim()) { setErrorMsg(tr("איך קוראים לך? חסר שם")); return; }
     // A number we cannot reach is not a booking. This used to be a non-empty
     // check on both sides, so "abc" saved an appointment, sent no confirmation,
     // and told neither of them anything was wrong. Same rule server-side.
     const phoneErr = phoneErrorHe(phone);
     if (phoneErr) { setErrorMsg(phoneErr); return; }
-    if (!agreed) { setErrorMsg("כדי לקבוע תור צריך לאשר את שמירת הפרטים"); return; }
-    if (termsRequired && !termsOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את תנאי ההזמנה"); return; }
-    if (needsPolicy && !policyOk) { setErrorMsg("כדי לקבוע תור צריך לאשר את מדיניות הביטולים"); return; }
-    if (needsCardTick && !cardOk) { setErrorMsg("כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי"); return; }
+    if (!agreed) { setErrorMsg(tr("כדי לקבוע תור צריך לאשר את שמירת הפרטים")); return; }
+    if (termsRequired && !termsOk) { setErrorMsg(tr("כדי לקבוע תור צריך לאשר את תנאי ההזמנה")); return; }
+    if (needsPolicy && !policyOk) { setErrorMsg(tr("כדי לקבוע תור צריך לאשר את מדיניות הביטולים")); return; }
+    if (needsCardTick && !cardOk) { setErrorMsg(tr("כדי לשמור את הכרטיס צריך לאשר את שמירת פרטי האשראי")); return; }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -707,7 +715,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       // Someone else took that time a moment ago: back to the times, nothing picked, the grid read again so it shows as taken.
       if (!result.success && result.code === "slot_taken") {
         setSelectedStart(null);
-        setSlotTakenMsg(result.error || "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?");
+        setSlotTakenMsg(result.error || tr("השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?"));
         setStep(2);
         setSubmitting(false);
         refetchAvailability();
@@ -735,7 +743,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   if (loading) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "var(--brand-cream, #FBF8F1)", fontSize:"var(--t-lg)", letterSpacing: "1px", color: pcText }}>
-        ✦ טוען
+        {tr("✦ טוען")}
       </div>
     );
   }
@@ -743,14 +751,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // Invalid / missing tenant - show a friendly message instead of the wrong data
   if (tenantError) {
     return (
-      <div dir="rtl" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FBF8F1) 0%, var(--brand-cream, #FBF8F1) 100%)", padding: 24, textAlign: "center" }}>
+      <div dir={dirOf(lang)} lang={lang} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100dvh", fontFamily: "'Assistant',sans-serif", background: "linear-gradient(160deg, var(--brand-cream, #FBF8F1) 0%, var(--brand-cream, #FBF8F1) 100%)", padding: 24, textAlign: "center" }}>
         {/* No valid tenant resolved here, so there is no "her" accent to
             preserve - this is Kalmea chrome, not her content, hence the
             flower mark instead of a pc-colored glyph. */}
         <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={150} height={44} style={{ width: 150, height: "auto", marginBottom: 16 }} />
-        <h1 className="serif" style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: "var(--brand-muted, #7D8D87)", marginBottom: 10, letterSpacing: "0.3px" }}>הקישור אינו תקין</h1>
+        <h1 className="serif" style={{ fontSize:"var(--t-2xl)", fontWeight: 600, color: "var(--brand-muted, #7D8D87)", marginBottom: 10, letterSpacing: "0.3px" }}>{tr("הקישור אינו תקין")}</h1>
         <p style={{ fontSize:"var(--t-md)", color: "var(--brand-muted, #7D8D87)", maxWidth: 320, lineHeight: 1.7 }}>
-          נראה שהקישור לקביעת התור חסר או שגוי. כדאי לפנות לעסק ולבקש קישור חדש.
+          {tr("נראה שהקישור לקביעת התור חסר או שגוי. כדאי לפנות לעסק ולבקש קישור חדש.")}
         </p>
       </div>
     );
@@ -775,7 +783,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // A real business name, else her own name, else a neutral heading.
   const realName = (v) => { const s = String(v || "").trim(); return s && s !== "העסק שלי" ? s : ""; };
   const bizName = realName(brand?.businessName) || realName(settings?.business_name)
-    || displayName(brand?.therapistName || settings?.therapist_name || "") || "קביעת תור";
+    || displayName(brand?.therapistName || settings?.therapist_name || "") || tr("קביעת תור");
   // Her line, under her name. Optional - most clinics never set one.
   const personName = displayName(brand?.therapistName || settings?.therapist_name || ""); // never a login handle: lib/personName.js
   const personTitle = brand?.therapistTitle || "";
@@ -802,15 +810,15 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // body part. brand.fields is real (lib/branding.js's resolveBranding sets
   // it from businessFieldsOf), same source defaultHeroKey/defaultAboutKey
   // already use a few lines below for the photos.
-  const heroHeadline = brand?.welcomeHeadline || defaultHeroHeadline(brand?.fields);
+  const heroHeadline = brand?.welcomeHeadline || tr(defaultHeroHeadline(brand?.fields));
   // No regex lookbehind here: Safari before 16.4 (iPhones that cannot update past iOS 15/16) fails to even PARSE one, which blanks the whole
   // booking page for her client (2026-10-24 phone review). Same split: a line break, or the space after . ! ?
   const heroLines = heroHeadline.replace(/([.!?])\s+/g, "$1\n").split("\n").map((x) => x.trim()).filter(Boolean);
-  const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || defaultHeroBenefits(brand?.fields);
-  const scriptAccent = brand?.scriptAccent || "טיפוח שמתחיל באהבה עצמית";
+  const heroBenefits = brand?.heroBenefits || brand?.welcomeMessage || tr(defaultHeroBenefits(brand?.fields));
+  const scriptAccent = brand?.scriptAccent || tr("טיפוח שמתחיל באהבה עצמית");
   const aboutSignoff = brand?.aboutSignoff || "";
-  const aboutText = brand?.businessDescription || defaultAboutText(brand?.fields);
-  const valueProps = brand?.valueProps && brand.valueProps.length ? brand.valueProps : defaultValueProps(brand?.fields);
+  const aboutText = brand?.businessDescription || tr(defaultAboutText(brand?.fields));
+  const valueProps = brand?.valueProps && brand.valueProps.length ? brand.valueProps : defaultValueProps(brand?.fields).map((v) => tr(v));
   const resultGroups = groupResults(results, services);
   const addr = brand?.address || "";
   const mapsHref = addr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}` : "";
@@ -818,7 +826,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const clinicPhotos = brand?.clinicPhotos || [];
   // null = she never touched it -> the seeded default; [] = explicitly cleared.
   const howIWork = brand?.howIWork === null || brand?.howIWork === undefined
-    ? defaultHowIWork(brand?.fields)
+    ? defaultHowIWork(brand?.fields).map((v) => tr(v))
     : brand.howIWork;
   // REAL REVIEWS WIN. dbReviews comes from clients who were actually here;
   // brand.reviews is the array she types herself in the branding tab. The old
@@ -836,15 +844,15 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const weekHours = normalizeBusinessHours(settings);
   const todayHours = now ? weekHours[now.getDay()] : null;
   const socials = [
-    brand?.website && { key: "web", label: "אתר", href: socialHref("https://", brand.website) },
-    brand?.instagram && { key: "ig", label: "אינסטגרם", href: socialHref("https://instagram.com/", brand.instagram) },
-    brand?.facebook && { key: "fb", label: "פייסבוק", href: socialHref("https://facebook.com/", brand.facebook) },
-    brand?.tiktok && { key: "tt", label: "טיקטוק", href: socialHref("https://tiktok.com/@", brand.tiktok) },
+    brand?.website && { key: "web", label: tr("אתר"), href: socialHref("https://", brand.website) },
+    brand?.instagram && { key: "ig", label: tr("אינסטגרם"), href: socialHref("https://instagram.com/", brand.instagram) },
+    brand?.facebook && { key: "fb", label: tr("פייסבוק"), href: socialHref("https://facebook.com/", brand.facebook) },
+    brand?.tiktok && { key: "tt", label: tr("טיקטוק"), href: socialHref("https://tiktok.com/@", brand.tiktok) },
   ].filter(Boolean);
 
   // Client-facing announcements: newest first, cap to keep the mini-site tight.
   const recentPosts = (posts || []).slice(0, 5);
-  const postTypeLabel = (t) => (t === "offer" ? "מבצע" : t === "tip" ? "טיפ" : "עדכון");
+  const postTypeLabel = (t) => (t === "offer" ? tr("מבצע") : t === "tip" ? tr("טיפ") : tr("עדכון"));
   // Offers lean on the brand color; tips a soft sage; updates a quiet neutral.
   const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "var(--success, #46B37B)" : faint);
 
@@ -890,7 +898,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const socialPill = (bg, color, borderColor) => ({ display: "inline-flex", alignItems: "center", gap: 7, background: bg, color: color || "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "10px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-sm)", fontWeight: 600, letterSpacing: "0.4px", border: borderColor ? `1px solid ${borderColor}3D` : "none", boxShadow:"var(--shadow-md)" });
 
   return (
-    <div dir="rtl" style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FBF8F1) 0%,var(--brand-cream, #FBF8F1) 55%,var(--brand-cream, #FBF8F1) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
+    <div dir={dirOf(lang)} lang={lang} style={{ ...accentStyle(accent), fontFamily: "var(--font-assistant), 'Assistant', sans-serif", background: "linear-gradient(180deg,var(--brand-cream, #FBF8F1) 0%,var(--brand-cream, #FBF8F1) 55%,var(--brand-cream, #FBF8F1) 100%)", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", padding: "0 0 60px", color: ink, position: "relative", zIndex: 0, overflow: "hidden" }}>
       <style>{`
         * { box-sizing: border-box; }
         .serif { font-family: var(--font-frank), 'Frank Ruhl Libre', serif; }
@@ -921,8 +929,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         <div className="bk-stack" style={{ paddingBottom: barShown ? "calc(112px + env(safe-area-inset-bottom, 0px))" : 0 }}>
           {growReturn && (
             <div role="status" data-testid="grow-return" style={{ width: "100%", maxWidth: 540, boxSizing: "border-box", padding: "14px 18px", background: cream, borderBottom: `1px solid ${hair}`, textAlign: "center", fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
-              {growReturn === "paid" ? "✓ הכל הושלם, תודה! 🌸 התור שלך שמור, אין צורך לקבוע אותו שוב." : "התשלום לא הושלם ולא חויב כסף. לשאלות אפשר לפנות לעסק."}
-              <button type="button" onClick={() => setGrowReturn(null)} aria-label="סגירת ההודעה" style={{ marginInlineStart: 10, border: "none", background: "none", color: ink, cursor: "pointer", fontSize: "var(--t-md)", fontFamily: "inherit" }}>✕</button>
+              {growReturn === "paid" ? tr("✓ הכל הושלם, תודה! 🌸 התור שלך שמור, אין צורך לקבוע אותו שוב.") : tr("התשלום לא הושלם ולא חויב כסף. לשאלות אפשר לפנות לעסק.")}
+              <button type="button" onClick={() => setGrowReturn(null)} aria-label={tr("סגירת ההודעה")} style={{ marginInlineStart: 10, border: "none", background: "none", color: ink, cursor: "pointer", fontSize: "var(--t-md)", fontFamily: "inherit" }}>✕</button>
             </div>
           )}
 
@@ -953,12 +961,12 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   canBook ? (
                     <button onClick={goToServices} className="bk-btn"
                       style={{ marginTop: 20, minWidth: 220, height: 52, padding: "0 30px", borderRadius: "var(--r-full)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-accent)" }}>
-                      {brand?.ctaLabel || "קביעת תור"}
+                      {brand?.ctaLabel || tr("קביעת תור")}
                     </button>
                   ) : (
                     <a href={waHref} target="_blank" rel="noreferrer" className="bk-btn"
                       style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20, minWidth: 220, height: 52, padding: "0 30px", borderRadius: "var(--r-full)", background: pc, color: "var(--pc-contrast, #FFFFFF)", textDecoration: "none", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-accent)" }}>
-                      <Icon name="whatsapp" size={16} /> {brand?.ctaLabel || "קביעת תור"}
+                      <Icon name="whatsapp" size={16} /> {brand?.ctaLabel || tr("קביעת תור")}
                     </a>
                   )
                 )}
@@ -972,7 +980,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           <div style={{ ...section, marginTop: 14, marginBottom: 22, textAlign: "center" }}>
             {person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, margin: "0 0 4px" }}>{person}</p>}
             <p style={{ ...T_META, color: faint, margin: 0 }}>
-              {!mounted ? "\u00A0" : todayHours ? "היום " + String(todayHours.open).padStart(2, "0") + ":00–" + String(todayHours.close).padStart(2, "0") + ":00" : "סגור היום"}
+              {!mounted ? "\u00A0" : todayHours ? tr("היום") + " " + String(todayHours.open).padStart(2, "0") + ":00–" + String(todayHours.close).padStart(2, "0") + ":00" : tr("סגור היום")}
               {addr ? " · " + addr : ""}
             </p>
           </div>
@@ -988,17 +996,17 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             <div style={{ ...section }}>
               <div style={{ ...cardBox, textAlign: "center" }}>
                 <p style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep, marginBottom: 8 }}>
-                  ההזמנות המקוונות ייפתחו כאן בקרוב
+                  {tr("ההזמנות המקוונות ייפתחו כאן בקרוב")}
                 </p>
                 <p style={{ fontSize:"var(--t-md)", color: "var(--ink-2, #6B6275)", lineHeight: 1.8, marginBottom: wa ? 18 : 0 }}>
-                  {(!hasServices ? "רשימת הטיפולים עדיין בהכנה. " : "אין כרגע ימים פנויים לקביעת תור אונליין. ") +
-                    (wa ? "אפשר לפנות אלינו ישירות בוואטסאפ ונשמח לתאם לך תור."
-                        : "אפשר לחזור לכאן בקרוב, או ליצור קשר עם העסק.")}
+                  {(!hasServices ? tr("רשימת הטיפולים עדיין בהכנה.") : tr("אין כרגע ימים פנויים לקביעת תור אונליין.")) + " " +
+                    (wa ? tr("אפשר לפנות אלינו ישירות בוואטסאפ ונשמח לתאם לך תור.")
+                        : tr("אפשר לחזור לכאן בקרוב, או ליצור קשר עם העסק."))}
                 </p>
                 {wa && (
                   <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="bk-btn"
                      style={{ display: "block", textDecoration: "none", width: "100%", padding: "15px 0", borderRadius:"var(--r-md)", background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.5px", boxShadow:"var(--shadow-lg)" }}>
-                    <Icon name="whatsapp" size={15}/> לתיאום תור בוואטסאפ
+                    <Icon name="whatsapp" size={15}/> {tr("לתיאום תור בוואטסאפ")}
                   </a>
                 )}
               </div>
@@ -1008,7 +1016,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {/* TREATMENTS - a photo, a name, a line, its own button. */}
           {services.length > 0 && (
             <div id="bk-services" style={{ ...section, scrollMarginTop: 14 }}>
-              <SectionTitle>הטיפולים שלי</SectionTitle>
+              <SectionTitle>{tr("הטיפולים שלי")}</SectionTitle>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                 {services.map((sv, i) => {
                   const img = serviceImage(sv, brand?.serviceImages);
@@ -1018,13 +1026,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                       <div style={{ padding: "12px 12px 14px", display: "flex", flexDirection: "column", gap: 6, flex: 1, textAlign: "center" }}>
                         <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: 0, lineHeight: 1.25 }}>{sv.name}</p>
                         {sv.description && <p style={{ ...T_META, color: faint, margin: 0, lineHeight: 1.5 }}>{sv.description}</p>}
-                        <p style={{ ...T_META, color: faint, margin: 0 }}>{sv.duration || 60} דק׳ · ₪{sv.price}</p>
+                        <p style={{ ...T_META, color: faint, margin: 0 }}>{sv.duration || 60} {tr("דק׳ · ₪")}{sv.price}</p>
                         {(() => {
                           const mine = resultsForService(results, sv);
                           const key = groupKeyForService(resultGroups, sv);
                           if (!mine.length || !key) return null;
                           return (
-                            <button onClick={() => goToResults(key)} className="bk-btn" aria-label={"תוצאות (" + mine.length + ") של " + sv.name}
+                            <button onClick={() => goToResults(key)} className="bk-btn" aria-label={tr("תוצאות ({0}) של {1}", [mine.length, sv.name])}
                               style={{ background: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                               <span style={{ display: "flex" }}>
                                 {mine.slice(0, 3).map((r, k) => (
@@ -1033,14 +1041,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                                   </span>
                                 ))}
                               </span>
-                              <span style={{ fontSize: "var(--t-sm)", color: deep, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>תוצאות ({mine.length})</span>
+                              <span style={{ fontSize: "var(--t-sm)", color: deep, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3 }}>{tr("תוצאות (")}{mine.length})</span>
                             </button>
                           );
                         })()}
                         {canBook && (
                           <button onClick={() => { setSelectedService(sv); setSelectedDate(null); setSelectedStart(null); setStep(2); }} className="bk-btn"
                             style={{ marginTop: "auto", height: 42, borderRadius: "var(--r-full)", background: "var(--pc-tint)", color: deep, fontSize: "var(--t-md)", fontWeight: 600, border: "1px solid var(--pc-soft)" }}>
-                            {brand?.ctaLabel || "קביעת תור"}
+                            {brand?.ctaLabel || tr("קביעת תור")}
                           </button>
                         )}
                       </div>
@@ -1056,7 +1064,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
               group until she asks for more; tapping one opens it full-size. */}
           {resultGroups.length > 0 && (
             <div id="bk-results" style={{ ...section, marginTop: 34 }}>
-              <SectionTitle>תוצאות</SectionTitle>
+              <SectionTitle>{tr("תוצאות")}</SectionTitle>
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 {resultGroups.map((g) => {
                   const open = !!expandedGroups[g.key];
@@ -1067,14 +1075,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                       <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: ink, margin: "0 0 10px", textAlign: "center" }}>{g.name}</p>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, maxWidth: 340, margin: "0 auto" }}>
                         {visible.map((r, i) => (
-                          <ResultThumb key={r.id} result={r} label={"תוצאה " + (i + 1) + " מתוך " + g.items.length + ": " + g.name}
+                          <ResultThumb key={r.id} result={r} label={tr("תוצאה {0} מתוך {1}: {2}", [i + 1, g.items.length, g.name])}
                             onOpen={() => setOpenResult({ key: g.key, index: i })} />
                         ))}
                       </div>
                       {hidden > 0 && (
                         <button onClick={() => setExpandedGroups((m) => ({ ...m, [g.key]: !open }))} className="bk-btn"
                           style={{ display: "block", margin: "12px auto 0", padding: "8px 20px", borderRadius: "var(--r-full)", background: "var(--pc-tint)", color: deep, border: "1px solid var(--pc-soft)", fontSize: "var(--t-md)", fontWeight: 600 }}>
-                          {open ? "הצג פחות" : "עוד " + hidden}
+                          {open ? tr("הצג פחות") : tr("עוד {0}", [hidden])}
                         </button>
                       )}
                     </div>
@@ -1086,10 +1094,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
           {/* ABOUT - her portrait on one side, her words on the other. */}
           <div style={{ ...section, marginTop: 34 }}>
-            <SectionTitle>אודותיי</SectionTitle>
+            <SectionTitle>{tr("אודותיי")}</SectionTitle>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 1fr)", gap: 16, alignItems: "center" }}>
               <div>
-                {personName && <p className="serif" style={{ ...T_BODY, fontWeight: 700, color: ink, margin: "0 0 8px" }}>נעים מאוד, אני {personName},</p>}
+                {personName && <p className="serif" style={{ ...T_BODY, fontWeight: 700, color: ink, margin: "0 0 8px" }}>{tr("נעים מאוד, אני")} {personName},</p>}
                 <p style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.85, margin: 0, whiteSpace: "pre-line" }}>{aboutText}</p>
                 {aboutSignoff && <p className="script" style={{ margin: "12px 0 0", fontSize: "var(--t-3xl)", lineHeight: 1.1, color: deep }}>{aboutSignoff}</p>}
               </div>
@@ -1117,7 +1125,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {howIWork.length > 0 && (
             <div style={{ ...section }}>
               <div style={cardBox}>
-                {eyebrow("איך זה עובד אצלי")}
+                {eyebrow(tr("איך זה עובד אצלי"))}
                 <div>
                   {howIWork.map((step, i) => (
                     <div key={i} style={{ display: "flex", gap: 14, alignItems: "baseline", padding: "10px 0", borderTop: i === 0 ? "none" : `1px solid ${hair}` }}>
@@ -1149,10 +1157,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {gallery.length > 0 && (
             <div style={{ ...section }}>
               <div style={cardBox}>
-                {eyebrow("גלריה")}
+                {eyebrow(tr("גלריה"))}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8 }}>
                   {gallery.map((g, i) => (
-                    <a key={i} href={g} target="_blank" rel="noreferrer" className="gal-item" aria-label={"תמונה " + (i + 1) + " מתוך " + gallery.length + " בגלריה"} style={{ display: "block", aspectRatio: "1 / 1", borderRadius:"var(--r-md)", overflow: "hidden", border: `1px solid ${hair}` }}>
+                    <a key={i} href={g} target="_blank" rel="noreferrer" className="gal-item" aria-label={tr("תמונה {0} מתוך {1} בגלריה", [i + 1, gallery.length])} style={{ display: "block", aspectRatio: "1 / 1", borderRadius:"var(--r-md)", overflow: "hidden", border: `1px solid ${hair}` }}>
                       <Photo src={g} sizes="(max-width: 540px) 25vw, 135px" style={{ width: "100%", height: "100%" }} />
                     </a>
                   ))}
@@ -1165,14 +1173,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {reviews.length > 0 && (
             <div style={{ ...section }}>
               <div style={cardBox}>
-                {eyebrow("ביקורות")}
+                {eyebrow(tr("ביקורות"))}
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
                   <span className="serif" style={{ fontSize:"var(--t-hero)", fontWeight: 600, color: deep, lineHeight: 1 }}>{avgRating.toFixed(1)}</span>
                   <div>
                     <div style={{ fontSize:"var(--t-lg)", color: pcText, letterSpacing: 2 }}>
                       {[1, 2, 3, 4, 5].map((n) => <span key={n}>{n <= Math.round(avgRating) ? "★" : "☆"}</span>)}
                     </div>
-                    <span style={{ ...T_META, color: faint }}>{reviews.length} ביקורות{reviewsAreReal ? " מלקוחות" : ""}</span>
+                    <span style={{ ...T_META, color: faint }}>{reviews.length} {tr("ביקורות")}{reviewsAreReal ? tr(" מלקוחות") : ""}</span>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, margin: "0 -2px" }}>
@@ -1193,14 +1201,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {/* HOURS */}
           <div style={{ ...section }}>
             <div>
-              {eyebrow("שעות פעילות")}
+              {eyebrow(tr("שעות פעילות"))}
               {/* Today's line lives in the header, where she actually looks for
                   it. The full week is reference material and was costing seven
                   rows of chrome on every visit, above the prices. */}
               {!showAllHours && (
                 <button onClick={() => setShowAllHours(true)} className="bk-btn"
                   style={{ ...T_BODY, background: "none", padding: 0, color: ink, textDecoration: "underline", textDecorationColor: hair, textUnderlineOffset: 5 }}>
-                  כל השעות
+                  {tr("כל השעות")}
                 </button>
               )}
               {(showAllHours ? [0, 1, 2, 3, 4, 5, 6] : []).map((d) => {
@@ -1208,8 +1216,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 const today = !!now && d === now.getDay();
                 return (
                   <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", margin: "0 -12px", borderRadius:"var(--r-sm)", background: today ? "var(--pc-tint)" : "transparent", borderBottom: d < 6 ? `1px solid ${hair}` : "none" }}>
-                    <span style={{ fontSize:"var(--t-md)", color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{DAYS_HE[d]}{today ? " · היום" : ""}</span>
-                    <span style={{ fontSize:"var(--t-md)", color: v ? (today ? deep : "var(--ink, #1F3A30)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : "סגור"}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: today ? deep : "var(--ink-2, #6B6275)", fontWeight: today ? 700 : 500 }}>{tr(DAYS_HE[d])}{today ? " · " + tr("היום") : ""}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: v ? (today ? deep : "var(--ink, #1F3A30)") : faint, fontWeight: today ? 700 : 500, letterSpacing: v ? "0.5px" : 0 }}>{v ? `${hh(v.open)}–${hh(v.close)}` : tr("סגור")}</span>
                   </div>
                 );
               })}
@@ -1220,9 +1228,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {addr && (
             <div style={{ ...section }}>
               <div>
-                {eyebrow("מיקום")}
+                {eyebrow(tr("מיקום"))}
                 <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 16, lineHeight: 1.7 }}>{addr}</p>
-                {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "var(--pc-tint)", color: deep, textDecoration: "none", padding: "11px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", border: "1px solid var(--pc-soft)" }}>ניווט במפות Google</a>}
+                {mapsHref && <a href={mapsHref} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "var(--pc-tint)", color: deep, textDecoration: "none", padding: "11px 20px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", border: "1px solid var(--pc-soft)" }}>{tr("ניווט במפות Google")}</a>}
               </div>
             </div>
           )}
@@ -1233,7 +1241,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
               <div>
                 {/* "Follow us" only when there is something to follow; WhatsApp alone is a way to write. */}{eyebrow(socials.length > 0 ? "עקבו אחרינו" : "כתבי לנו")}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>וואטסאפ</a>}
+                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>{tr("וואטסאפ")}</a>}
                   {socials.map((s) => (
                     <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FDFBF9)", deep, pc)}>{s.label}</a>
                   ))}
@@ -1248,7 +1256,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {recentPosts.length > 0 && (
             <div style={{ ...section }}>
               <div style={cardBox}>
-                {eyebrow("עדכונים")}
+                {eyebrow(tr("עדכונים"))}
                 <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
                   {recentPosts.map((p) => (
                     <div key={p.id} style={{ background: cream, borderRadius:"var(--r-card)", border: `1px solid ${hair}`, overflow: "hidden" }}>
@@ -1265,7 +1273,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                             {postTypeLabel(p.post_type)}
                           </span>
                           <span style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.3px" }}>
-                            {parseDb(p.created_at).toLocaleDateString("he-IL")}
+                            {parseDb(p.created_at).toLocaleDateString(localeOf(lang))}
                           </span>
                         </div>
                         {p.title && <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep, margin: "0 0 5px", lineHeight: 1.35 }}>{p.title}</p>}
@@ -1303,13 +1311,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             <a href={waHref} target="_blank" rel="noreferrer" className="bk-btn"
               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, width: "100%", maxWidth: 500, margin: "0 auto", height: 54, borderRadius: "var(--r-full)", textDecoration: "none",
                 background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-lg)" }}>
-              <Icon name="whatsapp" size={18} /> לקביעת תור בוואטסאפ
+              <Icon name="whatsapp" size={18} /> {tr("לקביעת תור בוואטסאפ")}
             </a>
           ) : (
             <button onClick={goToServices} className="bk-btn"
               style={{ display: "block", width: "100%", maxWidth: 500, margin: "0 auto", height: 54, borderRadius: "var(--r-full)",
                 background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize: "var(--t-lg)", fontWeight: 600, boxShadow: "var(--shadow-lg)" }}>
-              {brand?.ctaLabel || "קביעת תור"}
+              {brand?.ctaLabel || tr("קביעת תור")}
             </button>
           )}
         </div>
@@ -1350,33 +1358,33 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             {/* STEP 2 — CHOOSE DATE + TIME */}
             {step === 2 && (
               <div className="bk-card">
-                <button onClick={() => { setSlotTakenMsg(""); setStep(1); }} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px", minHeight: 44, padding: "0 4px" }}>→ חזרה לעמוד העסק</button>
+                <button onClick={() => { setSlotTakenMsg(""); setStep(1); }} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px", minHeight: 44, padding: "0 4px" }}>{tr("→ חזרה לעמוד העסק")}</button>
                 <div style={{ background: cream, borderRadius:"var(--r-md)", padding: "14px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 11, border: `1px solid ${hair}` }}>
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: selectedService.color || pc }} />
                   <p style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink, flex: 1 }}>{selectedService.name}</p>
                   <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep }}>₪{selectedService.price}</p>
                 </div>
 
-                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>בחרי יום</p>
+                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>{tr("בחרי יום")}</p>
                 {availabilityPending ? (
                   // The page is already up; only the diary is still being read. Say so, never show an unchecked grid.
-                  <div role="status" style={{ ...noticeBox, marginBottom: 22 }}>בודקת אילו ימים ושעות פנויים…</div>
+                  <div role="status" style={{ ...noticeBox, marginBottom: 22 }}>{tr("בודקת אילו ימים ושעות פנויים…")}</div>
                 ) : availableDays.length === 0 ? (
                   <div style={{ ...noticeBox, marginBottom: 22 }}>
-                    אין כרגע ימים פנויים לקביעת תור אונליין. אפשר ליצור קשר עם העסק ונשמח לתאם לך מועד.
+                    {tr("אין כרגע ימים פנויים לקביעת תור אונליין. אפשר ליצור קשר עם העסק ונשמח לתאם לך מועד.")}
                   </div>
                 ) : (
                 <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 22 }}>
                   {availableDays.map((d, i) => {
                     const isSel = selectedDate && formatDate(d) === formatDate(selectedDate);
                     return (
-                      <div key={i} className="bk-chip" role="button" tabIndex={0} aria-pressed={!!isSel} aria-label={"יום " + DAYS_HE[d.getDay()] + " " + d.getDate() + " " + MONTHS_HE[d.getMonth()]}
+                      <div key={i} className="bk-chip" role="button" tabIndex={0} aria-pressed={!!isSel} aria-label={tr("יום {0} {1} {2}", [tr(DAYS_HE[d.getDay()]), d.getDate(), tr(MONTHS_HE[d.getMonth()])])}
                         onClick={() => { setSelectedDate(d); setSelectedStart(null); setSlotTakenMsg(""); }}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedDate(d); setSelectedStart(null); } }}
                         style={{ flexShrink: 0, width: 62, padding: "13px 0", borderRadius:"var(--r-md)", textAlign: "center", background: isSel ? pc : "var(--brand-surface, #FDFBF9)", color: isSel ? "var(--pc-contrast, #FFFFFF)" : ink, boxShadow: isSel ? "var(--shadow-accent)" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
-                        <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{DAYS_HE[d.getDay()]}</p>
+                        <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, opacity: 0.75 }}>{tr(DAYS_HE[d.getDay()])}</p>
                         <p className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, lineHeight: 1.2 }}>{d.getDate()}</p>
-                        <p style={{ fontSize:"var(--t-sm)", opacity: 0.65 }}>{MONTHS_HE[d.getMonth()].slice(0, 3)}</p>
+                        <p style={{ fontSize:"var(--t-sm)", opacity: 0.65 }}>{lang === "he" ? MONTHS_HE[d.getMonth()].slice(0, 3) : new Intl.DateTimeFormat(localeOf(lang), { month: "short" }).format(d)}</p>
                       </div>
                     );
                   })}
@@ -1394,17 +1402,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         the thing this must never do again. */}
                     {availabilityError && (
                       <div style={noticeBox}>
-                        לא הצלחנו לבדוק כרגע אילו שעות כבר תפוסות. אפשר להמשיך, אבל ייתכן
-                        שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.
+                        {tr("לא הצלחנו לבדוק כרגע אילו שעות כבר תפוסות. אפשר להמשיך, אבל ייתכן שהשעה שתבחרי כבר נתפסה. אם כך יקרה, נודיע לך מיד ונציע שעה אחרת.")}
                       </div>
                     )}
                     {slotTakenMsg && <div role="alert" data-testid="slot-taken" style={{ ...noticeBox, fontWeight: 600 }}>{slotTakenMsg}</div>}
-                    <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>בחרי שעה</p>
+                    <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>{tr("בחרי שעה")}</p>
                     {visibleSlots.length === 0 && (
-                      <div style={noticeBox}>אין שעות פנויות ביום זה. אפשר לבחור יום אחר למעלה.</div>
+                      <div style={noticeBox}>{tr("אין שעות פנויות ביום זה. אפשר לבחור יום אחר למעלה.")}</div>
                     )}
                     {everySlotTaken && (
-                      <div style={noticeBox}>כל השעות ביום זה כבר תפוסות. אפשר לבחור יום אחר למעלה.</div>
+                      <div style={noticeBox}>{tr("כל השעות ביום זה כבר תפוסות. אפשר לבחור יום אחר למעלה.")}</div>
                     )}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
                       {visibleSlots.map((h) => {
@@ -1422,7 +1429,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     {selectedStart !== null && (
                       <button onClick={() => setStep(3)} className="bk-btn"
                         style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, marginTop: 10, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
-                        המשיכי ←
+                        {tr("המשיכי ←")}
                       </button>
                     )}
                   </>
@@ -1439,37 +1446,37 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             {/* STEP 3 — DETAILS */}
             {step === 3 && (
               <div className="bk-card">
-                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px", minHeight: 44, padding: "0 4px" }}>→ חזרה</button>
+                <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: pcText, fontSize:"var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 14, letterSpacing: "0.3px", minHeight: 44, padding: "0 4px" }}>{tr("→ חזרה")}</button>
 
                 <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "18px 20px", marginBottom: 20, border: `1px solid ${hair}` }}>
-                  <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 12 }}>סיכום התור</p>
+                  <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 12 }}>{tr("סיכום התור")}</p>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize:"var(--t-md)", color: muted }}>טיפול</span>
+                    <span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("טיפול")}</span>
                     <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize:"var(--t-md)", color: muted }}>תאריך</span>
-                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1}</span>
+                    <span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("תאריך")}</span>
+                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{tr(DAYS_HE[selectedDate.getDay()])} {selectedDate.getDate()}/{selectedDate.getMonth() + 1}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize:"var(--t-md)", color: muted }}>שעה</span>
+                    <span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("שעה")}</span>
                     <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{fmtTime(selectedStart)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", borderTop: `1px solid ${hair}`, paddingTop: 10, marginTop: 4 }}>
-                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>מחיר</span>
+                    <span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{tr("מחיר")}</span>
                     <span className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep }}>₪{selectedService.price}</span>
                   </div>
                 </div>
 
-                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 14 }}>הפרטים שלך</p>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם מלא" aria-label="שם מלא" autoComplete="name" aria-required="true"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 10 }} />
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="טלפון נייד" aria-label="טלפון נייד" aria-required="true"
-                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--brand-surface, #FDFBF9)", marginBottom: 14 }} />
+                <p style={{ fontSize:"var(--t-sm)", letterSpacing: "2.5px", color: pcText, fontWeight: 700, marginBottom: 14 }}>{tr("הפרטים שלך")}</p>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr("שם מלא")} aria-label={tr("שם מלא")} autoComplete="name" aria-required="true"
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", background: "var(--brand-surface, #FDFBF9)", marginBottom: 10 }} />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder={tr("טלפון נייד")} aria-label={tr("טלפון נייד")} aria-required="true"
+                  style={{ width: "100%", border: `1px solid ${hair}`, borderRadius:"var(--r-md)", padding: "14px 16px", fontSize:"var(--t-lg)", fontFamily: "inherit", outline: "none", background: "var(--brand-surface, #FDFBF9)", marginBottom: 14 }} />
 
                 {cardPay && Number(selectedService?.price) > 0 && !needsPolicy && (
                   <p data-testid="booking-card-pay" style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6, padding: "10px 12px", borderRadius: "var(--r-md)", border: `1px solid ${hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12 }}>
-                    💳 אפשר לשלם אצלנו בכרטיס אשראי. אחרי קביעת התור יופיע כאן כפתור לתשלום בדף מאובטח.
+                    {tr("💳 אפשר לשלם אצלנו בכרטיס אשראי. אחרי קביעת התור יופיע כאן כפתור לתשלום בדף מאובטח.")}
                   </p>
                 )}
 
@@ -1478,50 +1485,50 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     button waits for. Shown here rather than after, because
                     after is too late to be asked. */}
                 <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius:"var(--r-md)", border: `1px solid ${agreed ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
-                  <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת הפרטים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                  <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label={tr("אישור שמירת הפרטים")} style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                   <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>
-                    אני מאשרת שהשם והטלפון שלי יישמרו אצל {brand?.businessName || settings?.business_name || "העסק"} לצורך ניהול התור, ושאקבל עליו הודעות בוואטסאפ.{" "}
-                    <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
+                    {tr("אני מאשרת שהשם והטלפון שלי יישמרו אצל")} {brand?.businessName || settings?.business_name || tr("העסק")} {tr("לצורך ניהול התור, ושאקבל עליו הודעות בוואטסאפ.")}{" "}
+                    <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>{tr("מדיניות הפרטיות")}</a>
                   </span>
                 </label>
                 {termsRequired && (
                   <label data-testid="booking-terms" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${termsOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
-                    <input type="checkbox" checked={termsOk} onChange={(e) => { setTermsOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור תנאי ההזמנה" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                    <input type="checkbox" checked={termsOk} onChange={(e) => { setTermsOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label={tr("אישור תנאי ההזמנה")} style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                     <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
-                      {bookingRules.depositAmount > 0 && <>מקדמה של ₪{bookingRules.depositAmount} לתיאום התור{bookingRules.depositNote ? ` (${bookingRules.depositNote})` : ""}. </>}
-                      {bookingRules.cancelWindowHours > 0 && <>אפשר לבטל עד {bookingRules.cancelWindowHours} שעות לפני התור. </>}
-                      קראתי ואני מאשרת.
+                      {bookingRules.depositAmount > 0 && <>{tr("מקדמה של ₪")}{bookingRules.depositAmount} {tr("לתיאום התור")}{bookingRules.depositNote ? ` (${bookingRules.depositNote})` : ""}. </>}
+                      {bookingRules.cancelWindowHours > 0 && <>{tr("אפשר לבטל עד")} {bookingRules.cancelWindowHours} {tr("שעות לפני התור.")} </>}
+                      {tr("קראתי ואני מאשרת.")}
                     </span>
                   </label>
                 )}
                 {needsPolicy && (
                   <label data-testid="grow-policy" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${policyOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
-                    <input type="checkbox" checked={policyOk} onChange={(e) => { setPolicyOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור מדיניות הביטולים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                    <input type="checkbox" checked={policyOk} onChange={(e) => { setPolicyOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label={tr("אישור מדיניות הביטולים")} style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                     <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
-                      <b>מדיניות ביטולים</b><br />
+                      <b>{tr("מדיניות ביטולים")}</b><br />
                       <span data-testid="grow-policy-text" style={{ whiteSpace: "pre-line" }}>{growPolicy.text}</span><br />
-                      {PAY_TERMS_BEFORE_HE}מדיניות הביטולים ול<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}
+                      {PAY_TERMS_BEFORE_HE}{tr("מדיניות הביטולים ול")}<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}
                     </span>
                   </label>
                 )}
                 {needsCardTick && (
                   <label data-testid="grow-card-consent" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 12px", borderRadius: "var(--r-md)", border: `1px solid ${cardOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
-                    <input type="checkbox" checked={cardOk} onChange={(e) => { setCardOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label="אישור שמירת פרטי כרטיס האשראי" required style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                    <input type="checkbox" checked={cardOk} onChange={(e) => { setCardOk(e.target.checked); if (e.target.checked) setErrorMsg(""); }} aria-label={tr("אישור שמירת פרטי כרטיס האשראי")} required style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
                     <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>{CARD_CONSENT_TEXT_HE}</span>
                   </label>
                 )}
                 <label data-testid="marketing-consent-checkbox" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius:"var(--r-md)", border: `1px solid ${marketingOk ? pc : hair}`, background: "var(--brand-surface, #FDFBF9)", marginBottom: 12, cursor: "pointer" }}>
-                  <input type="checkbox" checked={marketingOk} onChange={(e) => setMarketingOk(e.target.checked)} aria-label="אשמח לקבל עדכונים ומבצעים" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
-                  <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>אשמח לקבל עדכונים ומבצעים</span>
+                  <input type="checkbox" checked={marketingOk} onChange={(e) => setMarketingOk(e.target.checked)} aria-label={tr("אשמח לקבל עדכונים ומבצעים")} style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: pc }} />
+                  <span style={{ fontSize:"var(--t-md)", color: ink, lineHeight: 1.6 }}>{tr("אשמח לקבל עדכונים ומבצעים")}</span>
                 </label>
 
                 {errorMsg && <p role="alert" style={{ color: "var(--danger, #E05B6F)", fontSize:"var(--t-md)", fontWeight: 600, marginBottom: 12, textAlign: "center" }}>{errorMsg}</p>}
 
                 <button onClick={handleConfirm} disabled={submitting} className="bk-btn"
                   style={{ width: "100%", padding: "16px 0", borderRadius:"var(--r-md)", background: pc, color: "var(--pc-contrast, #FFFFFF)", fontSize:"var(--t-lg)", fontWeight: 600, letterSpacing: "0.8px", boxShadow:"var(--shadow-accent)" }}>
-                  {submitting ?<Spinner inline label="קובעת את התור"/>: (brand?.ctaLabel || "קביעת תור")}
+                  {submitting ?<Spinner inline label={tr("קובעת את התור")}/>: (brand?.ctaLabel || tr("קביעת תור"))}
                 </button>
-                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>{/* No WhatsApp promise: while the central number is off the confirmation waits for her tap. */}התור נשמר מיד, וכל הפרטים יופיעו כאן. יש שאלה? אפשר לפנות אלינו בוואטסאפ</p>
+                <p style={{ ...T_META, color: faint, textAlign: "center", marginTop: 10 }}>{/* No WhatsApp promise: while the central number is off the confirmation waits for her tap. */}{tr("התור נשמר מיד, וכל הפרטים יופיעו כאן. יש שאלה? אפשר לפנות אלינו בוואטסאפ")}</p>
               </div>
             )}
 
@@ -1529,51 +1536,51 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             {step === 4 && (
               <div className="bk-card" style={{ textAlign: "center", paddingTop: 24 }}>
                 <div style={{ fontSize:"var(--t-hero)", marginBottom: 14, color: pcText }}>✦</div>
-                <h2 className="serif" style={{ fontSize:"var(--t-3xl)", fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>{policyStep && policyStep.kind === "deposit" && policyStep.url ? "התור שמור עבורך" : "התור נקבע!"}</h2>
+                <h2 className="serif" style={{ fontSize:"var(--t-3xl)", fontWeight: 600, color: deep, marginBottom: 10, letterSpacing: "0.3px" }}>{policyStep && policyStep.kind === "deposit" && policyStep.url ? tr("התור שמור עבורך") : tr("התור נקבע!")}</h2>
                 <p style={{ fontSize:"var(--t-md)", color: "var(--ink, #1F3A30)", lineHeight: 1.7, marginBottom: 22 }}>
-                  נתראה ב{DAYS_HE[selectedDate.getDay()]} {selectedDate.getDate()}/{selectedDate.getMonth() + 1} בשעה {fmtTime(selectedStart)}
+                  {tr("נתראה ב{0} {1} בשעה {2}", [tr(DAYS_HE[selectedDate.getDay()]), `${selectedDate.getDate()}/${selectedDate.getMonth() + 1}`, fmtTime(selectedStart)])}
                 </p>
-                <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 22 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טיפול</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>שם</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>טלפון</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
+                <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "start", marginBottom: 22 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("טיפול")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("שם")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("טלפון")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
                 {/* The form she asked for before this treatment, and a first-timer's patch test (lib/intakeGate.ts). Only for a gated service. */}
                 {intakeInfo && (intakeInfo.formFromBusiness || intakeInfo.patchTest) && (
-                  <div data-testid="intake-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
+                  <div data-testid="intake-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "start", marginBottom: 18, lineHeight: 1.7 }}>
                     {intakeInfo.formFromBusiness && <p data-testid="intake-from-business" style={{ fontSize: "var(--t-md)", color: ink }}>{intakeFromBusinessHe(bizName)}</p>}
                     {intakeInfo.patchTest && <p data-testid="intake-patch-test" style={{ fontSize: "var(--t-md)", color: ink, marginTop: intakeInfo.formFromBusiness ? 12 : 0 }}>{patchTestConfirmHe(bizName)}</p>}
                   </div>
                 )}
                 {/* The manual deposit and how to pay it. It sat in step 1's social links, which are gone by step 4, so the client never saw it. */}
                 {depositInfo && depositInfo.amount > 0 && (
-                  <div data-testid="deposit-info" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
-                    <b>מקדמה: ₪{depositInfo.amount}</b>
+                  <div data-testid="deposit-info" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "start", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
+                    <b>{tr("מקדמה: ₪")}{depositInfo.amount}</b>
                     {depositInfo.note ? <><br />{depositInfo.note}</> : null}
                   </div>
                 )}
                 {policyStep && policyStep.url && (
-                  <div data-testid="grow-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
+                  <div data-testid="grow-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "start", marginBottom: 18, lineHeight: 1.7 }}>
                     <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>
-                      {policyStep.kind === "deposit" ? "התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה." : "התור נקבע. נשאר רק לשמור כרטיס אשראי בדף מאובטח, לפי מדיניות הביטולים. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה."}
+                      {policyStep.kind === "deposit" ? tr("התור שמור עבורך ל-30 דקות. כדי לאשר אותו, משלמים את המקדמה בדף תשלום מאובטח. אם המקדמה לא תשולם בזמן, התור ישוחרר. פרטי הכרטיס נמסרים רק לחברת הסליקה.") : tr("התור נקבע. נשאר רק לשמור כרטיס אשראי בדף מאובטח, לפי מדיניות הביטולים. לא יחויב כסף עכשיו, ופרטי הכרטיס נמסרים רק לחברת הסליקה.")}
                     </p>
-                    <button type="button" className="bk-btn" data-testid="deposit-pay" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את הדף המאובטח…" : policyStep.kind === "deposit" ? "המשך לתשלום המקדמה" : "המשך לשמירת הכרטיס"}</button>
+                    <button type="button" className="bk-btn" data-testid="deposit-pay" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? tr("פותחת את הדף המאובטח…") : policyStep.kind === "deposit" ? tr("המשך לתשלום המקדמה") : tr("המשך לשמירת הכרטיס")}</button>
                     {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                   </div>
                 )}
                 {cardPay && bookedId && !policyStep && Number(selectedService?.price) > 0 && (
-                  <div data-testid="booking-pay-now" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7 }}>
-                    <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>אפשר לשלם על הטיפול כבר עכשיו בכרטיס אשראי, בדף תשלום מאובטח. פרטי הכרטיס נמסרים רק לחברת הסליקה. אחרי התשלום יופיע כאן אישור.</p>
-                    <button type="button" className="bk-btn" disabled={payBusy} onClick={payNow} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את דף התשלום…" : `💳 לתשלום ₪${Number(selectedService.price)} בכרטיס אשראי`}</button>
+                  <div data-testid="booking-pay-now" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "start", marginBottom: 18, lineHeight: 1.7 }}>
+                    <p style={{ fontSize: "var(--t-md)", color: "var(--ink, #1F3A30)", marginBottom: 10 }}>{tr("אפשר לשלם על הטיפול כבר עכשיו בכרטיס אשראי, בדף תשלום מאובטח. פרטי הכרטיס נמסרים רק לחברת הסליקה. אחרי התשלום יופיע כאן אישור.")}</p>
+                    <button type="button" className="bk-btn" disabled={payBusy} onClick={payNow} style={{ display: "block", width: "100%", textAlign: "center", padding: "13px 0", minHeight: 48, background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? tr("פותחת את דף התשלום…") : tr("💳 לתשלום ₪{0} בכרטיס אשראי", [Number(selectedService.price)])}</button>
                     {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                   </div>
                 )}
                 {policyStep && !policyStep.url && (
-                  <div data-testid="grow-step-error" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "right", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
-                    התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח. {brand?.businessName || "העסק"} תיצור איתך קשר להשלמת {policyStep.kind === "deposit" ? "המקדמה" : "שמירת הכרטיס"}.
+                  <div data-testid="grow-step-error" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "start", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
+                    {tr("התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח.")} {brand?.businessName || tr("העסק")} {tr("תיצור איתך קשר להשלמת")} {policyStep.kind === "deposit" ? tr("המקדמה") : tr("שמירת הכרטיס")}.
                     {policyStep.kind === "saved_card" && bookedId && (
                       <>
-                        <button type="button" className="bk-btn" data-testid="card-retry" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", marginTop: 10, padding: "12px 0", minHeight: 48, background: "var(--brand-surface, #FDFBF9)", color: ink, border: `1px solid ${pc}`, borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? "פותחת את הדף המאובטח…" : "לנסות שוב לשמור את הכרטיס"}</button>
+                        <button type="button" className="bk-btn" data-testid="card-retry" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", marginTop: 10, padding: "12px 0", minHeight: 48, background: "var(--brand-surface, #FDFBF9)", color: ink, border: `1px solid ${pc}`, borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? tr("פותחת את הדף המאובטח…") : tr("לנסות שוב לשמור את הכרטיס")}</button>
                         {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                       </>
                     )}
@@ -1585,9 +1592,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     date: formatDate(selectedDate),
                     startMinute: selectedStart,
                     duration: selectedService.duration || 60,
-                    title: `${selectedService.name} · ${brand?.businessName || "תור"}`,
+                    title: `${selectedService.name} · ${brand?.businessName || tr("תור")}`,
                     location: addr || undefined,
-                    details: wa ? `לשינוי או שאלה: https://wa.me/${wa}` : undefined,
+                    details: wa ? tr("לשינוי או שאלה: https://wa.me/{0}", [wa]) : undefined,
                   };
                   // A real link, not a blob download: the in-app browsers of Instagram and Facebook drop a blob download without a word,
                   // and iPhone Safari opens a link that answers text/calendar straight into "Add to Calendar" (app/api/calendar-invite).
@@ -1598,10 +1605,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   const chip = { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: ink, border: "1px solid rgba(31,58,48,0.22)", textDecoration: "none", padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
                   return (
                     <div data-testid="add-to-calendar" style={{ marginBottom: 18 }}>
-                      <p style={{ fontSize: "var(--t-sm)", color: muted, marginBottom: 8 }}>שמרי את התור ביומן שלך, כדי שהטלפון יזכיר לך</p>
+                      <p style={{ fontSize: "var(--t-sm)", color: muted, marginBottom: 8 }}>{tr("שמרי את התור ביומן שלך, כדי שהטלפון יזכיר לך")}</p>
                       <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                        <a href={icsHref} data-testid="add-to-calendar-ics" style={chip}>לאייפון / ליומן</a>
-                        <a href={googleCalendarUrl(invite)} target="_blank" rel="noreferrer" style={chip}>ליומן Google</a>
+                        <a href={icsHref} data-testid="add-to-calendar-ics" style={chip}>{tr("לאייפון / ליומן")}</a>
+                        <a href={googleCalendarUrl(invite)} target="_blank" rel="noreferrer" style={chip}>{tr("ליומן Google")}</a>
                       </div>
                     </div>
                   );
@@ -1611,11 +1618,11 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <div data-testid="booking-address" style={{ marginBottom: 18 }}>
                     <p style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6, marginBottom: 8 }}>📍 {addr}</p>
                     <a href={`https://waze.com/ul?q=${encodeURIComponent(addr)}&navigate=yes`} target="_blank" rel="noreferrer" data-testid="booking-waze"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: ink, border: "1px solid rgba(31,58,48,0.22)", textDecoration: "none", padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, fontFamily: "inherit" }}>ניווט ב-Waze</a>
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: ink, border: "1px solid rgba(31,58,48,0.22)", textDecoration: "none", padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-full)", fontSize: "var(--t-sm)", fontWeight: 600, fontFamily: "inherit" }}>{tr("ניווט ב-Waze")}</a>
                   </div>
                 )}
-                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> שלחי לנו הודעה</a>}
-                <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>נשמח לראותך</p>
+                {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#0B7A3E", color: "var(--brand-surface, #FDFBF9)", textDecoration: "none", padding: "12px 22px", borderRadius:"var(--r-full)", fontSize:"var(--t-md)", fontWeight: 600, letterSpacing: "0.4px", marginBottom: 16 }}><Icon name="whatsapp" size={15}/> {tr("שלחי לנו הודעה")}</a>}
+                <p style={{ fontSize:"var(--t-sm)", color: faint, letterSpacing: "0.5px" }}>{tr("נשמח לראותך")}</p>
               </div>
             )}
 

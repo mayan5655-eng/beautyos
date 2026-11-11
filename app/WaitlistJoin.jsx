@@ -5,10 +5,12 @@
 import { useState } from "react";
 import { phoneErrorHe } from "@/lib/phone";
 import { WINDOWS } from "@/lib/waitlistMatch.js";
+import { useTr } from "@/lib/i18n/useTr";
 
 const DAYS = [["א׳", 0], ["ב׳", 1], ["ג׳", 2], ["ד׳", 3], ["ה׳", 4], ["ו׳", 5], ["ש׳", 6]];
 
 export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcText, ink, muted, prominent = false }) {
+  const tr = useTr();
   const [open, setOpen] = useState(prominent);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -24,7 +26,7 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
 
   const submit = async () => {
     setErr("");
-    if (!name.trim()) { setErr("איך קוראים לך? חסר שם"); return; }
+    if (!name.trim()) { setErr(tr("איך קוראים לך? חסר שם")); return; }
     const pe = phoneErrorHe(phone);
     if (pe) { setErr(pe); return; }
     if (busy) return;
@@ -36,10 +38,10 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
         body: JSON.stringify({ tenantId, name: name.trim(), phone: phone.trim(), service, preferredDate: preferredDate || null, days, window: windowKey }),
       });
       const r = await res.json().catch(() => ({}));
-      if (!r.success) { setErr(r.error || "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע"); return; }
+      if (!r.success) { setErr(r.error || tr("משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע")); return; }
       setDone(r.already ? "already" : r.windowSaved === false ? "added-nowindow" : "added");
     } catch {
-      setErr("משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע");
+      setErr(tr("משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע"));
     } finally {
       setBusy(false);
     }
@@ -48,7 +50,7 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
   if (done) {
     return (
       <div data-testid="waitlist-done" role="status" style={{ marginTop: 18, padding: "14px 16px", borderRadius: "var(--r-md)", border: `1px solid ${pc}`, color: ink, fontSize: "var(--t-md)", lineHeight: 1.7, textAlign: "right" }}>
-        {done === "already" ? "את כבר ברשימת ההמתנה לטיפול הזה." : "נרשמת לרשימת ההמתנה."} {done === "added-nowindow" ? `את הימים והשעות לא הצלחנו לשמור, אז נציע לך כל תור שמתפנה ל${service}. ` : ""}כשיתפנה תור ל{service}{done === "added" && (days.length || windowKey !== "any") ? " שמתאים לך" : ""}, תקבלי מאיתנו הודעה עם קישור לתפוס אותו.
+        {done === "already" ? tr("את כבר ברשימת ההמתנה לטיפול הזה.") : tr("נרשמת לרשימת ההמתנה.")} {done === "added-nowindow" ? tr("את הימים והשעות לא הצלחנו לשמור, אז נציע לך כל תור שמתפנה ל{0}. ", [service]) : ""}{tr("כשיתפנה תור ל")}{service}{done === "added" && (days.length || windowKey !== "any") ? tr(" שמתאים לך") : ""}{tr(", תקבלי מאיתנו הודעה עם קישור לתפוס אותו.")}
       </div>
     );
   }
@@ -57,25 +59,25 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
     return (
       <button type="button" data-testid="waitlist-open" onClick={() => setOpen(true)}
         style={{ display: "block", width: "100%", marginTop: 18, background: "none", border: "none", color: pcText, fontSize: "var(--t-md)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", textUnderlineOffset: 4, minHeight: 44 }}>
-        לא מצאת זמן שמתאים? הצטרפי לרשימת ההמתנה
+        {tr("לא מצאת זמן שמתאים? הצטרפי לרשימת ההמתנה")}
       </button>
     );
   }
 
   return (
     <div data-testid="waitlist-form" style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid rgba(31,58,48,0.12)", textAlign: "right" }}>
-      <p style={{ fontSize: "var(--t-md)", fontWeight: 700, color: ink, marginBottom: 4 }}>רשימת המתנה ל{service}</p>
-      <p style={{ fontSize: "var(--t-sm)", color: muted, lineHeight: 1.6, marginBottom: 12 }}>כשיתפנה תור, תקבלי מאיתנו הודעה בוואטסאפ עם קישור לתפוס אותו. הראשונה שלוחצת מקבלת.</p>
-      <input aria-label="שם" placeholder="שם" value={name} onChange={(e) => setName(e.target.value)} style={field} autoComplete="name" />
-      <input aria-label="טלפון נייד" placeholder="טלפון נייד" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ ...field, direction: "ltr", textAlign: "right" }} inputMode="tel" autoComplete="tel" />
-      <p id="wl-days-label" style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: ink, margin: "2px 0 6px" }}>באילו ימים מתאים לך? (אפשר לדלג)</p>
+      <p style={{ fontSize: "var(--t-md)", fontWeight: 700, color: ink, marginBottom: 4 }}>{tr("רשימת המתנה ל")}{service}</p>
+      <p style={{ fontSize: "var(--t-sm)", color: muted, lineHeight: 1.6, marginBottom: 12 }}>{tr("כשיתפנה תור, תקבלי מאיתנו הודעה בוואטסאפ עם קישור לתפוס אותו. הראשונה שלוחצת מקבלת.")}</p>
+      <input aria-label={tr("שם")} placeholder={tr("שם")} value={name} onChange={(e) => setName(e.target.value)} style={field} autoComplete="name" />
+      <input aria-label={tr("טלפון נייד")} placeholder={tr("טלפון נייד")} value={phone} onChange={(e) => setPhone(e.target.value)} style={{ ...field, direction: "ltr", textAlign: "right" }} inputMode="tel" autoComplete="tel" />
+      <p id="wl-days-label" style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: ink, margin: "2px 0 6px" }}>{tr("באילו ימים מתאים לך? (אפשר לדלג)")}</p>
       <div role="group" aria-labelledby="wl-days-label" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
         {DAYS.map(([label, n]) => {
           const on = days.includes(n);
           return <button key={n} type="button" data-testid={`wl-day-${n}`} aria-pressed={on} onClick={() => setDays(on ? days.filter((d) => d !== n) : [...days, n])} style={chip(on, pc, ink)}>{on ? "✓ " : ""}{label}</button>;
         })}
       </div>
-      <p id="wl-window-label" style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: ink, margin: "2px 0 6px" }}>ובאילו שעות?</p>
+      <p id="wl-window-label" style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: ink, margin: "2px 0 6px" }}>{tr("ובאילו שעות?")}</p>
       <div role="group" aria-labelledby="wl-window-label" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
         {WINDOWS.map((w) => {
           const on = windowKey === w.key;
@@ -85,12 +87,12 @@ export default function WaitlistJoin({ tenantId, service, preferredDate, pc, pcT
       {err && <p role="alert" style={{ fontSize: "var(--t-sm)", color: "var(--danger, #A23B2A)", marginBottom: 10 }}>{err}</p>}
       <button type="button" onClick={submit} disabled={busy} className="bk-btn"
         style={{ width: "100%", padding: "14px 0", minHeight: 48, borderRadius: "var(--r-md)", background: pc, color: "var(--pc-contrast, #1F3A30)", border: "none", fontSize: "var(--t-md)", fontWeight: 700, cursor: busy ? "default" : "pointer", fontFamily: "inherit", opacity: busy ? 0.7 : 1 }}>
-        {busy ? "שולחת…" : "הוסיפו אותי לרשימה"}
+        {busy ? tr("שולחת…") : tr("הוסיפו אותי לרשימה")}
       </button>
       {/* The duty to inform (Privacy Protection Law, Amendment 13): who keeps the name and phone, and why, before she sends them. */}
       <p style={{ fontSize: "var(--t-sm)", color: muted, lineHeight: 1.6, marginTop: 8, textAlign: "center" }}>
-        השם והטלפון נשמרים אצל העסק רק כדי להציע לך תור שמתפנה.{" "}
-        <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>מדיניות הפרטיות</a>
+        {tr("השם והטלפון נשמרים אצל העסק רק כדי להציע לך תור שמתפנה.")}{" "}
+        <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>{tr("מדיניות הפרטיות")}</a>
       </p>
     </div>
   );

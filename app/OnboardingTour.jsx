@@ -18,6 +18,7 @@
 // the tour ends on.
 
 import { useEffect, useRef, useState } from "react";
+import { tr, trv } from "@/lib/i18n/tr";
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -172,7 +173,7 @@ export default function OnboardingTour({
       {cardStyle && (
         <div
           role="dialog"
-          aria-label={step.title}
+          aria-label={trv(step.title)}
           className="tour-card"
           style={{
             ...cardStyle,
@@ -185,9 +186,9 @@ export default function OnboardingTour({
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <img aria-hidden alt="" src={step.icon} style={{ width: 36, height: 36, objectFit: "contain", flexShrink: 0 }} />
-            <p className="serif" style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)", margin: 0 }}>{step.title}</p>
+            <p className="serif" style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)", margin: 0 }}>{trv(step.title)}</p>
           </div>
-          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>{step.text}</p>
+          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 14 }}>{trv(step.text)}</p>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <button
@@ -195,7 +196,7 @@ export default function OnboardingTour({
               onClick={onSkip}
               style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-sm)", cursor: "pointer", fontFamily: "inherit", padding: "6px 10px", minHeight: 44, minWidth: 44 }}
             >
-              דלגי
+              {tr("דלגי")}
             </button>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: "var(--t-xs)", color: "var(--ink-3)" }}>{stepIndex + 1}/{steps.length}</span>
@@ -208,7 +209,7 @@ export default function OnboardingTour({
                   fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
                 }}
               >
-                {isLast ? step.cta : "הבא ←"}
+                {isLast ? step.cta : tr("הבא ←")}
               </button>
             </div>
           </div>

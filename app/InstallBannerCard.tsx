@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { tr, trv, uiDir } from "@/lib/i18n/tr";
 
 /**
  * The shared chrome for the two install banners — the fixed bottom card, its
@@ -38,9 +39,9 @@ export default function InstallBannerCard({
 }) {
   return (
     <div
-      dir="rtl"
+      dir={uiDir()}
       role="dialog"
-      aria-label={ariaLabel}
+      aria-label={trv(ariaLabel)}
       data-install-banner
       style={{
         position: "fixed",
@@ -88,7 +89,7 @@ export default function InstallBannerCard({
             color: "var(--plum-700, var(--pc-deep))",
           }}
         >
-          {title}
+          {trv(title)}
         </div>
         <div
           style={{
@@ -106,7 +107,7 @@ export default function InstallBannerCard({
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="סגירה"
+        aria-label={tr("סגירה")}
         style={{
           flex: "0 0 auto",
           appearance: "none",

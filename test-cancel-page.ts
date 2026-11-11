@@ -6,7 +6,7 @@ const read = (p: string) => fs.readFileSync(new URL(p, import.meta.url), 'utf8')
 const route = read('./app/api/confirm/route.ts');
 const peek = route.slice(route.indexOf('if (body.peek === true)'), route.indexOf('// Idempotent'));
 assert.ok(route.indexOf('if (!verifyConfirm(') < route.indexOf('if (body.peek === true)'), 'peek only after the signature check');
-assert.ok(peek.includes("appointment: { service: appt.service || '', date: appt.date ? hebrewDate(appt.date) : '', time: fmtApptTime(appt) }"), 'treatment, day and time only');
+assert.ok(peek.includes("appointment: { service: appt.service || '', date: appt.date ? dateLabel(appt.date, brand.language || DEFAULT_LANG) : '', time: fmtApptTime(appt) }"), 'treatment, day and time only');
 for (const leak of ['client_id', 'tenant_id', 'appt.name', 'price', 'phone']) assert.ok(!peek.includes(leak), `peek does not return ${leak}`);
 assert.ok(!/\.update\(/.test(peek), 'peek changes nothing');
 const page = read('./app/confirm/page.jsx');

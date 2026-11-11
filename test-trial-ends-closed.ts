@@ -29,9 +29,9 @@ assert.ok(!/appointments|clients=/.test(screen), 'the screen takes no calendar o
 
 // ── her public page: closed to NEW bookings, server-side, before the form ──
 const slug = read('./app/[slug]/page.tsx');
-assert.ok(/publicBookingClosed\(tenant\.id\)/.test(slug) && /if \(closed\) \{\s*return <BookingClosed/.test(slug), '/[slug] shows the closed page');
+assert.ok(/publicBookingClosed\(tenant\.id\)/.test(slug) && /if \(closed\) \{[^}]*?return <><DocumentLang[^>]*\/><BookingClosed/.test(slug), '/[slug] shows the closed page');
 const book = read('./app/book/page.jsx');
-assert.ok(/if \(await publicBookingClosed\(t\)\) return <BookingClosed/.test(book), '/book?t= shows the same closed page');
+assert.ok(/if \(await publicBookingClosed\(t\)\) return (<>.*?)?<BookingClosed/.test(book), '/book?t= shows the same closed page');
 assert.ok(/tenantIsBlocked\(supabase, activeTenantId\)/.test(read('./app/api/book-appointment/route.js')), 'the booking API still refuses a closed business');
 assert.ok(/tenantIsBlocked\(admin, tenantId\)/.test(read('./app/api/waitlist/join/route.js')), 'and so does the waitlist');
 assert.ok(/tenantIsBlocked\(supabase, tenantId\)/.test(read('./app/api/skin-scan/route.js')), 'her public skin scanner closes too, before any AI spend');

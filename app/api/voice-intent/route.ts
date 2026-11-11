@@ -19,6 +19,7 @@ import { isDemoTenantId } from '@/lib/demoTenants'
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit'
 import { DemoBlockedError } from '@/lib/ai/callCaps'
 import { userMessageForAiError } from '@/lib/ai/aiErrorResponse'
+import { normalizeLang, type Lang } from '@/lib/i18n/core'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -55,9 +56,18 @@ export async function POST(request: NextRequest) {
     // today = "YYYY-MM-DD" from the client, so the model can resolve "מחר" etc.
     const today: string = (body?.today || '').toString().trim()
     if (!transcript) return NextResponse.json({ error: 'לא נקלט טקסט' }, { status: 400 })
+    // Her system language (lib/i18n): the microphone listened in it, so the command arrives in it.
+    const lang: Lang = normalizeLang(body?.lang)
+    const languageNote = lang === 'he' ? '' : `
+
+שפה: הפקודה נאמרה ב${lang === 'ar' ? 'ערבית' : 'אנגלית'} (המערכת של העסק מוגדרת לשפה הזו), ולפעמים מעורבת במילים בעברית.
+- הביני אותה באותה סכמה ובאותם כללים. ביטויי זמן כמו ${lang === 'ar' ? '"بكرا"/"غدًا" (מחר), "اليوم" (היום), "الساعة عشرة" (10:00)' : '"tomorrow" (מחר), "today" (היום), "at ten thirty" (10:30)'} נפתרים כרגיל.
+- כסף: ${lang === 'ar' ? '"شيكل"' : '"shekels"/"NIS"'} = שקלים. מזומן/אשראי/ביט: ${lang === 'ar' ? '"كاش"/"نقدًا"→cash, "بطاقة"/"فيزا"→card, "بيت"→bit' : '"cash"→cash, "card"/"credit"→card, "Bit"→bit'}.
+- client_name ו-service: כפי שנאמרו, באותיות שבהן נאמרו.
+- "clarification", אם יש, נכתבת ב${lang === 'ar' ? 'ערבית, בלשון נקבה' : 'אנגלית'}.`
 
     const systemPrompt = `את מנוע הבנת-כוונות לפקודות קוליות בעברית של קוסמטיקאית במערכת ניהול עסק.
-היום הוא ${today || 'לא ידוע'} (פורמט YYYY-MM-DD).
+היום הוא ${today || 'לא ידוע'} (פורמט YYYY-MM-DD).${languageNote}
 
 המשימה: להחזיר אך ורק אובייקט JSON תקין (בלי טקסט נוסף, בלי סימוני קוד) לפי הסכמה:
 {

@@ -5,8 +5,19 @@ import Spinner from "../Spinner";
 import { useSearchParams } from 'next/navigation';
 import { PublicPage, BusinessHeader } from "../PublicChrome";
 import RescheduleFlow from "./RescheduleFlow";
+import { useTr } from "@/lib/i18n/useTr";
+import { normalizeLang } from "@/lib/i18n/core";
+import { useDocumentLang } from "@/lib/i18n/react";
 
 function ConfirmContent() {
+  // The business's language (lib/i18n), from the first answer of /api/confirm. Until it arrives a cancel link shows no
+  // words at all (a short wait, capped below), so an Arabic or English client never reads a Hebrew question first.
+  const [lang, setLang] = useState(null);
+  const [langWaitOver, setLangWaitOver] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setLangWaitOver(true), 2500); return () => clearTimeout(t); }, []);
+  const learnLang = (d) => { if (d && typeof d.language === 'string') setLang(normalizeLang(d.language)); };
+  useDocumentLang(lang);
+  const tr = useTr(lang);
   const searchParams = useSearchParams();
 
   // All three come from the URL, which does not change while this page is open.
@@ -54,9 +65,10 @@ function ConfirmContent() {
           setStatus(data.alreadyDone ? 'already' : 'success');
           setMessage(data.message);
           setBrandInfo({ businessName: data.businessName || '', logoUrl: data.logoUrl || '', primaryColor: data.primaryColor || '' });
+          learnLang(data);
         } else {
           setStatus('error');
-          setMessage(data.error || 'משהו השתבש');
+          setMessage(data.error || tr("משהו השתבש"));
           if (data.businessName) setBrandInfo((b) => ({ ...b, businessName: data.businessName }));
         }
         setContact({ bookUrl: typeof data.bookUrl === 'string' && data.bookUrl.startsWith('/') ? data.bookUrl : '', whatsapp: /^\d{8,15}$/.test(String(data.whatsapp || '')) ? String(data.whatsapp) : '' });
@@ -64,7 +76,7 @@ function ConfirmContent() {
       .catch(err => {
         console.error(err);
         setStatus('error');
-        setMessage('לא הצלחנו להתחבר לשרת');
+        setMessage(tr("לא הצלחנו להתחבר לשרת"));
       });
   }, [id, action, token]);
 
@@ -101,6 +113,7 @@ function ConfirmContent() {
       .then(({ code, d }) => {
         if (gone) return;
         const cleanContact = () => setContact({ bookUrl: typeof d.bookUrl === 'string' && d.bookUrl.startsWith('/') ? d.bookUrl : '', whatsapp: /^\d{8,15}$/.test(String(d.whatsapp || '')) ? String(d.whatsapp) : '' });
+        learnLang(d);
         if (d?.success && d.peek) {
           if (action === 'reschedule') {
             setBrandInfo({ businessName: d.businessName || '', logoUrl: d.logoUrl || '', primaryColor: d.primaryColor || '' });
@@ -118,9 +131,9 @@ function ConfirmContent() {
         setStatus('error');
         setRefused(code === 409);
         setTooLate(code === 409 && d.tooLate === true);
-        setMessage(d?.error || 'משהו השתבש');
+        setMessage(d?.error || tr("משהו השתבש"));
       })
-      .catch(() => { if (!gone && action === 'reschedule') { setStatus('error'); setMessage('לא הצלחנו להתחבר לשרת'); } });
+      .catch(() => { if (!gone && action === 'reschedule') { setStatus('error'); setMessage(tr("לא הצלחנו להתחבר לשרת")); } });
     return () => { gone = true; };
   }, [id, action, token]);
 
@@ -135,8 +148,9 @@ function ConfirmContent() {
       .then(d => {
         if (gone || !d?.success || !d.peek) return;
         setBrandInfo({ businessName: d.businessName || '', logoUrl: d.logoUrl || '', primaryColor: d.primaryColor || '' });
+        learnLang(d);
         setPeekAppt(d.appointment || null);
-        if (d.status === 'cancelled') { setStatus('already'); setMessage('התור כבר בוטל בעבר'); }
+        if (d.status === 'cancelled') { setStatus('already'); setMessage(tr("התור כבר בוטל בעבר")); }
         // The link could not cancel this one (inside her cancellation window, already past, already changed): say so now,
         // calmly, with how to reach her, instead of a "yes, cancel" button that would only be refused after the tap. Only
         // while the question is still on screen; the real request stays the authority (app/api/confirm).
@@ -156,14 +170,14 @@ function ConfirmContent() {
     // No hourglass emoji: it was the last colour glyph on a page that is
     // otherwise monochrome, and minHeight on the mark slot keeps the layout
     // from jumping while this state has none.
-    if (status === 'working' || status === 'moveLoading') return { emoji: '', title: 'רגע...', color: 'var(--ink-2)' };
-    if (status === 'ready') return { emoji: '', title: 'לבטל את התור?', color: 'var(--ink)' };
-    if (status === 'declined') return { emoji: '', title: 'התור נשאר', color: 'var(--pc-deep)' };
-    if (status === 'error' && refused) return { emoji: '', title: action === 'cancel' ? 'אי אפשר לבטל מהקישור' : action === 'reschedule' ? 'אי אפשר להזיז מהקישור' : 'אי אפשר לשנות מהקישור', color: 'var(--ink)' };
-    if (status === 'error') return { emoji: '', title: 'אופס!', color: 'var(--danger)' };
-    if (status === 'success' && action === 'confirm') return { emoji: '', title: 'התור אושר!', color: 'var(--pc-deep)' };
-    if (status === 'success' && action === 'cancel') return { emoji: '', title: 'התור בוטל', color: 'var(--ink-2)' };
-    if (status === 'already') return { emoji: '', title: 'כבר טופל', color: 'var(--pc-deep)' };
+    if (status === 'working' || status === 'moveLoading') return { emoji: '', title: tr("רגע..."), color: 'var(--ink-2)' };
+    if (status === 'ready') return { emoji: '', title: tr("לבטל את התור?"), color: 'var(--ink)' };
+    if (status === 'declined') return { emoji: '', title: tr("התור נשאר"), color: 'var(--pc-deep)' };
+    if (status === 'error' && refused) return { emoji: '', title: action === 'cancel' ? tr("אי אפשר לבטל מהקישור") : action === 'reschedule' ? tr("אי אפשר להזיז מהקישור") : tr("אי אפשר לשנות מהקישור"), color: 'var(--ink)' };
+    if (status === 'error') return { emoji: '', title: tr("אופס!"), color: 'var(--danger)' };
+    if (status === 'success' && action === 'confirm') return { emoji: '', title: tr("התור אושר!"), color: 'var(--pc-deep)' };
+    if (status === 'success' && action === 'cancel') return { emoji: '', title: tr("התור בוטל"), color: 'var(--ink-2)' };
+    if (status === 'already') return { emoji: '', title: tr("כבר טופל"), color: 'var(--pc-deep)' };
     return { emoji: '', title: '', color: 'var(--ink)' };
   };
 
@@ -191,21 +205,25 @@ function ConfirmContent() {
 
   if (status === 'move' && movePeek) {
     return (
-      <PublicPage primary={brandInfo.primaryColor || null}>
+      <PublicPage primary={brandInfo.primaryColor || null} lang={lang}>
         <div className="pub-card" style={{ padding: '30px 20px 28px' }}>
-          <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} />
-          <RescheduleFlow id={id} token={token} via={action} peek={movePeek} businessName={brandInfo.businessName} whatsapp={contact.whatsapp}
+          <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} lang={lang} />
+          <RescheduleFlow lang={lang} id={id} token={token} via={action} peek={movePeek} businessName={brandInfo.businessName} whatsapp={contact.whatsapp}
             onBack={() => { answered.current = true; setStatus('declined'); }} onMoved={() => { answered.current = true; }} />
         </div>
       </PublicPage>
     );
   }
 
+  if (status === 'ready' && !lang && !langWaitOver) {
+    return <PublicPage owner="kalmea"><Spinner label="" /></PublicPage>;
+  }
+
   return (
-    <PublicPage primary={brandInfo.primaryColor || null}>
+    <PublicPage primary={brandInfo.primaryColor || null} lang={lang}>
       <div className="pub-card" style={{ padding: '30px 24px 28px' }}>
         {/* HER logo and name first and large: this page is hers, Kalmea is the small mark below the card. */}
-        <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} />
+        <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} lang={lang} />
         <div style={{ marginBottom: 14, display: 'flex', justifyContent: 'center', minHeight: 58 }}>
           {markKind ? mark(markKind, styles.color) : null}
         </div>
@@ -216,42 +234,42 @@ function ConfirmContent() {
           </p>
         )}
         <p className="pub-p">
-          {status === 'working' || status === 'moveLoading' ? <Spinner inline label="מעדכנת את התור שלך" /> : status === 'ready' ? 'ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהקישור הזה. אם לא התכוונת לבטל, אפשר פשוט לסגור את החלון.'
-            : status === 'declined' ? 'לא שינינו כלום. נתראה בתור.'
+          {status === 'working' || status === 'moveLoading' ? <Spinner inline label={tr("מעדכנת את התור שלך")} /> : status === 'ready' ? tr("ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהקישור הזה. אם לא התכוונת לבטל, אפשר פשוט לסגור את החלון.")
+            : status === 'declined' ? tr("לא שינינו כלום. נתראה בתור.")
             : message}
         </p>
 
         {status === 'ready' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
-            <button type="button" onClick={sendNow} className="pub-pill pub-pill-danger">כן, בטלי את התור</button>
-            <button type="button" onClick={() => { answered.current = true; setStatus('declined'); }} className="pub-pill pub-pill-quiet">לא, השאירי את התור</button>
+            <button type="button" onClick={sendNow} className="pub-pill pub-pill-danger">{tr("כן, בטלי את התור")}</button>
+            <button type="button" onClick={() => { answered.current = true; setStatus('declined'); }} className="pub-pill pub-pill-quiet">{tr("לא, השאירי את התור")}</button>
           </div>
         )}
 
         {/* Moving instead of cancelling: only when the server said this appointment can really be moved now (movePeek). */}
         {status === 'ready' && movePeek && (
           <div data-testid="offer-move" style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line, #EAE3D2)' }}>
-            <p className="pub-p" style={{ marginBottom: 10 }}>רוצה להזיז במקום לבטל?</p>
-            <button type="button" onClick={() => { answered.current = true; setStatus('move'); }} className="pub-pill pub-pill-quiet">להזיז את התור למועד אחר</button>
+            <p className="pub-p" style={{ marginBottom: 10 }}>{tr("רוצה להזיז במקום לבטל?")}</p>
+            <button type="button" onClick={() => { answered.current = true; setStatus('move'); }} className="pub-pill pub-pill-quiet">{tr("להזיז את התור למועד אחר")}</button>
           </div>
         )}
 
         {status === 'error' && id && !refused && (
           <button type="button" onClick={action === 'cancel' ? () => setStatus('ready') : action === 'reschedule' ? () => window.location.reload() : sendNow} className="pub-pill pub-pill-quiet" style={{ marginTop: 20, width: 'auto', display: 'inline-flex', padding: '11px 28px' }}>
-            נסי שוב
+            {tr("נסי שוב")}
           </button>
         )}
 
         {/* After a cancel, or when the link could not change the booking: book another time, or write to her. */}
         {((status === 'success' && action === 'cancel') || (status === 'already' && action === 'cancel') || status === 'error') && ((contact.bookUrl && !tooLate) || contact.whatsapp) && (
           <div data-testid="confirm-next" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
-            {contact.bookUrl && !tooLate && <a href={contact.bookUrl} className="pub-pill" style={{ textDecoration: 'none' }}>קביעת מועד אחר</a>}
-            {contact.whatsapp && <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" className={tooLate ? 'pub-pill' : 'pub-pill pub-pill-quiet'} style={{ textDecoration: 'none' }}>כתיבה ל{brandInfo.businessName || 'עסק'} בוואטסאפ</a>}
+            {contact.bookUrl && !tooLate && <a href={contact.bookUrl} className="pub-pill" style={{ textDecoration: 'none' }}>{tr("קביעת מועד אחר")}</a>}
+            {contact.whatsapp && <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" className={tooLate ? 'pub-pill' : 'pub-pill pub-pill-quiet'} style={{ textDecoration: 'none' }}>{tr("כתיבה ל{0} בוואטסאפ", [brandInfo.businessName || tr("עסק")])}</a>}
           </div>
         )}
 
         {(status === 'success' || status === 'already' || status === 'declined') && (
-          <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink-3)', marginTop: 20 }}>תוכלי לסגור את החלון</p>
+          <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink-3)', marginTop: 20 }}>{tr("תוכלי לסגור את החלון")}</p>
         )}
       </div>
     </PublicPage>
@@ -259,8 +277,9 @@ function ConfirmContent() {
 }
 
 export default function ConfirmPage() {
+  const tr = useTr();
   return (
-    <Suspense fallback={<PublicPage owner="kalmea"><Spinner label="טוענת" /></PublicPage>}>
+    <Suspense fallback={<PublicPage owner="kalmea"><Spinner label={tr("טוענת")} /></PublicPage>}>
       <ConfirmContent />
     </Suspense>
   );

@@ -24,6 +24,7 @@ import Sheet from './Sheet';
 import Spinner from './Spinner';
 import { supabase } from './supabase';
 import { answerRows, templateFor } from '@/lib/formTemplates';
+import { tr, trv } from "@/lib/i18n/tr";
 
 const fmtSigned = (iso) => {
   if (!iso) return '';
@@ -75,36 +76,36 @@ export default function FormAnswersSheet({ form, tenantId, label, onClose, pcTin
   const note = { fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.55, margin: 0 };
 
   return (
-    <Sheet open onClose={onClose} width={440} zIndex={1250} className="pop-in" title={title}
-      subtitle={[form?.client_name, signedAt && `נחתם ${signedAt}`].filter(Boolean).join(' · ')} ariaLabel={`התשובות בטופס ${title}`}>
+    <Sheet open onClose={onClose} width={440} zIndex={1250} className="pop-in" title={trv(title)}
+      subtitle={[form?.client_name, signedAt && `נחתם ${signedAt}`].filter(Boolean).join(' · ')} ariaLabel={tr("התשובות בטופס {0}", [title])}>
       <div data-testid="form-answers-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {state === 'loading' && <p style={note}><Spinner inline label="טוענת את התשובות" /></p>}
+        {state === 'loading' && <p style={note}><Spinner inline label={tr("טוענת את התשובות")} /></p>}
 
         {state === 'error' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p data-testid="form-answers-error" style={{ ...note, color: 'var(--ink)' }}>לא הצלחנו לטעון את התשובות כרגע. הן שמורות, אפשר לנסות שוב.</p>
-            <button type="button" onClick={load} className="primary-btn" style={{ minHeight: 44, fontSize: 'var(--t-sm)' }}>ניסיון נוסף</button>
+            <p data-testid="form-answers-error" style={{ ...note, color: 'var(--ink)' }}>{tr("לא הצלחנו לטעון את התשובות כרגע. הן שמורות, אפשר לנסות שוב.")}</p>
+            <button type="button" onClick={load} className="primary-btn" style={{ minHeight: 44, fontSize: 'var(--t-sm)' }}>{tr("ניסיון נוסף")}</button>
           </div>
         )}
         {state === 'denied' && (
-          <p data-testid="form-answers-denied" style={{ ...note, color: 'var(--ink)' }}>הטופס נחתם והתשובות שמורות, אבל כדי להציג אותן כאן צריך עדכון קטן במערכת שעוד לא הותקן.</p>
+          <p data-testid="form-answers-denied" style={{ ...note, color: 'var(--ink)' }}>{tr("הטופס נחתם והתשובות שמורות, אבל כדי להציג אותן כאן צריך עדכון קטן במערכת שעוד לא הותקן.")}</p>
         )}
-        {state === 'notfound' && <p style={{ ...note, color: 'var(--ink)' }}>הטופס הזה לא נמצא בחשבון.</p>}
+        {state === 'notfound' && <p style={{ ...note, color: 'var(--ink)' }}>{tr("הטופס הזה לא נמצא בחשבון.")}</p>}
 
         {state === 'ok' && (
           <>
             {flagged > 0 && (
               <p data-testid="form-answers-flags" style={{ ...note, color: 'var(--ink)', background: 'rgba(242,184,75,0.16)', borderRadius: 'var(--r-sm)', padding: '8px 12px' }}>
-                {flagged === 1 ? 'תשובה אחת מסומנת לתשומת לבך' : `${flagged} תשובות מסומנות לתשומת לבך`}
+                {flagged === 1 ? tr("תשובה אחת מסומנת לתשומת לבך") : tr("{0} תשובות מסומנות לתשומת לבך", [flagged])}
               </p>
             )}
-            {unknown && <p style={note}>סוג הטופס לא מוכר למערכת, אז אלה התשובות כפי שנשמרו.</p>}
-            {rows.length === 0 && <p style={note}>לא נשמרו תשובות בטופס הזה.</p>}
+            {unknown && <p style={note}>{tr("סוג הטופס לא מוכר למערכת, אז אלה התשובות כפי שנשמרו.")}</p>}
+            {rows.length === 0 && <p style={note}>{tr("לא נשמרו תשובות בטופס הזה.")}</p>}
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {rows.map((r, i) => {
                 if (r.kind === 'section') return (
-                  <p key={i} className="serif" style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: i === 0 ? '0 0 6px' : '14px 0 6px', paddingBottom: 4, borderBottom: '1px solid var(--line-2)' }}>{r.title}</p>
+                  <p key={i} className="serif" style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: i === 0 ? '0 0 6px' : '14px 0 6px', paddingBottom: 4, borderBottom: '1px solid var(--line-2)' }}>{trv(r.title)}</p>
                 );
                 if (r.kind === 'raw') return (
                   <div key={i} data-testid="form-answer-raw" style={{ display: 'flex', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--line)', fontSize: 'var(--t-sm)' }}>
@@ -117,26 +118,26 @@ export default function FormAnswersSheet({ form, tenantId, label, onClose, pcTin
                     style={r.flag
                       ? { padding: '8px 10px', margin: '4px 0', borderRadius: 'var(--r-sm)', background: 'rgba(242,184,75,0.16)', borderInlineStart: '3px solid var(--warning, #F2B84B)' }
                       : { padding: '8px 13px', borderBottom: '1px solid var(--line)' }}>
-                    <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '0 0 3px', lineHeight: 1.5 }}>{r.n}. {r.q}</p>
+                    <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '0 0 3px', lineHeight: 1.5 }}>{r.n}. {trv(r.q)}</p>
                     <p style={{ fontSize: 'var(--t-md)', fontWeight: r.answer ? 700 : 400, color: r.answer ? 'var(--ink)' : 'var(--ink-3)', margin: 0, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
-                      {r.answer || (r.optional ? 'לא ענתה (לא חובה)' : 'לא ענתה')}
+                      {r.answer || (r.optional ? tr("לא ענתה (לא חובה)") : tr("לא ענתה"))}
                     </p>
-                    {r.note && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', margin: '4px 0 0', lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>פירוט: {r.note}</p>}
+                    {r.note && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', margin: '4px 0 0', lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{tr("פירוט:")} {trv(r.note)}</p>}
                   </div>
                 );
               })}
             </div>
 
             <div style={{ marginTop: 6 }}>
-              <p style={{ ...note, fontWeight: 600, color: 'var(--ink-2)', marginBottom: 6 }}>החתימה</p>
+              <p style={{ ...note, fontWeight: 600, color: 'var(--ink-2)', marginBottom: 6 }}>{tr("החתימה")}</p>
               {sig
-                ? <img data-testid="form-answers-signature" src={sig} alt={`החתימה של ${form?.client_name || 'הלקוחה'}`} style={{ display: 'block', width: '100%', maxWidth: 360, height: 'auto', background: pcTint || 'var(--surface-2)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)' }} />
-                : <p style={note}>לא נשמרה חתימה בטופס הזה.</p>}
+                ? <img data-testid="form-answers-signature" src={sig} alt={tr("החתימה של {0}", [form?.client_name || 'הלקוחה'])} style={{ display: 'block', width: '100%', maxWidth: 360, height: 'auto', background: pcTint || 'var(--surface-2)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)' }} />
+                : <p style={note}>{tr("לא נשמרה חתימה בטופס הזה.")}</p>}
             </div>
           </>
         )}
 
-        <button type="button" onClick={onClose} style={{ minHeight: 44, borderRadius: 'var(--r-lg)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink-2)', fontSize: 'var(--t-sm)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 }}>סגירה</button>
+        <button type="button" onClick={onClose} style={{ minHeight: 44, borderRadius: 'var(--r-lg)', border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink-2)', fontSize: 'var(--t-sm)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 }}>{tr("סגירה")}</button>
       </div>
     </Sheet>
   );

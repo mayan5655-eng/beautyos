@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Spinner from "./Spinner";
 import Sheet from "./Sheet";
+import { tr, trv, uiDir } from "@/lib/i18n/tr";
 
 type Kind = 'ok' | 'error'
 
@@ -37,7 +38,7 @@ export function useMiniToast() {
     <div
       role="status"
       aria-live="polite"
-      dir="rtl"
+      dir={uiDir()}
       style={{
         position: 'fixed',
         // Clear of the bottom nav on phones, which is 74px plus the home
@@ -59,7 +60,7 @@ export function useMiniToast() {
         boxShadow:"var(--shadow-lg)",
       }}
     >
-      {msg.text}
+      {trv(msg.text)}
     </div>
   ) : null
 
@@ -89,13 +90,13 @@ export function ConfirmDialog({
 }) {
   // Escape and backdrop close it; <Sheet> owns both, like every modal in the app.
   return (
-    <Sheet open={open} onClose={onCancel} busy={busy} width={380} zIndex={6100} ariaLabel={typeof title === 'string' ? title : 'אישור'}>
+    <Sheet open={open} onClose={onCancel} busy={busy} width={380} zIndex={6100} ariaLabel={typeof title === 'string' ? title : tr("אישור")}>
         <h3 style={{ fontSize:"var(--t-lg)", fontWeight: 700, color: 'var(--ink, #2B2233)', marginBottom: message ? 8 : 16 }}>
-          {title}
+          {trv(title)}
         </h3>
         {message && (
           <p style={{ fontSize:"var(--t-md)", color: 'var(--ink-2, #5C4F63)', lineHeight: 1.65, marginBottom: 18 }}>
-            {message}
+            {trv(message)}
           </p>
         )}
         <div style={{ display: 'flex', gap: 8 }}>
@@ -123,7 +124,7 @@ export function ConfirmDialog({
               opacity: busy ? 0.6 : 1,
             }}
           >
-            {busy ? <Spinner inline label="רגע" /> : confirmText}
+            {busy ? <Spinner inline label={tr("רגע")} /> : confirmText}
           </button>
         </div>
     </Sheet>

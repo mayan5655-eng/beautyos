@@ -28,6 +28,9 @@ import BookingClosed from "../BookingClosed";
 import { publicBookingClosed } from "@/lib/publicBookingGate";
 import { APP_URL } from "@/lib/appUrl";
 import { brandFor, ogVersion } from "@/lib/og/tenantOg";
+import { ogLocaleOf } from "@/lib/i18n/core";
+import { trFor } from "@/lib/i18n/publicTr";
+import { LangProvider, DocumentLang } from "@/lib/i18n/react";
 
 // One lookup per request, shared by generateMetadata and the page.
 const brandOnce = cache(brandFor);
@@ -42,13 +45,13 @@ export async function generateMetadata({ searchParams }) {
   if (!found) return {};
   const { brand } = found;
   const title = brand.businessName || "Kalmea";
-  const description = brand.welcomeMessage || brand.businessDescription || `קביעת תור אונליין אצל ${title}`;
+  const description = brand.welcomeMessage || brand.businessDescription || trFor(brand.language)("קביעת תור אונליין אצל {0}", [title]);
   const image = `${APP_URL}/og/${t}?v=${ogVersion(brand, title)}`;
   return {
     metadataBase: new URL(APP_URL),
     title,
     description,
-    openGraph: { type: "website", title, description, locale: "he_IL", siteName: title, images: [{ url: image, width: 1200, height: 630, alt: title }] },
+    openGraph: { type: "website", title, description, locale: ogLocaleOf(brand.language), siteName: title, images: [{ url: image, width: 1200, height: 630, alt: title }] },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
@@ -63,6 +66,8 @@ export default async function BookRoute({ searchParams }) {
   try { found = await brandOnce(t); } catch { found = undefined; }
   if (found === null) notFound();
   // Her system is closed (trial ended without payment, or paused): the same closed page as /[slug].
-  if (await publicBookingClosed(t)) return <BookingClosed brand={found?.brand} fallbackName={found?.tenantName || ""} />;
-  return <BookingPage />;
+  // Her business's language (lib/i18n), from the same lookup. Hebrew when the lookup failed.
+  const lang = found?.brand?.language || "he";
+  if (await publicBookingClosed(t)) return <><DocumentLang lang={lang} /><BookingClosed brand={found?.brand} fallbackName={found?.tenantName || ""} /></>;
+  return <LangProvider lang={lang}><DocumentLang lang={lang} /><BookingPage /></LangProvider>;
 }

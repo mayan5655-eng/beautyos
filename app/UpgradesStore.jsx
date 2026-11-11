@@ -26,6 +26,7 @@ import { ADDON_PACKS, addonButtonHe, addonPacksEnabled, priceHe } from '@/lib/pr
 import { annualOfferHe, trialEndDateHe } from '@/lib/planCopy';
 import { billingAnnualConsentTextHe, BILLING_TERMS_SENTENCE_HE } from '@/lib/billing/consent';
 import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
+import { tr } from "@/lib/i18n/tr";
 import {
   UPGRADES_EVENT, UPGRADES_CHANGED_EVENT, upgradesFlagsOn, storeCards, packFor, homeNudgePack, usageLevel, usagePct, usageLineHe,
   pageChipHe, packTitleHe, packWhatHe, priceNoteHe, confirmChargeHe, successHe, annualSavingHe, newRequestId, openUpgrades,
@@ -255,7 +256,7 @@ export function UpgradesEntry({ variant = 'settings', style }) {
           <button type="button" data-testid="upgrades-home-buy" data-pack={p.key} onClick={() => openUpgrades(p.key)} style={{ background: 'var(--k-green)', color: 'var(--k-cream)', border: 'none', borderRadius: 'var(--r-sm)', padding: '9px 14px', minHeight: 44, fontWeight: 700, fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right' }}>
             <bdi>{level === 'full' ? addonButtonHe(ADDON_PACKS[p.key]) : pageChipHe(p.key, level)}</bdi>
           </button>
-          <button type="button" onClick={() => openUpgrades()} style={{ background: 'transparent', color: 'var(--ink-2)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 14px', minHeight: 44, fontWeight: 600, fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>כל השדרוגים ✨</button>
+          <button type="button" onClick={() => openUpgrades()} style={{ background: 'transparent', color: 'var(--ink-2)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '9px 14px', minHeight: 44, fontWeight: 600, fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit' }}>{tr("כל השדרוגים ✨")}</button>
         </div>
       </div>
     );
@@ -264,8 +265,8 @@ export function UpgradesEntry({ variant = 'settings', style }) {
     <button type="button" data-testid="upgrades-entry" onClick={() => openUpgrades()} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'var(--k-petal)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', padding: '10px 12px', marginBottom: 14, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', ...style }}>
       <span aria-hidden style={{ fontSize: 'var(--t-lg)', flexShrink: 0 }}>✨</span>
       <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>שדרוגים ✨</span>
-        <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>עוד יצירות AI, תשלום שנתי ועוד, בלחיצה אחת</span>
+        <span style={{ display: 'block', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{tr("שדרוגים ✨")}</span>
+        <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>{tr("עוד יצירות AI, תשלום שנתי ועוד, בלחיצה אחת")}</span>
       </span>
       <span aria-hidden style={{ color: 'var(--ink-2)', flexShrink: 0 }}>‹</span>
     </button>
@@ -295,23 +296,23 @@ export function StoreBody({ d, view, busy, err, consentOk, isDemo, onView, onBuy
         <p style={{ ...text, marginTop: 4 }}>{packWhatHe(view.key)}</p>
         <UsageMeter used={p.used} cap={p.cap} />
         {demo ? (
-          <p style={{ ...text, marginTop: 14 }}>זו תצוגה, בחשבון הדגמה לא מחייבים.</p>
+          <p style={{ ...text, marginTop: 14 }}>{tr("זו תצוגה, בחשבון הדגמה לא מחייבים.")}</p>
         ) : !card ? (
           <div data-testid="upgrade-no-card" style={{ marginTop: 14, background: 'var(--k-petal)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
-            <p style={{ ...text, color: 'var(--ink)' }}>כדי להוסיף בלחיצה אחת צריך כרטיס שמור במנוי שלך. שומרים אותו פעם אחת, וזהו.</p>
-            <button type="button" data-testid="upgrade-add-card" style={{ ...primaryBtn, marginTop: 10 }} onClick={onOpenCard}>לשמירת כרטיס</button>
+            <p style={{ ...text, color: 'var(--ink)' }}>{tr("כדי להוסיף בלחיצה אחת צריך כרטיס שמור במנוי שלך. שומרים אותו פעם אחת, וזהו.")}</p>
+            <button type="button" data-testid="upgrade-add-card" style={{ ...primaryBtn, marginTop: 10 }} onClick={onOpenCard}>{tr("לשמירת כרטיס")}</button>
           </div>
         ) : (
           <div style={{ marginTop: 14, background: 'var(--k-petal)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
             <p data-testid="upgrade-charge-line" style={{ ...title, fontSize: 'var(--t-md)' }}>
-              {priceHe(p.price)} יחויבו בכרטיס שמסתיים ב-<b dir="ltr" style={{ unicodeBidi: 'isolate' }}>{card.last4}</b>
+              {priceHe(p.price)} {tr("יחויבו בכרטיס שמסתיים ב-")}<b dir="ltr" style={{ unicodeBidi: 'isolate' }}>{card.last4}</b>
             </p>
-            <p style={{ ...text, marginTop: 2 }}>חיוב אחד, לחודש הזה בלבד · {priceNoteHe()}</p>
-            {d?.mode === 'mock' && <p style={{ ...text, fontWeight: 700, color: 'var(--ink)' }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
+            <p style={{ ...text, marginTop: 2 }}>{tr("חיוב אחד, לחודש הזה בלבד ·")} {priceNoteHe()}</p>
+            {d?.mode === 'mock' && <p style={{ ...text, fontWeight: 700, color: 'var(--ink)' }}>{tr("מצב בדיקה: לא נגבה כסף אמיתי")}</p>}
             {err && <p role="alert" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 6 }}>{err}</p>}
             <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-              <button type="button" data-testid={`upgrade-pay-${view.key}`} aria-label={confirmChargeHe(p.price, card.last4)} style={{ ...primaryBtn, flex: '1 1 160px', opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => onBuy(view.key)}>{busy ? 'מחייבת…' : 'אישור וחיוב'}</button>
-              <button type="button" style={ghostBtn} disabled={busy} onClick={() => onView(null)}>ביטול</button>
+              <button type="button" data-testid={`upgrade-pay-${view.key}`} aria-label={confirmChargeHe(p.price, card.last4)} style={{ ...primaryBtn, flex: '1 1 160px', opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => onBuy(view.key)}>{busy ? tr("מחייבת…") : tr("אישור וחיוב")}</button>
+              <button type="button" style={ghostBtn} disabled={busy} onClick={() => onView(null)}>{tr("ביטול")}</button>
             </div>
           </div>
         )}
@@ -326,10 +327,10 @@ export function StoreBody({ d, view, busy, err, consentOk, isDemo, onView, onBuy
         <p aria-hidden style={{ fontSize: 'var(--t-3xl)', lineHeight: 1 }}>🌸</p>
         <p style={{ ...title, fontSize: 'var(--t-lg)', marginTop: 8 }}>{successHe(view.key, p?.cap)}</p>
         {p && <div style={{ maxWidth: 320, margin: '6px auto 0' }}><UsageMeter used={p.used} cap={p.cap} /></div>}
-        <p style={{ ...text, marginTop: 8 }}>המסמך על החיוב יופיע ברשימת החיובים במנוי שלך.</p>
+        <p style={{ ...text, marginTop: 8 }}>{tr("המסמך על החיוב יופיע ברשימת החיובים במנוי שלך.")}</p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-          <button type="button" style={primaryBtn} onClick={onClose}>להמשיך ליצור</button>
-          <button type="button" style={ghostBtn} onClick={() => onView(null)}>לכל השדרוגים</button>
+          <button type="button" style={primaryBtn} onClick={onClose}>{tr("להמשיך ליצור")}</button>
+          <button type="button" style={ghostBtn} onClick={() => onView(null)}>{tr("לכל השדרוגים")}</button>
         </div>
       </div>
     );
@@ -340,26 +341,26 @@ export function StoreBody({ d, view, busy, err, consentOk, isDemo, onView, onBuy
     if (!a) return null;
     return (
       <div data-testid="upgrade-confirm-annual">
-        <p style={{ ...title, fontSize: 'var(--t-lg)' }}>מעבר לתשלום שנתי</p>
+        <p style={{ ...title, fontSize: 'var(--t-lg)' }}>{tr("מעבר לתשלום שנתי")}</p>
         <p style={{ ...text, marginTop: 4 }}>{annualOfferHe(a.monthly)} · {annualSavingHe(a.monthly)}</p>
         {demo ? (
-          <p style={{ ...text, marginTop: 14 }}>זו תצוגה, בחשבון הדגמה אי אפשר לשנות מנוי.</p>
+          <p style={{ ...text, marginTop: 14 }}>{tr("זו תצוגה, בחשבון הדגמה אי אפשר לשנות מנוי.")}</p>
         ) : !card ? (
           <div data-testid="upgrade-no-card" style={{ marginTop: 14, background: 'var(--k-petal)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
-            <p style={{ ...text, color: 'var(--ink)' }}>כדי לעבור לשנתי צריך קודם כרטיס שמור במנוי שלך.</p>
-            <button type="button" style={{ ...primaryBtn, marginTop: 10 }} onClick={onOpenCard}>לשמירת כרטיס</button>
+            <p style={{ ...text, color: 'var(--ink)' }}>{tr("כדי לעבור לשנתי צריך קודם כרטיס שמור במנוי שלך.")}</p>
+            <button type="button" style={{ ...primaryBtn, marginTop: 10 }} onClick={onOpenCard}>{tr("לשמירת כרטיס")}</button>
           </div>
         ) : (
           <div style={{ marginTop: 14, background: 'var(--k-petal)', borderRadius: 'var(--r-sm)', padding: '12px 14px' }}>
-            <p style={{ ...text, color: 'var(--ink)' }}>עכשיו לא מחויב כלום. המעבר נכנס לתוקף בחידוש הבא{d.nextChargeAt ? `, ב-${day(d.nextChargeAt)}` : ''}.</p>
+            <p style={{ ...text, color: 'var(--ink)' }}>{tr("עכשיו לא מחויב כלום. המעבר נכנס לתוקף בחידוש הבא")}{d.nextChargeAt ? tr(", ב-{0}", [day(d.nextChargeAt)]) : ''}.</p>
             <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginTop: 10, ...text }}>
               <input type="checkbox" data-testid="upgrade-annual-consent" checked={!!consentOk} onChange={(e) => onConsent(e.target.checked)} style={{ accentColor: 'var(--k-green)', width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
-              <span>{billingAnnualConsentTextHe(a.yearly, day(d.nextChargeAt)).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
+              <span>{billingAnnualConsentTextHe(a.yearly, day(d.nextChargeAt)).replace(BILLING_TERMS_SENTENCE_HE, '')}{tr("קראתי ואני מסכימה ל")}<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>{tr("תנאי השימוש")}</a> {tr("של קלמיה.")}</span>
             </label>
             {err && <p role="alert" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 6 }}>{err}</p>}
             <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-              <button type="button" data-testid="upgrade-annual-confirm" style={{ ...primaryBtn, flex: '1 1 160px', opacity: busy || !consentOk ? 0.6 : 1 }} disabled={busy || !consentOk} onClick={onAnnual}>{busy ? 'שומרת…' : 'כן, לעבור לשנתי'}</button>
-              <button type="button" style={ghostBtn} disabled={busy} onClick={() => onView(null)}>ביטול</button>
+              <button type="button" data-testid="upgrade-annual-confirm" style={{ ...primaryBtn, flex: '1 1 160px', opacity: busy || !consentOk ? 0.6 : 1 }} disabled={busy || !consentOk} onClick={onAnnual}>{busy ? tr("שומרת…") : tr("כן, לעבור לשנתי")}</button>
+              <button type="button" style={ghostBtn} disabled={busy} onClick={() => onView(null)}>{tr("ביטול")}</button>
             </div>
           </div>
         )}
@@ -371,15 +372,15 @@ export function StoreBody({ d, view, busy, err, consentOk, isDemo, onView, onBuy
     return (
       <div data-testid="upgrade-annual-done" style={{ textAlign: 'center', padding: '10px 0' }}>
         <p aria-hidden style={{ fontSize: 'var(--t-3xl)', lineHeight: 1 }}>🌸</p>
-        <p style={{ ...title, fontSize: 'var(--t-lg)', marginTop: 8 }}>נשמר! המעבר לשנתי ייכנס לתוקף בחידוש הבא</p>
-        <p style={{ ...text, marginTop: 6 }}>עד אז לא משתנה דבר ולא יהיה חיוב נוסף.</p>
-        <button type="button" style={{ ...primaryBtn, marginTop: 14 }} onClick={() => onView(null)}>לכל השדרוגים</button>
+        <p style={{ ...title, fontSize: 'var(--t-lg)', marginTop: 8 }}>{tr("נשמר! המעבר לשנתי ייכנס לתוקף בחידוש הבא")}</p>
+        <p style={{ ...text, marginTop: 6 }}>{tr("עד אז לא משתנה דבר ולא יהיה חיוב נוסף.")}</p>
+        <button type="button" style={{ ...primaryBtn, marginTop: 14 }} onClick={() => onView(null)}>{tr("לכל השדרוגים")}</button>
       </div>
     );
   }
 
   // The list of cards.
-  if (!cards.length) return d ? null : <p style={text}>טוענת…</p>;
+  if (!cards.length) return d ? null : <p style={text}>{tr("טוענת…")}</p>;
   return (
     <div data-testid="upgrades-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {cards.map((c) => {
@@ -401,21 +402,21 @@ export function StoreBody({ d, view, busy, err, consentOk, isDemo, onView, onBuy
         if (c.kind === 'annual') {
           return (
             <div key="annual" data-testid="upgrade-card-annual" style={cardBox}>
-              <p style={title}>תשלום שנתי, חודשיים מתנה</p>
+              <p style={title}>{tr("תשלום שנתי, חודשיים מתנה")}</p>
               <p style={{ ...text, marginTop: 2 }}>{annualOfferHe(c.monthly)} · {annualSavingHe(c.monthly)}. {priceNoteHe()}.</p>
               {c.pending ? (
-                <p style={{ ...text, color: 'var(--ink)', fontWeight: 700, marginTop: 8 }}>✓ המעבר לשנתי ייכנס לתוקף בחידוש הבא</p>
+                <p style={{ ...text, color: 'var(--ink)', fontWeight: 700, marginTop: 8 }}>{tr("✓ המעבר לשנתי ייכנס לתוקף בחידוש הבא")}</p>
               ) : (
-                <button type="button" data-testid="upgrade-buy-annual" style={{ ...primaryBtn, width: '100%', marginTop: 10 }} onClick={() => onView({ kind: 'annual' })}>לעבור לשנתי ולחסוך</button>
+                <button type="button" data-testid="upgrade-buy-annual" style={{ ...primaryBtn, width: '100%', marginTop: 10 }} onClick={() => onView({ kind: 'annual' })}>{tr("לעבור לשנתי ולחסוך")}</button>
               )}
             </div>
           );
         }
         return (
           <div key="referral" data-testid="upgrade-card-referral" style={{ ...cardBox, background: 'var(--k-petal)' }}>
-            <p style={title}>חברה מביאה חברה 🌸</p>
-            <p style={{ ...text, marginTop: 2 }}>מזמינה קוסמטיקאית חברה, ואחרי התשלום הראשון שלה שתיכן מקבלות חודש במתנה.</p>
-            <button type="button" data-testid="upgrade-referral" style={{ ...ghostBtn, width: '100%', marginTop: 10 }} onClick={onOpenReferral}>להזמנת חברה</button>
+            <p style={title}>{tr("חברה מביאה חברה 🌸")}</p>
+            <p style={{ ...text, marginTop: 2 }}>{tr("מזמינה קוסמטיקאית חברה, ואחרי התשלום הראשון שלה שתיכן מקבלות חודש במתנה.")}</p>
+            <button type="button" data-testid="upgrade-referral" style={{ ...ghostBtn, width: '100%', marginTop: 10 }} onClick={onOpenReferral}>{tr("להזמנת חברה")}</button>
           </div>
         );
       })}
@@ -503,7 +504,7 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
       if (r && isFinalRefusal(r.status, j)) {
         // Refused before any charge, or the provider's "no" for this id: definitive. The next tap is a new intent.
         settleIntent(key);
-        setErr(j?.error || 'החיוב לא הצליח, נסי שוב');
+        setErr(j?.error || tr("החיוב לא הצליח, נסי שוב"));
         return;
       }
       // No answer, a body that is not JSON, a server error, "pending", "in progress": ask the server about this id.
@@ -517,19 +518,19 @@ export default function UpgradesStore({ toast, isDemo, onOpenCard, onOpenReferra
     try {
       const r = await fetch('/api/billing/period', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period: 'annual', consent: true }) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { setErr(j?.error || 'לא הצלחנו לשמור, נסי שוב'); return; }
+      if (!r.ok || !j?.success) { setErr(j?.error || tr("לא הצלחנו לשמור, נסי שוב")); return; }
       await loadUpgrades(true);
       try { window.dispatchEvent(new CustomEvent(UPGRADES_CHANGED_EVENT, { detail: { annual: true } })); } catch { /* old browser */ }
       setView({ kind: 'annual-done' });
     } catch {
-      setErr('אין חיבור. לא נשמר, נסי שוב');
+      setErr(tr("אין חיבור. לא נשמר, נסי שוב"));
     } finally { setBusy(false); }
   };
 
   if (!open || typeof document === 'undefined') return null;
   return createPortal(
-    <Sheet open={open} onClose={close} busy={busy} width={460} zIndex={STORE_Z} ariaLabel="שדרוגים"
-      title={view ? undefined : 'שדרוגים ✨'} subtitle={view ? undefined : 'חבילה שמוסיפים נכנסת לתוקף מיד, בלי התחייבות.'}>
+    <Sheet open={open} onClose={close} busy={busy} width={460} zIndex={STORE_Z} ariaLabel={tr("שדרוגים")}
+      title={view ? undefined : tr("שדרוגים ✨")} subtitle={view ? undefined : tr("חבילה שמוסיפים נכנסת לתוקף מיד, בלי התחייבות.")}>
       <div data-testid="upgrades-store" style={{ paddingTop: view ? 4 : 0 }}>
         <StoreBody d={d} view={view} busy={busy} err={err} consentOk={consentOk} isDemo={isDemo}
           onView={goTo} onBuy={buy} onAnnual={switchAnnual} onConsent={setConsentOk}

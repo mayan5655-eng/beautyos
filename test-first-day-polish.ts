@@ -23,7 +23,7 @@ ok('setup checklist rows and their action button are at least 44px tall; onboard
 });
 
 ok('the client card already offers "asked to be removed from marketing" with a confirmation', () => {
-  assert.match(rd('app/beautyos.jsx'), /title:"הסרה מדיוור",message:`לרשום שהלקוחה ביקשה הסרה מדיוור\?/);
+  assert.match(rd('app/beautyos.jsx'), /title:"הסרה מדיוור",message:[`"]לרשום שהלקוחה ביקשה הסרה מדיוור\?/);
 });
 
 console.log(`${n} passed`);

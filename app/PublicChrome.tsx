@@ -18,6 +18,8 @@ import type { CSSProperties, ReactNode } from 'react';
 import { accentStyle } from '@/lib/theme';
 import { FLOWER_WATERMARK, LOGO_TEXT, LOGO_TEXT_W, LOGO_TEXT_H } from '@/lib/brand';
 import BrandImage from '@/app/BrandImage';
+import { trFor } from "@/lib/i18n/publicTr";
+import { dirOf, normalizeLang, type Lang } from "@/lib/i18n/core";
 
 /** The page's one quiet flower, in the corner behind everything (a page that keeps its own frame uses this directly). */
 export function Watermark({ style }: { style?: CSSProperties }) {
@@ -25,8 +27,10 @@ export function Watermark({ style }: { style?: CSSProperties }) {
 }
 
 export function PublicPage({
-  children, primary = null, owner = 'her', maxWidth = 420, style,
+  children, primary = null, owner = 'her', maxWidth = 420, style, lang: langIn = 'he',
 }: {
+  /** The business's language (lib/i18n): sets dir and lang on the page, and the "powered by" line. */
+  lang?: Lang | null;
   children: ReactNode;
   /** Her primary colour (settings.primary_color). Ignored for owner="kalmea". */
   primary?: string | null;
@@ -34,33 +38,36 @@ export function PublicPage({
   maxWidth?: number;
   style?: CSSProperties;
 }) {
+  const lang = normalizeLang(langIn);
   return (
-    <div dir="rtl" className="pub-page" style={{ ...(owner === 'her' ? accentStyle(primary) : {}), ...style }}>
+    <div dir={dirOf(lang)} lang={lang} className="pub-page" style={{ ...(owner === 'her' ? accentStyle(primary) : {}), ...style }}>
       <Watermark />
       <div className="pub-main" style={{ maxWidth }}>{children}</div>
-      {owner === 'her' && <PoweredBy />}
+      {owner === 'her' && <PoweredBy lang={lang} />}
     </div>
   );
 }
 
 /** Kalmea, small, at the bottom of a business's page. Never competes with her. */
-export function PoweredBy() {
+export function PoweredBy({ lang = 'he' }: { lang?: Lang | null } = {}) {
+  const tr = trFor(lang);
   return (
     <div className="pub-powered">
-      <span>מופעל על ידי</span>
+      <span>{tr("מופעל על ידי")}</span>
       <BrandImage src={LOGO_TEXT} alt="Kalmea" width={66} height={Math.round(66 * LOGO_TEXT_H / LOGO_TEXT_W)} />
     </div>
   );
 }
 
 /** Her logo, large and uncropped, then her name; with neither, nothing (no empty gap). */
-export function BusinessHeader({ logoUrl, name }: { logoUrl?: string | null; name?: string | null }) {
+export function BusinessHeader({ logoUrl, name, lang = 'he' }: { logoUrl?: string | null; name?: string | null; lang?: Lang | null }) {
+  const tr = trFor(lang);
   if (!logoUrl && !name) return null;
   return (
     <div className="pub-biz">
       {logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logoUrl} alt={name || 'לוגו'} width={220} height={96} />
+        <img src={logoUrl} alt={name || tr("לוגו")} width={220} height={96} />
       ) : null}
       {name ? <p className="pub-biz-name">{name}</p> : null}
       <span className="pub-biz-rule" aria-hidden />

@@ -11,6 +11,7 @@
 import CancelPolicyCard from './CancelPolicyCard';
 import { useEffect } from 'react';
 import { useGrowPolicy, growPolicyChanged } from './useGrowPolicy';
+import { tr } from "@/lib/i18n/tr";
 
 export default function PaymentsSettings({ rules, setRule, pc, pcTint, toast, isDemo, onOpenServices }) {
   const { loaded, connected, mode } = useGrowPolicy();
@@ -26,39 +27,39 @@ export default function PaymentsSettings({ rules, setRule, pc, pcTint, toast, is
 
   return (
     <div data-testid="payments-settings">
-      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>מקדמות</p>
-      <p style={{ ...small, marginTop: 2 }}>כל מה שקשור למקדמה בקביעת תור נמצא כאן, במקום אחד.</p>
+      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>{tr("מקדמות")}</p>
+      <p style={{ ...small, marginTop: 2 }}>{tr("כל מה שקשור למקדמה בקביעת תור נמצא כאן, במקום אחד.")}</p>
 
       <div data-testid="deposit-direct" style={box}>
-        <p style={{ fontSize: 'var(--t-md)', fontWeight: 600, color: 'var(--ink)', margin: '0 0 2px' }}>מקדמה שמשולמת אלייך ישירות</p>
-        <p style={{ ...small, marginBottom: 10 }}>למשל בביט או במזומן. הלקוחה רואה את הסכום בדף ההזמנה ומאשרת לפני שהתור נקבע. המערכת לא גובה אותה.</p>
+        <p style={{ fontSize: 'var(--t-md)', fontWeight: 600, color: 'var(--ink)', margin: '0 0 2px' }}>{tr("מקדמה שמשולמת אלייך ישירות")}</p>
+        <p style={{ ...small, marginBottom: 10 }}>{tr("למשל בביט או במזומן. הלקוחה רואה את הסכום בדף ההזמנה ומאשרת לפני שהתור נקבע. המערכת לא גובה אותה.")}</p>
         <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>
-          <span>מקדמה בקביעת תור (₪)</span>
-          <input type="number" min="0" max="5000" inputMode="numeric" aria-label="מקדמה" value={amount > 0 ? amount : ''} placeholder="ללא"
+          <span>{tr("מקדמה בקביעת תור (₪)")}</span>
+          <input type="number" min="0" max="5000" inputMode="numeric" aria-label={tr("מקדמה")} value={amount > 0 ? amount : ''} placeholder={tr("ללא")}
             onChange={(e) => setRule({ deposit_amount: e.target.value === '' ? 0 : Math.max(0, Math.min(5000, Math.round(Number(e.target.value) || 0))) })} style={{ ...sel, width: 96 }} />
         </label>
         {amount > 0 && (
-          <input aria-label="איך משלמים מקדמה" maxLength={200} value={typeof r.deposit_note === 'string' ? r.deposit_note : ''} onChange={(e) => setRule({ deposit_note: e.target.value })}
-            placeholder="איך משלמים: למשל, ביט ל-050-0000000" style={{ ...sel, width: '100%', marginTop: 8 }} />
+          <input aria-label={tr("איך משלמים מקדמה")} maxLength={200} value={typeof r.deposit_note === 'string' ? r.deposit_note : ''} onChange={(e) => setRule({ deposit_note: e.target.value })}
+            placeholder={tr("איך משלמים: למשל, ביט ל-050-0000000")} style={{ ...sel, width: '100%', marginTop: 8 }} />
         )}
       </div>
 
       {loaded && connected && (
         <div data-testid="deposit-grow" style={{ marginTop: 4 }}>
-          <p style={{ fontSize: 'var(--t-md)', fontWeight: 600, color: 'var(--ink)', margin: '12px 0 0' }}>מקדמה באשראי דרך Grow</p>
-          <p style={small}>בוחרים &quot;מקדמה בקביעת התור&quot; במדיניות הביטולים, והלקוחה משלמת בכרטיס כשהיא קובעת. בקופה המקדמה יורדת מהתשלום.</p>
+          <p style={{ fontSize: 'var(--t-md)', fontWeight: 600, color: 'var(--ink)', margin: '12px 0 0' }}>{tr("מקדמה באשראי דרך Grow")}</p>
+          <p style={small}>{tr("בוחרים \"מקדמה בקביעת התור\" במדיניות הביטולים, והלקוחה משלמת בכרטיס כשהיא קובעת. בקופה המקדמה יורדת מהתשלום.")}</p>
           <CancelPolicyCard pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemo} />
           {/* Both deposits on at once: the booking page shows the direct one in its terms AND charges the card one, so a client is
               asked for two deposits for one appointment. Said here, where both are set; nothing is changed for her. */}
           {mode === 'deposit' && amount > 0 && (
             <p data-testid="deposit-both-warning" role="note" style={{ ...box, background: 'var(--surface)', border: '1px solid var(--danger)', fontSize: 'var(--t-sm)', color: 'var(--ink)', lineHeight: 1.6 }}>
-              שימי לב: מוגדרות עכשיו שתי מקדמות. בטיפול שמסומן &quot;דורש מקדמה&quot; הלקוחה תתבקש לשלם גם ₪{amount} ישירות אלייך וגם מקדמה באשראי. אם רצית רק אחת, מחקי את הסכום במקדמה הישירה למעלה ושמרי.
+              {tr("שימי לב: מוגדרות עכשיו שתי מקדמות. בטיפול שמסומן \"דורש מקדמה\" הלקוחה תתבקש לשלם גם ₪")}{amount} {tr("ישירות אלייך וגם מקדמה באשראי. אם רצית רק אחת, מחקי את הסכום במקדמה הישירה למעלה ושמרי.")}
             </p>
           )}
           {mode === 'deposit' && (
             <div style={{ ...box, background: 'var(--surface)' }}>
-              <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: 0, lineHeight: 1.6 }}>אילו טיפולים דורשים מקדמה? מסמנים &quot;דורש מקדמה&quot; ליד כל טיפול ברשימת השירותים.</p>
-              {onOpenServices && <button type="button" data-testid="deposit-open-services" style={link} onClick={onOpenServices}>לרשימת השירותים ←</button>}
+              <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: 0, lineHeight: 1.6 }}>{tr("אילו טיפולים דורשים מקדמה? מסמנים \"דורש מקדמה\" ליד כל טיפול ברשימת השירותים.")}</p>
+              {onOpenServices && <button type="button" data-testid="deposit-open-services" style={link} onClick={onOpenServices}>{tr("לרשימת השירותים ←")}</button>}
             </div>
           )}
         </div>

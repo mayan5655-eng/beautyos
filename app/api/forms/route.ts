@@ -38,6 +38,7 @@
 // { state: 'already-signed' } so the page can say so plainly.
 
 import { createClient } from '@supabase/supabase-js';
+import { DEFAULT_LANG, langOfSettings, normalizeLang, type Lang } from '@/lib/i18n/core';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { publicAccent } from '@/lib/branding';
 import { consentFields } from '@/lib/marketingConsent.js';
@@ -65,6 +66,15 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id') || '';
+    // Development only (never on production, like app/c/demo-fixture): /form?id=demo-fixture-<form_type> shows a form
+    // with no database row, so the page can be checked in every language. &blang=ar|en plays the business's language.
+    if (id.startsWith('demo-fixture-') && process.env.VERCEL_ENV !== 'production') {
+      return Response.json({
+        success: true, businessName: 'סטודיו דוגמה', logoUrl: '', primaryColor: '#5B8A8A',
+        language: normalizeLang(searchParams.get('blang')),
+        form: { id, client_name: 'רונית', form_type: id.slice('demo-fixture-'.length), status: 'pending' },
+      });
+    }
     if (!UUID_RE.test(id)) {
       return Response.json(
         { success: false, error: 'קישור הטופס אינו תקין' },
@@ -104,6 +114,9 @@ export async function GET(request: Request) {
     let businessName = '';
     let logoUrl = '';
     let primaryColor = '';
+    // The business's language (settings.branding.language, lib/i18n/core.ts): the form opens in it, and the client can
+    // switch on the page. Hebrew when unset or unreadable.
+    let language: Lang = DEFAULT_LANG;
     try {
       const { data: s } = await supabase
         .from('settings')
@@ -113,6 +126,7 @@ export async function GET(request: Request) {
       businessName = s?.business_name || '';
       logoUrl = (s?.branding as { logo_url?: string } | null)?.logo_url || '';
       primaryColor = publicAccent(s);
+      language = langOfSettings(s);
     } catch { /* unbranded, not broken */ }
 
     return Response.json({
@@ -120,6 +134,7 @@ export async function GET(request: Request) {
       businessName,
       logoUrl,
       primaryColor,
+      language,
       form: {
         id: data.id,
         client_name: data.client_name,

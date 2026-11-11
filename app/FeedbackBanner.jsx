@@ -8,6 +8,7 @@
 // else she has open (the suppress prop). A failed save keeps the form and her words on screen and says so; only a real save thanks her.
 
 import { useEffect, useRef, useState } from "react";
+import { tr, trv } from "@/lib/i18n/tr";
 import {
   FEEDBACK_QUESTIONS, FEEDBACK_FACES, FEEDBACK_SHOW_DELAY_MS, FEEDBACK_MAX_TEXT, NOT_YET,
   feedbackEligible, feedbackStorageKey, readFeedbackState, feedbackDue, snoozeFeedback,
@@ -25,14 +26,14 @@ const writeState = (key, state) => {
 
 function Stars({ value, onPick, size }) {
   return (
-    <div role="radiogroup" aria-label="דירוג בכוכבים" style={{ display: "flex", justifyContent: "center", gap: 4 }}>
+    <div role="radiogroup" aria-label={tr("דירוג בכוכבים")} style={{ display: "flex", justifyContent: "center", gap: 4 }}>
       {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}
           type="button"
           role="radio"
           aria-checked={value === n}
-          aria-label={n === 1 ? "כוכב אחד" : `${n} כוכבים`}
+          aria-label={n === 1 ? tr("כוכב אחד") : tr("{0} כוכבים", [n])}
           data-testid={`feedback-star-${n}`}
           onClick={() => onPick(n)}
           style={{ background: "none", border: "none", cursor: "pointer", padding: 4, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -48,7 +49,7 @@ function Stars({ value, onPick, size }) {
 
 function Faces({ question, value, onPick }) {
   return (
-    <div role="radiogroup" aria-label={question.label} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
+    <div role="radiogroup" aria-label={trv(question.label)} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
       {FEEDBACK_FACES.map((f) => {
         const on = value === f.value;
         return (
@@ -57,7 +58,7 @@ function Faces({ question, value, onPick }) {
             type="button"
             role="radio"
             aria-checked={on}
-            aria-label={f.label}
+            aria-label={trv(f.label)}
             data-testid={`feedback-${question.id}-${f.value}`}
             onClick={() => onPick(f.value)}
             style={{
@@ -67,7 +68,7 @@ function Faces({ question, value, onPick }) {
             }}
           >
             <span aria-hidden style={{ fontSize: 24, lineHeight: 1.1, filter: value && !on ? "grayscale(0.7)" : "none" }}>{f.face}</span>
-            <span style={{ fontSize: 12, fontWeight: on ? 700 : 500 }}>{f.label}</span>
+            <span style={{ fontSize: 12, fontWeight: on ? 700 : 500 }}>{trv(f.label)}</span>
           </button>
         );
       })}
@@ -139,7 +140,7 @@ export default function FeedbackBanner({ plan, tenantId, counts, isDemo, suppres
   };
 
   const closeButton = (
-    <button type="button" onClick={phase === "thanks" ? () => setPhase("hidden") : snooze} aria-label="סגירה"
+    <button type="button" onClick={phase === "thanks" ? () => setPhase("hidden") : snooze} aria-label={tr("סגירה")}
       style={{ position: "absolute", top: 6, insetInlineEnd: 6, background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-md)", cursor: "pointer", minWidth: 44, minHeight: 44 }}>
       ✕
     </button>
@@ -149,7 +150,7 @@ export default function FeedbackBanner({ plan, tenantId, counts, isDemo, suppres
     return (
       <div
         role="dialog"
-        aria-label="איך קלמיה אצלך"
+        aria-label={tr("איך קלמיה אצלך")}
         data-testid="feedback-banner"
         style={{
           position: "fixed", zIndex: 4600, insetInline: 12, marginInline: "auto", maxWidth: 440, bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
@@ -160,15 +161,15 @@ export default function FeedbackBanner({ plan, tenantId, counts, isDemo, suppres
         {closeButton}
         {phase === "thanks" ? (
           <p className="serif" data-testid="feedback-thanks" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", padding: "12px 32px" }}>
-            תודה רבה! 🌸 התשובות שלך אצלנו ועוזרות לנו לשפר את קלמיה בשבילך.
+            {tr("תודה רבה! 🌸 התשובות שלך אצלנו ועוזרות לנו לשפר את קלמיה בשבילך.")}
           </p>
         ) : (
           <>
-            <p className="serif" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", padding: "0 32px", marginBottom: 2 }}>איך קלמיה אצלך עד עכשיו?</p>
-            <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginBottom: 6 }}>נשמח לשמוע, זה לוקח דקה ועוזר לנו מאוד 🌸</p>
+            <p className="serif" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", padding: "0 32px", marginBottom: 2 }}>{tr("איך קלמיה אצלך עד עכשיו?")}</p>
+            <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", marginBottom: 6 }}>{tr("נשמח לשמוע, זה לוקח דקה ועוזר לנו מאוד 🌸")}</p>
             <Stars value={rating} onPick={pickStars} size={32} />
             <button type="button" onClick={snooze} style={{ background: "none", border: "none", color: "var(--ink-2)", fontFamily: "inherit", fontSize: "var(--t-sm)", textDecoration: "underline", cursor: "pointer", minHeight: 44, padding: "0 12px" }}>
-              לא עכשיו
+              {tr("לא עכשיו")}
             </button>
           </>
         )}
@@ -181,7 +182,7 @@ export default function FeedbackBanner({ plan, tenantId, counts, isDemo, suppres
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="ספרי לנו איך קלמיה אצלך"
+        aria-label={tr("ספרי לנו איך קלמיה אצלך")}
         data-testid="feedback-banner"
         style={{
           position: "relative", width: "100%", maxWidth: 560, maxHeight: "calc(100dvh - 20px)", overflowY: "auto", background: "var(--surface)",
@@ -190,39 +191,39 @@ export default function FeedbackBanner({ plan, tenantId, counts, isDemo, suppres
         }}
       >
         {closeButton}
-        <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink)", textAlign: "center", padding: "0 40px", marginBottom: 6 }}>תודה שאת משתפת 🌸</p>
+        <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink)", textAlign: "center", padding: "0 40px", marginBottom: 6 }}>{tr("תודה שאת משתפת 🌸")}</p>
         <Stars value={rating} onPick={pickStars} size={28} />
         {FEEDBACK_QUESTIONS.map((q) => (
           <div key={q.id} style={{ marginTop: 14 }}>
-            <p style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{q.label}</p>
+            <p style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{trv(q.label)}</p>
             <Faces question={q} value={answers[q.id]} onPick={(v) => answer(q.id, v)} />
             {q.videos && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 2 }}>
                 <button type="button" aria-pressed={answers[q.id] === NOT_YET} data-testid="feedback-videos-not-yet" onClick={() => answer(q.id, NOT_YET)}
                   style={{ fontFamily: "inherit", fontSize: "var(--t-sm)", cursor: "pointer", minHeight: 44, padding: "0 12px", borderRadius: "var(--r-full)", color: "var(--ink-2)", background: answers[q.id] === NOT_YET ? "var(--k-petal)" : "transparent", border: `1px solid ${answers[q.id] === NOT_YET ? "var(--k-green)" : "var(--line)"}` }}>
-                  עוד לא צפיתי
+                  {tr("עוד לא צפיתי")}
                 </button>
-                <a href="/tutorials" target="_blank" rel="noopener noreferrer" style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", minHeight: 44, display: "inline-flex", alignItems: "center" }}>לסרטוני ההדרכה</a>
+                <a href="/tutorials" target="_blank" rel="noopener noreferrer" style={{ fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", minHeight: 44, display: "inline-flex", alignItems: "center" }}>{tr("לסרטוני ההדרכה")}</a>
               </div>
             )}
           </div>
         ))}
         <label style={{ display: "block", marginTop: 14 }}>
-          <span style={{ display: "block", fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>רוצה לספר לנו עוד? מה אהבת, מה חסר לך, מה הציק לך</span>
+          <span style={{ display: "block", fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{tr("רוצה לספר לנו עוד? מה אהבת, מה חסר לך, מה הציק לך")}</span>
           <textarea
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             maxLength={FEEDBACK_MAX_TEXT}
             rows={3}
             data-testid="feedback-text"
-            placeholder="אפשר לכתוב בחופשיות, רק בלי פרטים של לקוחות"
+            placeholder={tr("אפשר לכתוב בחופשיות, רק בלי פרטים של לקוחות")}
             style={{ width: "100%", boxSizing: "border-box", fontFamily: "inherit", fontSize: 16, color: "var(--ink)", background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "10px 12px", resize: "vertical" }}
           />
         </label>
         {error && <p role="alert" data-testid="feedback-error" style={{ fontSize: "var(--t-sm)", color: "var(--ink)", background: "var(--k-petal)", borderRadius: "var(--r-sm)", padding: "8px 12px", marginTop: 10 }}>{error}</p>}
         <button type="button" onClick={send} disabled={saving} data-testid="feedback-send"
           style={{ width: "100%", marginTop: 12, minHeight: 48, border: "none", borderRadius: "var(--r-md)", background: "var(--k-green)", color: "#fff", fontFamily: "inherit", fontSize: "var(--t-md)", fontWeight: 700, cursor: saving ? "default" : "pointer", opacity: saving ? 0.7 : 1 }}>
-          {saving ? "שולחת..." : "שליחה"}
+          {saving ? tr("שולחת...") : tr("שליחה")}
         </button>
       </div>
     </div>

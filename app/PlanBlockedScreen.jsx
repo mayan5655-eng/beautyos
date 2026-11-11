@@ -30,6 +30,7 @@ import { planState } from "@/lib/planState";
 import BrandImage from "@/app/BrandImage";
 import { ICON_FLOWER } from "@/lib/brand";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
+import { tr, trv, uiDir } from "@/lib/i18n/tr";
 import {
   blockedNoticeHe,
   BLOCKED_CLIENTS_NOTE_HE,
@@ -91,7 +92,7 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
 
   return (
     <div
-      dir="rtl"
+      dir={uiDir()}
       data-testid="plan-blocked-screen"
       style={{
         minHeight: "100dvh",
@@ -120,15 +121,15 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
           {businessName && (
             <p style={{ margin: "0 0 4px", fontSize: "var(--t-sm)", color: "var(--ink-3)" }}>{businessName}</p>
           )}
-          <h1 className="serif" style={{ margin: "0 0 10px", fontSize: "var(--t-2xl)", fontWeight: 600, color: "var(--brand-accent)" }}>{title}</h1>
-          <p style={{ margin: "0 0 10px", fontSize: "var(--t-md)", lineHeight: 1.7, color: "var(--ink-2)" }}>{body}</p>
+          <h1 className="serif" style={{ margin: "0 0 10px", fontSize: "var(--t-2xl)", fontWeight: 600, color: "var(--brand-accent)" }}>{trv(title)}</h1>
+          <p style={{ margin: "0 0 10px", fontSize: "var(--t-md)", lineHeight: 1.7, color: "var(--ink-2)" }}>{trv(body)}</p>
           {showPrice && (
             <p data-testid="plan-blocked-price" style={{ margin: "0 0 10px", fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)" }}>{PRICE_LINE_HE}</p>
           )}
           <p style={{ margin: "0 0 20px", fontSize: "var(--t-sm)", lineHeight: 1.65, color: "var(--ink-3)" }}>{BLOCKED_CLIENTS_NOTE_HE}</p>
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
-            {cta}
+            {trv(cta)}
             {wa ? (
               <a
                 href={wa}
@@ -169,7 +170,7 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
             disabled={checking}
             style={{ alignSelf: "center", background: "none", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600, padding: "10px 16px", cursor: checking ? "wait" : "pointer", minHeight: 44, fontFamily: "inherit" }}
           >
-            {checking ? "בודקת…" : "שילמתי, לבדוק שוב"}
+            {checking ? tr("בודקת…") : tr("שילמתי, לבדוק שוב")}
           </button>
         )}
 
@@ -179,7 +180,7 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
             onClick={onSignOut}
             style={{ alignSelf: "center", background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-sm)", textDecoration: "underline", cursor: "pointer", minHeight: 44, fontFamily: "inherit" }}
           >
-            יציאה מהחשבון
+            {tr("יציאה מהחשבון")}
           </button>
         )}
       </div>

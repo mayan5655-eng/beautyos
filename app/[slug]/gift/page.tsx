@@ -16,6 +16,8 @@ import { voucherConfig } from '@/lib/giftVouchers';
 import { storageHostOf } from '@/lib/giftVoucherDesign';
 import { PublicPage, BusinessHeader, LineIcon } from '@/app/PublicChrome';
 import { ICON_HEART } from '@/lib/brand';
+import { LangProvider, DocumentLang } from '@/lib/i18n/react';
+import { trFor } from '@/lib/i18n/publicTr';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +59,8 @@ export default async function GiftShopPage({ params }: Props) {
   // Her design, validated (lib/giftVoucherDesign.ts): the preview at the top is the card her friend will get.
   const design = voucherConfig(shop.settings as never, tenant.id, storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL)).design;
   return (
+    <LangProvider lang={b.language}>
+    <DocumentLang lang={b.language} />
     <GiftPurchase
       tenantId={tenant.id}
       slug={slug}
@@ -68,20 +72,22 @@ export default async function GiftShopPage({ params }: Props) {
       contact={waLink(b.whatsapp) || null}
       design={design}
     />
+    </LangProvider>
   );
 }
 
 function VouchersNotYet({ slug, tenantName, settings }: { slug: string; tenantName: string; settings: Record<string, unknown> | null }) {
   const b = resolveBranding(settings || {});
   const name = b.businessName || tenantName;
+  const tr = trFor(b.language);
   return (
-    <PublicPage primary={b.primary} maxWidth={440}>
-      <BusinessHeader logoUrl={b.logoUrl} name={name} />
+    <PublicPage primary={b.primary} maxWidth={440} lang={b.language}>
+      <BusinessHeader logoUrl={b.logoUrl} name={name} lang={b.language} />
       <div className="pub-card" data-testid="gift-not-yet" style={{ padding: '28px 24px 26px', textAlign: 'center' }}>
         <LineIcon src={ICON_HEART} />
-        <h1 className="pub-h1">שוברי מתנה עדיין לא זמינים כאן</h1>
-        <p className="pub-p">אפשר לחזור לעמוד של {name} ולקבוע תור, או לשאול אותה ישירות על שובר מתנה.</p>
-        <a href={`/${encodeURIComponent(slug)}`} style={{ display: 'inline-block', marginTop: 14, color: 'var(--pc-text, var(--pc))', fontWeight: 700 }}>לעמוד של {name}</a>
+        <h1 className="pub-h1">{tr("שוברי מתנה עדיין לא זמינים כאן")}</h1>
+        <p className="pub-p">{tr("אפשר לחזור לעמוד של {0} ולקבוע תור, או לשאול אותה ישירות על שובר מתנה.", [name])}</p>
+        <a href={`/${encodeURIComponent(slug)}`} style={{ display: 'inline-block', marginTop: 14, color: 'var(--pc-text, var(--pc))', fontWeight: 700 }}>{tr("לעמוד של {0}", [name])}</a>
       </div>
     </PublicPage>
   );

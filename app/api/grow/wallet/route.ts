@@ -22,17 +22,19 @@ import { VOUCHER_SERVICE_PREFIX } from '@/lib/giftVouchers';
 import { admin } from '../_shared';
 import { reportWalletSession } from '@/lib/grow/walletDiagServer';
 import { moneyAlert } from '@/lib/moneyAlert';
+import { langOfSettings, type Lang } from '@/lib/i18n/core';
 
 export const maxDuration = 30;
 
 const hidden = () => NextResponse.json({ success: false, hidden: true, state: 'unknown' }, { status: 404 });
 
 /** Her business name and her own accent colour (settings.primary_color is HER brand, which this page wears). */
-async function brandOf(tenantId: string): Promise<{ businessName: string; accent: string }> {
-  const { data } = await admin().from('settings').select('business_name, primary_color').eq('tenant_id', tenantId).maybeSingle();
+async function brandOf(tenantId: string): Promise<{ businessName: string; accent: string; language: Lang }> {
+  const { data } = await admin().from('settings').select('business_name, primary_color, branding').eq('tenant_id', tenantId).maybeSingle();
   const d = (data || {}) as { business_name?: unknown; primary_color?: unknown };
   const color = String(d.primary_color || '');
-  return { businessName: String(d.business_name || ''), accent: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '' };
+  // language: the business's (lib/i18n), so the payment page speaks it.
+  return { businessName: String(d.business_name || ''), accent: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '', language: langOfSettings(data) };
 }
 
 /** A booking deposit's hold, read from its consent. A read error counts as closed: no money is taken for a slot we cannot vouch for. */

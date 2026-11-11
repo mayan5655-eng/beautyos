@@ -18,6 +18,7 @@
 // behalf, and anyone could walk ids to post against a business at will.
 
 import { createClient } from "@supabase/supabase-js";
+import { langOfSettings } from "@/lib/i18n/core";
 import { verifyReview } from "../../../lib/reviewToken";
 import { checkIpLimit } from "../../../lib/rateLimit";
 import { publicAccent } from "@/lib/branding";
@@ -96,6 +97,8 @@ export async function GET(request) {
     // The same public logo the booking page shows; nothing else from branding.
     logoUrl: (s?.branding && s.branding.logo_url) || "",
     primaryColor: publicAccent(s),
+    // The business's language (lib/i18n): the page speaks it. Hebrew when unset.
+    language: langOfSettings(s),
     // Offered AFTER she has written something here, and offered to everyone
     // regardless of what she wrote. Showing it only to people who left four or
     // five stars is review gating, which Google's policy prohibits outright.

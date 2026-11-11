@@ -16,6 +16,7 @@ import TrialBanner from './TrialBanner';
 import { trialEndDateHe, upgradeCtaHe, payToContinueHe, UPGRADE_HINT_HE } from '@/lib/planCopy';
 import { defaultPlanPrice, upgradeButtonsEnabled } from '@/lib/pricing';
 import { LAUNCH_PRICE_CUTOFF_ISO } from '@/lib/ownerControl';
+import { tr, trv } from "@/lib/i18n/tr";
 
 export default function BillingNotices({ plan, onOpenBilling, isDemo, ...banner }) {
   const [s, setS] = useState(null);
@@ -60,7 +61,7 @@ export default function BillingNotices({ plan, onOpenBilling, isDemo, ...banner 
       className="primary-btn"
       style={{ background: banner.pcGrad, color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-accent)', flexShrink: 0 }}
     >
-      {label}
+      {trv(label)}
     </button>
   ) : null;
   const cta = button && upgrade ? (
@@ -74,16 +75,16 @@ export default function BillingNotices({ plan, onOpenBilling, isDemo, ...banner 
 
   return (
     <>
-      <TrialBanner plan={plan} cta={cta} {...banner} />
+      <TrialBanner plan={plan} cta={trv(cta)} {...banner} />
       {pastDue && (
         <div role="status" data-testid="billing-past-due" style={{ maxWidth: 1180, margin: '0 auto 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: 'var(--surface)', border: '1px solid var(--danger)', borderRadius: 'var(--r-lg)', padding: '14px 18px' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', marginBottom: 3 }}>החיוב החודשי נכשל</p>
+            <p className="serif" style={{ fontSize: 'var(--t-lg)', fontWeight: 600, color: 'var(--ink)', marginBottom: 3 }}>{tr("החיוב החודשי נכשל")}</p>
             <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
-              {sub.graceEndsAt ? `כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס עד ${trialEndDateHe(new Date(sub.graceEndsAt))}. ` : ''}ננסה שוב אוטומטית, וכל מה שיצרת נשאר שלך.
+              {sub.graceEndsAt ? tr("כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס עד {0}. ", [trialEndDateHe(new Date(sub.graceEndsAt))]) : ''}{tr("ננסה שוב אוטומטית, וכל מה שיצרת נשאר שלך.")}
             </p>
           </div>
-          <button type="button" onClick={onOpenBilling} className="primary-btn" style={{ background: banner.pcGrad, color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>עדכון כרטיס</button>
+          <button type="button" onClick={onOpenBilling} className="primary-btn" style={{ background: banner.pcGrad, color: 'var(--pc-contrast)', fontSize: 'var(--t-sm)', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>{tr("עדכון כרטיס")}</button>
         </div>
       )}
     </>

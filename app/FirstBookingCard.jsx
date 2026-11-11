@@ -10,6 +10,7 @@
 import Icon from "./Icon";
 import { firstBookingProgress } from "@/lib/firstBooking";
 import { tutorialHref } from "@/lib/helpSections";
+import { tr, trv } from "@/lib/i18n/tr";
 
 const btnPrimary = {
   display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "9px 16px",
@@ -32,10 +33,10 @@ export default function FirstBookingCard({
         style={{ maxWidth: 1180, marginInline: "auto", marginBottom: 12, padding: "16px 17px", display: "flex", alignItems: "center", gap: 12, ...style }}>
         <span aria-hidden style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--k-sage)", color: "var(--k-green)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}><Icon name="check" size={20} /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink)", margin: 0 }}>הכל מוכן לתור הראשון 🌸</p>
-          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, margin: "2px 0 0" }}>הטיפולים, הלקוחות והקישור במקום. כל לקוחה שתקבל ממך את הקישור יכולה לקבוע תור לבד.</p>
+          <p className="serif" style={{ fontSize: "var(--t-lg)", fontWeight: 600, color: "var(--ink)", margin: 0 }}>{tr("הכל מוכן לתור הראשון 🌸")}</p>
+          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, margin: "2px 0 0" }}>{tr("הטיפולים, הלקוחות והקישור במקום. כל לקוחה שתקבל ממך את הקישור יכולה לקבוע תור לבד.")}</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="סגירה" style={{ background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-md)", cursor: "pointer", minWidth: 44, minHeight: 44, flex: "none" }}>✕</button>
+        <button type="button" onClick={onClose} aria-label={tr("סגירה")} style={{ background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-md)", cursor: "pointer", minWidth: 44, minHeight: 44, flex: "none" }}>✕</button>
       </div>
     );
   }
@@ -47,31 +48,31 @@ export default function FirstBookingCard({
 
   const STEP_COPY = {
     services: {
-      title: "הוסיפי את הטיפולים שלך",
-      hint: "שם, מחיר ומשך. בלי טיפול אחד לפחות אי אפשר לקבוע תור.",
+      title: tr("הוסיפי את הטיפולים שלך"),
+      hint: tr("שם, מחיר ומשך. בלי טיפול אחד לפחות אי אפשר לקבוע תור."),
       doneHint: (s) => (s.count === 1 ? "טיפול אחד ברשימה" : `${s.count} טיפולים ברשימה`),
-      actions: (main) => <button type="button" onClick={onAddServices} style={main} data-testid="fb-services">הוספת טיפולים</button>,
+      actions: (main) => <button type="button" onClick={onAddServices} style={main} data-testid="fb-services">{tr("הוספת טיפולים")}</button>,
     },
     clients: {
-      title: "הכניסי את הלקוחות שלך",
-      hint: "הדביקי רשימה מאקסל, בחרי קובץ אנשי קשר מהטלפון, או הוסיפי לקוחה אחת ביד.",
+      title: tr("הכניסי את הלקוחות שלך"),
+      hint: tr("הדביקי רשימה מאקסל, בחרי קובץ אנשי קשר מהטלפון, או הוסיפי לקוחה אחת ביד."),
       doneHint: (s) => (s.count === 1 ? "לקוחה אחת ברשימה" : `${s.count} לקוחות ברשימה`),
       actions: (main) => (
         <>
-          <button type="button" onClick={onImportClients} style={main} data-testid="fb-import"><Icon name="upload" size={14} /> ייבוא לקוחות</button>
-          <button type="button" onClick={onNewClient} style={btnQuiet} data-testid="fb-new-client">לקוחה חדשה</button>
-          <a href={tutorialHref("clients")} data-testid="fb-video" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}>▶ סרטון: הוספת לקוחות</a>
+          <button type="button" onClick={onImportClients} style={main} data-testid="fb-import"><Icon name="upload" size={14} /> {tr("ייבוא לקוחות")}</button>
+          <button type="button" onClick={onNewClient} style={btnQuiet} data-testid="fb-new-client">{tr("לקוחה חדשה")}</button>
+          <a href={tutorialHref("clients")} data-testid="fb-video" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--ink)", textDecoration: "underline", textUnderlineOffset: 3 }}>{tr("▶ סרטון: הוספת לקוחות")}</a>
         </>
       ),
     },
     link: {
-      title: "שלחי את הקישור שלך ללקוחה אחת",
-      hint: "דרך הקישור היא בוחרת טיפול ושעה וקובעת לבד. מספיקה לקוחה אחת כדי להתחיל.",
+      title: tr("שלחי את הקישור שלך ללקוחה אחת"),
+      hint: tr("דרך הקישור היא בוחרת טיפול ושעה וקובעת לבד. מספיקה לקוחה אחת כדי להתחיל."),
       doneHint: () => "הקישור אצלך. כל לקוחה שתקבל אותו יכולה לקבוע תור לבד.",
       actions: (main) => (
         <>
-          <button type="button" onClick={onShareWhatsApp} style={main} data-testid="fb-whatsapp"><Icon name="whatsapp" size={14} /> שליחה בוואטסאפ</button>
-          <button type="button" onClick={onCopyLink} style={btnQuiet} data-testid="fb-copy"><Icon name="copy" size={14} /> העתקת הקישור</button>
+          <button type="button" onClick={onShareWhatsApp} style={main} data-testid="fb-whatsapp"><Icon name="whatsapp" size={14} /> {tr("שליחה בוואטסאפ")}</button>
+          <button type="button" onClick={onCopyLink} style={btnQuiet} data-testid="fb-copy"><Icon name="copy" size={14} /> {tr("העתקת הקישור")}</button>
         </>
       ),
     },
@@ -80,10 +81,10 @@ export default function FirstBookingCard({
   return (
     <section className="glass-card card-boxed card-boxed-accent" data-testid="first-booking-card" aria-labelledby="fb-title"
       style={{ maxWidth: 1180, marginInline: "auto", marginBottom: 12, padding: "16px 17px", borderInlineStart: "3px solid var(--k-green)", ...style }}>
-      <p style={{ fontSize: 12.5, color: "var(--brand-muted)", margin: 0 }}>ברוכה הבאה{name ? `, ${name}` : ""}</p>
+      <p style={{ fontSize: 12.5, color: "var(--brand-muted)", margin: 0 }}>{tr("ברוכה הבאה")}{name ? `, ${name}` : ""}</p>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-        <h2 id="fb-title" style={{ fontFamily: "var(--font-frank),'Frank Ruhl Libre',serif", fontSize: "var(--t-xl)", fontWeight: 600, color: "var(--ink)", margin: "2px 0 0" }}>3 צעדים לתור הראשון</h2>
-        <span data-testid="fb-progress" style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--ink)" }}>{progress.line}</span>
+        <h2 id="fb-title" style={{ fontFamily: "var(--font-frank),'Frank Ruhl Libre',serif", fontSize: "var(--t-xl)", fontWeight: 600, color: "var(--ink)", margin: "2px 0 0" }}>{tr("3 צעדים לתור הראשון")}</h2>
+        <span data-testid="fb-progress" style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--ink)" }}>{trv(progress.line)}</span>
       </div>
       <div aria-hidden style={{ height: 6, borderRadius: 999, background: "var(--k-sage)", overflow: "hidden", margin: "10px 0 12px" }}>
         <div style={{ height: "100%", width: `${pct}%`, background: "var(--k-green)", borderRadius: 999, transition: "width 0.5s ease" }} />
@@ -101,7 +102,7 @@ export default function FirstBookingCard({
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: "var(--t-md)", fontWeight: isNext ? 700 : 600, color: s.done ? "var(--ink-2)" : "var(--ink)", margin: 0 }}>
-                  {c.title}{s.done && <span style={{ fontSize: "var(--t-sm)", color: "var(--success)", fontWeight: 700, marginInlineStart: 8 }}>✓ בוצע</span>}
+                  {trv(c.title)}{s.done && <span style={{ fontSize: "var(--t-sm)", color: "var(--success)", fontWeight: 700, marginInlineStart: 8 }}>{tr("✓ בוצע")}</span>}
                 </p>
                 <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.55, margin: "2px 0 0" }}>{s.done ? c.doneHint(s) : c.hint}</p>
                 {!s.done && <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 9 }}>{c.actions(isNext ? btnPrimary : btnQuiet)}</div>}

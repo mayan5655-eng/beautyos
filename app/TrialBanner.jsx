@@ -22,6 +22,7 @@
 import { supportWhatsAppUrl } from "@/lib/support";
 import { ICON_FLOWER } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
+import { tr, trv, uiDir } from "@/lib/i18n/tr";
 // All Hebrew comes from lib/planCopy so this banner and the blocked screen can
 // never drift apart.
 import {
@@ -67,7 +68,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
           {trialGentleHe(days, plan.trialEndsAt)}
         </p>
         {/* Only with the upgrade buttons on (BillingNotices passes a small text button); null otherwise. */}
-        {cta}
+        {trv(cta)}
       </div>
     );
   }
@@ -107,7 +108,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
         boxShadow:"var(--shadow-accent)",
       }}
     >
-      {/* Accent on the inline-start edge. The shell is dir="rtl", so that is the right. */}
+      {/* Accent on the inline-start edge. The shell is dir={uiDir()}, so that is the right. */}
       <div
         aria-hidden
         style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 4, background: pcGrad }}
@@ -122,16 +123,16 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
             className="serif"
             style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: pcDeep, marginBottom: 3 }}
           >
-            {title}
+            {trv(title)}
           </p>
-          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{body}</p>
+          <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{trv(body)}</p>
           {!supportWhatsAppUrl() && (
-            <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginTop: 4 }}>אפשר לכתוב לנו דרך הכפתור 'תקועה?' שבתחתית המסך.</p>
+            <p style={{ fontSize:"var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6, marginTop: 4 }}>{tr("אפשר לכתוב לנו דרך הכפתור 'תקועה?' שבתחתית המסך.")}</p>
           )}
         </div>
       </div>
 
-      {cta}
+      {trv(cta)}
 
       {/* No number configured means no WhatsApp route. The banner still says
           what is wrong; it just stops offering a link that goes nowhere. */}

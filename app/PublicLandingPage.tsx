@@ -30,6 +30,9 @@ import { resolveBranding } from "@/lib/branding";
 import { logoSrc } from "@/lib/logoSrc";
 import { displayName } from "@/lib/personName";
 import { normalizeBusinessHours } from "@/lib/businessHours";
+import { useTr } from "@/lib/i18n/useTr";
+import { useLang } from "@/lib/i18n/react";
+import { dirOf, localeOf } from "@/lib/i18n/core";
 import {
   DAYS_HE, displayPhone, fmtHour, googleInfo, hasRealHours, instagramHandle, israelClock,
   mapsHref, openStatus, openStatusLabel, planMessage, telHref, todayHours, waHref, wazeHref,
@@ -93,6 +96,7 @@ function Photo({ src, eager = false, sizes, style }: { src: string; eager?: bool
 // Before/after: drag anywhere on the photo (pointer events, so touch and mouse both work; vertical scrolling stays
 // with the page), or use the arrow keys on the hidden range input.
 function BeforeAfter({ before, after }: { before: string; after: string }) {
+  const tr = useTr();
   const [pos, setPos] = useState(50);
   const move = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -111,9 +115,9 @@ function BeforeAfter({ before, after }: { before: string; after: string }) {
       <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: pos + "%", width: 2, marginLeft: -1, background: "#fff" }}>
         <span style={{ position: "absolute", top: "50%", left: "50%", width: 32, height: 32, margin: "-16px 0 0 -16px", borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", color: "#444", boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}>‹›</span>
       </div>
-      <span aria-hidden="true" style={{ ...pill, left: 8 }}>לפני</span>
-      <span aria-hidden="true" style={{ ...pill, right: 8 }}>אחרי</span>
-      <input type="range" min={0} max={100} value={Math.round(pos)} onChange={(e) => setPos(Number(e.target.value))} aria-label="השוואת לפני ואחרי"
+      <span aria-hidden="true" style={{ ...pill, left: 8 }}>{tr("לפני")}</span>
+      <span aria-hidden="true" style={{ ...pill, right: 8 }}>{tr("אחרי")}</span>
+      <input type="range" min={0} max={100} value={Math.round(pos)} onChange={(e) => setPos(Number(e.target.value))} aria-label={tr("השוואת לפני ואחרי")}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, pointerEvents: "none", margin: 0 }} />
     </div>
   );
@@ -122,6 +126,7 @@ function BeforeAfter({ before, after }: { before: string; after: string }) {
 // Full-screen viewer for the gallery and the results. Arrows, swipe, Esc and the backdrop all work; the page behind
 // does not scroll while it is open. A swipe is ignored on a before/after item, where dragging moves the slider.
 function Lightbox({ items, index, title, onClose, onStep }: { items: LightboxItem[]; index: number; title: string; onClose: () => void; onStep: (d: number) => void }) {
+  const tr = useTr();
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const startX = useRef<number | null>(null);
   useEffect(() => {
@@ -143,7 +148,7 @@ function Lightbox({ items, index, title, onClose, onStep }: { items: LightboxIte
   return (
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,12,18,.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "56px 12px 20px" }}>
-      <button ref={closeRef} onClick={onClose} aria-label="סגירה" style={{ ...arrow, position: "absolute", top: 10, left: 10 }}>×</button>
+      <button ref={closeRef} onClick={onClose} aria-label={tr("סגירה")} style={{ ...arrow, position: "absolute", top: 10, left: 10 }}>×</button>
       <div onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => { if (!it.before) startX.current = e.clientX; }}
         onPointerUp={(e) => {
@@ -165,9 +170,9 @@ function Lightbox({ items, index, title, onClose, onStep }: { items: LightboxIte
       {it.caption && <p onClick={(e) => e.stopPropagation()} style={{ margin: "12px 0 0", maxWidth: 520, color: "#fff", fontSize: 15, lineHeight: 1.6, textAlign: "center" }}>{it.caption}</p>}
       {items.length > 1 && (
         <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 12, color: "#fff" }}>
-          <button onClick={() => onStep(-1)} aria-label="הקודמת" style={arrow}>›</button>
+          <button onClick={() => onStep(-1)} aria-label={tr("הקודמת")} style={arrow}>›</button>
           <span style={{ fontSize: 14 }}>{index + 1} / {items.length}</span>
-          <button onClick={() => onStep(1)} aria-label="הבאה" style={arrow}>‹</button>
+          <button onClick={() => onStep(1)} aria-label={tr("הבאה")} style={arrow}>‹</button>
         </div>
       )}
     </div>
@@ -192,6 +197,8 @@ export default function PublicLandingPage({
   reviews: Review[] | null;
   results?: PublicResult[] | null;
 }) {
+  const tr = useTr();
+  const lang = useLang();
   const brand = useMemo(() => resolveBranding(settings), [settings]);
   // The visit's source (?src= / ?ref=), remembered so the booking page it leads to can record it (lib/bookingSource.ts).
   useEffect(() => { if (typeof window !== "undefined") rememberSource(tenantId, window.location.search); }, [tenantId]);
@@ -269,8 +276,8 @@ export default function PublicLandingPage({
   const fieldsInMenu = Array.from(new Set(services.map((s) => (s.field === "nails" || s.field === "cosmetics" ? s.field : "")))).filter(Boolean);
   const groupByField = brand.fields.length > 1 && fieldsInMenu.length > 1;
   const groups: { key: string; title: string; items: Service[] }[] = groupByField
-    ? [...fieldsInMenu.map((f) => ({ key: f, title: FIELD_TITLE[f] || f, items: services.filter((s) => s.field === f) })),
-       { key: "other", title: "עוד טיפולים", items: services.filter((s) => s.field !== "nails" && s.field !== "cosmetics") }]
+    ? [...fieldsInMenu.map((f) => ({ key: f, title: FIELD_TITLE[f] ? tr(FIELD_TITLE[f]) : f, items: services.filter((s) => s.field === f) })),
+       { key: "other", title: tr("עוד טיפולים"), items: services.filter((s) => s.field !== "nails" && s.field !== "cosmetics") }]
         .filter((g) => g.items.length)
     : [{ key: "all", title: "", items: services }];
 
@@ -289,7 +296,7 @@ export default function PublicLandingPage({
   // One viewer for both lists: which list and which item is open.
   const [viewer, setViewer] = useState<{ kind: "gallery" | "results"; index: number } | null>(null);
   const viewerItems: LightboxItem[] = viewer?.kind === "results"
-    ? results.map((r) => ({ src: r.after, before: r.before || undefined, caption: [r.serviceName, r.caption, r.sessions ? `${r.sessions} טיפולים` : ""].filter(Boolean).join(" · ") }))
+    ? results.map((r) => ({ src: r.after, before: r.before || undefined, caption: [r.serviceName, r.caption, r.sessions ? tr("{0} טיפולים", [r.sessions]) : ""].filter(Boolean).join(" · ") }))
     : gallery.map((src) => ({ src }));
   const closeViewer = useCallback(() => setViewer(null), []);
   const resultsCount = results.length, galleryCount = gallery.length;
@@ -328,24 +335,24 @@ export default function PublicLandingPage({
   // Stats: only values that exist. Rating prefers Google; with no Google rating,
   // the clients' own published reviews (three or more, so one 5 is not a statistic).
   const stats: { value: string; label: string }[] = [];
-  if (google) stats.push({ value: google.rating.toFixed(1) + "★", label: "דירוג בגוגל" });
-  else if (reviews.length >= 3) stats.push({ value: reviewsAvg.toFixed(1) + "★", label: "דירוג לקוחות" });
-  if (google?.count) stats.push({ value: google.count.toLocaleString("he-IL"), label: "ביקורות בגוגל" });
-  else if (reviews.length >= 3) stats.push({ value: String(reviews.length), label: "ביקורות לקוחות" });
-  if (today) stats.push({ value: fmtHour(today.close), label: "שעת סגירה היום" });
+  if (google) stats.push({ value: google.rating.toFixed(1) + "★", label: tr("דירוג בגוגל") });
+  else if (reviews.length >= 3) stats.push({ value: reviewsAvg.toFixed(1) + "★", label: tr("דירוג לקוחות") });
+  if (google?.count) stats.push({ value: google.count.toLocaleString(localeOf(lang)), label: tr("ביקורות בגוגל") });
+  else if (reviews.length >= 3) stats.push({ value: String(reviews.length), label: tr("ביקורות לקוחות") });
+  if (today) stats.push({ value: fmtHour(today.close), label: tr("שעת סגירה היום") });
 
   const toggle = (name: string) => setPicked((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
 
   const barItems = [
-    waBase && { key: "wa", href: waBase, label: "וואטסאפ", icon: "whatsapp", external: true },
-    tel && { key: "call", href: tel, label: "התקשרות", icon: "phone", external: false },
-    navHref && { key: "nav", href: navHref, label: "ניווט", icon: "pin", external: true },
-    canBook && { key: "book", href: bookStart, label: "קביעת תור", icon: "calendar", external: false, primary: true },
+    waBase && { key: "wa", href: waBase, label: tr("וואטסאפ"), icon: "whatsapp", external: true },
+    tel && { key: "call", href: tel, label: tr("התקשרות"), icon: "phone", external: false },
+    navHref && { key: "nav", href: navHref, label: tr("ניווט"), icon: "pin", external: true },
+    canBook && { key: "book", href: bookStart, label: tr("קביעת תור"), icon: "calendar", external: false, primary: true },
   ].filter(Boolean) as { key: string; href: string; label: string; icon: string; external: boolean; primary?: boolean }[];
   const barShown = barItems.length > 0 && !heroCtaVisible;
 
   return (
-    <div dir="rtl" lang="he" style={{ ...accentStyle(brand.primary), background: cream, color: ink, minHeight: "100dvh", fontFamily: "var(--font-assistant), 'Assistant', sans-serif", overflowX: "hidden" }}>
+    <div dir={dirOf(lang)} lang={lang} style={{ ...accentStyle(brand.primary), background: cream, color: ink, minHeight: "100dvh", fontFamily: "var(--font-assistant), 'Assistant', sans-serif", overflowX: "hidden" }}>
       <style>{`
         .serif { font-family: var(--font-frank), 'Frank Ruhl Libre', serif; }
         .lp-wrap { width: 100%; max-width: 560px; margin: 0 auto; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
@@ -407,7 +414,7 @@ export default function PublicLandingPage({
               {status && (
                 <span role="status" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: "var(--r-full, 999px)", background: surface, border: "1px solid " + hair, fontSize: "var(--t-sm, 15px)", fontWeight: 700, color: ink }}>
                   <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: "50%", background: status.open ? "var(--success, #2E8B57)" : "var(--ink-3, #8A8191)" }} />
-                  {openStatusLabel(status)}
+                  {openStatusLabel(status, tr)}
                 </span>
               )}
             </div>
@@ -421,8 +428,8 @@ export default function PublicLandingPage({
 
             {(canBook || waBase) && (
               <div ref={heroCtaRef} style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 18 }}>
-                {canBook && <a href={bookStart} className="lp-btn lp-primary" style={{ flex: "1 1 160px", maxWidth: 260 }}><Icon name="calendar" size={18} /> קביעת תור אונליין</a>}
-                {waBase && <a href={waBase} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ flex: "1 1 140px", maxWidth: 220 }}><Icon name="whatsapp" size={18} /> וואטסאפ</a>}
+                {canBook && <a href={bookStart} className="lp-btn lp-primary" style={{ flex: "1 1 160px", maxWidth: 260 }}><Icon name="calendar" size={18} /> {tr("קביעת תור אונליין")}</a>}
+                {waBase && <a href={waBase} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ flex: "1 1 140px", maxWidth: 220 }}><Icon name="whatsapp" size={18} /> {tr("וואטסאפ")}</a>}
               </div>
             )}
           </div>
@@ -430,26 +437,26 @@ export default function PublicLandingPage({
 
         {/* 2. GOOGLE CARD - only with a real rating she entered from her Google profile. */}
         {google && (
-          <section className="lp-sec" aria-label="דירוג בגוגל">
+          <section className="lp-sec" aria-label={tr("דירוג בגוגל")}>
             <div className="lp-card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <span className="serif" style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: ink }}>{google.rating.toFixed(1)}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <Stars value={google.rating} size={16} />
                 <p style={{ margin: "2px 0 0", fontSize: "var(--t-sm, 15px)", color: ink2 }}>
-                  {google.count ? `${google.count.toLocaleString("he-IL")} ביקורות בגוגל` : "דירוג בגוגל"}
+                  {google.count ? tr("{0} ביקורות בגוגל", [google.count.toLocaleString(localeOf(lang))]) : tr("דירוג בגוגל")}
                 </p>
               </div>
-              {google.url && <a href={google.url} target="_blank" rel="noreferrer" className="lp-link" style={{ fontSize: "var(--t-sm, 15px)", flexShrink: 0 }}>לביקורות</a>}
+              {google.url && <a href={google.url} target="_blank" rel="noreferrer" className="lp-link" style={{ fontSize: "var(--t-sm, 15px)", flexShrink: 0 }}>{tr("לביקורות")}</a>}
             </div>
           </section>
         )}
 
         {/* 3. PLAN YOUR TREATMENT - chips from her real menu build a WhatsApp message. */}
         {services.length > 0 && (
-          <Section id="plan" title="מתכננות טיפול?">
+          <Section id="plan" title={tr("מתכננות טיפול?")}>
             <div className="lp-card">
               <p style={{ margin: "0 0 12px", fontSize: "var(--t-sm, 15px)", color: ink2, lineHeight: 1.6 }}>
-                בחרי את הטיפולים שמעניינים אותך{waBase ? ", ונכין לך הודעה מוכנה לשלוח לנו בוואטסאפ" : ""}.
+                {tr("בחרי את הטיפולים שמעניינים אותך")}{waBase ? tr(", ונכין לך הודעה מוכנה לשלוח לנו בוואטסאפ") : ""}.
               </p>
               {groups.map((g) => (
                 <div key={g.key} style={{ marginBottom: 10 }}>
@@ -471,13 +478,13 @@ export default function PublicLandingPage({
               {isNails && (
                 <div style={{ marginTop: 6 }}>
                   <p style={{ margin: "0 0 8px", fontSize: "var(--t-xs, 13px)", fontWeight: 700, color: ink2 }}>
-                    צבע לק שאהבת (לא חובה){polish ? ": " + polish : ""}
+                    {tr("צבע לק שאהבת (לא חובה)")}{polish ? ": " + polish : ""}
                   </p>
-                  <div role="radiogroup" aria-label="צבע לק" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <div role="radiogroup" aria-label={tr("צבע לק")} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {POLISH.map((c) => {
                       const on = polish === c.name;
                       return (
-                        <button key={c.name} type="button" role="radio" aria-checked={on} aria-label={c.name} title={c.name}
+                        <button key={c.name} type="button" role="radio" aria-checked={on} aria-label={tr(c.name)} title={tr(c.name)}
                           onClick={() => setPolish(on ? null : c.name)}
                           style={{ width: 34, height: 34, borderRadius: "50%", background: c.hex, cursor: "pointer", padding: 0, border: on ? "3px solid var(--pc)" : "1px solid rgba(0,0,0,.15)", outline: on ? "2px solid " + surface : "none", outlineOffset: -5 }} />
                       );
@@ -488,15 +495,15 @@ export default function PublicLandingPage({
 
               {pickedServices.length > 0 && (totalMin > 0 || allPriced) && (
                 <p style={{ margin: "12px 0 0", fontSize: "var(--t-sm, 15px)", color: ink, fontWeight: 600 }}>
-                  {[totalMin > 0 ? `כ-${totalMin} דק׳` : "", allPriced ? `₪${totalPrice.toLocaleString("he-IL")}` : ""].filter(Boolean).join(" · ")}
+                  {[totalMin > 0 ? tr("כ-{0} דק׳", [totalMin]) : "", allPriced ? `₪${totalPrice.toLocaleString(localeOf(lang))}` : ""].filter(Boolean).join(" · ")}
                 </p>
               )}
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
-                <a href={bookHref} className="lp-btn lp-primary" style={{ width: "100%" }}><Icon name="calendar" size={18} /> קביעת תור אונליין</a>
+                <a href={bookHref} className="lp-btn lp-primary" style={{ width: "100%" }}><Icon name="calendar" size={18} /> {tr("קביעת תור אונליין")}</a>
                 {planWa && (
                   <a href={planWa} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ width: "100%" }}>
-                    <Icon name="whatsapp" size={18} /> {picked.length ? "שליחת הבחירה בוואטסאפ" : "שאלה בוואטסאפ"}
+                    <Icon name="whatsapp" size={18} /> {picked.length ? tr("שליחת הבחירה בוואטסאפ") : tr("שאלה בוואטסאפ")}
                   </a>
                 )}
               </div>
@@ -507,7 +514,7 @@ export default function PublicLandingPage({
         {/* 4. STATS - only the ones with a real value. */}
         {/* Two or more: a lone closing-hour card would only repeat the hero badge. */}
         {stats.length >= 2 && (
-          <section className="lp-sec" aria-label="במספרים">
+          <section className="lp-sec" aria-label={tr("במספרים")}>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))`, gap: 8 }}>
               {stats.map((s) => (
                 <div key={s.label} className="lp-card" style={{ padding: "12px 8px", textAlign: "center" }}>
@@ -521,11 +528,11 @@ export default function PublicLandingPage({
 
         {/* NICE TO MEET YOU - only with her own portrait. */}
         {aboutShown && (
-          <Section title="נעים להכיר">
+          <Section title={tr("נעים להכיר")}>
             <div className="lp-card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.25fr)", gap: 14, alignItems: "center" }}>
               <Photo src={brand.portraitUrl} sizes="(max-width: 560px) 45vw, 230px" style={{ width: "100%", aspectRatio: "4 / 5", borderRadius: "var(--r-md, 12px)" }} />
               <div>
-                {personName && <p className="serif" style={{ margin: "0 0 6px", fontSize: "var(--t-lg, 18px)", fontWeight: 700, color: ink }}>נעים מאוד, אני {personName}</p>}
+                {personName && <p className="serif" style={{ margin: "0 0 6px", fontSize: "var(--t-lg, 18px)", fontWeight: 700, color: ink }}>{tr("נעים מאוד, אני")} {personName}</p>}
                 {brand.therapistTitle && <p style={{ margin: "0 0 6px", fontSize: "var(--t-sm, 15px)", fontWeight: 700, color: "var(--pc-text)" }}>{brand.therapistTitle}</p>}
                 {brand.businessDescription && <p style={{ margin: 0, fontSize: "var(--t-sm, 15px)", lineHeight: 1.75, color: ink2, whiteSpace: "pre-line" }}>{brand.businessDescription}</p>}
                 {brand.aboutSignoff && <p className="serif" style={{ margin: "8px 0 0", fontSize: "var(--t-md, 16px)", fontWeight: 600, color: "var(--pc-text)" }}>{brand.aboutSignoff}</p>}
@@ -536,11 +543,11 @@ export default function PublicLandingPage({
 
         {/* 5. GALLERY - her own uploads. */}
         {gallery.length > 0 && (
-          <Section title="מהעבודות שלי">
+          <Section title={tr("מהעבודות שלי")}>
             {/* As many columns as there are photos, up to three, so one or two never leave empty cells. */}
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(gallery.length, 3)}, minmax(0, 1fr))`, gap: 6, maxWidth: gallery.length === 1 ? 260 : undefined, margin: "0 auto" }}>
               {galleryShown.map((src, i) => (
-                <button key={src} type="button" onClick={() => setViewer({ kind: "gallery", index: i })} aria-label={`הגדלת תמונה ${i + 1} מתוך ${gallery.length}`}
+                <button key={src} type="button" onClick={() => setViewer({ kind: "gallery", index: i })} aria-label={tr("הגדלת תמונה {0} מתוך {1}", [i + 1, gallery.length])}
                   style={{ display: "block", width: "100%", padding: 0, border: "none", cursor: "zoom-in", aspectRatio: "1 / 1", borderRadius: "var(--r-sm, 10px)", overflow: "hidden", background: "none" }}>
                   <Photo src={src} sizes={gallery.length === 1 ? "260px" : "(max-width: 560px) 50vw, 280px"} style={{ width: "100%", height: "100%" }} />
                 </button>
@@ -548,7 +555,7 @@ export default function PublicLandingPage({
             </div>
             {gallery.length > GALLERY_FIRST && (
               <button type="button" onClick={() => setGalleryOpen((o) => !o)} className="lp-btn lp-ghost" style={{ display: "flex", margin: "12px auto 0", minHeight: 40 }}>
-                {galleryOpen ? "הצגת פחות" : (gallery.length - GALLERY_FIRST === 1 ? "עוד תמונה אחת" : `עוד ${gallery.length - GALLERY_FIRST} תמונות`)}
+                {galleryOpen ? tr("הצגת פחות") : (gallery.length - GALLERY_FIRST === 1 ? tr("עוד תמונה אחת") : tr("עוד {0} תמונות", [gallery.length - GALLERY_FIRST]))}
               </button>
             )}
           </Section>
@@ -556,22 +563,22 @@ export default function PublicLandingPage({
 
         {/* RESULTS - real client photos she published with consent. Tap to compare before and after. */}
         {results.length > 0 && (
-          <Section title="תוצאות אמיתיות">
+          <Section title={tr("תוצאות אמיתיות")}>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(results.length, 2)}, minmax(0, 1fr))`, gap: 8, maxWidth: results.length === 1 ? 280 : undefined, margin: "0 auto" }}>
               {resultsShown.map((r, i) => (
                 <button key={r.id || i} type="button" onClick={() => setViewer({ kind: "results", index: i })}
-                  aria-label={`תוצאה ${i + 1} מתוך ${results.length}${r.serviceName ? ": " + r.serviceName : ""}`}
+                  aria-label={tr("תוצאה {0} מתוך {1}{2}", [i + 1, results.length, r.serviceName ? ": " + r.serviceName : ""])}
                   style={{ position: "relative", display: "block", width: "100%", padding: 0, border: "none", cursor: "zoom-in", aspectRatio: "1 / 1", borderRadius: "var(--r-sm, 10px)", overflow: "hidden", background: "none" }}>
                   <Photo src={r.after} sizes="(max-width: 560px) 50vw, 280px" style={{ position: "absolute", inset: 0 }} />
                   <span aria-hidden="true" style={{ position: "absolute", insetInline: 0, bottom: 0, padding: "18px 8px 6px", background: "linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.55))", color: "#fff", fontSize: 13, fontWeight: 700, textAlign: "start" }}>
-                    {[r.serviceName, r.before ? "לפני · אחרי" : ""].filter(Boolean).join(" · ")}
+                    {[r.serviceName, r.before ? tr("לפני") + " · " + tr("אחרי") : ""].filter(Boolean).join(" · ")}
                   </span>
                 </button>
               ))}
             </div>
             {results.length > RESULTS_FIRST && (
               <button type="button" onClick={() => setResultsOpen((o) => !o)} className="lp-btn lp-ghost" style={{ display: "flex", margin: "12px auto 0", minHeight: 40 }}>
-                {resultsOpen ? "הצגת פחות" : (results.length - RESULTS_FIRST === 1 ? "עוד תוצאה אחת" : `עוד ${results.length - RESULTS_FIRST} תוצאות`)}
+                {resultsOpen ? tr("הצגת פחות") : (results.length - RESULTS_FIRST === 1 ? tr("עוד תוצאה אחת") : tr("עוד {0} תוצאות", [results.length - RESULTS_FIRST]))}
               </button>
             )}
           </Section>
@@ -579,7 +586,7 @@ export default function PublicLandingPage({
 
         {/* 6. REVIEWS - written by clients after a real visit, published only. */}
         {reviews.length > 0 && (
-          <Section title="מה הלקוחות אומרות">
+          <Section title={tr("מה הלקוחות אומרות")}>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {reviews.slice(0, 6).map((r, i) => (
                 <figure key={i} className="lp-card" style={{ margin: 0 }}>
@@ -597,20 +604,20 @@ export default function PublicLandingPage({
 
         {/* 7. INSTAGRAM - a real handle and a follow link. Nothing else. */}
         {(igHandle || fbHref) && (
-          <section className="lp-sec" aria-label="רשתות חברתיות" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <section className="lp-sec" aria-label={tr("רשתות חברתיות")} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {igHandle && (
             <div className="lp-card" style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: "var(--t-sm, 15px)", color: ink2 }}>עקבי אחריי באינסטגרם</p>
+                <p style={{ margin: 0, fontSize: "var(--t-sm, 15px)", color: ink2 }}>{tr("עקבי אחריי באינסטגרם")}</p>
                 <p dir="ltr" style={{ margin: "2px 0 0", fontSize: "var(--t-md, 16px)", fontWeight: 700, color: ink, overflow: "hidden", textOverflow: "ellipsis", textAlign: "right" }}>@{igHandle}</p>
               </div>
-              <a href={`https://instagram.com/${igHandle}`} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ minHeight: 42, flexShrink: 0 }}>מעקב</a>
+              <a href={`https://instagram.com/${igHandle}`} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ minHeight: 42, flexShrink: 0 }}>{tr("מעקב")}</a>
             </div>
             )}
             {fbHref && (
               <div className="lp-card" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <p style={{ flex: 1, minWidth: 0, margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 700, color: ink }}>העמוד שלי בפייסבוק</p>
-                <a href={fbHref} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ minHeight: 42, flexShrink: 0 }}>לעמוד</a>
+                <p style={{ flex: 1, minWidth: 0, margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 700, color: ink }}>{tr("העמוד שלי בפייסבוק")}</p>
+                <a href={fbHref} target="_blank" rel="noreferrer" className="lp-btn lp-ghost" style={{ minHeight: 42, flexShrink: 0 }}>{tr("לעמוד")}</a>
               </div>
             )}
           </section>
@@ -618,7 +625,7 @@ export default function PublicLandingPage({
 
         {/* 8. SERVICES - the full menu. */}
         {services.length > 0 && (
-          <Section id="services" title="הטיפולים">
+          <Section id="services" title={tr("הטיפולים")}>
             {groups.map((g) => {
               const withPhoto = g.items.filter((s) => ownImage(s));
               const plain = g.items.filter((s) => !ownImage(s));
@@ -629,7 +636,7 @@ export default function PublicLandingPage({
                     {g.title && <p style={{ margin: "0 0 8px", fontSize: "var(--t-xs, 13px)", fontWeight: 700, color: ink2 }}>{g.title}</p>}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
                       {withPhoto.map((s, i) => {
-                        const meta = [minutesOf(s) ? `${minutesOf(s)} דק׳` : "", priceOf(s) ? `₪${priceOf(s).toLocaleString("he-IL")}` : ""].filter(Boolean).join(" · ");
+                        const meta = [minutesOf(s) ? tr("{0} דק׳", [minutesOf(s)]) : "", priceOf(s) ? `₪${priceOf(s).toLocaleString(localeOf(lang))}` : ""].filter(Boolean).join(" · ");
                         // An odd last card spans both columns, so the grid never ends on an empty cell.
                         const wide = withPhoto.length % 2 === 1 && i === withPhoto.length - 1;
                         return (
@@ -640,7 +647,7 @@ export default function PublicLandingPage({
                               <p style={{ margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 700, lineHeight: 1.3 }}>{s.name}</p>
                               {s.description && <p style={{ margin: 0, fontSize: "var(--t-xs, 13px)", color: ink2, lineHeight: 1.5 }}>{s.description}</p>}
                               {meta && <p style={{ margin: 0, fontSize: "var(--t-sm, 15px)", color: ink2 }}>{meta}</p>}
-                              <span style={{ marginTop: "auto", paddingTop: 4, color: "var(--pc-text)", fontWeight: 700, fontSize: "var(--t-sm, 15px)" }}>לקביעה ‹</span>
+                              <span style={{ marginTop: "auto", paddingTop: 4, color: "var(--pc-text)", fontWeight: 700, fontSize: "var(--t-sm, 15px)" }}>{tr("לקביעה ‹")}</span>
                             </div>
                           </a>
                         );
@@ -652,7 +659,7 @@ export default function PublicLandingPage({
               <div className="lp-card" style={{ padding: "4px 16px" }}>
                 {g.title && !withPhoto.length && <p style={{ margin: "12px 0 0", fontSize: "var(--t-xs, 13px)", fontWeight: 700, color: ink2 }}>{g.title}</p>}
                 {plain.map((s, i) => {
-                  const meta = [minutesOf(s) ? `${minutesOf(s)} דק׳` : "", priceOf(s) ? `₪${priceOf(s).toLocaleString("he-IL")}` : ""].filter(Boolean).join(" · ");
+                  const meta = [minutesOf(s) ? tr("{0} דק׳", [minutesOf(s)]) : "", priceOf(s) ? `₪${priceOf(s).toLocaleString(localeOf(lang))}` : ""].filter(Boolean).join(" · ");
                   return (
                     <a key={String(s.id ?? s.name)} href={`${bookBase}&service=${encodeURIComponent(String(s.name))}`}
                       style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", borderTop: i === 0 && (!g.title || withPhoto.length > 0) ? "none" : "1px solid " + hair, textDecoration: "none", color: ink }}>
@@ -661,7 +668,7 @@ export default function PublicLandingPage({
                         {s.description && <p style={{ margin: "2px 0 0", fontSize: "var(--t-sm, 15px)", color: ink2, lineHeight: 1.5 }}>{s.description}</p>}
                         {meta && <p style={{ margin: "2px 0 0", fontSize: "var(--t-sm, 15px)", color: ink2 }}>{meta}</p>}
                       </div>
-                      <span aria-hidden="true" style={{ color: "var(--pc-text)", fontWeight: 700, fontSize: "var(--t-sm, 15px)", flexShrink: 0 }}>לקביעה ‹</span>
+                      <span aria-hidden="true" style={{ color: "var(--pc-text)", fontWeight: 700, fontSize: "var(--t-sm, 15px)", flexShrink: 0 }}>{tr("לקביעה ‹")}</span>
                     </a>
                   );
                 })}
@@ -675,7 +682,7 @@ export default function PublicLandingPage({
 
         {/* 9. HOURS, ADDRESS, PHONE */}
         {(week || address || phoneShown) && (
-          <Section title="שעות ופרטי קשר">
+          <Section title={tr("שעות ופרטי קשר")}>
             <div className="lp-card">
               {week && (
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--t-sm, 15px)" }}>
@@ -685,8 +692,8 @@ export default function PublicLandingPage({
                       const isToday = i === todayDow;
                       return (
                         <tr key={d} style={{ fontWeight: isToday ? 700 : 400, color: isToday ? "var(--pc-text)" : ink }}>
-                          <td style={{ padding: "5px 0" }}>{d}{isToday ? " (היום)" : ""}</td>
-                          <td style={{ padding: "5px 0", textAlign: "left", direction: "ltr" }}>{h ? `${fmtHour(h.open)}–${fmtHour(h.close)}` : "סגור"}</td>
+                          <td style={{ padding: "5px 0" }}>{tr(d)}{isToday ? ` (${tr("היום")})` : ""}</td>
+                          <td style={{ padding: "5px 0", textAlign: lang === "en" ? "right" : "left", direction: "ltr" }}>{h ? `${fmtHour(h.open)}–${fmtHour(h.close)}` : tr("סגור")}</td>
                         </tr>
                       );
                     })}
@@ -698,7 +705,7 @@ export default function PublicLandingPage({
                   <p style={{ margin: 0, fontSize: "var(--t-md, 16px)", fontWeight: 600, display: "flex", gap: 6, alignItems: "flex-start" }}><Icon name="pin" size={16} /> {address}</p>
                   {arrivalNote && (
                     <p style={{ margin: "8px 0 0", padding: "8px 12px", borderRadius: "var(--r-sm, 10px)", background: "var(--pc-tint)", fontSize: "var(--t-sm, 15px)", lineHeight: 1.6, color: ink }}>
-                      <strong>איך מגיעים: </strong>{arrivalNote}
+                      <strong>{tr("איך מגיעים:")} </strong>{arrivalNote}
                     </p>
                   )}
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -725,12 +732,12 @@ export default function PublicLandingPage({
       </div>
 
       {viewer && viewerItems.length > 0 && (
-        <Lightbox items={viewerItems} index={viewer.index} title={viewer.kind === "results" ? "תוצאות" : "גלריה"} onClose={closeViewer} onStep={stepViewer} />
+        <Lightbox items={viewerItems} index={viewer.index} title={viewer.kind === "results" ? tr("תוצאות") : tr("גלריה")} onClose={closeViewer} onStep={stepViewer} />
       )}
 
       {/* 10. STICKY BAR - after the hero's buttons scroll away. */}
       {barItems.length > 0 && (
-        <nav className="lp-bar" data-shown={barShown ? "true" : "false"} aria-label="יצירת קשר" aria-hidden={!barShown}>
+        <nav className="lp-bar" data-shown={barShown ? "true" : "false"} aria-label={tr("יצירת קשר")} aria-hidden={!barShown}>
           <div style={{ display: "flex", gap: 8, maxWidth: 560, margin: "0 auto" }}>
             {barItems.map((b) => (
               <a key={b.key} href={b.href} data-primary={b.primary ? "true" : undefined} tabIndex={barShown ? 0 : -1}

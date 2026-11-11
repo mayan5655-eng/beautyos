@@ -4,6 +4,7 @@
 // hides the whole row. Under the switch, "מי תקבל תזכורת היום": the same rules as the daily run, read from /api/rebook/today,
 // so she sees who is going to get one before it goes. Read only: nothing here sends anything.
 import { useState } from "react";
+import { tr } from "@/lib/i18n/tr";
 
 const sinceLabel = (d) => (d >= 14 && d % 7 <= 1 ? `${Math.floor(d / 7)} שבועות` : `${d} ימים`);
 const REASON = { no_phone: "אין לה מספר טלפון", no_consent: "לא אישרה לקבל הודעות" };
@@ -29,39 +30,39 @@ export default function RebookSetting({ autos, setAutos, pc, Row }) {
 
   return (
     <div data-testid="rebook-setting">
-      <Row pc={pc} label="תזכורת לקבוע את התור הבא" on={on} onChange={() => setAutos({ ...autos, rebook_enabled: !on })}
-        desc="ללקוחה שאין לה תור עתידי, כשמגיע הזמן לטיפול הבא: לפי מה שהגדרת לכל שירות (״להזכיר לחזור אחרי״ בשירותים), ואם לא הגדרת, לפי הקצב שלה או לפי סוג הטיפול (למשל 3 שבועות אחרי לק ג׳ל). מכינה הודעה חמה עם הקישור לקביעת תור. רק ללקוחות שהסכימו לקבל הודעות, ולא יותר מפעם ב-3 שבועות לכל לקוחה. כבוי כברירת מחדל." />
+      <Row pc={pc} label={tr("תזכורת לקבוע את התור הבא")} on={on} onChange={() => setAutos({ ...autos, rebook_enabled: !on })}
+        desc={tr("ללקוחה שאין לה תור עתידי, כשמגיע הזמן לטיפול הבא: לפי מה שהגדרת לכל שירות (״להזכיר לחזור אחרי״ בשירותים), ואם לא הגדרת, לפי הקצב שלה או לפי סוג הטיפול (למשל 3 שבועות אחרי לק ג׳ל). מכינה הודעה חמה עם הקישור לקביעת תור. רק ללקוחות שהסכימו לקבל הודעות, ולא יותר מפעם ב-3 שבועות לכל לקוחה. כבוי כברירת מחדל.")} />
       {on && (
         <div style={{ marginTop: -4, marginBottom: 12 }}>
           <button type="button" data-testid="rebook-today-toggle" onClick={toggleList} aria-expanded={open}
             style={{ minHeight: 44, background: "none", border: "none", padding: "0 2px", color: "var(--ink)", fontWeight: 700, fontSize: "var(--t-sm)", fontFamily: "inherit", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}>
-            {open ? "הסתרת הרשימה" : "מי תקבל תזכורת היום?"}
+            {open ? tr("הסתרת הרשימה") : tr("מי תקבל תזכורת היום?")}
           </button>
           {open && (
             <div data-testid="rebook-today" style={{ background: "var(--surface-2)", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", padding: "10px 12px", fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>
-              {state.status === "loading" && <p style={{ margin: 0 }}>בודקת...</p>}
+              {state.status === "loading" && <p style={{ margin: 0 }}>{tr("בודקת...")}</p>}
               {state.status === "error" && (
-                <p style={{ margin: 0 }}>{d || "לא הצלחנו לבדוק כרגע."} <button type="button" onClick={load} style={{ background: "none", border: "none", color: "var(--ink)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", minHeight: 44 }}>לנסות שוב</button></p>
+                <p style={{ margin: 0 }}>{d || tr("לא הצלחנו לבדוק כרגע.")} <button type="button" onClick={load} style={{ background: "none", border: "none", color: "var(--ink)", fontWeight: 700, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", minHeight: 44 }}>{tr("לנסות שוב")}</button></p>
               )}
               {state.status === "ok" && d && (
                 <>
-                  {d.paused && <p style={{ margin: "0 0 6px", color: "var(--warning)" }}>ההודעות האוטומטיות מושהות עכשיו, אז היום לא תצא אף תזכורת.</p>}
-                  {d.ready.length === 0 && d.sentToday.length === 0 && <p style={{ margin: 0 }}>היום אין מי שצריכה תזכורת. כשיגיע הזמן של מישהי, היא תופיע כאן.</p>}
+                  {d.paused && <p style={{ margin: "0 0 6px", color: "var(--warning)" }}>{tr("ההודעות האוטומטיות מושהות עכשיו, אז היום לא תצא אף תזכורת.")}</p>}
+                  {d.ready.length === 0 && d.sentToday.length === 0 && <p style={{ margin: 0 }}>{tr("היום אין מי שצריכה תזכורת. כשיגיע הזמן של מישהי, היא תופיע כאן.")}</p>}
                   {d.ready.length > 0 && (
                     <>
-                      <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--ink)" }}>{d.readyCount === 1 ? "לקוחה אחת תקבל היום תזכורת" : `${d.readyCount} לקוחות יקבלו היום תזכורת`}{d.readyCount > d.perDayCap ? ` (עד ${d.perDayCap} ביום, השאר מחר)` : ""}</p>
+                      <p style={{ margin: "0 0 4px", fontWeight: 700, color: "var(--ink)" }}>{d.readyCount === 1 ? tr("לקוחה אחת תקבל היום תזכורת") : tr("{0} לקוחות יקבלו היום תזכורת", [d.readyCount])}{d.readyCount > d.perDayCap ? tr(" (עד {0} ביום, השאר מחר)", [d.perDayCap]) : ""}</p>
                       <ul style={{ margin: "0 0 6px", paddingInlineStart: 18 }}>
-                        {d.ready.map((x, i) => <li key={`r${i}`}>{x.name}{x.service ? `, ${x.service}` : ""} · לפני {sinceLabel(x.daysSince)}</li>)}
+                        {d.ready.map((x, i) => <li key={`r${i}`}>{x.name}{x.service ? `, ${x.service}` : ""} {tr("· לפני")} {sinceLabel(x.daysSince)}</li>)}
                       </ul>
                     </>
                   )}
                   {d.sentToday.length > 0 && (
-                    <p style={{ margin: "0 0 6px" }}>כבר הוכנה היום תזכורת ל{d.sentToday.map((x) => x.name).join(", ")}.</p>
+                    <p style={{ margin: "0 0 6px" }}>{tr("כבר הוכנה היום תזכורת ל")}{d.sentToday.map((x) => x.name).join(", ")}.</p>
                   )}
                   {d.skipped.length > 0 && (
-                    <p style={{ margin: "0 0 6px", color: "var(--ink-3)" }}>לא יקבלו: {d.skipped.map((x) => `${x.name} (${REASON[x.reason] || ""})`).join(", ")}.</p>
+                    <p style={{ margin: "0 0 6px", color: "var(--ink-3)" }}>{tr("לא יקבלו:")} {d.skipped.map((x) => `${x.name} (${REASON[x.reason] || ""})`).join(", ")}.</p>
                   )}
-                  <p style={{ margin: 0, color: "var(--ink-3)", fontSize: "var(--t-xs)" }}>אם המספר המרכזי מחובר ההודעות יוצאות ממנו, ואחרת הן מחכות לך ב״הודעות מוכנות לשליחה״.</p>
+                  <p style={{ margin: 0, color: "var(--ink-3)", fontSize: "var(--t-xs)" }}>{tr("אם המספר המרכזי מחובר ההודעות יוצאות ממנו, ואחרת הן מחכות לך ב״הודעות מוכנות לשליחה״.")}</p>
                 </>
               )}
             </div>

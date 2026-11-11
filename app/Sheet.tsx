@@ -26,6 +26,7 @@
 // bulk-send modal used this rule already; now every modal gets it for free.
 
 import { useEffect, type ReactNode } from 'react';
+import { trv, uiDir } from "@/lib/i18n/tr";
 
 export type SheetProps = {
   open: boolean;
@@ -70,14 +71,14 @@ export default function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel || (typeof title === 'string' ? title : undefined)}
-        dir="rtl"
+        dir={uiDir()}
         style={{ ['--sheet-width' as string]: `${width}px` }}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || subtitle) && (
           <div className="sheet-head">
-            {title && <h3 className="serif sheet-title">{title}</h3>}
-            {subtitle && <p className="sheet-subtitle">{subtitle}</p>}
+            {title && <h3 className="serif sheet-title">{trv(title)}</h3>}
+            {subtitle && <p className="sheet-subtitle">{trv(subtitle)}</p>}
           </div>
         )}
         {children}

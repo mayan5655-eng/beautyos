@@ -16,6 +16,7 @@ import { waShareLink } from '@/lib/giftVouchers';
 import VoucherArt from './VoucherArt';
 import { useVouchersReady } from './useVouchersReady';
 import { useDeployFlags } from './useDeployFlags';
+import { tr, trv } from "@/lib/i18n/tr";
 
 const HOST = storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
@@ -64,9 +65,9 @@ export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAt
     <div className="glass-card" data-testid="gift-voucher-marketing" style={{ padding: 18, marginBottom: 16 }}>
       <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h3 className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>🎁 שוברי מתנה</h3>
+          <h3 className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>{tr("🎁 שוברי מתנה")}</h3>
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, margin: '4px 0 0' }}>
-            לפני חג או יום הולדת, שובר מתנה הוא המכירה הכי קלה. {online === false ? 'שתפי את הקישור, והקונה תכתוב לך כדי לקנות.' : 'שתפי את הקישור, והקונה משלמת ושולחת את השובר בעצמה.'}
+            {tr("לפני חג או יום הולדת, שובר מתנה הוא המכירה הכי קלה.")} {online === false ? tr("שתפי את הקישור, והקונה תכתוב לך כדי לקנות.") : tr("שתפי את הקישור, והקונה משלמת ושולחת את השובר בעצמה.")}
           </p>
         </div>
         <div style={{ flexShrink: 0 }}><VoucherArt look={look} width={92} content={{ title: `₪${cfg.amounts[1] || cfg.amounts[0] || 300}` }} /></div>
@@ -74,35 +75,35 @@ export function GiftVoucherMarketingBody({ settings, pc, pcTint, toast, onSellAt
 
       {link ? (
         <div style={{ marginTop: 12, background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
-          <p style={{ margin: 0, fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>הקישור לשוברים שלך</p>
+          <p style={{ margin: 0, fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>{tr("הקישור לשוברים שלך")}</p>
           <p dir="ltr" data-testid="gv-shop-link" style={{ margin: '2px 0 8px', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>{link.replace(/^https?:\/\//, '')}</p>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button type="button" style={btn} onClick={() => copy(link, 'הקישור הועתק')}>העתקה</button>
-            <a style={{ ...btn, background: '#0B7A3E', color: '#fff', border: 'none' }} target="_blank" rel="noreferrer" href={waShareLink(fillCopy(copyText(VOUCHER_COPY[3], online), name, link))}>שליחה בוואטסאפ</a>
-            <a style={btn} data-testid="gv-story" href={`/api/vouchers/image?shop=${encodeURIComponent(tenantId)}&f=story`} download="gift-voucher-story.png" target="_blank" rel="noreferrer">תמונה לסטורי</a>
+            <button type="button" style={btn} onClick={() => copy(link, 'הקישור הועתק')}>{tr("העתקה")}</button>
+            <a style={{ ...btn, background: '#0B7A3E', color: '#fff', border: 'none' }} target="_blank" rel="noreferrer" href={waShareLink(fillCopy(copyText(VOUCHER_COPY[3], online), name, link))}>{tr("שליחה בוואטסאפ")}</a>
+            <a style={btn} data-testid="gv-story" href={`/api/vouchers/image?shop=${encodeURIComponent(tenantId)}&f=story`} download="gift-voucher-story.png" target="_blank" rel="noreferrer">{tr("תמונה לסטורי")}</a>
           </div>
-          {online === false && growOn && <p style={{ margin: '8px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>Grow עוד לא מחובר, אז בדף כתוב שקונים שובר אצלך בעסק. אחרי החיבור הקונה תוכל לשלם אונליין, בלי לשנות כלום.</p>}
+          {online === false && growOn && <p style={{ margin: '8px 0 0', fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>{tr("Grow עוד לא מחובר, אז בדף כתוב שקונים שובר אצלך בעסק. אחרי החיבור הקונה תוכל לשלם אונליין, בלי לשנות כלום.")}</p>}
           {online === false && growOn && <GrowCostNote style={{ marginTop: 4 }} />}
         </div>
       ) : null}
 
-      <p style={{ margin: '14px 0 6px', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>טקסטים מוכנים</p>
+      <p style={{ margin: '14px 0 6px', fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)' }}>{tr("טקסטים מוכנים")}</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {VOUCHER_COPY.map((c) => {
           const text = fillCopy(copyText(c, online), name, link);
           return (
             <div key={c.key} style={{ background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <b style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>{c.label}</b>
-                <button type="button" style={{ ...btn, minHeight: 34, padding: '4px 12px' }} onClick={() => copy(text, 'הטקסט הועתק')}>העתקה</button>
+                <b style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>{trv(c.label)}</b>
+                <button type="button" style={{ ...btn, minHeight: 34, padding: '4px 12px' }} onClick={() => copy(text, 'הטקסט הועתק')}>{tr("העתקה")}</button>
               </div>
-              <p style={{ margin: '6px 0 0', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{text}</p>
+              <p style={{ margin: '6px 0 0', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{trv(text)}</p>
             </div>
           );
         })}
       </div>
 
-      <button type="button" data-testid="gv-sell-at-till" onClick={onSellAtTill} style={{ ...btn, width: '100%', marginTop: 12, background: pc, color: 'var(--pc-contrast, #1F3A30)', border: 'none' }}>מכירת שובר בקופה</button>
+      <button type="button" data-testid="gv-sell-at-till" onClick={onSellAtTill} style={{ ...btn, width: '100%', marginTop: 12, background: pc, color: 'var(--pc-contrast, #1F3A30)', border: 'none' }}>{tr("מכירת שובר בקופה")}</button>
     </div>
   );
 }

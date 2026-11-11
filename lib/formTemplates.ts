@@ -309,7 +309,8 @@ export type AnswerRow =
   | { kind: 'question'; index: number; n: number; q: string; type: QuestionType; answer: string; note: string; flag: boolean; optional: boolean }
   | { kind: 'raw'; key: string; value: string };
 
-const NONE_WORDS = new Set(['אין', 'לא', 'אין לי', 'לא נוטלת', '-']);
+// The Arabic and English "none" a client writes when she fills the form in another language (lib/i18n/formTemplatesI18n.ts).
+const NONE_WORDS = new Set(['אין', 'לא', 'אין לי', 'לא נוטלת', '-', 'لا يوجد', 'لا', 'لا شيء', 'none', 'no', 'nothing', 'n/a']);
 const shown = (v: unknown): string => (v == null ? '' : typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v));
 
 /** Whether an answer deserves her attention. See the header. */
@@ -319,7 +320,7 @@ export const isFlagged = (q: QuestionObject, answer: string): boolean => {
   if (q.type === 'yesno') return a === YES;
   if (!q.flag) return false;
   if (q.type === 'multi') return splitMulti(a).some((o) => o !== q.none);
-  if (q.type === 'text' || q.type === 'longtext') return !NONE_WORDS.has(a);
+  if (q.type === 'text' || q.type === 'longtext') return !NONE_WORDS.has(a.toLowerCase().replace(/^["'“”]+|["'“”.]+$/g, ''));
   return a !== q.none;
 };
 

@@ -8,6 +8,8 @@ import { PublicPage, BusinessHeader } from '@/app/PublicChrome';
 import { MAX_MESSAGE } from '@/lib/giftVouchers';
 import { voucherLook, type VoucherDesign } from '@/lib/giftVoucherDesign';
 import VoucherArt from '@/app/VoucherArt';
+import { useTr } from "@/lib/i18n/useTr";
+import { useLang } from "@/lib/i18n/react";
 
 type Option = { key: string; kind: 'amount' | 'service'; amount: number; label: string };
 const money = (n: number) => `₪${n.toLocaleString('he-IL')}`;
@@ -16,6 +18,8 @@ export default function GiftPurchase({ tenantId, slug, brand, options, validityM
   tenantId: string; slug: string; brand: { name: string; primary: string; logoUrl: string };
   options: Option[]; validityMonths: number; note: string; online: boolean; contact: string | null; design: VoucherDesign;
 }) {
+  const tr = useTr();
+  const lang = useLang();
   const [pick, setPick] = useState<string>(options[0]?.key || '');
   const [f, setF] = useState({ buyerName: '', buyerPhone: '', recipientName: '', message: '' });
   const [busy, setBusy] = useState(false);
@@ -32,29 +36,29 @@ export default function GiftPurchase({ tenantId, slug, brand, options, validityM
     try {
       const r = await fetch('/api/vouchers/buy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: tenantId, option: pick, ...f }) });
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success || !j.url) { setErr(j?.error || 'לא הצלחנו לפתוח את דף התשלום. אפשר לנסות שוב בעוד רגע.'); setBusy(false); return; }
+      if (!r.ok || !j?.success || !j.url) { setErr(j?.error || tr("לא הצלחנו לפתוח את דף התשלום. אפשר לנסות שוב בעוד רגע.")); setBusy(false); return; }
       window.location.href = j.url;
     } catch {
-      setErr('לא הצלחנו לפתוח את דף התשלום. בדקי את החיבור ונסי שוב.'); setBusy(false);
+      setErr(tr("לא הצלחנו לפתוח את דף התשלום. בדקי את החיבור ונסי שוב.")); setBusy(false);
     }
   };
 
   return (
-    <PublicPage primary={brand.primary}>
-      <BusinessHeader logoUrl={brand.logoUrl} name={brand.name} />
+    <PublicPage primary={brand.primary} lang={lang}>
+      <BusinessHeader logoUrl={brand.logoUrl} name={brand.name} lang={lang} />
       {/* A live preview in her design: what the friend will open (the code appears after payment). */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
         <VoucherArt testId="gift-shop-preview" width={300} look={voucherLook(design, brand.primary)} content={{
-          recipientName: f.recipientName.trim(), title: chosen ? (chosen.kind === 'service' ? chosen.label : money(chosen.amount)) : 'שובר מתנה',
-          sub: chosen?.kind === 'service' ? `בשווי ${money(chosen.amount)}` : undefined, message: f.message.trim(), fromName: f.buyerName.trim().split(' ')[0], businessName: brand.name, logoUrl: brand.logoUrl || null,
+          recipientName: f.recipientName.trim(), title: chosen ? (chosen.kind === 'service' ? chosen.label : money(chosen.amount)) : tr("שובר מתנה"),
+          sub: chosen?.kind === 'service' ? tr("בשווי {0}", [money(chosen.amount)]) : undefined, message: f.message.trim(), fromName: f.buyerName.trim().split(' ')[0], businessName: brand.name, logoUrl: brand.logoUrl || null,
         }} />
       </div>
       <div className="pub-card" data-testid="gift-shop" style={{ textAlign: 'right' }}>
-        <h1 className="pub-h1" style={{ textAlign: 'center' }}>🎁 שובר מתנה</h1>
-        <p className="pub-p" style={{ textAlign: 'center', fontSize: 'var(--t-md)' }}>מתנה מפנקת למישהי שאת אוהבת. היא תקבל דף אישי עם קוד, ותממש אותו אצלנו.</p>
+        <h1 className="pub-h1" style={{ textAlign: 'center' }}>{tr("🎁 שובר מתנה")}</h1>
+        <p className="pub-p" style={{ textAlign: 'center', fontSize: 'var(--t-md)' }}>{tr("מתנה מפנקת למישהי שאת אוהבת. היא תקבל דף אישי עם קוד, ותממש אותו אצלנו.")}</p>
 
-        <p style={label}>במה תבחרי?</p>
-        <div role="radiogroup" aria-label="סוג השובר" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+        <p style={label}>{tr("במה תבחרי?")}</p>
+        <div role="radiogroup" aria-label={tr("סוג השובר")} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
           {options.map((o) => {
             const on = o.key === pick;
             return (
@@ -68,29 +72,29 @@ export default function GiftPurchase({ tenantId, slug, brand, options, validityM
 
         {online ? (
           <>
-            <label style={label} htmlFor="gv-recipient">למי השובר?</label>
-            <input id="gv-recipient" value={f.recipientName} onChange={(e) => setF({ ...f, recipientName: e.target.value })} maxLength={60} placeholder="השם שלה" style={field} />
-            <label style={label} htmlFor="gv-message">ברכה (לא חובה)</label>
-            <textarea id="gv-message" value={f.message} onChange={(e) => setF({ ...f, message: e.target.value })} maxLength={MAX_MESSAGE} rows={3} placeholder="מזל טוב! מגיע לך פינוק" style={{ ...field, minHeight: 84, resize: 'vertical' }} />
-            <label style={label} htmlFor="gv-buyer">השם שלך</label>
+            <label style={label} htmlFor="gv-recipient">{tr("למי השובר?")}</label>
+            <input id="gv-recipient" value={f.recipientName} onChange={(e) => setF({ ...f, recipientName: e.target.value })} maxLength={60} placeholder={tr("השם שלה")} style={field} />
+            <label style={label} htmlFor="gv-message">{tr("ברכה (לא חובה)")}</label>
+            <textarea id="gv-message" value={f.message} onChange={(e) => setF({ ...f, message: e.target.value })} maxLength={MAX_MESSAGE} rows={3} placeholder={tr("מזל טוב! מגיע לך פינוק")} style={{ ...field, minHeight: 84, resize: 'vertical' }} />
+            <label style={label} htmlFor="gv-buyer">{tr("השם שלך")}</label>
             <input id="gv-buyer" value={f.buyerName} onChange={(e) => setF({ ...f, buyerName: e.target.value })} maxLength={60} autoComplete="name" style={field} />
-            <label style={label} htmlFor="gv-phone">הנייד שלך</label>
+            <label style={label} htmlFor="gv-phone">{tr("הנייד שלך")}</label>
             <input id="gv-phone" value={f.buyerPhone} onChange={(e) => setF({ ...f, buyerPhone: e.target.value })} inputMode="tel" autoComplete="tel" placeholder="0501234567" style={{ ...field, direction: 'ltr', textAlign: 'right' }} />
-            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '6px 0 0' }}>הנייד נדרש לדף התשלום ולא מוצג למקבלת. השובר בתוקף {validityMonths} חודשים.</p>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '6px 0 0' }}>{tr("הנייד נדרש לדף התשלום ולא מוצג למקבלת. השובר בתוקף")} {validityMonths} {tr("חודשים.")}</p>
             {err && <p role="alert" style={{ color: 'var(--danger, #C2557A)', fontSize: 'var(--t-sm)', fontWeight: 700, margin: '12px 0 0' }}>{err}</p>}
             <button type="button" className="pub-pill" data-testid="gift-pay" disabled={!can} onClick={pay} style={{ marginTop: 18 }}>
-              {busy ? 'פותחת את דף התשלום…' : chosen ? `לתשלום ${money(chosen.amount)}` : 'בחרי שובר'}
+              {busy ? tr("פותחת את דף התשלום…") : chosen ? tr("לתשלום {0}", [money(chosen.amount)]) : tr("בחרי שובר")}
             </button>
-            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '10px 0 0', textAlign: 'center' }}>התשלום מאובטח ב-Grow ומגיע ישירות לעסק. אחרי התשלום תקבלי קישור לשובר ותשלחי אותו בעצמך.</p>
+            <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '10px 0 0', textAlign: 'center' }}>{tr("התשלום מאובטח ב-Grow ומגיע ישירות לעסק. אחרי התשלום תקבלי קישור לשובר ותשלחי אותו בעצמך.")}</p>
           </>
         ) : (
           <div data-testid="gift-offline" style={{ marginTop: 16, textAlign: 'center' }}>
-            <p className="pub-p" style={{ fontSize: 'var(--t-md)' }}>כרגע אפשר לקנות שובר מתנה ישירות בעסק. כתבי לי ונסגור את זה יחד.</p>
-            {contact && <a className="pub-pill" href={`${contact}?text=${encodeURIComponent('היי, אשמח לקנות שובר מתנה 🎁')}`} target="_blank" rel="noreferrer" style={{ marginTop: 14 }}>כתבי לי בוואטסאפ</a>}
+            <p className="pub-p" style={{ fontSize: 'var(--t-md)' }}>{tr("כרגע אפשר לקנות שובר מתנה ישירות בעסק. כתבי לי ונסגור את זה יחד.")}</p>
+            {contact && <a className="pub-pill" href={`${contact}?text=${encodeURIComponent('היי, אשמח לקנות שובר מתנה 🎁')}`} target="_blank" rel="noreferrer" style={{ marginTop: 14 }}>{tr("כתבי לי בוואטסאפ")}</a>}
           </div>
         )}
         {note && <p style={{ margin: '16px 0 0', fontSize: 'var(--t-md)', lineHeight: 1.6, color: 'var(--ink-2)', textAlign: 'center' }}>{note}</p>}
-        <p style={{ margin: '14px 0 0', textAlign: 'center' }}><a href={`/${encodeURIComponent(slug)}`} style={{ color: 'var(--ink-2)', fontSize: 'var(--t-sm)' }}>חזרה לדף העסק</a></p>
+        <p style={{ margin: '14px 0 0', textAlign: 'center' }}><a href={`/${encodeURIComponent(slug)}`} style={{ color: 'var(--ink-2)', fontSize: 'var(--t-sm)' }}>{tr("חזרה לדף העסק")}</a></p>
       </div>
     </PublicPage>
   );

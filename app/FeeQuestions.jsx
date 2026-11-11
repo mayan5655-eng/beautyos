@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { useFees, feesChanged } from './useFees';
+import { tr, trv } from "@/lib/i18n/tr";
 
 export default function FeeQuestions({ appointmentId, clientId, pc, pcTint, toast, onCharged, variant = 'inline' }) {
   const { items, hidden } = useFees();
@@ -36,20 +37,20 @@ export default function FeeQuestions({ appointmentId, clientId, pc, pcTint, toas
   return (
     <div data-testid="fee-questions" data-variant={variant} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: variant === 'home' ? 14 : 8 }}>
       {mine.map((f) => (
-        <div key={f.id} role="group" aria-label={f.question || 'החזר מקדמה'} data-testid="fee-question" style={{ background: 'var(--surface)', border: `1px solid ${pc}`, borderRadius: 'var(--r-md)', padding: '12px 14px' }}>
+        <div key={f.id} role="group" aria-label={f.question || tr("החזר מקדמה")} data-testid="fee-question" style={{ background: 'var(--surface)', border: `1px solid ${pc}`, borderRadius: 'var(--r-md)', padding: '12px 14px' }}>
           {f.kind === 'deposit_return' ? (
             <>
-              <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>ההחזר של המקדמה (₪{f.amount}) ל{f.client_name || 'לקוחה'} לא עבר</p>
-              <button type="button" disabled={!!busy} onClick={() => decide(f, 'retry-refund')} style={{ ...btn, background: pcTint, border: `1px dashed ${pc}`, color: 'var(--pc-text, var(--ink))' }}>ניסיון חוזר</button>
+              <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 8 }}>{tr("ההחזר של המקדמה (₪")}{f.amount}{tr(") ל")}{f.client_name || tr("לקוחה")} {tr("לא עבר")}</p>
+              <button type="button" disabled={!!busy} onClick={() => decide(f, 'retry-refund')} style={{ ...btn, background: pcTint, border: `1px dashed ${pc}`, color: 'var(--pc-text, var(--ink))' }}>{tr("ניסיון חוזר")}</button>
             </>
           ) : (
             <>
-              <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{f.question}</p>
+              <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{trv(f.question)}</p>
               {f.service && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', marginBottom: 8 }}>{f.service}</p>}
-              {f.error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginBottom: 8 }}>הניסיון הקודם לא עבר, אפשר לנסות שוב.</p>}
+              {f.error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginBottom: 8 }}>{tr("הניסיון הקודם לא עבר, אפשר לנסות שוב.")}</p>}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" data-testid="fee-charge" disabled={!!busy} onClick={() => decide(f, 'charge')} style={{ ...btn, background: 'var(--ink)', border: 'none', color: 'var(--surface)' }}>{busy === f.id + 'charge' ? 'מחייבת…' : 'כן, לגבות'}</button>
-                <button type="button" data-testid="fee-waive" disabled={!!busy} onClick={() => decide(f, 'waive')} style={{ ...btn, background: 'var(--surface)', border: '1px solid var(--line-2)', color: 'var(--ink)' }}>לוותר</button>
+                <button type="button" data-testid="fee-charge" disabled={!!busy} onClick={() => decide(f, 'charge')} style={{ ...btn, background: 'var(--ink)', border: 'none', color: 'var(--surface)' }}>{busy === f.id + 'charge' ? tr("מחייבת…") : tr("כן, לגבות")}</button>
+                <button type="button" data-testid="fee-waive" disabled={!!busy} onClick={() => decide(f, 'waive')} style={{ ...btn, background: 'var(--surface)', border: '1px solid var(--line-2)', color: 'var(--ink)' }}>{tr("לוותר")}</button>
               </div>
             </>
           )}

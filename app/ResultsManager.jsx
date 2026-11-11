@@ -7,6 +7,7 @@ import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, notU
 import { PUBLIC_BUCKET } from "@/lib/clientImages";
 import { consentComplete, publishBlockers, resultWriteErrorHe } from "@/lib/results";
 import { STUCK_HE, SAVE_FAILED_HE } from "@/lib/errorCopy";
+import { tr, trv, uiDir } from "@/lib/i18n/tr";
 
 // ============================================================
 // SETTINGS -> BRANDING -> TREATMENT RESULTS
@@ -37,7 +38,7 @@ const fromRow = (r) => ({
 });
 
 const lbl = { fontSize: "var(--t-sm)", color: "var(--ink-3)", fontWeight: 600, marginBottom: 5 };
-const inp = { width: "100%", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "9px 12px", fontSize: "var(--t-sm)", fontFamily: "inherit", outline: "none", direction: "rtl", background: "var(--surface)" };
+const inp = { width: "100%", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "9px 12px", fontSize: "var(--t-sm)", fontFamily: "inherit", outline: "none", direction: uiDir(), background: "var(--surface)" };
 const hint = { fontSize: "var(--t-xs)", color: "var(--ink-3)", lineHeight: 1.5, margin: 0 };
 
 export default function ResultsManager({ tenantId, services }) {
@@ -53,8 +54,8 @@ export default function ResultsManager({ tenantId, services }) {
       setRows([]);
       // 42P01 / PGRST205: the migration has not been run yet.
       setLoadError(/does not exist|schema cache|42P01|PGRST205/i.test(`${error.code} ${error.message}`)
-        ? "הטבלה של התוצאות עדיין לא נוצרה במסד הנתונים (add_treatment_results.sql). עד שתורץ אי אפשר לשמור תוצאות."
-        : "לא הצלחנו לטעון את התוצאות עכשיו, והן שמורות. נסי לרענן.");
+        ? tr("הטבלה של התוצאות עדיין לא נוצרה במסד הנתונים (add_treatment_results.sql). עד שתורץ אי אפשר לשמור תוצאות.")
+        : tr("לא הצלחנו לטעון את התוצאות עכשיו, והן שמורות. נסי לרענן."));
       return;
     }
     setLoadError("");
@@ -86,7 +87,7 @@ export default function ResultsManager({ tenantId, services }) {
 
   const upload = async (side, file) => {
     if (!file) return;
-    if (!/^image\//.test(file.type || "")) { setMsg("קובץ תמונה בלבד"); return; }
+    if (!/^image\//.test(file.type || "")) { setMsg(tr("קובץ תמונה בלבד")); return; }
     if (file.size > MAX_SOURCE_BYTES) { setMsg(TOO_LARGE_SOURCE_HE); return; }
     if (!tenantId) { setMsg(STUCK_HE); return; }
     setMsg(""); setBusy("up:" + side);
@@ -96,7 +97,7 @@ export default function ResultsManager({ tenantId, services }) {
       if (why) { setMsg(why); return; }
       const path = `${tenantId}/results/${side}_${Date.now()}.jpg`;
       const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg", cacheControl: "31536000" });
-      if (error) { setMsg("לא הצלחנו להעלות את התמונה. נסי שוב בעוד רגע."); return; }
+      if (error) { setMsg(tr("לא הצלחנו להעלות את התמונה. נסי שוב בעוד רגע.")); return; }
       const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
       if (url) setPhoto(side, url);
     } finally { setBusy(""); }
@@ -111,7 +112,7 @@ export default function ResultsManager({ tenantId, services }) {
   const save = async (publish) => {
     if (!draft) return;
     setMsg("");
-    if (!String(draft.afterUrl).trim()) { setMsg("צריך לפחות תמונת אחרי"); return; }
+    if (!String(draft.afterUrl).trim()) { setMsg(tr("צריך לפחות תמונת אחרי")); return; }
     if (publish && publishBlockers(draft).length) { setMsg("חסר: " + publishBlockers(draft).join(", ")); return; }
     const sessions = parseInt(draft.sessions, 10);
     const payload = {
@@ -134,7 +135,7 @@ export default function ResultsManager({ tenantId, services }) {
         ? supabase.from("treatment_results").update(payload).eq("id", draft.id)
         : supabase.from("treatment_results").insert({ ...payload, tenant_id: tenantId });
       const { error } = await q;
-      if (error) { setMsg(/client_id|42703|PGRST204/i.test(`${error.code} ${error.message}`) ? "אי אפשר עדיין לשייך תמונה ללקוחה: חסר עדכון במסד הנתונים (kalmea-sql-client-pages.txt). אפשר לשמור בלי לבחור לקוחה." : resultWriteErrorHe(error)); return; }
+      if (error) { setMsg(/client_id|42703|PGRST204/i.test(`${error.code} ${error.message}`) ? tr("אי אפשר עדיין לשייך תמונה ללקוחה: חסר עדכון במסד הנתונים (kalmea-sql-client-pages.txt). אפשר לשמור בלי לבחור לקוחה.") : resultWriteErrorHe(error)); return; }
       setDraft(null);
       await load();
     } finally { setBusy(""); }
@@ -151,11 +152,11 @@ export default function ResultsManager({ tenantId, services }) {
   };
 
   const remove = async (r) => {
-    if (!window.confirm("למחוק את התוצאה הזו ואת רישום ההסכמה שלה?")) return;
+    if (!window.confirm(tr("למחוק את התוצאה הזו ואת רישום ההסכמה שלה?"))) return;
     setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").delete().eq("id", r.id);
-      if (error) { const why = resultWriteErrorHe(error); setMsg(why === SAVE_FAILED_HE ? "המחיקה נכשלה. התוצאה עדיין שמורה, נסי שוב בעוד רגע." : why); }
+      if (error) { const why = resultWriteErrorHe(error); setMsg(why === SAVE_FAILED_HE ? tr("המחיקה נכשלה. התוצאה עדיין שמורה, נסי שוב בעוד רגע.") : why); }
       await load();
     } finally { setBusy(""); }
   };
@@ -167,25 +168,24 @@ export default function ResultsManager({ tenantId, services }) {
       {url
         ? <img src={url} alt="" style={{ width: "100%", aspectRatio: "3 / 4", objectFit: "cover", borderRadius: "var(--r-xs)", display: "block", marginBottom: 4 }} />
         : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", aspectRatio: "3 / 4", border: "1.5px dashed var(--line-2)", borderRadius: "var(--r-xs)", marginBottom: 4, color: "var(--pc-deep)", fontWeight: 600 }}>
-            {busy === "up:" + side ? <Spinner inline label="מעלה" /> : "+"}
+            {busy === "up:" + side ? <Spinner inline label={tr("מעלה")} /> : "+"}
           </span>}
-      {label}
+      {trv(label)}
       <input type="file" accept="image/*" disabled={!!busy} style={{ display: "none" }} onChange={(e) => { upload(side, e.target.files?.[0]); e.target.value = ""; }} />
     </label>
   );
 
   return (
     <div style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-      <p style={{ fontSize: "var(--t-sm)", color: "var(--ink)", fontWeight: 700, marginBottom: 2 }}><Icon name="image" size={14} /> תוצאות טיפולים</p>
+      <p style={{ fontSize: "var(--t-sm)", color: "var(--ink)", fontWeight: 700, marginBottom: 2 }}><Icon name="image" size={14} /> {tr("תוצאות טיפולים")}</p>
       <p style={{ ...hint, fontSize: "var(--t-sm)", marginBottom: 10 }}>
-        תמונות של לקוחות, לפי טיפול. מוצגות בדף ההזמנות מקובצות לפי טיפול, וגם בכרטיס הטיפול. אפשר זוג לפני ואחרי או תמונת אחרי בלבד.
-        כל תמונה נשמרת עם רישום אישור, ואי אפשר לפרסם אותה בלעדיו. כאן השמירה היא מיידית, לא בכפתור השמירה של העמוד.
+        {tr("תמונות של לקוחות, לפי טיפול. מוצגות בדף ההזמנות מקובצות לפי טיפול, וגם בכרטיס הטיפול. אפשר זוג לפני ואחרי או תמונת אחרי בלבד. כל תמונה נשמרת עם רישום אישור, ואי אפשר לפרסם אותה בלעדיו. כאן השמירה היא מיידית, לא בכפתור השמירה של העמוד.")}
       </p>
 
       {loadError && <p style={{ ...hint, color: "var(--danger)", marginBottom: 8 }}>{loadError}</p>}
-      {msg && <p style={{ ...hint, color: "var(--danger)", marginBottom: 8 }}>{msg}</p>}
+      {msg && <p style={{ ...hint, color: "var(--danger)", marginBottom: 8 }}>{trv(msg)}</p>}
 
-      {rows === null && <Spinner inline label="טוענת" />}
+      {rows === null && <Spinner inline label={tr("טוענת")} />}
 
       {rows && rows.length > 0 && !draft && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
@@ -196,20 +196,20 @@ export default function ResultsManager({ tenantId, services }) {
                 <img src={r.after_url} alt="" style={{ width: 40, height: 52, objectFit: "cover", borderRadius: "var(--r-xs)" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: "var(--t-md)", color: "var(--ink)", fontWeight: 600, margin: 0 }}>{r.service_name || "ללא טיפול"}</p>
+                <p style={{ fontSize: "var(--t-md)", color: "var(--ink)", fontWeight: 600, margin: 0 }}>{r.service_name || tr("ללא טיפול")}</p>
                 <p style={{ ...hint, color: r.published ? "var(--pc-deep)" : "var(--ink-3)" }}>
-                  {r.published ? "מפורסם" : consentComplete(fromRow(r)) ? "טיוטה" : "טיוטה, חסרה הסכמה"}
-                  {r.sessions ? ` · ${r.sessions} טיפולים` : ""}
+                  {r.published ? tr("מפורסם") : consentComplete(fromRow(r)) ? tr("טיוטה") : tr("טיוטה, חסרה הסכמה")}
+                  {r.sessions ? tr(" · {0} טיפולים", [r.sessions]) : ""}
                   {r.client_id && clientName(r.client_id) ? ` · ${clientName(r.client_id)}` : ""}
                 </p>
               </div>
               <button disabled={!!busy || (!r.published && !consentComplete(fromRow(r)))} onClick={() => togglePublish(r)}
                 style={{ background: "none", border: "none", color: "var(--pc-deep)", fontSize: "var(--t-xs)", fontWeight: 600, fontFamily: "inherit", textDecoration: "underline", opacity: (!r.published && !consentComplete(fromRow(r))) ? 0.4 : 1, cursor: (!r.published && !consentComplete(fromRow(r))) ? "not-allowed" : "pointer" }}>
-                {r.published ? "הסרה מהדף" : "פרסום"}
+                {r.published ? tr("הסרה מהדף") : tr("פרסום")}
               </button>
               <button disabled={!!busy} onClick={() => { setMsg(""); setDraft(fromRow(r)); }}
-                style={{ background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-xs)", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>עריכה</button>
-              <button disabled={!!busy} onClick={() => remove(r)} aria-label="מחיקה"
+                style={{ background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-xs)", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>{tr("עריכה")}</button>
+              <button disabled={!!busy} onClick={() => remove(r)} aria-label={tr("מחיקה")}
                 style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-lg)", cursor: "pointer", padding: "0 4px" }}>×</button>
             </div>
           ))}
@@ -219,58 +219,58 @@ export default function ResultsManager({ tenantId, services }) {
       {draft && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 12, border: "1px solid var(--line-2)", borderRadius: "var(--r-md)", background: "var(--surface-2)" }}>
           <div>
-            <p style={lbl}>הטיפול</p>
+            <p style={lbl}>{tr("הטיפול")}</p>
             <select value={svcValue} onChange={(e) => pickService(e.target.value)} style={inp}>
-              <option value="__other">{draft.serviceName && svcValue === "__other" ? draft.serviceName : "בחרי טיפול…"}</option>
+              <option value="__other">{draft.serviceName && svcValue === "__other" ? draft.serviceName : tr("בחרי טיפול…")}</option>
               {services.map((s) => <option key={s.id} value={String(s.id)}>{s.name}</option>)}
             </select>
           </div>
 
           <div>
-            <p style={lbl}>הלקוחה (לדף האישי שלה, לא חובה)</p>
+            <p style={lbl}>{tr("הלקוחה (לדף האישי שלה, לא חובה)")}</p>
             <select value={draft.clientId} onChange={(e) => set({ clientId: e.target.value })} style={inp} data-testid="result-client">
-              <option value="">לא משויכת ללקוחה</option>
+              <option value="">{tr("לא משויכת ללקוחה")}</option>
               {clients.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
             </select>
-            <p style={{ ...hint, marginTop: 4 }}>אם תבחרי לקוחה, התמונה תופיע גם בדף האישי ששולחים לה, ורק בו, ורק אחרי שההסכמה מתועדת.</p>
+            <p style={{ ...hint, marginTop: 4 }}>{tr("אם תבחרי לקוחה, התמונה תופיע גם בדף האישי ששולחים לה, ורק בו, ורק אחרי שההסכמה מתועדת.")}</p>
           </div>
 
           <div>
-            <p style={lbl}>תמונות</p>
+            <p style={lbl}>{tr("תמונות")}</p>
             <div style={{ display: "flex", gap: 8 }}>
               {photoBox("before", draft.beforeUrl, "לפני (לא חובה)")}
               {photoBox("after", draft.afterUrl, "אחרי")}
             </div>
-            {draft.beforeUrl && <button onClick={() => setPhoto("before", "")} style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-xs)", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", marginTop: 4 }}>הסרת תמונת ה&quot;לפני&quot;</button>}
+            {draft.beforeUrl && <button onClick={() => setPhoto("before", "")} style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-xs)", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", marginTop: 4 }}>{tr("הסרת תמונת ה\"לפני\"")}</button>}
           </div>
 
           <div>
-            <p style={lbl}>שורה קצרה על התוצאה (לא חובה)</p>
-            <input value={draft.caption} maxLength={140} onChange={(e) => set({ caption: e.target.value })} placeholder="למשל: אחרי 6 שבועות של טיפול" style={inp} />
+            <p style={lbl}>{tr("שורה קצרה על התוצאה (לא חובה)")}</p>
+            <input value={draft.caption} maxLength={140} onChange={(e) => set({ caption: e.target.value })} placeholder={tr("למשל: אחרי 6 שבועות של טיפול")} style={inp} />
           </div>
           <div>
-            <p style={lbl}>כמה טיפולים (לא חובה)</p>
-            <input value={draft.sessions} inputMode="numeric" onChange={(e) => set({ sessions: e.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder="למשל: 4" style={{ ...inp, maxWidth: 120 }} />
+            <p style={lbl}>{tr("כמה טיפולים (לא חובה)")}</p>
+            <input value={draft.sessions} inputMode="numeric" onChange={(e) => set({ sessions: e.target.value.replace(/\D/g, "").slice(0, 2) })} placeholder={tr("למשל: 4")} style={{ ...inp, maxWidth: 120 }} />
           </div>
 
           {/* CONSENT - its own box, because it is a different kind of field: it
               is a record, it is never shown on the page, and it gates publishing. */}
           <div style={{ padding: 12, border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", background: "var(--surface)", display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--ink)", margin: 0 }}>הסכמת הלקוחה</p>
-            <p style={hint}>מה שנרשם כאן נשמר אצלך בלבד ולא מופיע בדף. ברגע שהכול מלא אפשר לפרסם.</p>
+            <p style={{ fontSize: "var(--t-sm)", fontWeight: 700, color: "var(--ink)", margin: 0 }}>{tr("הסכמת הלקוחה")}</p>
+            <p style={hint}>{tr("מה שנרשם כאן נשמר אצלך בלבד ולא מופיע בדף. ברגע שהכול מלא אפשר לפרסם.")}</p>
             <div>
-              <p style={lbl}>מי הסכימה</p>
+              <p style={lbl}>{tr("מי הסכימה")}</p>
               <input value={draft.consentName} onChange={(e) => set({ consentName: e.target.value, consentConfirmed: false, published: false })} style={inp} />
             </div>
             <div>
-              <p style={lbl}>מתי היא הסכימה</p>
+              <p style={lbl}>{tr("מתי היא הסכימה")}</p>
               <input type="date" value={draft.consentGivenOn} max={today()} onChange={(e) => set({ consentGivenOn: e.target.value })} style={{ ...inp, maxWidth: 190, direction: "ltr" }} />
             </div>
             <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
               <input type="checkbox" checked={draft.consentConfirmed} onChange={(e) => set({ consentConfirmed: e.target.checked })}
                 style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: "var(--pc)" }} />
               <span style={{ fontSize: "var(--t-sm)", color: "var(--ink)", lineHeight: 1.6 }}>
-                הלקוחה ידעה והסכימה שאפרסם את התמונות האלה בדף העסק שלי.
+                {tr("הלקוחה ידעה והסכימה שאפרסם את התמונות האלה בדף העסק שלי.")}
               </span>
             </label>
           </div>
@@ -278,23 +278,23 @@ export default function ResultsManager({ tenantId, services }) {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button disabled={!!busy || blockers.length > 0} onClick={() => save(true)} className="primary-btn"
               style={{ flex: 1, minWidth: 140, opacity: blockers.length ? 0.5 : 1 }}>
-              {busy === "save" ? <Spinner inline label="שומרת" /> : "שמירה ופרסום"}
+              {busy === "save" ? <Spinner inline label={tr("שומרת")} /> : tr("שמירה ופרסום")}
             </button>
             <button disabled={!!busy} onClick={() => save(false)}
               style={{ flex: 1, minWidth: 120, background: "var(--surface)", color: "var(--pc-deep)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "9px 14px", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-              שמירה כטיוטה
+              {tr("שמירה כטיוטה")}
             </button>
             <button disabled={!!busy} onClick={() => { setDraft(null); setMsg(""); }}
-              style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-sm)", cursor: "pointer", fontFamily: "inherit" }}>ביטול</button>
+              style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-sm)", cursor: "pointer", fontFamily: "inherit" }}>{tr("ביטול")}</button>
           </div>
-          {blockers.length > 0 && <p style={hint}>כדי לפרסם חסר: {blockers.join(", ")}.</p>}
+          {blockers.length > 0 && <p style={hint}>{tr("כדי לפרסם חסר:")} {blockers.join(", ")}.</p>}
         </div>
       )}
 
       {!draft && !loadError && (
         <button onClick={() => { setMsg(""); setDraft(blank()); }}
           style={{ display: "block", width: "100%", border: "1.5px dashed var(--line-2)", borderRadius: "var(--r-sm)", padding: 12, textAlign: "center", cursor: "pointer", fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--pc-deep)", background: "var(--surface-2)", fontFamily: "inherit" }}>
-          + הוספת תוצאה
+          {tr("+ הוספת תוצאה")}
         </button>
       )}
     </div>

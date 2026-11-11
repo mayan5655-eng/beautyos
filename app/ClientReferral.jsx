@@ -7,6 +7,7 @@
 import { useMemo } from 'react';
 import { withSource, sourceLabel, referralMessageHe, referralCounts } from '@/lib/bookingSource';
 import { toWhatsAppNumber } from '@/lib/phone';
+import { tr } from "@/lib/i18n/tr";
 
 export default function ClientReferral({ client, clients, publicUrl, businessName, pc, pcTint, toast }) {
   const counts = useMemo(() => referralCounts(clients || []), [clients]);
@@ -27,15 +28,15 @@ export default function ClientReferral({ client, clients, publicUrl, businessNam
     <div data-testid="client-referral" style={{ background: pcTint, borderRadius: 'var(--r-md)', padding: '10px 12px', margin: '10px 0' }}>
       {(came || brought > 0) && (
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', marginBottom: link ? 8 : 0, lineHeight: 1.6 }}>
-          {came}{came && brought > 0 ? ' · ' : ''}{brought > 0 ? <b>{brought === 1 ? 'הביאה חברה אחת 💛' : `הביאה ${brought} חברות 💛`}</b> : null}
+          {came}{came && brought > 0 ? ' · ' : ''}{brought > 0 ? <b>{brought === 1 ? tr("הביאה חברה אחת 💛") : tr("הביאה {0} חברות 💛", [brought])}</b> : null}
         </p>
       )}
       {link && (
         <>
-          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', marginBottom: 6 }}>חברה מביאה חברה: קישור אישי שלה לשלוח לחברות. מי שקובעת דרכו תסומן כאן כחברה שלה.</p>
+          <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', marginBottom: 6 }}>{tr("חברה מביאה חברה: קישור אישי שלה לשלוח לחברות. מי שקובעת דרכו תסומן כאן כחברה שלה.")}</p>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {wa && <a href={wa} target="_blank" rel="noreferrer" style={{ ...btn, background: '#0B7A3E', color: '#fff', border: 'none' }}>שליחה אליה בוואטסאפ</a>}
-            <button type="button" style={btn} onClick={copy}>העתקת ההודעה</button>
+            {wa && <a href={wa} target="_blank" rel="noreferrer" style={{ ...btn, background: '#0B7A3E', color: '#fff', border: 'none' }}>{tr("שליחה אליה בוואטסאפ")}</a>}
+            <button type="button" style={btn} onClick={copy}>{tr("העתקת ההודעה")}</button>
           </div>
         </>
       )}

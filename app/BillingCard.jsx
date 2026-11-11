@@ -18,6 +18,7 @@ import { KALMEA_TERMS_HREF } from '@/lib/paymentTerms';
 import { priceHe } from '@/lib/pricing';
 import { isFinalRefusal, requestVerdict, requestStateHe, LOST_ANSWER_HE } from '@/lib/upgradesStore';
 import { purchaseIntent, settleIntent, requestStatus } from './UpgradesStore';
+import { tr, trv } from "@/lib/i18n/tr";
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -60,9 +61,9 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
   if (s.failed) {
     return (
       <div data-testid="billing-card" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 16px', marginBottom: 12 }}>
-        <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>המנוי שלך</p>
-        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 10 }}>לא הצלחנו לטעון את פרטי המנוי.</p>
-        <button type="button" onClick={load} style={{ background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>לנסות שוב</button>
+        <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>{tr("המנוי שלך")}</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 10 }}>{tr("לא הצלחנו לטעון את פרטי המנוי.")}</p>
+        <button type="button" onClick={load} style={{ background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>{tr("לנסות שוב")}</button>
       </div>
     );
   }
@@ -77,7 +78,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
       if (!r.ok || !j?.success) { const m = j?.error || 'לא הצלחנו לפתוח את דף הכרטיס'; setCardErr(m); toast?.(m, 'error'); return; }
       window.location.assign(j.url);
     } catch {
-      setCardErr('אין חיבור. דף הכרטיס לא נפתח, נסי שוב'); toast?.('אין חיבור. דף הכרטיס לא נפתח, נסי שוב', 'error');
+      setCardErr(tr("אין חיבור. דף הכרטיס לא נפתח, נסי שוב")); toast?.('אין חיבור. דף הכרטיס לא נפתח, נסי שוב', 'error');
     } finally { setBusy(false); }
   };
 
@@ -149,7 +150,7 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
 
   let body;
   if (s.tableReady === false) {
-    body = <p style={text}>ניהול המנוי עוד לא הופעל בחשבון. נעדכן כשהוא זמין, ועד אז הכול ממשיך לעבוד כרגיל.</p>;
+    body = <p style={text}>{tr("ניהול המנוי עוד לא הופעל בחשבון. נעדכן כשהוא זמין, ועד אז הכול ממשיך לעבוד כרגיל.")}</p>;
   } else {
     const sub = s.subscription;
     const status = s.plan.status;
@@ -169,38 +170,38 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
 
     body = (
       <>
-        <p style={{ fontSize: 'var(--t-lg)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{yearly ? money(an.yearly) : money(s.plan.price)} <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink-2)' }}>{yearly ? 'לשנה' : 'לחודש'}</span></p>
+        <p style={{ fontSize: 'var(--t-lg)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{yearly ? money(an.yearly) : money(s.plan.price)} <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink-2)' }}>{yearly ? tr("לשנה") : tr("לחודש")}</span></p>
         <p data-testid="billing-line" style={{ ...text, marginBottom: 10 }}>{line}</p>
 
-        {hasCard && <p style={{ ...text, marginBottom: 8 }}>כרטיס שמור: <b dir="ltr">•••• {sub.card_last4}</b></p>}
+        {hasCard && <p style={{ ...text, marginBottom: 8 }}>{tr("כרטיס שמור:")} <b dir="ltr">•••• {sub.card_last4}</b></p>}
         {/* Paused is an arrangement with us: a saved card does not reopen it (lib/billing/service.ts), so no card form (2026-11-02 audit). */}
         {!isDemo && s.configured && status !== 'paused' && (
           <label data-testid="billing-consent" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
             <input type="checkbox" checked={consentOk} onChange={(e) => setConsentOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
-            <span>{(nextPeriod === 'annual' ? billingAnnualConsentTextHe(an.yearly, '') : billingConsentTextHe(s.plan.price)).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
+            <span>{(nextPeriod === 'annual' ? billingAnnualConsentTextHe(an.yearly, '') : billingConsentTextHe(s.plan.price)).replace(BILLING_TERMS_SENTENCE_HE, '')}{tr("קראתי ואני מסכימה ל")}<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>{tr("תנאי השימוש")}</a> {tr("של קלמיה.")}</span>
           </label>
         )}
         {!isDemo && s.configured && status !== 'paused' && sub?.status !== 'canceled' && (
-          <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>{hasCard ? 'עדכון כרטיס' : 'הוספת כרטיס אשראי'}</button>
+          <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>{hasCard ? tr("עדכון כרטיס") : tr("הוספת כרטיס אשראי")}</button>
         )}
         {!isDemo && s.configured && status !== 'paused' && sub?.status === 'canceled' && (
-          <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>חידוש המנוי בכרטיס אשראי</button>
+          <button type="button" style={{ ...primary, opacity: consentOk ? 1 : 0.55 }} disabled={busy || !consentOk} onClick={openCardPage}>{tr("חידוש המנוי בכרטיס אשראי")}</button>
         )}
         {cardErr && <p role="alert" data-testid="billing-card-error" style={{ ...text, color: 'var(--danger)', fontWeight: 700, marginTop: 8 }}>{cardErr}</p>}
         {/* Card payment not configured: no card form above, and no "not active yet" line either (2026-11-09 owner rule). */}
-        {s.owner === false && <p data-testid="billing-member" style={text}>את המנוי והכרטיס מנהלת בעלת העסק.</p>}
+        {s.owner === false && <p data-testid="billing-member" style={text}>{tr("את המנוי והכרטיס מנהלת בעלת העסק.")}</p>}
 
         {an && an.ready && (
           <div data-testid="billing-period" style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>מסלול תשלום</p>
+            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{tr("מסלול תשלום")}</p>
             {!an.ready ? (
-              <p style={text}>התשלום השנתי עוד לא פעיל בחשבון. נעדכן כשהוא זמין.</p>
+              <p style={text}>{tr("התשלום השנתי עוד לא פעיל בחשבון. נעדכן כשהוא זמין.")}</p>
             ) : (
               <>
-                <div role="radiogroup" aria-label="מסלול תשלום" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div role="radiogroup" aria-label={tr("מסלול תשלום")} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[
-                    { k: 'monthly', title: 'חודשי', line: `${priceHe(an.monthly)} לחודש` },
-                    { k: 'annual', title: 'שנתי', line: annualOfferHe(an.monthly) },
+                    { k: 'monthly', title: tr("חודשי"), line: tr("{0} לחודש", [priceHe(an.monthly)]) },
+                    { k: 'annual', title: tr("שנתי"), line: annualOfferHe(an.monthly) },
                   ].map((o) => {
                     const on = nextPeriod === o.k;
                     return (
@@ -208,27 +209,27 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                         disabled={busy || isDemo || s.owner === false || !sub || sub.status === 'canceled'}
                         onClick={() => { if (!on) { setPeriodAsk(o.k); setPeriodOk(false); } }}
                         style={{ textAlign: 'right', background: on ? pcTint : 'var(--surface)', border: on ? `1.5px solid ${pc}` : '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 12px', cursor: on ? 'default' : 'pointer', fontFamily: 'inherit', minHeight: 44, color: 'var(--ink)' }}>
-                        <b style={{ fontSize: 'var(--t-sm)' }}>{o.title}{on ? ' ✓' : ''}</b>
-                        <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', unicodeBidi: 'isolate' }}>{o.line}</span>
+                        <b style={{ fontSize: 'var(--t-sm)' }}>{trv(o.title)}{on ? ' ✓' : ''}</b>
+                        <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', unicodeBidi: 'isolate' }}>{trv(o.line)}</span>
                       </button>
                     );
                   })}
                 </div>
                 {an.pendingPeriod && (
                   <p data-testid="billing-period-pending" style={{ ...text, marginTop: 8 }}>
-                    {an.pendingPeriod === 'annual' ? 'המעבר לתשלום שנתי' : 'החזרה לתשלום חודשי'} ייכנס לתוקף בחידוש הבא{sub?.next_charge_at ? `, ב-${day(sub.next_charge_at)}` : ''}. עד אז לא משתנה דבר ולא יהיה חיוב נוסף.
+                    {an.pendingPeriod === 'annual' ? tr("המעבר לתשלום שנתי") : tr("החזרה לתשלום חודשי")} {tr("ייכנס לתוקף בחידוש הבא")}{sub?.next_charge_at ? tr(", ב-{0}", [day(sub.next_charge_at)]) : ''}{tr(". עד אז לא משתנה דבר ולא יהיה חיוב נוסף.")}
                   </p>
                 )}
-                {!sub && s.configured && <p style={{ ...text, marginTop: 8 }}>אחרי שמירת כרטיס אפשר לבחור תשלום שנתי.</p>}
+                {!sub && s.configured && <p style={{ ...text, marginTop: 8 }}>{tr("אחרי שמירת כרטיס אפשר לבחור תשלום שנתי.")}</p>}
                 {periodAsk && sub && (
                   <div style={{ marginTop: 10, background: pcTint, borderRadius: 'var(--r-sm)', padding: '10px 12px' }}>
                     <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
                       <input type="checkbox" data-testid="billing-period-consent" checked={periodOk} onChange={(e) => setPeriodOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
-                      <span>{(periodAsk === 'annual' ? billingAnnualConsentTextHe(an.yearly, day(sub.next_charge_at)) : billingMonthlyConsentTextHe(an.monthly, day(sub.next_charge_at))).replace(BILLING_TERMS_SENTENCE_HE, '')}קראתי ואני מסכימה ל<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>תנאי השימוש</a> של קלמיה.</span>
+                      <span>{(periodAsk === 'annual' ? billingAnnualConsentTextHe(an.yearly, day(sub.next_charge_at)) : billingMonthlyConsentTextHe(an.monthly, day(sub.next_charge_at))).replace(BILLING_TERMS_SENTENCE_HE, '')}{tr("קראתי ואני מסכימה ל")}<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>{tr("תנאי השימוש")}</a> {tr("של קלמיה.")}</span>
                     </label>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                      <button type="button" data-testid="billing-period-confirm" style={{ ...ghost, background: pc, color: 'var(--pc-contrast)', border: 'none', opacity: periodOk ? 1 : 0.55 }} disabled={busy || !periodOk} onClick={() => choosePeriod(periodAsk)}>{periodAsk === 'annual' ? 'כן, לעבור לשנתי' : 'כן, לחזור לחודשי'}</button>
-                      <button type="button" style={ghost} disabled={busy} onClick={() => { setPeriodAsk(null); setPeriodOk(false); }}>ביטול</button>
+                      <button type="button" data-testid="billing-period-confirm" style={{ ...ghost, background: pc, color: 'var(--pc-contrast)', border: 'none', opacity: periodOk ? 1 : 0.55 }} disabled={busy || !periodOk} onClick={() => choosePeriod(periodAsk)}>{periodAsk === 'annual' ? tr("כן, לעבור לשנתי") : tr("כן, לחזור לחודשי")}</button>
+                      <button type="button" style={ghost} disabled={busy} onClick={() => { setPeriodAsk(null); setPeriodOk(false); }}>{tr("ביטול")}</button>
                     </div>
                   </div>
                 )}
@@ -239,8 +240,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
 
         {Array.isArray(s.addons) && s.addons.length > 0 && (
           <div id="billing-addons" data-testid="billing-addons" style={{ marginTop: 16, scrollMarginTop: 80 }}>
-            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>מה כלול החודש, ותוספות</p>
-            <p style={{ ...text, marginBottom: 8 }}>הכמויות מתחדשות בראשון לחודש. חבילה שמוסיפים היא לחודש הנוכחי בלבד.</p>
+            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{tr("מה כלול החודש, ותוספות")}</p>
+            <p style={{ ...text, marginBottom: 8 }}>{tr("הכמויות מתחדשות בראשון לחודש. חבילה שמוסיפים היא לחודש הנוכחי בלבד.")}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {s.addons.map((a) => {
                 const full = a.used !== null && a.cap !== null && a.used >= a.cap;
@@ -249,22 +250,22 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink)', fontWeight: 600 }}>
                         {/* Each part isolated: "AI" inside the label is Latin, and next to digits it would drag the numbers out of order. */}
-                        <bdi>{a.label}</bdi>: <b style={{ color: full ? 'var(--danger)' : 'var(--ink)', unicodeBidi: 'isolate' }}>{a.used === null ? '…' : a.used} מתוך {a.cap}</b>
-                        {a.purchased > 0 && <span style={{ color: 'var(--ink-2)', fontWeight: 400 }}> (כולל {a.purchased} שהוספת)</span>}
+                        <bdi>{trv(a.label)}</bdi>: <b style={{ color: full ? 'var(--danger)' : 'var(--ink)', unicodeBidi: 'isolate' }}>{a.used === null ? '…' : a.used} {tr("מתוך")} {a.cap}</b>
+                        {a.purchased > 0 && <span style={{ color: 'var(--ink-2)', fontWeight: 400 }}> {tr("(כולל")} {a.purchased} {tr("שהוספת)")}</span>}
                       </span>
                       {!isDemo && s.configured && confirmPack !== a.key && (
-                        <button type="button" data-testid={`addon-buy-${a.key}`} style={{ ...primary, minHeight: 40, padding: '8px 12px' }} disabled={busy} onClick={() => setConfirmPack(a.key)}>{a.button}</button>
+                        <button type="button" data-testid={`addon-buy-${a.key}`} style={{ ...primary, minHeight: 40, padding: '8px 12px' }} disabled={busy} onClick={() => setConfirmPack(a.key)}>{trv(a.button)}</button>
                       )}
                     </div>
                     {confirmPack === a.key && (
                       hasCard ? (
                         <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ ...text, flex: '1 1 180px' }}>לחייב {priceHe(a.price)} בכרטיס שמסתיים ב-<b dir="ltr" style={{ unicodeBidi: 'isolate' }}>{sub.card_last4}</b>, חיוב אחד לחודש הזה?</span>
-                          <button type="button" data-testid={`addon-confirm-${a.key}`} style={{ ...ghost, background: pc, color: 'var(--pc-contrast)', border: 'none' }} disabled={busy} onClick={() => buyPack(a.key)}>{busy ? 'מחייבת…' : 'כן, להוסיף'}</button>
-                          <button type="button" style={ghost} disabled={busy} onClick={() => setConfirmPack(null)}>ביטול</button>
+                          <span style={{ ...text, flex: '1 1 180px' }}>{tr("לחייב")} {priceHe(a.price)} {tr("בכרטיס שמסתיים ב-")}<b dir="ltr" style={{ unicodeBidi: 'isolate' }}>{sub.card_last4}</b>{tr(", חיוב אחד לחודש הזה?")}</span>
+                          <button type="button" data-testid={`addon-confirm-${a.key}`} style={{ ...ghost, background: pc, color: 'var(--pc-contrast)', border: 'none' }} disabled={busy} onClick={() => buyPack(a.key)}>{busy ? tr("מחייבת…") : tr("כן, להוסיף")}</button>
+                          <button type="button" style={ghost} disabled={busy} onClick={() => setConfirmPack(null)}>{tr("ביטול")}</button>
                         </div>
                       ) : (
-                        <p style={{ ...text, marginTop: 8 }}>כדי להוסיף חבילה צריך כרטיס שמור. אפשר להוסיף אותו כאן למעלה.</p>
+                        <p style={{ ...text, marginTop: 8 }}>{tr("כדי להוסיף חבילה צריך כרטיס שמור. אפשר להוסיף אותו כאן למעלה.")}</p>
                       )
                     )}
                   </div>
@@ -276,15 +277,15 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
 
         {s.payments.length > 0 && (
           <div style={{ marginTop: 14 }}>
-            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>היסטוריית חיובים</p>
+            <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>{tr("היסטוריית חיובים")}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} data-testid="billing-history">
               {s.payments.map((p) => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: pcTint, borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
-                  <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? ' · שולם ישירות' : p.kind === 'addon' ? ' · תוספת' : an && p.period_start && p.period_end && Date.parse(p.period_end) - Date.parse(p.period_start) > 40 * 864e5 ? ' · שנתי' : ''}</span>
+                  <span>{day(p.created_at)} · {money(p.amount)}{p.kind === 'manual' ? tr(" · שולם ישירות") : p.kind === 'addon' ? tr(" · תוספת") : an && p.period_start && p.period_end && Date.parse(p.period_end) - Date.parse(p.period_start) > 40 * 864e5 ? tr(" · שנתי") : ''}</span>
                   <span style={{ display: 'flex', gap: 8 }}>
-                    <b style={{ color: p.status === 'succeeded' ? 'var(--success)' : p.status === 'failed' ? 'var(--danger)' : 'var(--ink-3)' }}>{p.status === 'succeeded' ? 'שולם' : p.status === 'failed' ? 'נכשל' : 'בבדיקה מול Grow'}</b>
-                    {p.status === 'succeeded' && !p.invoice_url && p.invoice_status === 'pending' && <span style={{ color: 'var(--ink-3)' }}>הקבלה בדרך</span>}
-                    {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>{subscriptionDoc(p.amount).labelHe}{p.invoice_number ? ` ${p.invoice_number}` : ''}</a>}
+                    <b style={{ color: p.status === 'succeeded' ? 'var(--success)' : p.status === 'failed' ? 'var(--danger)' : 'var(--ink-3)' }}>{p.status === 'succeeded' ? tr("שולם") : p.status === 'failed' ? tr("נכשל") : tr("בבדיקה מול Grow")}</b>
+                    {p.status === 'succeeded' && !p.invoice_url && p.invoice_status === 'pending' && <span style={{ color: 'var(--ink-3)' }}>{tr("הקבלה בדרך")}</span>}
+                    {p.invoice_url && <a href={p.invoice_url} target="_blank" rel="noreferrer" style={{ color: 'var(--pc-text, var(--ink))', fontWeight: 700 }}>{trv(subscriptionDoc(p.amount).labelHe)}{p.invoice_number ? ` ${p.invoice_number}` : ''}</a>}
                   </span>
                 </div>
               ))}
@@ -295,12 +296,12 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         {!isDemo && s.owner !== false && sub && sub.status !== 'canceled' && (
           <div style={{ marginTop: 14 }}>
             {!confirmCancel ? (
-              <button type="button" style={ghost} onClick={() => setConfirmCancel(true)}>ביטול המנוי</button>
+              <button type="button" style={ghost} onClick={() => setConfirmCancel(true)}>{tr("ביטול המנוי")}</button>
             ) : (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={text}>לבטל? את ממשיכה לעבוד עד סוף התקופה ששולמה, והנתונים נשארים שלך.</span>
-                <button type="button" style={ghost} disabled={busy} onClick={cancel}>כן, לבטל</button>
-                <button type="button" style={ghost} onClick={() => setConfirmCancel(false)}>לא</button>
+                <span style={text}>{tr("לבטל? את ממשיכה לעבוד עד סוף התקופה ששולמה, והנתונים נשארים שלך.")}</span>
+                <button type="button" style={ghost} disabled={busy} onClick={cancel}>{tr("כן, לבטל")}</button>
+                <button type="button" style={ghost} onClick={() => setConfirmCancel(false)}>{tr("לא")}</button>
               </div>
             )}
           </div>
@@ -311,9 +312,9 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
 
   return (
     <div id="billing-card" data-testid="billing-card" style={{ ...box, scrollMarginTop: 80 }}>
-      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>המנוי שלי בקלמיה</p>
-      {s.mode === 'mock' && <p data-testid="billing-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>מצב בדיקה: לא נגבה כסף אמיתי</p>}
-      {body}
+      <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>{tr("המנוי שלי בקלמיה")}</p>
+      {s.mode === 'mock' && <p data-testid="billing-mock" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: 'var(--ink)', background: 'var(--brand-tint, #FBEDE9)', borderRadius: 'var(--r-sm)', padding: '6px 10px', marginBottom: 8 }}>{tr("מצב בדיקה: לא נגבה כסף אמיתי")}</p>}
+      {trv(body)}
     </div>
   );
 }

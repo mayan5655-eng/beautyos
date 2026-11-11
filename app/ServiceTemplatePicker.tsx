@@ -52,6 +52,7 @@ import {
 } from '@/lib/tenantTemplate';
 import { BUSINESS_FIELDS, type FieldKey } from '@/lib/businessFields';
 import type { PickedService } from '@/lib/seedServices';
+import { tr, trv } from "@/lib/i18n/tr";
 
 export default function ServiceTemplatePicker({
   value,
@@ -160,7 +161,7 @@ export default function ServiceTemplatePicker({
               }}
             >
               <span style={{ flex: 1, fontSize:"var(--t-md)", fontWeight: 700, color: 'var(--ink)' }}>
-                {group.label}
+                {trv(group.label)}
               </span>
               {chosenHere > 0 && (
                 <span
@@ -173,7 +174,7 @@ export default function ServiceTemplatePicker({
                     padding: '3px 10px',
                   }}
                 >
-                  {chosenHere} נבחרו
+                  {chosenHere} {tr("נבחרו")}
                 </span>
               )}
               <span aria-hidden style={{ fontSize:"var(--t-md)", color: 'var(--ink-3)' }}>
@@ -252,8 +253,8 @@ export default function ServiceTemplatePicker({
                             style={{ display: 'block', fontSize:"var(--t-sm)", color: 'var(--ink-3)', marginTop: 2 }}
                           >
                             {already
-                              ? 'כבר ברשימה שלך'
-                              : `${item.duration} דקות · מקובל בשוק: ${priceRangeLabel(item)}`}
+                              ? tr("כבר ברשימה שלך")
+                              : tr("{0} דקות · מקובל בשוק: {1}", [item.duration, priceRangeLabel(item)])}
                           </span>
                           {/* A reminder, never a gate — she knows what she's
                               certified for. Shown regardless of pick state,
@@ -279,7 +280,7 @@ export default function ServiceTemplatePicker({
                           }}
                         >
                           <label style={fieldLabel}>
-                            מחיר ₪
+                            {tr("מחיר ₪")}
                             <input
                               type="number"
                               min={0}
@@ -290,7 +291,7 @@ export default function ServiceTemplatePicker({
                             />
                           </label>
                           <label style={fieldLabel}>
-                            דקות
+                            {tr("דקות")}
                             <input
                               type="number"
                               min={5}
@@ -302,7 +303,7 @@ export default function ServiceTemplatePicker({
                             />
                           </label>
                           <span style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)' }}>
-                            הצעה בלבד, אפשר לשנות
+                            {tr("הצעה בלבד, אפשר לשנות")}
                           </span>
                         </div>
                       )}

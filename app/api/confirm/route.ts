@@ -12,6 +12,20 @@ import { hebrewDate } from '@/lib/messages.js';
 import { fmtApptTime } from '@/lib/apptTime';
 import { runWaitlistOffer } from '@/lib/waitlistRuntime';
 import { publicContactFor, type PublicContact } from '@/lib/publicContact';
+import { langOfSettings, DEFAULT_LANG, type Lang } from '@/lib/i18n/core';
+import { dateLabel } from '@/lib/i18n/dates';
+import { trFor } from '@/lib/i18n/publicTr';
+
+type Brand = { businessName?: string; logoUrl?: string; primaryColor?: string; language?: Lang };
+
+// The day and time in the business's language (lib/i18n). Hebrew keeps hebrewDate, word for word as before.
+const whenIn = (lang: Lang, date: string | null | undefined, time: string): string => {
+  if (!date) return '';
+  const T = trFor(lang);
+  if (lang === 'he') return `ב${hebrewDate(date)}${time ? `, בשעה ${time}` : ''}`;
+  const day = dateLabel(date, lang);
+  return time ? T('ב{0}, בשעה {1}', [day, time]) : T('ב{0}', [day]);
+};
 
 /**
  * Appointment confirm / cancel, called by the /confirm page.
@@ -42,21 +56,24 @@ import { publicContactFor, type PublicContact } from '@/lib/publicContact';
 // The message says WHEN, in her words, instead of a system "succeeded" (2026-11-03 UX review). `when` is the day and time her own
 // message already told the client; `contact` is her public booking link and WhatsApp (lib/publicContact.ts), so a client who
 // cancelled has somewhere to book again.
-const okResponse = (action: string, alreadyDone = false, brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {}, when = '', contact: PublicContact = { bookUrl: '', whatsapp: '' }) =>
-  NextResponse.json({
+const okResponse = (action: string, alreadyDone = false, brand: Brand = {}, when = '', contact: PublicContact = { bookUrl: '', whatsapp: '' }) => {
+  const tr = trFor(brand.language);
+  return NextResponse.json({
     success: true,
     action,
     alreadyDone,
     businessName: brand.businessName || '',
     logoUrl: brand.logoUrl || '',
     primaryColor: brand.primaryColor || '',
+    language: brand.language || DEFAULT_LANG,
     ...contact,
     message: alreadyDone
-      ? action === 'confirm' ? (when ? `התור כבר אושר בעבר. נתראה ${when} 🌸` : 'התור כבר אושר בעבר') : 'התור כבר בוטל בעבר'
+      ? action === 'confirm' ? (when ? tr('התור כבר אושר בעבר. נתראה {0} 🌸', [when]) : tr('התור כבר אושר בעבר')) : tr('התור כבר בוטל בעבר')
       : action === 'confirm'
-        ? (when ? `נתראה ${when} 🌸` : 'נתראה בתור 🌸')
-        : (when ? `התור ${when} בוטל, והשעה התפנתה.` : 'התור בוטל, והשעה התפנתה.'),
+        ? (when ? tr('נתראה {0} 🌸', [when]) : tr('נתראה בתור 🌸'))
+        : (when ? tr('התור {0} בוטל, והשעה התפנתה.', [when]) : tr('התור בוטל, והשעה התפנתה.')),
   });
+};
 
 // One body for every failure - unknown id, wrong token, bad action. Varying it
 // would turn this endpoint into an oracle for which appointment ids exist.
@@ -97,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // Public branding for the page header; best-effort - a failed read
     // leaves the confirmation working, just unbranded.
-    let brand: { businessName?: string; logoUrl?: string; primaryColor?: string } = {};
+    let brand: Brand = {};
     let cancelWindowHours = 0;
     let settingsRow: { business_phone?: string | null; branding?: unknown } | null = null;
     try {
@@ -112,8 +129,10 @@ export async function POST(request: NextRequest) {
         businessName: st?.business_name || '',
         logoUrl: (st?.branding as { logo_url?: string } | null)?.logo_url || '',
         primaryColor: publicAccent(st),
+        language: langOfSettings(st),
       };
     } catch { /* unbranded, not broken */ }
+    const tr = trFor(brand.language);
 
     // Her cancellation window: inside it the client's own link no longer cancels. She can still cancel in the
     // app, and the client is told to contact her. Only the CLIENT path is restricted; confirming is never blocked.
@@ -146,10 +165,10 @@ export async function POST(request: NextRequest) {
         peek: true,
         ...brand,
         status: appt.confirmation_status,
-        appointment: { service: appt.service || '', date: appt.date ? hebrewDate(appt.date) : '', time: fmtApptTime(appt) },
+        appointment: { service: appt.service || '', date: appt.date ? dateLabel(appt.date, brand.language || DEFAULT_LANG) : '', time: fmtApptTime(appt) },
         // Read-only and advisory: a cancel the link could not do is shown as the calm refusal straight away, with how to reach
         // her, instead of a "yes, cancel" button that would only be refused after the tap. The real request below still decides.
-        ...(action === 'cancel' && refusal ? { refusal: { error: refusal.error, ...(refusal.tooLate ? { tooLate: true } : {}) }, ...contact } : {}),
+        ...(action === 'cancel' && refusal ? { refusal: { error: tr(refusal.error), ...(refusal.tooLate ? { tooLate: true } : {}) }, ...contact } : {}),
       });
     }
 
@@ -158,7 +177,7 @@ export async function POST(request: NextRequest) {
     // through its own link.
     // (The day and time, and where she can book again: past the signature check and after the peek, which stays
     // treatment, day and time only. Used by the answers below.)
-    const when = appt.date ? `ב${hebrewDate(appt.date)}${fmtApptTime(appt) ? `, בשעה ${fmtApptTime(appt)}` : ''}` : '';
+    const when = whenIn(brand.language || DEFAULT_LANG, appt.date, fmtApptTime(appt));
 
     if (action === 'confirm' && appt.confirmation_status === 'confirmed') return okResponse('confirm', true, brand, when, contact);
     if (action === 'cancel' && appt.confirmation_status === 'cancelled') return okResponse('cancel', true, brand, when, contact);
@@ -168,7 +187,7 @@ export async function POST(request: NextRequest) {
         success: false,
         businessName: brand.businessName || '',
         ...contact,
-        error: `התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם ${brand.businessName || 'העסק'}.`,
+        error: tr('התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם {0}.', [brand.businessName || tr('העסק')]),
       }, { status: 409 });
     }
 
@@ -186,13 +205,13 @@ export async function POST(request: NextRequest) {
         ...(refusal.tooLate ? { tooLate: true } : {}),
         businessName: brand.businessName || '',
         ...contact,
-        error: refusal.error,
+        error: tr(refusal.error),
       }, { status: 409 });
     }
     if (action === 'confirm' && appt.confirmation_status === 'pending') {
       const { data: hold } = await supabase.from('appointment_policy_consents').select('status').eq('appointment_id', appointmentId).eq('tenant_id', appt.tenant_id).maybeSingle();
       if (hold && hold.status === 'awaiting_deposit') {
-        return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: 'התור שמור עבורך עד שהמקדמה משולמת. אחרי התשלום הוא מאושר מעצמו.' }, { status: 409 });
+        return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: tr('התור שמור עבורך עד שהמקדמה משולמת. אחרי התשלום הוא מאושר מעצמו.') }, { status: 409 });
       }
     }
 

@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { BOOKING_PLATFORMS, platformLink, doneMap, withDone } from '@/lib/bookingButtons';
 import { TUTORIAL_TITLES, tutorialHref } from '@/lib/helpSections';
+import { tr, trv } from "@/lib/i18n/tr";
 
 export default function BookingButtonsCard({ bookingUrl, automations, onCopy, onSaveDone, pcDeep }) {
   const [open, setOpen] = useState(null);
@@ -38,17 +39,16 @@ export default function BookingButtonsCard({ bookingUrl, automations, onCopy, on
   return (
     <section data-testid="booking-buttons-card" style={{ border: '1px solid var(--line-2)', borderRadius: 'var(--r-md)', padding: '14px 14px', display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--surface)' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <p style={{ flex: 1, fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)' }}>כפתור קביעת תור באינסטגרם ובגוגל</p>
+        <p style={{ flex: 1, fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)' }}>{tr("כפתור קביעת תור באינסטגרם ובגוגל")}</p>
         <span data-testid="booking-buttons-count" style={{ fontSize: 'var(--t-xs)', fontWeight: 700, color: count === BOOKING_PLATFORMS.length ? 'var(--success)' : 'var(--ink-2)', whiteSpace: 'nowrap' }}>
-          {count === BOOKING_PLATFORMS.length ? 'הכל מוכן ✓' : `${count} מתוך ${BOOKING_PLATFORMS.length}`}
+          {count === BOOKING_PLATFORMS.length ? tr("הכל מוכן ✓") : tr("{0} מתוך {1}", [count, BOOKING_PLATFORMS.length])}
         </span>
       </div>
       <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
-        כך הקישור שלך לקביעת תור יופיע בכל מקום שלקוחות מחפשות אותך. זה קישור שאת מדביקה בעצמך, לא חיבור אוטומטי: קלמיה לא משנה כלום בחשבונות שלך.
-        כל קישור מסומן לפי המקום, כדי שבדוח המקורות תראי מאיפה הגיעו התורים.
+        {tr("כך הקישור שלך לקביעת תור יופיע בכל מקום שלקוחות מחפשות אותך. זה קישור שאת מדביקה בעצמך, לא חיבור אוטומטי: קלמיה לא משנה כלום בחשבונות שלך. כל קישור מסומן לפי המקום, כדי שבדוח המקורות תראי מאיפה הגיעו התורים.")}
       </p>
       <a href={tutorialHref('booking-button')} target="_blank" rel="noopener noreferrer" data-testid="booking-buttons-video" style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: pcDeep, textDecoration: 'none', alignSelf: 'flex-start' }}>
-        ▶ סרטון: {TUTORIAL_TITLES['booking-button']}
+        {tr("▶ סרטון:")} {trv(TUTORIAL_TITLES['booking-button'])}
       </a>
 
       <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -74,13 +74,13 @@ export default function BookingButtonsCard({ bookingUrl, automations, onCopy, on
                   </ol>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '8px 10px' }}>
                     <span data-testid={`booking-link-${p.key}`} dir="ltr" style={{ flex: '1 1 180px', minWidth: 0, fontSize: 'var(--t-xs)', color: 'var(--ink-2)', wordBreak: 'break-all', textAlign: 'left' }}>{link}</span>
-                    <button type="button" onClick={() => onCopy(p.src, `הקישור הועתק. עכשיו הדביקי אותו ${p.inName} לפי השלבים`)} style={{ background: 'var(--brand-deep)', color: 'var(--brand-contrast)', border: 'none', borderRadius: 'var(--r-sm)', padding: '9px 14px', minHeight: 40, fontSize: 'var(--t-xs)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>העתקת הקישור</button>
+                    <button type="button" onClick={() => onCopy(p.src, `הקישור הועתק. עכשיו הדביקי אותו ${p.inName} לפי השלבים`)} style={{ background: 'var(--brand-deep)', color: 'var(--brand-contrast)', border: 'none', borderRadius: 'var(--r-sm)', padding: '9px 14px', minHeight: 40, fontSize: 'var(--t-xs)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>{tr("העתקת הקישור")}</button>
                   </div>
-                  {p.note && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>{p.note}</p>}
+                  {p.note && <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.6 }}>{trv(p.note)}</p>}
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: saving ? 'wait' : 'pointer', fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink)', minHeight: 40 }}>
                     <input type="checkbox" checked={isDone} disabled={!!saving} onChange={(e) => toggle(p.key, e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--success)' }} data-testid={`booking-done-${p.key}`} />
-                    סימנתי שעשיתי
-                    {saving === p.key && <span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 500 }}>שומרת…</span>}
+                    {tr("סימנתי שעשיתי")}
+                    {saving === p.key && <span style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 500 }}>{tr("שומרת…")}</span>}
                   </label>
                 </div>
               )}

@@ -128,7 +128,7 @@ await ok('the health board is read-only and only on the gated admin page', () =>
 await ok('the app says which account she is signed in to, where she signs out', () => {
   const a = rd('app/beautyos.jsx');
   assert.match(a, /setAuthEmail\(user\.email \|\| ""\)/);
-  assert.match(a, /את מחוברת כ-(\\u2068)?\$\{authEmail\}/);
+  assert.match(a, /את מחוברת כ-(\\u2068|⁨)?\$\{authEmail\}/);
 });
 
 console.log(`${n} passed`);

@@ -12,6 +12,9 @@ import { openGrowWallet, preloadGrowSdk, growSdkLoaded, growWalletVisible } from
 import { uaClass, osOf, fallbackDecision, wantsInAppWallet, androidIntentUrl, iosSafariUrl, iosChromeUrl, buildDiagPayload, sdkFailureText } from '@/lib/grow/walletDiag';
 import { PAYMENT_TERMS_HREF, PAY_TERMS_BEFORE_HE, PAY_TERMS_LINK_HE, PAY_TERMS_AFTER_HE } from '@/lib/paymentTerms';
 import { contrastOn, readableAccentText, DEFAULT_ACCENT } from '@/lib/theme';
+import { useTr } from "@/lib/i18n/useTr";
+import { normalizeLang, dirOf } from '@/lib/i18n/core';
+import { useDocumentLang } from '@/lib/i18n/react';
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 
@@ -33,7 +36,11 @@ const WORDS = {
 };
 
 export default function PayClient({ token }) {
-  const [info, setInfo] = useState(null); // { state, amount, description, businessName, accent }
+  const [info, setInfo] = useState(null); // { state, amount, description, businessName, accent, language }
+  // The business's language (lib/i18n), from /api/grow/wallet.
+  const lang = info?.language ? normalizeLang(info.language) : null;
+  useDocumentLang(lang);
+  const tr = useTr(lang);
   const [phase, setPhase] = useState('loading'); // loading | ready | opening | open | confirming | paid | late | error
   const [msg, setMsg] = useState('');
   // The required terms tick (Grow's site check): the pay button waits for it, and /api/grow/wallet refuses without it.
@@ -57,11 +64,11 @@ export default function PayClient({ token }) {
       const r = await fetch(`/api/grow/wallet?t=${encodeURIComponent(token)}`);
       const j = await r.json().catch(() => null);
       // Busy or a server hiccup is not a bad link: a refresh will work.
-      if (r.status === 429 || r.status >= 500) { setMsg('יש עומס רגעי. נסי לרענן בעוד רגע.'); setPhase('error'); return; }
+      if (r.status === 429 || r.status >= 500) { setMsg(tr("יש עומס רגעי. נסי לרענן בעוד רגע.")); setPhase('error'); return; }
       if (!r.ok || !j?.success) { setInfo({ state: 'unknown' }); setPhase('ready'); return; }
       setInfo(j);
       setPhase(j.state === 'paid' ? 'paid' : 'ready');
-    } catch { setMsg('אין חיבור כרגע. נסי לרענן.'); setPhase('error'); }
+    } catch { setMsg(tr("אין חיבור כרגע. נסי לרענן.")); setPhase('error'); }
   }, [token]);
   useEffect(() => {
     load(); preloadGrowSdk(window);
@@ -101,7 +108,7 @@ export default function PayClient({ token }) {
   }, [token]);
 
   const start = async () => {
-    if (!termsOk) { setMsg('כדי להמשיך לתשלום צריך לסמן את האישור.'); return; }
+    if (!termsOk) { setMsg(tr("כדי להמשיך לתשלום צריך לסמן את האישור.")); return; }
     setPhase('opening'); setMsg('');
     try {
       // In-app browser with GROW_INAPP_WALLET on: ask for the card-and-Bit wallet (the server checks the flag and the hint again).
@@ -110,7 +117,7 @@ export default function PayClient({ token }) {
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) {
         if (j?.state === 'paid') { setPhase('paid'); return; }
-        setMsg(j?.error || 'לא הצלחנו לפתוח את התשלום. נסי שוב בעוד רגע.'); setPhase('ready'); return;
+        setMsg(j?.error || tr("לא הצלחנו לפתוח את התשלום. נסי שוב בעוד רגע.")); setPhase('ready'); return;
       }
       const ua = window.navigator.userAgent;
       const cls = uaClass(ua);
@@ -130,7 +137,7 @@ export default function PayClient({ token }) {
         report(event, raw, { sdkEnv: j.sdkEnv, phase: dec.action });
         if (dec.action === 'hosted') { a.done = true; setPhase('redirect'); window.location.assign(dec.url); return; }
         if (dec.action === 'browser') { a.done = true; setMsg(''); setPhase('browser'); return; }
-        setMsg(failureText(m, raw)); setPhase('ready');
+        setMsg(tr(failureText(m, raw))); setPhase('ready');
       };
       try {
         await openGrowWallet(window, {
@@ -156,7 +163,7 @@ export default function PayClient({ token }) {
         failed('no-open', null, '');
       }, OPEN_WATCHDOG_MS);
     } catch {
-      setMsg('לא הצלחנו לפתוח את התשלום. נסי לרענן ולנסות שוב.'); setPhase('ready');
+      setMsg(tr("לא הצלחנו לפתוח את התשלום. נסי לרענן ולנסות שוב.")); setPhase('ready');
     }
   };
 
@@ -180,14 +187,14 @@ export default function PayClient({ token }) {
   const card = { background: '#fff', border: '1px solid #E8DFD0', borderRadius: 20, padding: '28px 22px', maxWidth: 420, margin: '0 auto', textAlign: 'center', boxShadow: '0 6px 24px rgba(31,58,48,.06)' };
 
   return (
-    <div dir="rtl" data-testid="pay-page" style={{ minHeight: '100vh', background: '#FBF8F1', padding: '36px 16px', fontFamily: 'var(--font-assistant, Assistant, system-ui, sans-serif)', color: '#1F3A30' }}>
+    <div dir={dirOf(lang || 'he')} lang={lang || 'he'} data-testid="pay-page" style={{ minHeight: '100vh', background: '#FBF8F1', padding: '36px 16px', fontFamily: 'var(--font-assistant, Assistant, system-ui, sans-serif)', color: '#1F3A30' }}>
       <div style={card}>
         {info?.businessName && <p style={{ fontSize: 15, color: '#656A56', marginBottom: 6 }}>{info.businessName}</p>}
-        {phase === 'loading' && <p>רגע, פותחות את הדף…</p>}
+        {phase === 'loading' && <p>{tr("רגע, פותחות את הדף…")}</p>}
         {phase === 'error' && <p style={{ color: '#B3261E' }}>{msg}</p>}
 
-        {closed && phase !== 'loading' && <p data-testid="pay-closed" style={{ fontSize: 17, lineHeight: 1.7 }}>{info.note || WORDS[info.state] || WORDS.closed}</p>}
-        {closed && phase !== 'loading' && ctx && (ctx.kind === 'deposit' || ctx.kind === 'booking') && <a href={ctx.returnUrl.replace(/[?&]grow=paid/, '')} style={backLink}>לדף קביעת התורים</a>}
+        {closed && phase !== 'loading' && <p data-testid="pay-closed" style={{ fontSize: 17, lineHeight: 1.7 }}>{tr(info.note || WORDS[info.state] || WORDS.closed)}</p>}
+        {closed && phase !== 'loading' && ctx && (ctx.kind === 'deposit' || ctx.kind === 'booking') && <a href={ctx.returnUrl.replace(/[?&]grow=paid/, '')} style={backLink}>{tr("לדף קביעת התורים")}</a>}
 
         {info && !closed && phase !== 'loading' && phase !== 'error' && (
           <>
@@ -197,9 +204,9 @@ export default function PayClient({ token }) {
                 {info.description && <p style={{ fontSize: 16, color: '#656A56', marginBottom: ctx && ctx.when ? 10 : 18 }}>{info.description}</p>}
                 {ctx && (ctx.kind === 'deposit' || ctx.kind === 'booking') && (ctx.service || ctx.when) && (
                   <div data-testid="pay-booking" style={{ background: '#FBF8F1', border: '1px solid #E8DFD0', borderRadius: 14, padding: '12px 14px', marginBottom: 18, textAlign: 'right', fontSize: 15, lineHeight: 1.7 }}>
-                    {ctx.service && <div><span style={{ color: '#656A56' }}>טיפול: </span><b>{ctx.service}</b></div>}
-                    {ctx.when && <div><span style={{ color: '#656A56' }}>מתי: </span><b>{ctx.when}</b></div>}
-                    {ctx.kind === 'deposit' && phase !== 'paid' && <div style={{ color: '#656A56', fontSize: 14, marginTop: 4 }}>התור שמור עבורך ל-30 דקות, ויאושר מיד עם תשלום המקדמה.</div>}
+                    {ctx.service && <div><span style={{ color: '#656A56' }}>{tr("טיפול:")} </span><b>{ctx.service}</b></div>}
+                    {ctx.when && <div><span style={{ color: '#656A56' }}>{tr("מתי:")} </span><b>{ctx.when}</b></div>}
+                    {ctx.kind === 'deposit' && phase !== 'paid' && <div style={{ color: '#656A56', fontSize: 14, marginTop: 4 }}>{tr("התור שמור עבורך ל-30 דקות, ויאושר מיד עם תשלום המקדמה.")}</div>}
                   </div>
                 )}
               </>
@@ -207,62 +214,62 @@ export default function PayClient({ token }) {
             {(phase === 'ready' || phase === 'opening') && (
               <>
                 <label data-testid="pay-terms" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'right', padding: '12px', borderRadius: 14, border: `1px solid ${termsOk ? accent : '#E8DFD0'}`, background: '#FDFBF9', marginBottom: 14, cursor: 'pointer', fontSize: 15, lineHeight: 1.6 }}>
-                  <input type="checkbox" checked={termsOk} onChange={(e) => { setTermsOk(e.target.checked); if (e.target.checked) setMsg(''); }} aria-label="אישור תנאי התשלום" style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: accent }} />
+                  <input type="checkbox" checked={termsOk} onChange={(e) => { setTermsOk(e.target.checked); if (e.target.checked) setMsg(''); }} aria-label={tr("אישור תנאי התשלום")} style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, accentColor: accent }} />
                   <span>{PAY_TERMS_BEFORE_HE}<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: accentText, fontWeight: 700, textDecoration: 'underline' }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}</span>
                 </label>
                 <button type="button" data-testid="pay-start" onClick={start} disabled={phase === 'opening' || !termsOk} style={{ width: '100%', minHeight: 52, borderRadius: 14, border: 'none', background: accent, color: onAccent, fontSize: 18, fontWeight: 700, cursor: termsOk ? 'pointer' : 'default', opacity: termsOk ? 1 : 0.55, fontFamily: 'inherit' }}>
-                  {phase === 'opening' ? 'פותחת את התשלום…' : `לתשלום ${money(info.amount)}`}
+                  {phase === 'opening' ? tr("פותחת את התשלום…") : tr("לתשלום {0}", [money(info.amount)])}
                 </button>
                 {/* The button waits for the tick (Grow's site check); without this line a greyed button gave no reason (2026-11-02 audit). */}
-                {!termsOk && <p data-testid="pay-tick-hint" style={{ fontSize: 'var(--t-sm)', color: '#656A56', marginTop: 8 }}>כדי להמשיך לתשלום, מסמנים את האישור למעלה.</p>}
-                <p data-testid="pay-methods" style={{ fontSize: 13, color: '#656A56', marginTop: 12, lineHeight: 1.7 }}>{cardBit ? 'כרטיס אשראי או ביט.' : 'כרטיס אשראי, ביט, Apple Pay או Google Pay.'}<br />התשלום מאובטח ועובר דרך Grow. פרטי הכרטיס לא נשמרים אצלנו.</p>
+                {!termsOk && <p data-testid="pay-tick-hint" style={{ fontSize: 'var(--t-sm)', color: '#656A56', marginTop: 8 }}>{tr("כדי להמשיך לתשלום, מסמנים את האישור למעלה.")}</p>}
+                <p data-testid="pay-methods" style={{ fontSize: 13, color: '#656A56', marginTop: 12, lineHeight: 1.7 }}>{cardBit ? tr("כרטיס אשראי או ביט.") : tr("כרטיס אשראי, ביט, Apple Pay או Google Pay.")}<br />{tr("התשלום מאובטח ועובר דרך Grow. פרטי הכרטיס לא נשמרים אצלנו.")}</p>
                 {walletAppUrl && (
                   <a data-testid="pay-open-browser-wallet" href={walletAppUrl} style={{ display: 'inline-block', marginTop: 4, fontSize: 'var(--t-md)', color: accentText, fontWeight: 700 }}>
-                    {here.os === 'ios' ? 'רוצה לשלם ב-Apple Pay? פתיחה בספארי' : 'רוצה לשלם ב-Google Pay? פתיחה בכרום'}
+                    {here.os === 'ios' ? tr("רוצה לשלם ב-Apple Pay? פתיחה בספארי") : tr("רוצה לשלם ב-Google Pay? פתיחה בכרום")}
                   </a>
                 )}
               </>
             )}
-            {phase === 'open' && <p style={{ fontSize: 15, color: '#656A56' }}>השלימי את התשלום בחלון שנפתח.</p>}
-            {phase === 'redirect' && <p data-testid="pay-redirect" style={{ fontSize: 'var(--t-lg)', color: '#656A56' }}>עוברות לדף התשלום המאובטח של Grow…</p>}
+            {phase === 'open' && <p style={{ fontSize: 15, color: '#656A56' }}>{tr("השלימי את התשלום בחלון שנפתח.")}</p>}
+            {phase === 'redirect' && <p data-testid="pay-redirect" style={{ fontSize: 'var(--t-lg)', color: '#656A56' }}>{tr("עוברות לדף התשלום המאובטח של Grow…")}</p>}
             {phase === 'browser' && (
               <div data-testid="pay-browser" style={{ textAlign: 'right', background: '#FBF8F1', border: '1px solid #E8DFD0', borderRadius: 'var(--r-md)', padding: '16px 14px', marginTop: 4 }}>
-                <h2 style={{ fontSize: 'var(--t-xl)', margin: '0 0 6px', fontFamily: 'var(--font-frank, "Frank Ruhl Libre", serif)', textAlign: 'center' }}>עוד צעד קטן והתשלום מוכן</h2>
-                <p style={{ fontSize: 'var(--t-lg)', lineHeight: 1.7, margin: '0 0 12px', textAlign: 'center' }}>חלון התשלום לא נפתח בתוך האפליקציה. בדפדפן של הטלפון הוא נפתח מיד. לא חויבת.</p>
+                <h2 style={{ fontSize: 'var(--t-xl)', margin: '0 0 6px', fontFamily: 'var(--font-frank, "Frank Ruhl Libre", serif)', textAlign: 'center' }}>{tr("עוד צעד קטן והתשלום מוכן")}</h2>
+                <p style={{ fontSize: 'var(--t-lg)', lineHeight: 1.7, margin: '0 0 12px', textAlign: 'center' }}>{tr("חלון התשלום לא נפתח בתוך האפליקציה. בדפדפן של הטלפון הוא נפתח מיד. לא חויבת.")}</p>
                 {os === 'android' ? (
-                  <a data-testid="pay-open-chrome" href={androidIntentUrl(typeof window !== 'undefined' ? window.location.href : '')} style={{ display: 'block', textAlign: 'center', minHeight: 52, lineHeight: '52px', borderRadius: 'var(--r-sm)', background: accent, color: onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, textDecoration: 'none' }}>פתיחה ב-Chrome</a>
+                  <a data-testid="pay-open-chrome" href={androidIntentUrl(typeof window !== 'undefined' ? window.location.href : '')} style={{ display: 'block', textAlign: 'center', minHeight: 52, lineHeight: '52px', borderRadius: 'var(--r-sm)', background: accent, color: onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, textDecoration: 'none' }}>{tr("פתיחה ב-Chrome")}</a>
                 ) : (
                   <>
                   {os === 'ios' && iosSafariUrl(typeof window !== 'undefined' ? window.location.href : '') && (
-                    <a data-testid="pay-open-safari" href={iosSafariUrl(window.location.href)} style={{ display: 'block', textAlign: 'center', minHeight: 52, lineHeight: '52px', borderRadius: 'var(--r-sm)', background: accent, color: onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, textDecoration: 'none', marginBottom: 12 }}>פתיחה בספארי</a>
+                    <a data-testid="pay-open-safari" href={iosSafariUrl(window.location.href)} style={{ display: 'block', textAlign: 'center', minHeight: 52, lineHeight: '52px', borderRadius: 'var(--r-sm)', background: accent, color: onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, textDecoration: 'none', marginBottom: 12 }}>{tr("פתיחה בספארי")}</a>
                   )}
                   {os === 'ios' && iosChromeUrl(typeof window !== 'undefined' ? window.location.href : '') && (
-                    <a data-testid="pay-open-chrome-ios" href={iosChromeUrl(window.location.href)} style={{ display: 'block', textAlign: 'center', margin: '0 0 12px', color: accentText, fontSize: 'var(--t-md)', fontWeight: 700 }}>משתמשת בכרום? פתיחה בכרום</a>
+                    <a data-testid="pay-open-chrome-ios" href={iosChromeUrl(window.location.href)} style={{ display: 'block', textAlign: 'center', margin: '0 0 12px', color: accentText, fontSize: 'var(--t-md)', fontWeight: 700 }}>{tr("משתמשת בכרום? פתיחה בכרום")}</a>
                   )}
-                  {os === 'ios' && <p style={{ fontSize: 'var(--t-md)', color: '#656A56', margin: '0 0 4px', textAlign: 'center' }}>לא נפתח? כך עושים את זה ידנית:</p>}
+                  {os === 'ios' && <p style={{ fontSize: 'var(--t-md)', color: '#656A56', margin: '0 0 4px', textAlign: 'center' }}>{tr("לא נפתח? כך עושים את זה ידנית:")}</p>}
                   <ol data-testid="pay-ios-steps" style={{ margin: '0 0 12px', paddingInlineStart: 0, listStyle: 'decimal inside', fontSize: 'var(--t-lg)', lineHeight: 1.9 }}>
-                    <li>לוחצים על <b>⋯</b> בפינת המסך</li>
-                    <li>בוחרים <b>פתיחה בספארי</b></li>
-                    <li>מסמנים את האישור ומשלמים</li>
+                    <li>{tr("לוחצים על")} <b>⋯</b> {tr("בפינת המסך")}</li>
+                    <li>{tr("בוחרים")} <b>{tr("פתיחה בספארי")}</b></li>
+                    <li>{tr("מסמנים את האישור ומשלמים")}</li>
                   </ol>
                   </>
                 )}
                 <button type="button" data-testid="pay-copy-link" onClick={copyLink} style={{ width: '100%', minHeight: 48, marginTop: 10, borderRadius: 'var(--r-sm)', border: `1.5px solid ${accent}`, background: os === 'android' || os === 'ios' ? '#fff' : accent, color: os === 'android' || os === 'ios' ? accentText : onAccent, fontSize: 'var(--t-lg)', fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
-                  {copied ? 'הקישור הועתק. מדביקים אותו בדפדפן 🌸' : 'העתקת הקישור לדפדפן'}
+                  {copied ? tr("הקישור הועתק. מדביקים אותו בדפדפן 🌸") : tr("העתקת הקישור לדפדפן")}
                 </button>
-                <button type="button" data-testid="pay-retry-here" onClick={() => { setPhase('ready'); setCopied(false); }} style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: '#656A56', fontSize: 'var(--t-lg)', textDecoration: 'underline', fontFamily: 'inherit', cursor: 'pointer' }}>לנסות שוב כאן</button>
+                <button type="button" data-testid="pay-retry-here" onClick={() => { setPhase('ready'); setCopied(false); }} style={{ display: 'block', margin: '12px auto 0', background: 'none', border: 'none', color: '#656A56', fontSize: 'var(--t-lg)', textDecoration: 'underline', fontFamily: 'inherit', cursor: 'pointer' }}>{tr("לנסות שוב כאן")}</button>
               </div>
             )}
-            {phase === 'confirming' && <p data-testid="pay-confirming" style={{ fontSize: 17 }}>התשלום עבר, רגע מאשרות אותו…</p>}
+            {phase === 'confirming' && <p data-testid="pay-confirming" style={{ fontSize: 17 }}>{tr("התשלום עבר, רגע מאשרות אותו…")}</p>}
             {phase === 'paid' && (
               <div data-testid="pay-paid">
                 <p style={{ fontSize: 40, margin: 0 }}>🌸</p>
-                <h2 style={{ fontSize: 24, margin: '6px 0', fontFamily: 'var(--font-frank, "Frank Ruhl Libre", serif)' }}>התשלום התקבל, תודה!</h2>
+                <h2 style={{ fontSize: 24, margin: '6px 0', fontFamily: 'var(--font-frank, "Frank Ruhl Libre", serif)' }}>{tr("התשלום התקבל, תודה!")}</h2>
                 <p style={{ fontSize: 15, color: '#656A56' }}>{money(info.amount)}{info.description ? ` · ${info.description}` : ''}</p>
-                {ctx?.kind === 'deposit' && <p style={{ fontSize: 15, marginTop: 6 }}>התור שלך מאושר. נתראה{ctx.when ? ` ב${ctx.when}` : ''}!</p>}
+                {ctx?.kind === 'deposit' && <p style={{ fontSize: 15, marginTop: 6 }}>{tr("התור שלך מאושר. נתראה")}{ctx.when ? tr(" ב{0}", [ctx.when]) : ''}!</p>}
               </div>
             )}
-            {phase === 'late' && <p data-testid="pay-late" style={{ fontSize: 16, lineHeight: 1.7 }}>התשלום עבר ב-Grow, והאישור בדרך אל העסק. אין צורך לשלם שוב. 🌸</p>}
+            {phase === 'late' && <p data-testid="pay-late" style={{ fontSize: 16, lineHeight: 1.7 }}>{tr("התשלום עבר ב-Grow, והאישור בדרך אל העסק. אין צורך לשלם שוב. 🌸")}</p>}
             {(phase === 'paid' || phase === 'late') && ctx && <a data-testid="pay-back" href={ctx.returnUrl} style={{ ...backLink, display: 'block', marginTop: 16, padding: '13px 0', borderRadius: 14, background: accent, color: onAccent, textDecoration: 'none', fontWeight: 700 }}>{ctx.returnLabel}</a>}
             {msg && phase === 'ready' && <p role="alert" style={{ color: '#B3261E', fontSize: 14, marginTop: 12 }}>{msg}</p>}
           </>

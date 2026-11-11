@@ -6,6 +6,7 @@
 // there is nothing true to say yet, so a new business never sees a row of zeros.
 import { useMemo } from 'react';
 import { monthValue, monthOf, monthValueLines } from '@/lib/monthValue';
+import { tr, trv } from "@/lib/i18n/tr";
 
 export default function MonthValueCard({ appointments, receipts, clients, ready, style }) {
   const lines = useMemo(() => {
@@ -14,16 +15,16 @@ export default function MonthValueCard({ appointments, receipts, clients, ready,
   }, [appointments, receipts, clients, ready]);
   if (lines.length === 0) return null;
   return (
-    <section className="glass-card card-boxed" aria-label="מה קלמיה עשתה בשבילך החודש" data-testid="month-value"
+    <section className="glass-card card-boxed" aria-label={tr("מה קלמיה עשתה בשבילך החודש")} data-testid="month-value"
       style={{ padding: '14px 17px', marginBottom: 12, maxWidth: 1180, marginInline: 'auto', width: '100%', boxSizing: 'border-box', ...style }}>
       <p style={{ fontFamily: "var(--font-frank),'Frank Ruhl Libre',serif", fontWeight: 700, fontSize: 17, color: 'var(--ink)', margin: '0 0 8px' }}>
-        מה קלמיה עשתה בשבילך החודש
+        {tr("מה קלמיה עשתה בשבילך החודש")}
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
         {lines.map((l) => (
           <div key={l.key} style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 12, padding: '10px 12px' }}>
             <div style={{ fontFamily: "var(--font-frank),'Frank Ruhl Libre',serif", fontSize: 24, fontWeight: 700, color: 'var(--pc-deep, var(--ink))', lineHeight: 1.1 }}>{l.big}</div>
-            <div style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.45, marginTop: 2 }}>{l.text}</div>
+            <div style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.45, marginTop: 2 }}>{trv(l.text)}</div>
           </div>
         ))}
       </div>

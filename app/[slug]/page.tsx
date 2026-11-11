@@ -26,6 +26,9 @@ import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { fetchPublicSettings, resolveBranding } from '@/lib/branding';
+import { langOfSettings, normalizeLang, ogLocaleOf } from '@/lib/i18n/core';
+import { LangProvider, DocumentLang } from '@/lib/i18n/react';
+import { trFor } from '@/lib/i18n/publicTr';
 import { APP_URL } from '@/lib/appUrl';
 import { fetchPublicServices } from '@/lib/publicServices';
 import { fetchPublicPage } from '@/lib/publicPage';
@@ -135,7 +138,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const own = brand.welcomeMessage || brand.businessDescription;
   const description = own
     ? own.length < 60 && services.length ? `${own} · ${services.join(', ')}` : own
-    : services.length ? `קביעת תור אונליין אצל ${title}: ${services.join(', ')}` : `קביעת תור אונליין אצל ${title}`;
+    : services.length ? trFor(brand.language)('קביעת תור אונליין אצל {0}: {1}', [title, services.join(', ')]) : trFor(brand.language)('קביעת תור אונליין אצל {0}', [title]);
 
   // Every business has a preview image now, generated per tenant (app/og/[key]): her photo,
   // logo, name and accent colour, or the Kalmea banner with her name when she has uploaded
@@ -153,7 +156,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title,
       description,
       url: `${APP_URL}/${encodeURIComponent(slug)}`,
-      locale: 'he_IL',
+      locale: ogLocaleOf(brand.language),
       siteName: title,
       images: [{ url: image, width: 1200, height: 630, alt: title }],
     },
@@ -213,7 +216,8 @@ export default async function SlugPage({ params, searchParams }: Props) {
   // Her Kalmea system is closed (trial ended without payment, or paused): no new bookings until she renews.
   // Her client sees how to reach her directly, and nothing about billing (app/BookingClosed.tsx).
   if (closed) {
-    return <BookingClosed brand={initialSettings ? resolveBranding(initialSettings) : null} fallbackName={tenant.name} />;
+    const closedBrand = initialSettings ? resolveBranding(initialSettings) : null;
+    return <><DocumentLang lang={closedBrand?.language || 'he'} /><BookingClosed brand={closedBrand} fallbackName={tenant.name} /></>;
   }
 
   // v2: the landing page. It needs her settings and services from the server (it has no browser fallback); when a read
@@ -235,10 +239,15 @@ export default async function SlugPage({ params, searchParams }: Props) {
     } catch { jsonLd = null; }
   }
   const ld = jsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} /> : null;
+  // Her business's language (lib/i18n): every word of the page, its direction, and <html lang>. Hebrew when unset or unread.
+  // Development only (never on production): ?lang=ar|en shows the page as a business in that language would see it.
+  const devLang = process.env.VERCEL_ENV !== 'production' ? (await searchParams)?.lang : undefined;
+  const lang = typeof devLang === 'string' ? normalizeLang(devLang) : langOfSettings(initialSettings);
 
   if (!useOld && initialSettings && initialServices) {
     return (
-      <>
+      <LangProvider lang={lang}>
+      <DocumentLang lang={lang} />
       {ld}
       <PublicLandingPage
         tenantId={tenant.id}
@@ -247,18 +256,19 @@ export default async function SlugPage({ params, searchParams }: Props) {
         reviews={reviews}
         results={results}
       />
-      </>
+      </LangProvider>
     );
   }
 
   return (
-    <>
+    <LangProvider lang={lang}>
+    <DocumentLang lang={lang} />
     {ld}
     <BookingPage
       tenantId={tenant.id}
       initialSettings={initialSettings && initialServices ? initialSettings : null}
       initialServices={initialSettings && initialServices ? initialServices : null}
     />
-    </>
+    </LangProvider>
   );
 }

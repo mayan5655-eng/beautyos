@@ -15,6 +15,7 @@ import { buildSourceReport, reportToSheetRows } from '@/lib/sourceReport';
 import { deliverFile, deliveryToast } from '@/lib/deliverFile';
 import { preloadXlsx, loadedXlsx, getXlsx, workbookBlob } from '@/lib/xlsxLoader';
 import { sourceLabelHe } from '@/lib/leadSources';
+import { tr, trv } from "@/lib/i18n/tr";
 
 const RANGES = [
   { key: 'month', label: 'החודש' },
@@ -111,18 +112,18 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
   return (
     <div className="glass-card" data-testid="source-report" style={{ padding: 18, marginBottom: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-        <h3 className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', letterSpacing: '-0.01em' }}>הכנסות לפי מקור</h3>
-        <button type="button" onClick={exportXlsx} disabled={report.rows.length === 0} style={{ ...chip(false), opacity: report.rows.length === 0 ? 0.5 : 1 }}>ייצוא לאקסל</button>
+        <h3 className="serif" style={{ fontSize: 'var(--t-xl)', fontWeight: 600, color: 'var(--ink)', letterSpacing: '-0.01em' }}>{tr("הכנסות לפי מקור")}</h3>
+        <button type="button" onClick={exportXlsx} disabled={report.rows.length === 0} style={{ ...chip(false), opacity: report.rows.length === 0 ? 0.5 : 1 }}>{tr("ייצוא לאקסל")}</button>
       </div>
       <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 12 }}>
-        פניות שנרשמו בתקופה, וכמה הלקוחות שהן הפכו אליהן שילמו עד היום. הוצאת הפרסום היא של אותה תקופה.
+        {tr("פניות שנרשמו בתקופה, וכמה הלקוחות שהן הפכו אליהן שילמו עד היום. הוצאת הפרסום היא של אותה תקופה.")}
       </p>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-        {RANGES.map((x) => <button key={x.key} type="button" onClick={() => setRange(x.key)} aria-pressed={range === x.key} style={chip(range === x.key)}>{x.label}</button>)}
+        {RANGES.map((x) => <button key={x.key} type="button" onClick={() => setRange(x.key)} aria-pressed={range === x.key} style={chip(range === x.key)}>{trv(x.label)}</button>)}
       </div>
 
       {report.rows.length === 0 ? (
-        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7 }}>אין עדיין פניות בתקופה הזו. כשתירשם פנייה, היא תופיע כאן עם מה שהיא הכניסה בפועל.</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7 }}>{tr("אין עדיין פניות בתקופה הזו. כשתירשם פנייה, היא תופיע כאן עם מה שהיא הכניסה בפועל.")}</p>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8, marginBottom: 14 }}>
@@ -145,7 +146,7 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
             ))}
           </div>
 
-          <div role="img" aria-label="הכנסות לפי מקור" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div role="img" aria-label={tr("הכנסות לפי מקור")} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {report.rows.map((row) => (
               <div key={row.key} style={{ background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -156,11 +157,11 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
                   <div style={{ background: pcGrad, height: 7, width: `${Math.max(2, Math.round((row.revenue / maxRevenue) * 100))}%` }} />
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 'var(--t-xs)', color: 'var(--ink-3)' }}>
-                  <span>{row.leads} פניות</span>
-                  <span style={{ color: 'var(--success)' }}>{row.conversions} הפכו ללקוחות ({row.conversionRate}%)</span>
-                  <span>ממוצע לפנייה {row.avgRevenuePerLead === null ? '—' : money(row.avgRevenuePerLead)}</span>
-                  {row.spend > 0 && <span>הוצאה {money(row.spend)}</span>}
-                  {row.costPerAcquisition !== null && <span>עלות ללקוחה {money(row.costPerAcquisition)}</span>}
+                  <span>{row.leads} {tr("פניות")}</span>
+                  <span style={{ color: 'var(--success)' }}>{row.conversions} {tr("הפכו ללקוחות (")}{row.conversionRate}%)</span>
+                  <span>{tr("ממוצע לפנייה")} {row.avgRevenuePerLead === null ? '—' : money(row.avgRevenuePerLead)}</span>
+                  {row.spend > 0 && <span>{tr("הוצאה")} {money(row.spend)}</span>}
+                  {row.costPerAcquisition !== null && <span>{tr("עלות ללקוחה")} {money(row.costPerAcquisition)}</span>}
                   {row.roas !== null && <span style={{ fontWeight: 700, color: row.roas >= 1 ? 'var(--success)' : 'var(--danger)' }}>ROAS {fixed(row.roas)}x · ROI {row.roiPercent}%</span>}
                 </div>
               </div>
@@ -170,29 +171,29 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
       )}
 
       <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-        <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>הוצאות פרסום</p>
+        <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{tr("הוצאות פרסום")}</p>
         {spend.available === 'error' ? (
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-            לא הצלחנו לטעון את הוצאות הפרסום.{' '}
-            <button type="button" onClick={() => setReloadKey((k) => k + 1)} style={{ border: 'none', background: 'none', color: pc, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}>לנסות שוב</button>
+            {tr("לא הצלחנו לטעון את הוצאות הפרסום.")}{' '}
+            <button type="button" onClick={() => setReloadKey((k) => k + 1)} style={{ border: 'none', background: 'none', color: pc, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}>{tr("לנסות שוב")}</button>
           </p>
         ) : spend.available === false ? (
           <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-            עוד לא הופעל מעקב הוצאות בחשבון, ולכן עלות לפנייה והחזר על הפרסום לא מוצגים. ההכנסות לפי מקור כבר מדויקות.
+            {tr("עוד לא הופעל מעקב הוצאות בחשבון, ולכן עלות לפנייה והחזר על הפרסום לא מוצגים. ההכנסות לפי מקור כבר מדויקות.")}
           </p>
         ) : (
           <>
             <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 8 }}>
-              הוצאות פייסבוק נמשכות לבד כשהחיבור מאושר. את יכולה להוסיף כאן גם הוצאות אחרות (גוגל, פלייר, השתתפות בתערוכה).
+              {tr("הוצאות פייסבוק נמשכות לבד כשהחיבור מאושר. את יכולה להוסיף כאן גם הוצאות אחרות (גוגל, פלייר, השתתפות בתערוכה).")}
             </p>
             {!isDemo && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                <input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} aria-label="תאריך" style={inp} />
-                <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} aria-label="מקור" style={inp}>
+                <input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} aria-label={tr("תאריך")} style={inp} />
+                <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} aria-label={tr("מקור")} style={inp}>
                   {[...new Set([...(sourceList || []), 'פייסבוק'])].map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="סכום ב-₪" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} aria-label="סכום" style={{ ...inp, width: 110 }} />
-                <button type="button" onClick={addSpend} disabled={busy || !form.amount} style={chip(false)}>הוספת הוצאה</button>
+                <input type="number" min="0" step="0.01" inputMode="decimal" placeholder={tr("סכום ב-₪")} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} aria-label={tr("סכום")} style={{ ...inp, width: 110 }} />
+                <button type="button" onClick={addSpend} disabled={busy || !form.amount} style={chip(false)}>{tr("הוספת הוצאה")}</button>
               </div>
             )}
             {manual.length > 0 && (
@@ -200,7 +201,7 @@ export default function SourceReport({ leads, receipts, sourceList, pc, pcGrad, 
                 {manual.map((s) => (
                   <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>
                     <span>{s.day} · {s.source} · {money(Number(s.amount))}</span>
-                    <button type="button" onClick={() => removeSpend(s.id)} aria-label="הסרת הוצאה" style={{ border: 'none', background: 'none', color: 'var(--ink-3)', cursor: 'pointer' }}>✕</button>
+                    <button type="button" onClick={() => removeSpend(s.id)} aria-label={tr("הסרת הוצאה")} style={{ border: 'none', background: 'none', color: 'var(--ink-3)', cursor: 'pointer' }}>✕</button>
                   </div>
                 ))}
               </div>

@@ -17,6 +17,7 @@
  */
 
 import { BUSINESS_FIELDS, type FieldKey } from '@/lib/businessFields';
+import { trv } from "@/lib/i18n/tr";
 
 export default function FieldPicker({
   value,
@@ -83,10 +84,10 @@ export default function FieldPicker({
             </span>
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>
-                {f.label}
+                {trv(f.label)}
               </span>
               <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-3)', marginTop: 2 }}>
-                {f.hint}
+                {trv(f.hint)}
               </span>
             </span>
           </button>

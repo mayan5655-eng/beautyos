@@ -7,6 +7,7 @@
 // deposit mode.
 import { useEffect } from 'react';
 import { useGrowPolicy } from './useGrowPolicy';
+import { tr } from "@/lib/i18n/tr";
 
 export default function ApptDepositToggle({ serviceName, serviceRequires, value, onChange }) {
   const { connected, mode } = useGrowPolicy();
@@ -16,8 +17,8 @@ export default function ApptDepositToggle({ serviceName, serviceRequires, value,
   if (!available) return null;
   return (
     <label data-testid="appt-deposit-toggle" style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, cursor: 'pointer', fontSize: 'var(--t-sm)', color: 'var(--ink)' }}>
-      <input type="checkbox" aria-label="לבקש מקדמה" checked={value === true} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, flexShrink: 0 }} />
-      <span>לבקש מקדמה? <span style={{ color: 'var(--ink-3)' }}>התור יישמר 30 דקות עד התשלום</span></span>
+      <input type="checkbox" aria-label={tr("לבקש מקדמה")} checked={value === true} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, flexShrink: 0 }} />
+      <span>{tr("לבקש מקדמה?")} <span style={{ color: 'var(--ink-3)' }}>{tr("התור יישמר 30 דקות עד התשלום")}</span></span>
     </label>
   );
 }

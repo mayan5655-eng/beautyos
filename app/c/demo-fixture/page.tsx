@@ -3,13 +3,19 @@
 // notFound() there. Stock pictures from public/defaults - no client, no real business.
 import { notFound } from 'next/navigation';
 import ClientPageView from '../[token]/ClientPageView';
+import { normalizeLang } from '@/lib/i18n/core';
+import { DocumentLang } from '@/lib/i18n/react';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'הדף האישי שלך', robots: { index: false, follow: false } };
 
-export default function Fixture() {
+// ?lang=ar / ?lang=en: the same page in the business's other languages (lib/i18n).
+export default async function Fixture({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
   if (process.env.VERCEL_ENV === 'production') notFound();
+  const lang = normalizeLang((await searchParams)?.lang);
   return (
+    <>
+    <DocumentLang lang={lang} />
     <ClientPageView
       page={{
         businessName: 'סטודיו דוגמה',
@@ -28,8 +34,10 @@ export default function Fixture() {
         bookPath: '/demo',
         bookHref: '/demo?name=%D7%A8%D7%95%D7%A0%D7%99%D7%AA+%D7%9B%D7%94%D7%9F',
         pageId: 'fixture',
+        lang,
         loyalty: { every: 10, filled: 7, remaining: 3, ready: false, reward: 'הטיפול העשירי במתנה', line: 'עוד 3 ביקורים למתנה' },
       }}
     />
+    </>
   );
 }

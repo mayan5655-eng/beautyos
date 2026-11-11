@@ -9,6 +9,7 @@
 
 import { parsePageToken, consentedResultsFor, treatmentsFrom, firstName, bookingPath, bookingHref, pageStatus, aftercareLines, type PageResult, type PageTreatment } from './clientPage.ts';
 import { publicAccent } from './branding.js';
+import { langOfSettings, type Lang } from './i18n/core.ts';
 import { loyaltyConfig, loyaltyState, publicCard, type PublicLoyaltyCard } from './loyalty.js';
 
 type Db = any; // a service-role supabase client; typed loosely like the other server libs
@@ -32,6 +33,8 @@ export type PublicClientPage = {
   pageId: string;
   /** Her loyalty stamp card, or null when the business has it off. Only the card: counts and the reward text (lib/loyalty publicCard). */
   loyalty?: PublicLoyaltyCard | null;
+  /** The business's language (settings.branding.language, lib/i18n/core.ts). Hebrew when unset. */
+  lang?: Lang;
 };
 
 export type LoadResult = { kind: 'ok'; page: PublicClientPage } | { kind: 'gone' } | { kind: 'error' };
@@ -87,6 +90,7 @@ export async function loadPublicClientPage(db: Db, token: string, now: Date = ne
       bookHref: bookingHref(path, clientName, treatments[0]?.service),
       pageId: String(row.id),
       loyalty,
+      lang: langOfSettings(s),
     },
   };
 }

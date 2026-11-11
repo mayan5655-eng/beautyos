@@ -1,5 +1,6 @@
 'use client';
 import Icon, { type IconName } from "./Icon";
+import { tr, trv } from "@/lib/i18n/tr";
 
 /**
  * ImportChooser — the "what would you like to bring across?" list.
@@ -62,14 +63,14 @@ export default function ImportChooser({
             background: k.ready ? accentTint : 'var(--surface)', color: accent,
           }}><Icon name={k.icon as IconName} size={18} /></span>
           <span style={{ flex:1, minWidth:0 }}>
-            <span style={{ display:'block', fontSize:"var(--t-md)", fontWeight:700, color:'var(--ink)' }}>{k.title}</span>
-            <span style={{ display:'block', fontSize:"var(--t-sm)", color:'var(--ink-3)', marginTop:2 }}>{k.blurb}</span>
+            <span style={{ display:'block', fontSize:"var(--t-md)", fontWeight:700, color:'var(--ink)' }}>{trv(k.title)}</span>
+            <span style={{ display:'block', fontSize:"var(--t-sm)", color:'var(--ink-3)', marginTop:2 }}>{trv(k.blurb)}</span>
           </span>
           {k.ready && <span aria-hidden style={{ fontSize:"var(--t-lg)", color:accent, flexShrink:0 }}>←</span>}
         </button>
       ))}
       <p style={{ fontSize:"var(--t-sm)", color:'var(--ink-3)', lineHeight:1.6, marginTop:2 }}>
-        איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת, ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.
+        {tr("איך זה עובד: מייצאים מהתוכנה הקודמת לאקסל, מסמנים את העמודות, מעתיקים ומדביקים כאן. אנחנו נשאל מה כל עמודה מייצגת, ונראה לך תצוגה מקדימה לפני שמוסיפים משהו.")}
       </p>
     </div>
   );

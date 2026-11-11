@@ -35,6 +35,7 @@ import Sheet from "./Sheet";
 import { toWhatsAppNumber } from '@/lib/phone';
 import { withMarketingFooter, MARKETING_FOOTER } from '@/lib/marketingConsent';
 import { personaliseWinback, splitByPhone } from '@/lib/winback';
+import { tr, trv } from "@/lib/i18n/tr";
 
 const PRESETS = [
   { days: 90, label: '3 חודשים' },
@@ -56,7 +57,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
   // Opens on her own win-back period (Settings > automations), so the list matches the home card's count. A period
   // that is not one of the presets gets its own chip first.
   const startDays = Number(initialDays) >= 30 && Number(initialDays) <= 365 ? Number(initialDays) : 90;
-  const presets = PRESETS.some((p) => p.days === startDays) ? PRESETS : [{ days: startDays, label: `${startDays} יום` }, ...PRESETS];
+  const presets = PRESETS.some((p) => p.days === startDays) ? PRESETS : [{ days: startDays, label: tr("{0} יום", [startDays]) }, ...PRESETS];
   const [days, setDays] = useState(startDays);
   const [loadError, setLoadError] = useState('');
   const [data, setData] = useState(null);
@@ -83,14 +84,14 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         if (controller.signal.aborted) return;
         if (!res.ok || !json || !json.success) {
           // An error is an error. It must not render as "nobody is lapsed".
-          setLoadError((json && json.error) || 'לא הצלחנו לטעון את הרשימה');
+          setLoadError((json && json.error) || tr("לא הצלחנו לטעון את הרשימה"));
           return;
         }
         setData(json);
       })
       .catch((e) => {
         if (e && e.name === 'AbortError') return;
-        setLoadError('לא הצלחנו לטעון את הרשימה. בדקי את החיבור ונסי שוב.');
+        setLoadError(tr("לא הצלחנו לטעון את הרשימה. בדקי את החיבור ונסי שוב."));
       });
     return () => controller.abort();
   }, [open, days, reloadToken]);
@@ -142,24 +143,24 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
   const td = { fontSize:"var(--t-sm)", color: 'var(--ink)', padding: '8px 9px', borderBottom: '1px solid var(--line)', whiteSpace: 'nowrap' };
 
   return (
-    <Sheet open onClose={close} width={880} zIndex={5100} ariaLabel="לקוחות שמזמן לא הגיעו">
+    <Sheet open onClose={close} width={880} zIndex={5100} ariaLabel={tr("לקוחות שמזמן לא הגיעו")}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
           <div>
-            <h3 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: 'var(--ink)' }}>לקוחות שמזמן לא הגיעו</h3>
+            <h3 className="serif" style={{ fontSize:"var(--t-xl)", fontWeight: 600, color: 'var(--ink)' }}>{tr("לקוחות שמזמן לא הגיעו")}</h3>
             <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
               {stage === 'compose'
-                ? 'לחיצה על לקוחה פותחת את השיחה בוואטסאפ שלך עם ההודעה מוכנה. את רק שולחת.'
-                : 'הרשימה מסודרת לפי משך ההיעדרות. את בוחרת למי לפנות.'}
+                ? tr("לחיצה על לקוחה פותחת את השיחה בוואטסאפ שלך עם ההודעה מוכנה. את רק שולחת.")
+                : tr("הרשימה מסודרת לפי משך ההיעדרות. את בוחרת למי לפנות.")}
             </p>
           </div>
-          <button type="button" onClick={close} aria-label="סגירה"
+          <button type="button" onClick={close} aria-label={tr("סגירה")}
             style={{ background: 'none', border: 'none', fontSize:"var(--t-xl)", color: 'var(--ink-3)', cursor: 'pointer', lineHeight: 1, padding: 4 }}>×</button>
         </div>
 
         {/* ── threshold ── */}
         {stage === 'list' && (
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', margin: '14px 0 10px', alignItems: 'center' }}>
-            <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)' }}>לא הגיעו מעל</span>
+            <span style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)' }}>{tr("לא הגיעו מעל")}</span>
             {presets.map((p) => (
               <button key={p.days} type="button" onClick={() => { if (p.days === days) return; setData(null); setLoadError(''); setSelected(new Set()); setDays(p.days); }}
                 style={{
@@ -169,22 +170,22 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
                   color: days === p.days ? 'var(--surface)' : 'var(--ink-2)',
                   fontWeight: days === p.days ? 700 : 400, fontFamily: 'inherit',
                 }}>
-                {p.label}
+                {trv(p.label)}
               </button>
             ))}
           </div>
         )}
 
-        {loading && <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', marginTop: 12 }}><Spinner inline label="טוענת"/></p>}
+        {loading && <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', marginTop: 12 }}><Spinner inline label={tr("טוענת")}/></p>}
 
         {/* couldn't load - NOT the same as an empty list */}
         {loadError && (
           <div style={{ marginTop: 12, padding: '11px 13px', borderRadius:"var(--r-sm)", background: 'var(--brand-cream, #FBF8F1)', border: '1px solid var(--line-2)' }}>
-            <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--danger)', marginBottom: 3 }}>לא הצלחנו לטעון</p>
+            <p style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--danger)', marginBottom: 3 }}>{tr("לא הצלחנו לטעון")}</p>
             <p style={{ fontSize:"var(--t-sm)", color: 'var(--ink-2)', lineHeight: 1.6, marginBottom: 9 }}>{loadError}</p>
             <button type="button" onClick={() => { setLoadError(''); setData(null); setReloadToken((t) => t + 1); }}
               style={{ fontSize:"var(--t-sm)", padding: '7px 15px', borderRadius:"var(--r-lg)", border: `1px solid ${pc}`, background: 'var(--surface)', color: pc, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>
-              נסי שוב
+              {tr("נסי שוב")}
             </button>
           </div>
         )}
@@ -194,10 +195,10 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
           <div style={{ marginTop: 14, padding: '15px 16px', borderRadius:"var(--r-md)", background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
             <p style={{ fontSize:"var(--t-md)", color: 'var(--ink-2)', lineHeight: 1.7 }}>
               {noPhone > 0 && data.noConsent === 0
-                ? `יש ${noPhone} לקוחות שלא הגיעו מעל ${days} ימים, אבל אין להן מספר טלפון בכרטיס, ולכן אין למי לשלוח מכאן.`
+                ? tr("יש {0} לקוחות שלא הגיעו מעל {1} ימים, אבל אין להן מספר טלפון בכרטיס, ולכן אין למי לשלוח מכאן.", [noPhone, days])
                 : data.noConsent > 0
-                ? `אין כרגע לקוחות להצעה: ${data.noConsent} לקוחות שלא הגיעו מעל ${days} ימים עוד לא הסכימו לקבל עדכונים ומבצעים (או ביקשו הסרה).`
-                : <>אין לקוחות שלא הגיעו מעל {days} ימים. 🎉</>}
+                ? tr("אין כרגע לקוחות להצעה: {0} לקוחות שלא הגיעו מעל {1} ימים עוד לא הסכימו לקבל עדכונים ומבצעים (או ביקשו הסרה).", [data.noConsent, days])
+                : <>{tr("אין לקוחות שלא הגיעו מעל")} {days} {tr("ימים. 🎉")}</>}
             </p>
           </div>
         )}
@@ -205,20 +206,20 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         {!loading && !loadError && data && rows.length > 0 && stage === 'list' && (
           <>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '4px 0 10px' }}>
-              <Stat label="לא הגיעו" value={data.total} />
-              <Stat label="עם טלפון" value={data.withPhone} tone={data.withPhone ? 'ok' : 'warn'} />
-              <Stat label="כבר נשלחה פנייה" value={data.alreadyMessaged} />
-              <Stat label="נבחרו" value={selected.size} tone={selected.size ? 'ok' : undefined} />
+              <Stat label={tr("לא הגיעו")} value={data.total} />
+              <Stat label={tr("עם טלפון")} value={data.withPhone} tone={data.withPhone ? 'ok' : 'warn'} />
+              <Stat label={tr("כבר נשלחה פנייה")} value={data.alreadyMessaged} />
+              <Stat label={tr("נבחרו")} value={selected.size} tone={selected.size ? 'ok' : undefined} />
             </div>
             {noPhone > 0 && (
               <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '0 0 10px' }}>
-                {noPhone} לקוחות נוספות לא ברשימה: אין להן מספר טלפון בכרטיס.
+                {noPhone} {tr("לקוחות נוספות לא ברשימה: אין להן מספר טלפון בכרטיס.")}
               </p>
             )}
             {data.noConsent > 0 && (
               <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', lineHeight: 1.6, margin: '0 0 10px' }}>
-                {data.noConsent} לקוחות נוספים לא ברשימה: הם לא הסכימו לקבל עדכונים ומבצעים, או ביקשו הסרה.
-                {' '}כדי שיופיעו כאן, אפשר לבקש מהן הסכמה בביקור הבא ולסמן אותה בכרטיס הלקוחה.
+                {data.noConsent} {tr("לקוחות נוספים לא ברשימה: הם לא הסכימו לקבל עדכונים ומבצעים, או ביקשו הסרה.")}
+                {' '}{tr("כדי שיופיעו כאן, אפשר לבקש מהן הסכמה בביקור הבא ולסמן אותה בכרטיס הלקוחה.")}
               </p>
             )}
 
@@ -227,12 +228,12 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
                 <thead style={{ position: 'sticky', top: 0, background: 'var(--surface)' }}>
                   <tr>
                     <th style={{ ...th, width: 34 }}>
-                      <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="בחירת הכל" />
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label={tr("בחירת הכל")} />
                     </th>
-                    <th style={th}>שם</th>
-                    <th style={th}>ביקור אחרון</th>
-                    <th style={th}>לפני</th>
-                    <th style={th}>סטטוס</th>
+                    <th style={th}>{tr("שם")}</th>
+                    <th style={th}>{tr("ביקור אחרון")}</th>
+                    <th style={th}>{tr("לפני")}</th>
+                    <th style={th}>{tr("סטטוס")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -244,14 +245,14 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
                           checked={selected.has(r.id)}
                           disabled={!r.hasPhone}
                           onChange={() => toggle(r.id)}
-                          aria-label={`בחירת ${r.name}`}
+                          aria-label={tr("בחירת {0}", [r.name])}
                         />
                       </td>
                       <td style={td}>{r.name || '—'}</td>
                       <td style={td}>{r.lastVisit}</td>
                       <td style={td}>{formatGap(r.daysSince)}</td>
                       <td style={{ ...td, fontSize:"var(--t-xs)", color: 'var(--ink-3)' }}>
-                        {!r.hasPhone ? 'אין טלפון' : r.alreadyMessaged ? 'כבר נשלחה פנייה' : ''}
+                        {!r.hasPhone ? tr("אין טלפון") : r.alreadyMessaged ? tr("כבר נשלחה פנייה") : ''}
                       </td>
                     </tr>
                   ))}
@@ -260,7 +261,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
             </div>
 
             <label htmlFor="lapsed-msg" style={{ fontSize:"var(--t-sm)", fontWeight: 700, color: 'var(--ink)', display: 'block', marginBottom: 6 }}>
-              ההודעה
+              {tr("ההודעה")}
             </label>
             <textarea
               id="lapsed-msg"
@@ -275,8 +276,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               </p>
             )}
             <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.6 }}>
-              ההודעה נשלחת מהוואטסאפ שלך, לקוחה אחת בכל לחיצה. פתיחה ב&quot;שלום!&quot; מקבלת את שם הלקוחה.
-              מי שתשלחי לה כאן לא תקבל גם את הפנייה האוטומטית.
+              {tr("ההודעה נשלחת מהוואטסאפ שלך, לקוחה אחת בכל לחיצה. פתיחה ב\"שלום!\" מקבלת את שם הלקוחה. מי שתשלחי לה כאן לא תקבל גם את הפנייה האוטומטית.")}
             </p>
           </>
         )}
@@ -285,7 +285,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         {stage === 'compose' && (
           <div style={{ marginTop: 10 }}>
             <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', fontWeight: 600, marginBottom: 6 }}>
-              {chosen.length} לקוחות{done.size > 0 ? ` · נשלחו ${done.size}` : ''}
+              {chosen.length} {tr("לקוחות")}{done.size > 0 ? tr(" · נשלחו {0}", [done.size]) : ''}
             </p>
             <div style={{ border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", marginBottom: 12, maxHeight: 360, overflowY: 'auto' }}>
               {chosen.map((c, i) => {
@@ -294,16 +294,16 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
                 return (
                   <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderTop: i === 0 ? 'none' : '1px solid var(--line)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || '(ללא שם)'}</p>
+                      <p style={{ fontSize:"var(--t-sm)", fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name || tr("(ללא שם)")}</p>
                       <p style={{ fontSize:"var(--t-xs)", color: 'var(--ink-3)', direction: 'ltr', textAlign: 'right' }}>{c.phone}</p>
                     </div>
                     {href ? (
                       <a href={href} target="_blank" rel="noreferrer" onClick={() => tapped(c)} className="primary-btn"
                         style={{ background: isDone ? 'var(--surface-2)' : '#25D366', color: isDone ? 'var(--ink-3)' : '#fff', padding: '8px 14px', fontSize:"var(--t-sm)", textDecoration: 'none', whiteSpace: 'nowrap', borderRadius:"var(--r-sm)" }}>
-                        {isDone ? '✓ נשלח' : 'שליחה בוואטסאפ'}
+                        {isDone ? tr("✓ נשלח") : tr("שליחה בוואטסאפ")}
                       </a>
                     ) : (
-                      <span style={{ fontSize:"var(--t-xs)", color: 'var(--danger)' }}>מספר לא תקין</span>
+                      <span style={{ fontSize:"var(--t-xs)", color: 'var(--danger)' }}>{tr("מספר לא תקין")}</span>
                     )}
                   </div>
                 );
@@ -311,7 +311,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
             </div>
             {markFailed > 0 && (
               <p style={{ fontSize:"var(--t-sm)", color: 'var(--danger)', lineHeight: 1.6, marginBottom: 8 }}>
-                שימי לב: לא הצלחנו לסמן {markFailed} לקוחות, וייתכן שיקבלו גם את הפנייה האוטומטית.
+                {tr("שימי לב: לא הצלחנו לסמן")} {markFailed} {tr("לקוחות, וייתכן שיקבלו גם את הפנייה האוטומטית.")}
               </p>
             )}
           </div>
@@ -321,7 +321,7 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
         <div style={{ display: 'flex', gap: 9, justifyContent: 'flex-start', marginTop: 4, flexWrap: 'wrap' }}>
           <button type="button" onClick={stage === 'compose' ? () => setStage('list') : close}
             style={{ fontSize:"var(--t-sm)", padding: '9px 17px', borderRadius:"var(--r-lg)", border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--ink-2)', cursor: 'pointer', fontFamily: 'inherit' }}>
-            {stage === 'compose' ? 'חזרה לרשימה' : 'סגירה'}
+            {stage === 'compose' ? tr("חזרה לרשימה") : tr("סגירה")}
           </button>
 
           {stage === 'list' && rows.length > 0 && (
@@ -331,14 +331,14 @@ export default function LapsedClientsModal({ open, onClose, pc, pcGrad, pcShadow
               onClick={() => setStage('compose')}
               className="primary-btn"
               style={{ fontSize:"var(--t-sm)", padding: '9px 20px', borderRadius:"var(--r-lg)", border: 'none', background: selected.size ? pcGrad : 'var(--line-2)', color: 'var(--surface)', cursor: selected.size ? 'pointer' : 'default', fontFamily: 'inherit', fontWeight: 700, boxShadow: selected.size ? "var(--shadow-accent)" : 'none' }}>
-              המשיכי לשליחה ({selected.size})
+              {tr("המשיכי לשליחה (")}{selected.size})
             </button>
           )}
 
           {stage === 'compose' && (
             <button type="button" onClick={close} className="primary-btn"
               style={{ fontSize:"var(--t-sm)", padding: '9px 20px', borderRadius:"var(--r-lg)", border: 'none', background: pcGrad, color: 'var(--surface)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, boxShadow:"var(--shadow-accent)" }}>
-              סיימתי
+              {tr("סיימתי")}
             </button>
           )}
         </div>
@@ -360,7 +360,7 @@ function Stat({ label, value, tone }) {
   const color = tone === 'ok' ? 'var(--ok, #2E7D5B)' : tone === 'warn' ? 'var(--danger)' : 'var(--ink)';
   return (
     <div style={{ border: '1px solid var(--line-2)', borderRadius:"var(--r-sm)", padding: '7px 12px', background: 'var(--surface-2)', minWidth: 86 }}>
-      <div style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize:"var(--t-sm)", color: 'var(--ink-3)', fontWeight: 700 }}>{trv(label)}</div>
       <div style={{ fontSize:"var(--t-lg)", fontWeight: 700, color }}>{value}</div>
     </div>
   );

@@ -113,7 +113,7 @@ await ok('wiring: the route reads the flag and the hint through inAppLimitFor on
   const page = src('app/pay/[token]/PayClient.jsx');
   assert.match(page, /wantsInAppWallet\(info\?\.inAppWallet, uaClass\(window\.navigator\.userAgent\)\) \? \{ inApp: true \} : \{\}/);
   assert.match(page, /limited: j\.limited === true/);
-  assert.match(page, /cardBit \? 'כרטיס אשראי או ביט\.' : 'כרטיס אשראי, ביט, Apple Pay או Google Pay\.'/);
+  assert.match(page, /cardBit \? ['"]כרטיס אשראי או ביט\.['"] : ['"]כרטיס אשראי, ביט, Apple Pay או Google Pay\.['"]/);
   assert.ok(!/—/.test(page), 'no em dash in product copy');
   assert.match(src('.env.example'), /^GROW_INAPP_WALLET=$/m);
   assert.match(src('scripts/run-tests.mjs'), /GROW_INAPP_WALLET: ''/);

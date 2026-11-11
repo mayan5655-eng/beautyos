@@ -631,7 +631,8 @@ body:has(.sheet-backdrop, [data-overlay]) [data-install-banner] { display: none 
   display: flex; flex-direction: column; align-items: center;
   padding: 28px 18px calc(22px + env(safe-area-inset-bottom, 0px));
   background: var(--brand-cream, #FBF8F1); color: var(--ink);
-  font-family: var(--sans, 'Assistant', system-ui, -apple-system, sans-serif); direction: rtl; overflow-x: hidden;
+  font-family: var(--sans, 'Assistant', system-ui, -apple-system, sans-serif); overflow-x: hidden;
+  /* direction comes from the page's dir attribute (PublicPage, lib/i18n): rtl for Hebrew and Arabic, ltr for English. */
 }
 .pub-main { position: relative; z-index: 1; width: 100%; margin: auto 0; }
 /* one watermark per page, in the corner, behind everything */

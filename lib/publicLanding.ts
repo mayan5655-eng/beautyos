@@ -71,11 +71,14 @@ export function openStatus(s: HoursSettings | null | undefined, now: Date): Open
   return null;
 }
 
-export function openStatusLabel(st: OpenStatus): string {
-  if (st.open) return `פתוח עכשיו · עד ${st.closesAt}`;
-  const when = st.inDays === 0 ? 'היום' : st.inDays === 1 ? 'מחר' : `ביום ${DAYS_HE[st.dow]}`;
-  return `סגור כרגע · נפתח ${when} ב-${st.opensAt}`;
+/** `tr`: the page's translator (lib/i18n/useTr); without one, the Hebrew, word for word as before. */
+export function openStatusLabel(st: OpenStatus, tr: (he: string, args?: unknown[]) => string = hebrewFill): string {
+  if (st.open) return tr('פתוח עכשיו · עד {0}', [st.closesAt]);
+  if (st.inDays === 0) return tr('סגור כרגע · נפתח היום ב-{0}', [st.opensAt]);
+  if (st.inDays === 1) return tr('סגור כרגע · נפתח מחר ב-{0}', [st.opensAt]);
+  return tr('סגור כרגע · נפתח ביום {0} ב-{1}', [tr(DAYS_HE[st.dow]), st.opensAt]);
 }
+const hebrewFill = (he: string, args?: unknown[]): string => he.replace(/\{(\d+)\}/g, (_m, i) => String(args?.[Number(i)] ?? ''));
 
 /** Today's hours in Israel, or null when closed today / no real hours. */
 export function todayHours(s: HoursSettings | null | undefined, now: Date): DayHours {

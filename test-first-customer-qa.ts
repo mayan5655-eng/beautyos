@@ -122,13 +122,14 @@ ok('skin form: the allergy question reads "to which substances", not "why"', () 
 });
 
 ok('logout question: her email is isolated so the dot and "?" stay in place in the RTL sentence', () => {
-  assert.match(app, /את מחוברת כ-\\u2068\$\{authEmail\}\\u2069\. להתנתק\?/);
+  // Inside tr() (lib/i18n, 2026-11-11) the isolates are the characters themselves rather than \u escapes.
+  assert.match(app, /את מחוברת כ-(\\u2068|⁨)\$\{authEmail\}(\\u2069|⁩)\. להתנתק\?/);
 });
 
 ok('cancel link inside her window: a calm refusal with no "אופס!" and no "נסי שוב" that cannot succeed', () => {
   const c = readFileSync('app/confirm/page.jsx', 'utf8');
   assert.match(c, /setRefused\(res\.status === 409 && !data\.success\)/);
-  assert.match(c, /if \(status === 'error' && refused\) return \{ emoji: '', title: action === 'cancel' \? 'אי אפשר לבטל מהקישור'/);
+  assert.match(c, /if \(status === 'error' && refused\) return \{ emoji: '', title: action === 'cancel' \? ['"]אי אפשר לבטל מהקישור['"]/);
   assert.match(c, /\{status === 'error' && id && !refused && \(/);
   assert.doesNotMatch(c, /'[^']*—[^']*'/, 'no em dash in its strings');
 });

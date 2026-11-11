@@ -67,7 +67,7 @@ assert.ok(/default false/.test(mig) && /if not exists/.test(mig), 'existing clie
   assert.ok(/consentFields\("manual"\)/.test(ui2), 'a yes at the till is source manual');
   assert.ok(!/לא עכשיו[^\n]*saveClientMarketing/.test(ui2), '"לא עכשיו" writes nothing');
   const form = src('app/form/page.jsx');
-  assert.ok(form.includes('useState(false)') && form.includes('const [marketingOk, setMarketingOk] = useState(false)') && form.includes('אשמח לקבל עדכונים ומבצעים') && form.includes('marketingConsent: marketingOk === true'), 'form checkbox starts unchecked, optional');
+  assert.ok(form.includes('useState(false)') && form.includes('const [marketingOk, setMarketingOk] = useState(false)') && form.includes('t("marketing")') && src('lib/i18n/dict/form.ts').includes('אשמח לקבל עדכונים ומבצעים') && form.includes('marketingConsent: marketingOk === true'), 'form checkbox starts unchecked, optional');
   const fapi = src('app/api/forms/route.ts');
   assert.ok(fapi.includes("body?.marketingConsent === true") && fapi.includes("consentFields('consent_form')"), 'server records consent_form only on a literal true');
   assert.ok(fapi.indexOf("consentFields('consent_form')") > fapi.indexOf("state: 'signed'") - 900, 'after the signature write');

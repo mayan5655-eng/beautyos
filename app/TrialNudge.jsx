@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import { pickTrialNudge, nudgeCopy, nudgeStorageKey } from "@/lib/trialNudges";
 import { supportWhatsAppUrl } from "@/lib/support";
+import { tr, trv } from "@/lib/i18n/tr";
 
 export default function TrialNudge({ plan, tenantId, counts, suppress, quietKeys, onCopyLink, onOpenCashier, onContact, pc, pcDeep, pcTint, pcGrad }) {
   const nudge = plan ? pickTrialNudge({ status: plan.status, trialStartedAt: plan.trialStartedAt }) : null;
@@ -52,8 +53,8 @@ export default function TrialNudge({ plan, tenantId, counts, suppress, quietKeys
       }}
     >
       <div style={{ flex: 1, minWidth: 200 }}>
-        <p className="serif" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: pcDeep, marginBottom: 3 }}>{copy.title}</p>
-        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{copy.body}</p>
+        <p className="serif" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: pcDeep, marginBottom: 3 }}>{trv(copy.title)}</p>
+        <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.6 }}>{trv(copy.body)}</p>
       </div>
       <button
         type="button"
@@ -61,12 +62,12 @@ export default function TrialNudge({ plan, tenantId, counts, suppress, quietKeys
         className="primary-btn"
         style={{ background: pcGrad, color: "var(--pc-contrast)", fontSize: "var(--t-sm)", fontWeight: 600, padding: "10px 16px", minHeight: 44, borderRadius: "var(--r-sm)", whiteSpace: "nowrap" }}
       >
-        {copy.actionLabel}
+        {trv(copy.actionLabel)}
       </button>
       <button
         type="button"
         onClick={close}
-        aria-label="סגירה"
+        aria-label={tr("סגירה")}
         style={{ background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-md)", cursor: "pointer", minWidth: 44, minHeight: 44 }}
       >
         ✕

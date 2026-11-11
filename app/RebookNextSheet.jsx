@@ -21,13 +21,14 @@ import { isPersonal } from '@/lib/calendarKind';
 import { NO_SHOW } from '@/lib/reliability';
 import { businessFieldsOf } from '@/lib/businessFields';
 import { rebookInterval, proposeNextVisit, freeStartsOn } from '@/lib/rebookNext.js';
+import { tr, trv, uiDir } from "@/lib/i18n/tr";
 
 const DAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const CHIPS = [2, 3, 4, 6];
 
 const dayLabel = (iso) => {
   const d = new Date(`${iso}T12:00:00`);
-  return `יום ${DAYS_HE[d.getDay()]}, ${d.getDate()}/${d.getMonth() + 1}`;
+  return `יום ${trv(DAYS_HE[d.getDay()])}, ${d.getDate()}/${d.getMonth() + 1}`;
 };
 const periodHe = (days) => {
   if (days % 7 === 0) { const w = days / 7; return w === 1 ? 'שבוע' : w === 2 ? 'שבועיים' : `${w} שבועות`; }
@@ -109,8 +110,8 @@ export default function RebookNextSheet({
     setMsg({ state: 'loading', text: '', waLink: '', error: '' });
     fetch('/api/rebook-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: booked.id, mode: 'preview' }) })
       .then((r) => r.json().catch(() => ({})))
-      .then((j) => { if (live) setMsg(j?.success ? { state: 'ready', text: j.text, waLink: j.waLink, error: '' } : { state: 'error', text: '', waLink: '', error: j?.error || 'לא הצלחנו להכין את ההודעה' }); })
-      .catch(() => { if (live) setMsg({ state: 'error', text: '', waLink: '', error: 'לא הצלחנו להכין את ההודעה' }); });
+      .then((j) => { if (live) setMsg(j?.success ? { state: 'ready', text: j.text, waLink: j.waLink, error: '' } : { state: 'error', text: '', waLink: '', error: j?.error || tr("לא הצלחנו להכין את ההודעה") }); })
+      .catch(() => { if (live) setMsg({ state: 'error', text: '', waLink: '', error: tr("לא הצלחנו להכין את ההודעה") }); });
     return () => { live = false; };
   }, [booked, client.phone]);
 
@@ -129,10 +130,10 @@ export default function RebookNextSheet({
     try {
       const r = await fetch('/api/rebook-message', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointmentId: booked.id, mode: 'queue' }) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.success) { toast(j.error || 'לא הצלחנו לשמור את ההודעה, אפשר לנסות שוב', 'error'); return; }
+      if (!r.ok || !j.success) { toast(j.error || tr("לא הצלחנו לשמור את ההודעה, אפשר לנסות שוב"), 'error'); return; }
       setQueued(true);
       onQueued?.();
-      toast('ההודעה מחכה ב"הודעות מוכנות לשליחה"', 'info');
+      toast(tr("ההודעה מחכה ב\"הודעות מוכנות לשליחה\""), 'info');
     } finally { setBusyKey(''); }
   };
 
@@ -149,58 +150,58 @@ export default function RebookNextSheet({
   const title = booked ? 'התור הבא נקבע' : `קבעי לה שוב${client.name ? ` · ${client.name}` : ''}`;
 
   return (
-    <Sheet open onClose={onClose} width={400} zIndex={1250} className="pop-in" title={title} busy={!!busyKey}>
+    <Sheet open onClose={onClose} width={400} zIndex={1250} className="pop-in" title={trv(title)} busy={!!busyKey}>
       <div data-testid="rebook-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {!booked && (
           <>
             {future.length > 0 && (
               <p data-testid="rebook-already" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: '8px 10px', margin: 0 }}>
-                כבר יש לה תור ב{dayLabel(future[0].date)} בשעה {fmtTime(startMinute(future[0]))}. אפשר לקבוע עוד אחד, אם זה מה שרצית.
+                {tr("כבר יש לה תור ב")}{dayLabel(future[0].date)} {tr("בשעה")} {fmtTime(startMinute(future[0]))}{tr(". אפשר לקבוע עוד אחד, אם זה מה שרצית.")}
               </p>
             )}
             {!resolvedSvc && (
               <div>
-                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', fontWeight: 600, margin: '0 0 4px' }}>איזה טיפול?</p>
+                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', fontWeight: 600, margin: '0 0 4px' }}>{tr("איזה טיפול?")}</p>
                 <select value={svcName} onChange={(e) => setSvcName(e.target.value)} data-testid="rebook-service" style={{ width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px', fontSize: 16, fontFamily: 'inherit', background: 'var(--surface-2)' }}>
-                  <option value="">בחירת טיפול</option>
+                  <option value="">{tr("בחירת טיפול")}</option>
                   {services.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
                 </select>
-                {services.length === 0 && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', marginTop: 6 }}>עוד אין טיפולים בתפריט. אפשר להוסיף בהגדרות.</p>}
+                {services.length === 0 && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', marginTop: 6 }}>{tr("עוד אין טיפולים בתפריט. אפשר להוסיף בהגדרות.")}</p>}
               </div>
             )}
             {resolvedSvc && !historyReady && (
-              <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: 0 }}>ההיסטוריה של היומן עוד בדרך. כדי שלא ייווצרו תורים כפולים, אפשר לנסות שוב בעוד רגע.</p>
+              <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: 0 }}>{tr("ההיסטוריה של היומן עוד בדרך. כדי שלא ייווצרו תורים כפולים, אפשר לנסות שוב בעוד רגע.")}</p>
             )}
             {resolvedSvc && historyReady && !proposal && (
               <div data-testid="rebook-none" style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'var(--surface-2)', border: '1px solid var(--line-2)' }}>
-                <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px' }}>לא מצאתי מקום פנוי בשישה השבועות הקרובים</p>
-                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: 0 }}>היומן מלא, או שהימים סגורים. אפשר לבחור תאריך בעצמך.</p>
+                <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px' }}>{tr("לא מצאתי מקום פנוי בשישה השבועות הקרובים")}</p>
+                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: 0 }}>{tr("היומן מלא, או שהימים סגורים. אפשר לבחור תאריך בעצמך.")}</p>
               </div>
             )}
             {resolvedSvc && proposal && (
               <div data-testid="rebook-proposal" style={{ padding: '13px 14px', borderRadius: 'var(--r-md)', background: pcTint, border: `1px solid ${pc}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                  <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>התור הבא</p>
+                  <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--ink)', margin: 0 }}>{tr("התור הבא")}</p>
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     {CHIPS.map((w) => (
-                      <button key={w} type="button" onClick={() => { setChip(chip === w ? null : w); setPick(null); setPickOpen(false); }} aria-label={`מרווח של ${w} שבועות`} aria-pressed={chip === w}
+                      <button key={w} type="button" onClick={() => { setChip(chip === w ? null : w); setPick(null); setPickOpen(false); }} aria-label={tr("מרווח של {0} שבועות", [w])} aria-pressed={chip === w}
                         style={{ minWidth: 44, minHeight: 44, borderRadius: 'var(--r-xs)', fontSize: 'var(--t-sm)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: chip === w ? `1.5px solid ${pc}` : '1px solid var(--line-2)', background: chip === w ? 'var(--surface)' : 'transparent', color: chip === w ? pcDeep : 'var(--ink-3)' }}>{w}</button>
                     ))}
-                    <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>שב׳</span>
+                    <span style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}>{tr("שב׳")}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                  <p data-testid="rebook-when" style={{ fontSize: 'var(--t-md)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>{dayLabel(proposal.date)} בשעה</p>
-                  <button type="button" onClick={() => setPickOpen((v) => !v)} disabled={dayStarts.length === 0} aria-expanded={pickOpen} aria-label="שינוי שעה"
+                  <p data-testid="rebook-when" style={{ fontSize: 'var(--t-md)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>{dayLabel(proposal.date)} {tr("בשעה")}</p>
+                  <button type="button" onClick={() => setPickOpen((v) => !v)} disabled={dayStarts.length === 0} aria-expanded={pickOpen} aria-label={tr("שינוי שעה")}
                     style={{ background: 'var(--surface)', border: `1px solid ${pc}`, borderRadius: 'var(--r-xs)', minHeight: 36, padding: '3px 10px', fontSize: 'var(--t-md)', fontWeight: 700, color: pcDeep, cursor: 'pointer', fontFamily: 'inherit', direction: 'ltr' }}>{fmtTime(minute)}</button>
                 </div>
-                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '4px 0 0' }}>{resolvedSvc.name} · {duration} דקות</p>
+                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '4px 0 0' }}>{resolvedSvc.name} · {duration} {tr("דקות")}</p>
                 <p data-testid="rebook-why" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '4px 0 0' }}>{why}</p>
-                {proposal.date !== proposal.targetDate && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '2px 0 0' }}>ביום שיצא לפי הקצב היומן סגור או מלא, זה הפנוי הקרוב.</p>}
-                {!proposal.sameTime && minute === proposal.minute && anchor && startMinute(anchor) !== null && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '2px 0 0' }}>השעה הרגילה שלה תפוסה, זה הזמן הפנוי הקרוב אליה.</p>}
+                {proposal.date !== proposal.targetDate && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '2px 0 0' }}>{tr("ביום שיצא לפי הקצב היומן סגור או מלא, זה הפנוי הקרוב.")}</p>}
+                {!proposal.sameTime && minute === proposal.minute && anchor && startMinute(anchor) !== null && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: '2px 0 0' }}>{tr("השעה הרגילה שלה תפוסה, זה הזמן הפנוי הקרוב אליה.")}</p>}
                 {pickOpen && (
                   <div style={{ marginTop: 8, padding: '8px 8px 4px', borderRadius: 'var(--r-sm)', background: 'var(--surface)', border: '1px solid var(--line)' }}>
-                    <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, margin: '0 0 6px' }}>שעות פנויות ביום הזה</p>
+                    <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, margin: '0 0 6px' }}>{tr("שעות פנויות ביום הזה")}</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 132, overflowY: 'auto' }}>
                       {dayStarts.map((m) => (
                         <button key={m} type="button" onClick={() => { setPick(m); setPickOpen(false); }}
@@ -213,41 +214,41 @@ export default function RebookNextSheet({
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" data-testid="rebook-confirm" onClick={confirm} disabled={!proposal || !!busyKey} style={{ ...btn, flex: 2, background: pcGrad, color: 'var(--pc-contrast)', opacity: proposal ? 1 : 0.5, cursor: proposal ? 'pointer' : 'not-allowed' }}>
-                {busyKey === 'book' ? <Spinner inline label="קובעת" /> : 'קביעת התור ✓'}
+                {busyKey === 'book' ? <Spinner inline label={tr("קובעת")} /> : tr("קביעת התור ✓")}
               </button>
-              <button type="button" data-testid="rebook-manual" onClick={() => onManual({ client, svc: resolvedSvc, date: proposal?.date, minute })} style={{ ...ghost, flex: 1 }}>שינוי</button>
+              <button type="button" data-testid="rebook-manual" onClick={() => onManual({ client, svc: resolvedSvc, date: proposal?.date, minute })} style={{ ...ghost, flex: 1 }}>{tr("שינוי")}</button>
             </div>
-            <button type="button" onClick={onClose} style={ghost}>לא עכשיו</button>
+            <button type="button" onClick={onClose} style={ghost}>{tr("לא עכשיו")}</button>
           </>
         )}
 
         {booked && (
           <>
             <div data-testid="rebook-booked" style={{ padding: '12px 14px', borderRadius: 'var(--r-md)', background: 'rgba(70,179,123,0.10)', border: '1px solid var(--success)' }}>
-              <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--success)', margin: '0 0 2px' }}>נקבע ל{client.name || 'לקוחה'}</p>
-              <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink)', margin: 0 }}>{dayLabel(booked.date)} בשעה {fmtTime(startMinute(booked))}</p>
+              <p style={{ fontSize: 'var(--t-sm)', fontWeight: 700, color: 'var(--success)', margin: '0 0 2px' }}>{tr("נקבע ל")}{client.name || tr("לקוחה")}</p>
+              <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink)', margin: 0 }}>{dayLabel(booked.date)} {tr("בשעה")} {fmtTime(startMinute(booked))}</p>
             </div>
             {!client.phone && (
-              <p data-testid="rebook-nophone" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: 0 }}>אין ללקוחה מספר טלפון, אז אין למי להכין הודעה. אפשר להוסיף מספר בכרטיס שלה.</p>
+              <p data-testid="rebook-nophone" style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)', margin: 0 }}>{tr("אין ללקוחה מספר טלפון, אז אין למי להכין הודעה. אפשר להוסיף מספר בכרטיס שלה.")}</p>
             )}
             {client.phone && (
               <div data-testid="rebook-message">
-                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '0 0 6px' }}>רוצה לעדכן אותה? ההודעה מוכנה, ושום דבר לא נשלח עד שאת לוחצת על שליחה בוואטסאפ.</p>
-                {msg.state === 'loading' && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}><Spinner inline label="מכינה את ההודעה" /></p>}
-                {msg.state === 'error' && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)' }}>{msg.error}</p>}
+                <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', margin: '0 0 6px' }}>{tr("רוצה לעדכן אותה? ההודעה מוכנה, ושום דבר לא נשלח עד שאת לוחצת על שליחה בוואטסאפ.")}</p>
+                {msg.state === 'loading' && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-3)' }}><Spinner inline label={tr("מכינה את ההודעה")} /></p>}
+                {msg.state === 'error' && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)' }}>{trv(msg.error)}</p>}
                 {msg.state === 'ready' && (
                   <>
-                    <button type="button" onClick={() => setShowText((v) => !v)} aria-expanded={showText} style={{ background: 'none', border: 'none', color: pcDeep, fontWeight: 600, fontFamily: 'inherit', fontSize: 'var(--t-sm)', padding: '4px 0', cursor: 'pointer' }}>{showText ? 'הסתרת ההודעה' : 'איך ההודעה נראית'}</button>
-                    {showText && <pre data-testid="rebook-text" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 'var(--t-sm)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: 10, margin: '0 0 8px', lineHeight: 1.6, direction: 'rtl' }}>{msg.text}</pre>}
-                    <a href={msg.waLink} target="_blank" rel="noreferrer" data-testid="rebook-wa" onClick={() => { onOpened?.(booked); }} style={{ ...btn, background: 'var(--ink)', color: 'var(--surface)', marginTop: 4 }}>פתיחה בוואטסאפ שלי</a>
+                    <button type="button" onClick={() => setShowText((v) => !v)} aria-expanded={showText} style={{ background: 'none', border: 'none', color: pcDeep, fontWeight: 600, fontFamily: 'inherit', fontSize: 'var(--t-sm)', padding: '4px 0', cursor: 'pointer' }}>{showText ? tr("הסתרת ההודעה") : tr("איך ההודעה נראית")}</button>
+                    {showText && <pre data-testid="rebook-text" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 'var(--t-sm)', background: 'var(--surface-2)', borderRadius: 'var(--r-sm)', padding: 10, margin: '0 0 8px', lineHeight: 1.6, direction: uiDir() }}>{trv(msg.text)}</pre>}
+                    <a href={msg.waLink} target="_blank" rel="noreferrer" data-testid="rebook-wa" onClick={() => { onOpened?.(booked); }} style={{ ...btn, background: 'var(--ink)', color: 'var(--surface)', marginTop: 4 }}>{tr("פתיחה בוואטסאפ שלי")}</a>
                     <button type="button" data-testid="rebook-queue" onClick={keepInQueue} disabled={!!busyKey || queued} style={{ ...ghost, marginTop: 8, opacity: queued ? 0.6 : 1 }}>
-                      {busyKey === 'queue' ? <Spinner inline label="שומרת" /> : queued ? 'ההודעה מחכה בהודעות מוכנות לשליחה' : 'להשאיר להודעות מוכנות לשליחה'}
+                      {busyKey === 'queue' ? <Spinner inline label={tr("שומרת")} /> : queued ? tr("ההודעה מחכה בהודעות מוכנות לשליחה") : tr("להשאיר להודעות מוכנות לשליחה")}
                     </button>
                   </>
                 )}
               </div>
             )}
-            <button type="button" data-testid="rebook-done" onClick={onClose} style={ghost}>סגירה</button>
+            <button type="button" data-testid="rebook-done" onClick={onClose} style={ghost}>{tr("סגירה")}</button>
           </>
         )}
       </div>
