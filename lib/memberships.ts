@@ -469,7 +469,8 @@ async function chargeClaimed(d: MembershipDeps, m: Membership, account: { user_i
   }
 
   const nowIso = clock(d).toISOString();
-  await d.grow.markPaid(payment.id, { status: 'paid', paid_at: nowIso, transaction_id: r.transactionId, asmachta: r.asmachta || null, updated_at: nowIso });
+  // transaction_token with the id: the refund actions (app/api/grow/refund, lib/grow/voidRefund.ts) need both, like any Grow payment.
+  await d.grow.markPaid(payment.id, { status: 'paid', paid_at: nowIso, transaction_id: r.transactionId, transaction_token: r.transactionToken || null, asmachta: r.asmachta || null, updated_at: nowIso });
   let receiptId: string | null = null;
   try {
     const receipt = await d.grow.insertReceipt({
@@ -582,6 +583,17 @@ export const planCovers = (p: Pick<PlanFields, 'services'>, service: string) => 
 export type RedeemResult = { ok: true; redemption: Redemption; already: boolean; credits: Credits } | { ok: false; code: 'gone' | 'none-left' | 'not-covered' | 'busy'; error: string };
 
 /**
+ * The lowest credit number of a month (1..credits) that no live row holds (Vercel review on PR #64: "max + 1" left a released low number
+ * unusable for good while a higher one stayed used). Null when every number is taken. The unique index on (period_id, seq) among rows
+ * that are not released is still the race guard: a number two devices pick at once is refused for one of them, which reads again.
+ */
+export function freeSeq(reds: Redemption[], periodId: string, credits: number): number | null {
+  const taken = new Set(reds.filter((r) => r.period_id === periodId && r.status !== 'released').map((r) => Number(r.seq)));
+  for (let n = 1; n <= credits; n++) if (!taken.has(n)) return n;
+  return null;
+}
+
+/**
  * Takes the next free credit (oldest-expiring month first) as a new row: 'used' for a receipt, or 'reserved' for a Grow link. Expired
  * holds are freed first. One credit number per month (unique period_id + seq among rows that are not released), so two devices at once
  * cannot both take the last credit: the second insert is refused and reads again.
@@ -598,8 +610,8 @@ async function takeCredit(d: MembershipDeps, m: Membership, row: Pick<Redemption
     const { reds, credits } = await read();
     const free = credits.rows.find((r) => r.left > 0);
     if (!free) return { ok: false, code: 'none-left', error: 'לא נשארו טיפולים במנוי לתקופה הזו' };
-    const seq = reds.filter((r) => r.period_id === free.periodId && r.status !== 'released').reduce((mx, r) => Math.max(mx, Number(r.seq)), 0) + 1;
-    if (seq > free.credits) continue;
+    const seq = freeSeq(reds, free.periodId, free.credits);
+    if (seq === null) continue;
     const ins = await d.repo.insertRedemption({ tenant_id: m.tenant_id, membership_id: m.id, period_id: free.periodId, client_id: m.client_id, seq, ...row });
     if (ins.row) return { ok: true, redemption: ins.row, already: false, credits: (await read()).credits };
     if (ins.conflict === 'receipt' && row.receipt_id) {
@@ -693,12 +705,13 @@ async function consumeReleased(d: MembershipDeps, i: { tenantId: string; payment
   const m = await d.repo.getMembership(i.tenantId, r.membership_id);
   if (m) {
     const nowIso = clock(d).toISOString();
+    await d.repo.releaseExpiredReservations(nowIso, { tenantId: m.tenant_id, membershipId: m.id });
     for (let tries = 0; tries < 4; tries++) {
       const [periods, reds] = await Promise.all([d.repo.listPeriods(i.tenantId, [m.id]), d.repo.listRedemptions(i.tenantId, [m.id])]);
       const free = creditsOf(m, periods, reds, israelDay(clock(d)), nowIso).rows.find((x) => x.left > 0);
       if (!free) break;
-      const seq = reds.filter((x) => x.period_id === free.periodId && x.status !== 'released').reduce((mx, x) => Math.max(mx, Number(x.seq)), 0) + 1;
-      if (seq > free.credits) continue;
+      const seq = freeSeq(reds, free.periodId, free.credits);
+      if (seq === null) continue;
       if (await d.repo.updateRedemption(i.tenantId, r.id, ['released'], { status: 'used', period_id: free.periodId, seq, reserved_until: null, ...(i.receiptId ? { receipt_id: i.receiptId } : {}) })) return 'used';
       const again = await d.repo.findRedemptionByPayment(i.tenantId, i.paymentId);
       if (again && again.status === 'used') return 'already';

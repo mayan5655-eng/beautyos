@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   sanitizePlan, consentTextHe, createEnrollment, startCardPage, onMembershipCardToken, saveMembershipCard, chargeMembership, runDueMemberships,
-  creditsOf, redeemCredit, reserveCredit, attachReservation, consumeReservation, ownerAction, clientCancel, clientCancelFrom, dashboardOf, membershipsReady, nextPeriodStart, addDays, israelDay,
+  creditsOf, redeemCredit, reserveCredit, attachReservation, consumeReservation, releaseReservation, freeSeq, ownerAction, clientCancel, clientCancelFrom, dashboardOf, membershipsReady, nextPeriodStart, addDays, israelDay,
   membershipRef, isMembershipRef, planLineHe, MAX_ATTEMPTS, MEMBERSHIP_CONSENT_VERSION, STATUS_HE,
 } from './lib/memberships.ts';
 import type { Membership, MembershipDeps, MembershipRepo, Period, Plan, PlanFields, Redemption, StoredToken } from './lib/memberships.ts';
@@ -25,6 +25,7 @@ import type { GrowPayment, GrowRepo } from './lib/grow/service.ts';
 import { resolveGrow } from './lib/grow/adapter.ts';
 import { paymentOriginOf, originLabelHe } from './lib/grow/paymentOrigin.ts';
 import { tillTabsOf } from './lib/tillTabs.ts';
+import { refundVoidedGrowReceipt } from './lib/grow/voidRefund.ts';
 import { growText } from './lib/grow/payload.ts';
 
 let n = 0;
@@ -732,6 +733,51 @@ await ok('the minimum term counts PAID months: on the due day of the last commit
   await chargeMembership(d2, m2);
   assert.ok((await ownerAction(d2, { tenantId: T1, membershipId: m2.id, action: 'cancel' })).ok);
   assert.match(read('app/api/memberships/link/route.ts'), /canCancel: m\.status !== 'cancelled' && !waiting && !from,/);
+});
+
+await ok('a membership charge keeps Grow\'s transaction id AND token, so the existing refund on void accepts it', async () => {
+  const w = makeWorld(); const d = w.deps(mockOps());
+  const m = await activeMember(w, d);
+  await chargeMembership(d, m);
+  const pay = w.payments[0];
+  assert.ok(pay.transaction_id && String(pay.transaction_token || '').startsWith('mocktt_'), 'the token is on the payment');
+  const receiptId = String(w.receipts[0].id);
+  const calls: unknown[] = [];
+  const res = await refundVoidedGrowReceipt({
+    repo: {
+      async findPaymentByReceipt(t, rid) { const p = w.payments.find((x) => x.tenant_id === t && x.receipt_id === rid); return p ? { ...p, amount: Number(p.amount) } as never : null; },
+      async isVoided() { return true; },
+      async claim() { return 'claimed'; },
+      async release() {},
+      async markRefunded(t, pid, ref) { const p = w.payments.find((x) => x.id === pid)!; p.status = 'refunded' as never; (p as Record<string, unknown>).refund_ref = ref; },
+      async appendReceiptNote() { return null; },
+    },
+    ops: { async refund(i) { calls.push(i); return { ok: true, refundId: 'rf-1' }; } },
+    userId: 'grow-user-1',
+    alert: async () => null,
+  }, { tenantId: T1, receiptId });
+  assert.equal(res.status, 'refunded', JSON.stringify(res));
+  assert.equal(calls.length, 1);
+  assert.deepEqual({ ...(calls[0] as Record<string, unknown>), idempotencyKey: undefined }, { userId: 'grow-user-1', transactionId: pay.transaction_id, transactionToken: pay.transaction_token, amount: 260, idempotencyKey: undefined });
+});
+
+await ok('credit numbers: a released low number is used again while a higher one stays used; never more than the month\'s credits', async () => {
+  const w = makeWorld(); const d = w.deps(mockOps());
+  const m = await activeMember(w, d);
+  await chargeMembership(d, m);
+  const one = await heldLink(w, d, m); // #1 held by a Grow link
+  assert.equal(w.redemptions[0].seq, 1);
+  assert.ok((await redeemCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, receiptId: 'cash-2', service: 'מניקור' })).ok);
+  assert.equal(w.redemptions[1].seq, 2, '#2 used at the till');
+  assert.ok(await releaseReservation(d, { tenantId: T1, reservationId: one.r.ok ? one.r.redemption.id : '' }), '#1 released (the link failed)');
+  const again = await redeemCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, receiptId: 'cash-3', service: 'מניקור' });
+  assert.ok(again.ok, JSON.stringify(again));
+  assert.equal((again as { redemption: Redemption }).redemption.seq, 1, 'the free number #1 is taken, not #3');
+  assert.equal((await redeemCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, receiptId: 'cash-4', service: 'מניקור' }) as { code: string }).code, 'none-left');
+  const live = w.redemptions.filter((r) => r.status !== 'released');
+  assert.equal(live.length, 2); assert.ok(live.every((r) => r.seq >= 1 && r.seq <= 2));
+  assert.equal(freeSeq([{ id: 'x', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 2, receipt_id: 'a', service: null, status: 'used' }, { id: 'y', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 1, receipt_id: null, service: null, status: 'released' }], 'p', 2), 1);
+  assert.equal(freeSeq([{ id: 'x', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 1, receipt_id: 'a', service: null, status: 'used' }, { id: 'z', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 2, receipt_id: null, service: null, status: 'reserved' }], 'p', 2), null);
 });
 
 // ── nothing is ever sent to a client ────────────────────────────────────────
