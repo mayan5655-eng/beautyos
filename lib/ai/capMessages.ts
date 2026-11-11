@@ -26,6 +26,7 @@ const NOUN: Record<string, string> = {
   'voice-intent': 'הפקודות הקוליות',
   'marketing/groups': 'ההצעות לקבוצות',
   'marketing/reel': 'יצירות הוידאו',
+  'marketing/google-kit': 'הכתיבות לגוגל',
   'marketing/shooting-list': 'רשימות הצילום',
   'creatives/direct': 'ההשלמות של ה-AI',
   'creatives/image': 'תמונות ה-AI',

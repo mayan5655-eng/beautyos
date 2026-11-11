@@ -60,6 +60,8 @@ const FAKE_ENV = {
   NEXT_PUBLIC_ANNUAL_PLAN: '',
   // Import from another system (lib/importFile.ts): off, whatever the deployment builds with. test-import-from-system.ts sets it itself.
   NEXT_PUBLIC_IMPORT_TOOL: '',
+  // The Google growth kit (lib/googleKit.ts): off, whatever the deployment builds with. test-google-kit.ts sets it itself.
+  NEXT_PUBLIC_GOOGLE_KIT: '',
   // Kalmea Academy (lib/academy.ts): off, whatever the deployment builds with. test-academy.ts sets it itself. Premium never live in tests.
   NEXT_PUBLIC_ACADEMY: '',
   ACADEMY_PREMIUM_LIVE: '',

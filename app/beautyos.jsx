@@ -112,6 +112,8 @@ import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const VisitFeedbackPanel = dynamic(() => import("./VisitFeedbackPanel"), { ssr: false });
 const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
+// "להימצא בגוגל" in the content tab (lib/googleKit.ts). Renders nothing unless NEXT_PUBLIC_GOOGLE_KIT is on.
+const GoogleKitCard = dynamic(() => import("./GoogleKitCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: false });
 // Panels that open only inside Settings, the till or a sheet: loaded when first shown, not in the dashboard's first download (2026-11-02
@@ -174,6 +176,7 @@ import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
+import { googleKitEnabled } from "@/lib/googleKit";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
 import { VIEW_MODE_KEY, VIEW_MODES, VIEW_MODE_LABELS, viewModeOf, isTillOnly, viewAllowsTab, viewAllowsSettingsGroup, bottomNavIds, moreNavIds } from "@/lib/viewMode";
 import { reviewTimingOf, looksLikeGoogleLink, GOOGLE_LINK_HELP, GOOGLE_LINK_INVALID_HE } from "@/lib/reviewRequests";
@@ -10815,6 +10818,8 @@ ${MARKETING_FOOTER}`)}`;
 
  {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
  {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");setTillTab("vouchers");}}/>}
+ {/* Getting found on Google: profile checklist, texts to paste, a first search ad (app/GoogleKitCard.jsx). Off = nothing renders. */}
+ {googleKitEnabled()&&settings?.tenant_id&&<GoogleKitCard settings={settings} bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`} serviceNames={activeServices.map(sv=>sv.name).filter(Boolean)} onSaveTicks={(next)=>saveAutomationsKey("google_kit",next)} toast={toast}/>}
  {marketingView==="campaigns"&&(<>
  <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
