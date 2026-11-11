@@ -4,12 +4,13 @@
 // link id is the authorisation and opens that ONE membership only. It shows nothing else of the business or of other clients.
 //   GET  ?t=<link id>                                    -> the terms she is asked to agree to (or agreed to), the status, her credits
 //   POST { t, action: 'start', agree: true, consentText } -> freezes the consent words and opens Grow's save-only card page { url }
-//   POST { t, action: 'cancel' }                          -> cancels per the plan's terms (after the minimum months)
+//   POST { t, action: 'cancel' }                          -> cancels per the plan's terms (after the minimum months), also while her
+//                                                            business is closed (its Kalmea subscription lapsed); joining is not
 // NEXT_PUBLIC_CLIENT_MEMBERSHIPS off -> 404. Rate limited per device and per business. Sends no message to anyone but an in-app
 // notice to the business owner when the client cancels.
 import { NextResponse } from 'next/server';
 import { clientMembershipsEnabled } from '@/lib/membershipFlag';
-import { consentTextHe, startCardPage, clientCancel, creditsOf, clientCancelFrom, israelDay, planLineHe, dayHe } from '@/lib/memberships';
+import { BUSINESS_CLOSED_HE, consentTextHe, startCardPage, clientCancel, creditsOf, clientCancelFrom, israelDay, planLineHe, dayHe } from '@/lib/memberships';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { admin } from '../../grow/_shared';
 import { membershipDeps, readyFor, membershipLinkUrl } from '../_deps';
@@ -31,6 +32,8 @@ export async function GET(request: Request) {
     const tl = checkTenantLimit(m.tenant_id, 'membership-link');
     if (tl) return tl;
     const ready = await readyFor(d, m.tenant_id);
+    // Her business's Kalmea subscription lapsed: the page still shows the client her status, and cancel still works; no payment step.
+    const open = await d.repo.tenantActive(m.tenant_id);
     const { data: st } = await admin().from('settings').select('business_name, primary_color').eq('tenant_id', m.tenant_id).maybeSingle();
     const businessName = String((st as { business_name?: unknown } | null)?.business_name || '').trim();
     const periods = await d.repo.listPeriods(m.tenant_id, [m.id]);
@@ -49,7 +52,9 @@ export async function GET(request: Request) {
       consentText: m.consent_text || consentTextHe(m.plan, businessName),
       consentedAt: m.consented_at,
       // A link whose business can no longer take a card (Grow disconnected) does not offer the step.
-      canStart: waiting && ready.ready,
+      canStart: waiting && ready.ready && open,
+      // Why there is no step: her business is closed (neutral words), or joining is not available for another reason.
+      unavailableNote: waiting && !(ready.ready && open) ? (open ? 'ההצטרפות לא זמינה כרגע. אפשר לפנות לבעלת העסק.' : BUSINESS_CLOSED_HE) : null,
       nextChargeOn: m.next_charge_on ? dayHe(m.next_charge_on) : null,
       // Right after the card is saved the first month is still being charged: say so, rather than "nothing available".
       credits: waiting ? null : m.status === 'active' && !periods.some((p) => p.status === 'paid') ? 'החודש הראשון מחויב עכשיו, הטיפולים יופיעו כאן מיד אחרי' : creditsOf(m, periods, reds, today, new Date().toISOString()).labelHe,

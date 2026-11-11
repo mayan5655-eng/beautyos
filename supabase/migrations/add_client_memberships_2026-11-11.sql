@@ -102,7 +102,8 @@ create table if not exists public.membership_periods (
   period_end       date not null,
   amount           numeric(10, 2) not null check (amount > 0),
   credits          integer not null check (credits >= 0),
-  status           text not null default 'charging' check (status in ('charging', 'paid', 'failed', 'unknown')),
+  -- 'refunded': paid, then its Grow payment given back. Its credits are gone and the daily run never charges it again.
+  status           text not null default 'charging' check (status in ('charging', 'paid', 'failed', 'unknown', 'refunded')),
   attempts         integer not null default 1,
   first_failed_on  date,
   grow_payment_id  uuid,
@@ -114,6 +115,7 @@ create table if not exists public.membership_periods (
   unique (membership_id, period_start)
 );
 create index if not exists membership_periods_tenant_idx on public.membership_periods (tenant_id, membership_id);
+create index if not exists membership_periods_payment_idx on public.membership_periods (grow_payment_id) where grow_payment_id is not null;
 create index if not exists membership_periods_charging_idx on public.membership_periods (status, updated_at) where status = 'charging';
 
 -- 4 ─────────────────────────────────────────────────────────────────────────

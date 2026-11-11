@@ -10,7 +10,8 @@
 //   POST { action: 'pause' | 'resume' | 'cancel' | 'retry', membershipId }
 //   POST { action: 'redeem', membershipId, clientId, receiptId, service }   -> the till used one credit on this receipt
 //
-// NEXT_PUBLIC_CLIENT_MEMBERSHIPS off -> 404: the route does not exist. Grow off for her, no saved-card credentials, Grow not connected,
+// NEXT_PUBLIC_CLIENT_MEMBERSHIPS off -> 404: the route does not exist. Her Kalmea subscription lapsed -> the plan-guard refusal (402) for
+// every read and action here (lib/planGuard.ts). Grow off for her, no saved-card credentials, Grow not connected,
 // or the migration not run -> { available: false } and nothing else. Sends NOTHING to any client: the link is handed to her to send.
 import { NextResponse } from 'next/server';
 import { clientMembershipsEnabled } from '@/lib/membershipFlag';
@@ -21,6 +22,7 @@ import {
 import type { Membership, MembershipDeps, Period, Redemption } from '@/lib/memberships';
 import { requestWaLink } from '@/lib/grow/paymentRequest';
 import { checkTenantLimit } from '@/lib/rateLimit';
+import { requireActiveTenant } from '@/lib/planGuard';
 import { admin, caller } from '../grow/_shared';
 import { membershipDeps, readyFor, membershipLinkUrl } from './_deps';
 
@@ -53,6 +55,9 @@ export async function GET(request: Request) {
   if (!clientMembershipsEnabled()) return notFound();
   const c = await caller();
   if ('error' in c) return c.error;
+  // Her Kalmea subscription lapsed: the system is closed, memberships included (the same gate as every other owner route).
+  const guard = await requireActiveTenant(c.session);
+  if (!guard.ok) return guard.response;
   const d = membershipDeps();
   try {
     const r = await readyFor(d, c.tenantId);
@@ -107,6 +112,10 @@ export async function POST(request: Request) {
   if (!clientMembershipsEnabled()) return notFound();
   const c = await caller();
   if ('error' in c) return c.error;
+  // Every owner action (plans, enrollment, pause / resume / cancel / retry, a credit at the till) needs an open subscription. The
+  // service-role writes below bypass the database's own is_tenant_active() gate, so it is checked here, before anything is read.
+  const guard = await requireActiveTenant(c.session);
+  if (!guard.ok) return guard.response;
   const limited = checkTenantLimit(c.tenantId, 'memberships');
   if (limited) return limited;
   const d = membershipDeps();

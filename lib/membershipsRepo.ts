@@ -6,6 +6,8 @@
 // for, except the three lookups that START from an unguessable value (the client's link id, Grow's process id) and the daily run.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LedgerRow } from './grow/tokenCharge.ts';
+import { planState } from './planState.ts';
+import type { TenantPlanRow } from './planState.ts';
 import type { Membership, MembershipRepo, Period, Plan, PlanSnapshot, Redemption, StoredToken } from './memberships.ts';
 
 const fail = (e: { message?: string } | null, what: string): never => { throw new Error(`${what}: ${e?.message || 'failed'}`); };
@@ -25,6 +27,13 @@ export function supabaseMembershipRepo(db: SupabaseClient): MembershipRepo {
       const { data, error } = await db.from('grow_accounts').select('user_id, enabled').eq('tenant_id', tenantId).maybeSingle();
       if (error) fail(error, 'getAccount');
       return (data || null) as { user_id: string; enabled: boolean } | null;
+    },
+    async tenantActive(tenantId) {
+      // The same rules as public.is_tenant_active() (lib/planState.ts mirrors them), read for ANY tenant with the service role: the
+      // daily run has no session. Fails open, like the database: an unreadable row never closes a paying business.
+      const { data, error } = await db.from('tenants').select('plan_status, trial_started_at, trial_ends_at').eq('id', tenantId).maybeSingle();
+      if (error || !data) return true;
+      return !planState(data as TenantPlanRow).isBlocked;
     },
     async businessName(tenantId) {
       const { data } = await db.from('settings').select('business_name').eq('tenant_id', tenantId).maybeSingle();
@@ -115,6 +124,16 @@ export function supabaseMembershipRepo(db: SupabaseClient): MembershipRepo {
       const { data, error } = await db.from('membership_periods').select('*').eq('tenant_id', tenantId).eq('membership_id', membershipId).eq('period_start', periodStart).maybeSingle();
       if (error) fail(error, 'getPeriodByStart');
       return data ? per(data as Record<string, unknown>) : null;
+    },
+    async findPeriodByPayment(tenantId, paymentId) {
+      const { data, error } = await db.from('membership_periods').select('*').eq('tenant_id', tenantId).eq('grow_payment_id', paymentId).limit(2);
+      if (error) fail(error, 'findPeriodByPayment');
+      return data && data.length === 1 ? per(data[0] as Record<string, unknown>) : null;
+    },
+    async releasePeriodReservations(tenantId, periodId) {
+      const { data, error } = await db.from('membership_redemptions').update({ status: 'released' }).eq('tenant_id', tenantId).eq('period_id', periodId).eq('status', 'reserved').select('id');
+      if (error) fail(error, 'releasePeriodReservations');
+      return (data || []).length;
     },
     async transitionPeriod(tenantId, periodId, from, patch, expectAttempts) {
       let q = db.from('membership_periods').update({ ...patch, updated_at: new Date().toISOString() }).eq('tenant_id', tenantId).eq('id', periodId).in('status', from);

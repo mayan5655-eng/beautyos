@@ -10,7 +10,8 @@ import { resolveGrow, growUiEnabled } from '@/lib/grow/adapter';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { encryptToken, decryptToken } from '@/lib/facebook/encryption';
 import { clientMembershipsEnabled } from '@/lib/membershipFlag';
-import { membershipsReady } from '@/lib/memberships';
+import { membershipsReady, onPaymentRefunded } from '@/lib/memberships';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 import type { MembershipDeps } from '@/lib/memberships';
 import { supabaseMembershipRepo } from '@/lib/membershipsRepo';
 import { isDemoTenantId } from '@/lib/demoTenants';
@@ -57,3 +58,19 @@ export async function readyFor(d: MembershipDeps | null, tenantId: string): Prom
 }
 
 export const membershipLinkUrl = (linkId: string) => `${APP_URL.replace(/\/+$/, '')}/pay/membership/${linkId}`;
+
+/**
+ * A Grow payment was refunded (the refund route, refund on void): if it charged a membership month, that month becomes 'refunded'
+ * (lib/memberships.ts onPaymentRefunded). Never fails the refund that already happened; a failure is said to the operator.
+ */
+export async function membershipRefunded(tenantId: string, paymentId: string): Promise<void> {
+  const d = membershipDeps();
+  if (!d) return;
+  try {
+    await onPaymentRefunded(d, { tenantId, paymentId });
+  } catch (e) {
+    if (/does not exist|schema cache/i.test((e as Error)?.message || '')) return;
+    console.error('[memberships] marking a refunded month failed for payment', paymentId, (e as Error)?.message);
+    await moneyAlert('memberships:refund', 'a refunded Grow payment charged a membership month that could not be marked refunded (its credits may still show)', { paymentId, tenantId }, { key: paymentId });
+  }
+}

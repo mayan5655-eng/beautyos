@@ -89,7 +89,8 @@ export type Membership = {
   created_at?: string;
 };
 
-export type PeriodStatus = 'charging' | 'paid' | 'failed' | 'unknown';
+/** 'refunded': the month was paid and its Grow payment given back. Its credits are gone and it is never charged again. */
+export type PeriodStatus = 'charging' | 'paid' | 'failed' | 'unknown' | 'refunded';
 export type Period = {
   id: string;
   tenant_id: string;
@@ -127,6 +128,12 @@ export type StoredToken = { id: string; tenant_id: string; client_id: string | n
 
 export type MembershipRepo = LedgerRepo & {
   getAccount(tenantId: string): Promise<{ user_id: string; enabled: boolean } | null>;
+  /**
+   * Her Kalmea subscription is open (trial or active), with the same rules and the same fail-open as public.is_tenant_active() and
+   * lib/planState.ts: only a definitively expired or paused business is closed. A closed business's members are not charged, its link
+   * offers no payment step, and its till takes no credit (her owner app is closed anyway).
+   */
+  tenantActive(tenantId: string): Promise<boolean>;
   businessName(tenantId: string): Promise<string>;
   listPlans(tenantId: string): Promise<Plan[]>;
   getPlan(tenantId: string, planId: string): Promise<Plan | null>;
@@ -147,6 +154,10 @@ export type MembershipRepo = LedgerRepo & {
   /** Null when the membership already has a row for that period start (the unique index). */
   insertPeriod(row: Omit<Period, 'id' | 'updated_at'>): Promise<Period | null>;
   getPeriodByStart(tenantId: string, membershipId: string, periodStart: string): Promise<Period | null>;
+  /** The month whose charge is this Grow payment (membership_periods.grow_payment_id), tenant-scoped. */
+  findPeriodByPayment(tenantId: string, paymentId: string): Promise<Period | null>;
+  /** reserved -> released for every hold on this month. Returns how many. */
+  releasePeriodReservations(tenantId: string, periodId: string): Promise<number>;
   /** Compare-and-set on status (and attempts when given). Null when the row moved meanwhile. */
   transitionPeriod(tenantId: string, periodId: string, from: PeriodStatus[], patch: Partial<Period>, expectAttempts?: number): Promise<Period | null>;
   listPeriods(tenantId: string, membershipIds: string[]): Promise<Period[]>;
@@ -279,12 +290,13 @@ export function membershipsReady(i: { flag: boolean; growUi: boolean; tokenFlows
 
 // ── enrollment ───────────────────────────────────────────────────────────────
 
-export type EnrollResult = { ok: true; membership: Membership } | { ok: false; code: 'no-plan' | 'no-client' | 'exists' | 'not-connected'; error: string; membership?: Membership };
+export type EnrollResult = { ok: true; membership: Membership } | { ok: false; code: 'no-plan' | 'no-client' | 'exists' | 'not-connected' | 'closed'; error: string; membership?: Membership };
 
 /** From the client card, "צירוף למנוי": an enrollment waiting for the client's own tick. Nothing is charged and nothing is sent. */
 export async function createEnrollment(d: MembershipDeps, i: { tenantId: string; clientId: string; planId: string }): Promise<EnrollResult> {
   const [plan, client, account] = await Promise.all([d.repo.getPlan(i.tenantId, i.planId), d.repo.getClient(i.tenantId, i.clientId), d.repo.getAccount(i.tenantId)]);
   if (!account || !account.enabled) return { ok: false, code: 'not-connected', error: 'כדי לצרף למנוי צריך שחיבור ה-Grow יהיה פעיל' };
+  if (!(await d.repo.tenantActive(i.tenantId))) return { ok: false, code: 'closed', error: BUSINESS_CLOSED_HE };
   if (!plan || !plan.active || plan.tenant_id !== i.tenantId) return { ok: false, code: 'no-plan', error: 'המנוי הזה לא נמצא או שהוא כבוי' };
   if (!client) return { ok: false, code: 'no-client', error: 'הלקוחה לא נמצאה' };
   const live = await d.repo.listMemberships(i.tenantId, { clientId: String(client.id), statuses: LIVE_STATUSES });
@@ -297,7 +309,7 @@ export async function createEnrollment(d: MembershipDeps, i: { tenantId: string;
   return { ok: true, membership };
 }
 
-export type StartResult = { ok: true; url: string } | { ok: false; code: 'gone' | 'consent' | 'changed' | 'not-connected' | 'step-failed'; error: string };
+export type StartResult = { ok: true; url: string } | { ok: false; code: 'gone' | 'consent' | 'changed' | 'not-connected' | 'step-failed' | 'closed'; error: string };
 
 /**
  * The client, on her link, ticked the consent and pressed "save the card". The words are compared with the ones this membership shows
@@ -312,6 +324,7 @@ export async function startCardPage(d: MembershipDeps, i: { linkId: string; agre
   if (String(i.consentText || '').trim() !== shown) return { ok: false, code: 'changed', error: 'התנאים בדף התעדכנו. רענני את הדף וקראי אותם שוב.' };
   const account = await d.repo.getAccount(m.tenant_id);
   if (!account || !account.enabled) return { ok: false, code: 'not-connected', error: 'ההצטרפות לא זמינה כרגע. אפשר לפנות לבעלת העסק.' };
+  if (!(await d.repo.tenantActive(m.tenant_id))) return { ok: false, code: 'closed', error: BUSINESS_CLOSED_HE };
   let cur = m;
   if (!m.consented_at) {
     const frozen = await d.repo.updateMembership(m.tenant_id, m.id, { consent_text: shown, consent_version: MEMBERSHIP_CONSENT_VERSION, consented_at: clock(d).toISOString(), status: 'awaiting_card' }, ['awaiting_consent']);
@@ -363,11 +376,14 @@ export async function saveMembershipCard(d: MembershipDeps, m: Membership, c: { 
 
 // ── the monthly charge ───────────────────────────────────────────────────────
 
+/** What the client reads on her link while her business is closed (its Kalmea subscription lapsed): neutral, no reason given. */
+export const BUSINESS_CLOSED_HE = 'המנוי אינו זמין כרגע, אפשר לפנות לעסק';
+
 export type ChargeOutcome =
   | { outcome: 'paid'; periodId: string; receiptId: string | null }
   | { outcome: 'failed'; periodId: string; retryOn: string | null; paused: boolean }
   | { outcome: 'unknown'; periodId: string }
-  | { outcome: 'skipped' | 'not-due' | 'in-progress' | 'already-paid' | 'not-connected' };
+  | { outcome: 'skipped' | 'not-due' | 'in-progress' | 'already-paid' | 'not-connected' | 'business-closed' };
 
 /** Opens a stored token. Null when it cannot be opened (sealed but no key): nothing is charged then. */
 function openCard(d: MembershipDeps, t: StoredToken): SavedCard | null {
@@ -392,6 +408,9 @@ export async function chargeMembership(d: MembershipDeps, m0: Membership): Promi
   const account = await d.repo.getAccount(m.tenant_id);
   // Grow switched off on her side: no attempt is made and none is counted. It is charged once Grow is back.
   if (!account || !account.enabled) return { outcome: 'not-connected' };
+  // Her Kalmea subscription lapsed: the system is closed, so nobody is charged. Nothing is written (no month, no attempt, no date
+  // moved): when she renews, billing resumes from the month that is due then, and the closed months are never charged.
+  if (!(await d.repo.tenantActive(m.tenant_id))) return { outcome: 'business-closed' };
 
   // THE CLAIM (Vercel review on PR #64): a run whose read is stale (a delayed cron, a second run, her retry tap) must never charge. The
   // lock is taken only if the row still says exactly what was read above, so a retry date moved by another run, a pause after a final
@@ -407,7 +426,13 @@ export async function chargeMembership(d: MembershipDeps, m0: Membership): Promi
 }
 
 async function chargeClaimed(d: MembershipDeps, m: Membership, account: { user_id: string }, today: string): Promise<ChargeOutcome> {
-  const start = m.next_charge_on as string;
+  let start = m.next_charge_on as string;
+  // Months that went by uncharged while nobody could charge (her business closed, or Grow switched off): only the month due NOW is
+  // charged, never the ones behind it. A month that already has a row (a failed one she asked to retry) keeps its date.
+  if (m.status === 'active' && nextPeriodStart(start, m.anchor_day) <= today && !(await d.repo.getPeriodByStart(m.tenant_id, m.id, start))) {
+    while (nextPeriodStart(start, m.anchor_day) <= today) start = nextPeriodStart(start, m.anchor_day);
+    await d.repo.updateMembership(m.tenant_id, m.id, { next_charge_on: start }, BILLING_STATUSES);
+  }
   const end = nextPeriodStart(start, m.anchor_day);
   let period = await d.repo.insertPeriod({
     tenant_id: m.tenant_id, membership_id: m.id, period_start: start, period_end: end, amount: m.plan.price, credits: m.plan.credits,
@@ -420,6 +445,11 @@ async function chargeClaimed(d: MembershipDeps, m: Membership, account: { user_i
       // Paid, but the membership was not moved on (cut off right after): move it on, never charge again.
       await d.repo.updateMembership(m.tenant_id, m.id, { status: 'active', next_charge_on: existing.period_end, next_retry_on: null, failed_attempts: 0 }, BILLING_STATUSES);
       return { outcome: 'already-paid' };
+    }
+    if (existing.status === 'refunded') {
+      // She gave this month back: it is never charged again. The membership moves on to the next month.
+      await d.repo.updateMembership(m.tenant_id, m.id, { next_charge_on: existing.period_end, next_retry_on: null, failed_attempts: 0 }, BILLING_STATUSES);
+      return { outcome: 'skipped' };
     }
     if (existing.status !== 'failed') return { outcome: 'in-progress' };
     period = await d.repo.transitionPeriod(m.tenant_id, existing.id, ['failed'], { status: 'charging', attempts: existing.attempts + 1, error: null }, existing.attempts);
@@ -580,7 +610,7 @@ export function creditsOf(m: Membership, periods: Period[], redemptions: Redempt
 /** Whether a treatment on the receipt is one this plan covers (no list = any treatment). */
 export const planCovers = (p: Pick<PlanFields, 'services'>, service: string) => !p.services.length || p.services.includes(String(service || '').trim());
 
-export type RedeemResult = { ok: true; redemption: Redemption; already: boolean; credits: Credits } | { ok: false; code: 'gone' | 'none-left' | 'not-covered' | 'busy'; error: string };
+export type RedeemResult = { ok: true; redemption: Redemption; already: boolean; credits: Credits } | { ok: false; code: 'gone' | 'none-left' | 'not-covered' | 'busy' | 'closed'; error: string };
 
 /**
  * The lowest credit number of a month (1..credits) that no live row holds (Vercel review on PR #64: "max + 1" left a released low number
@@ -599,6 +629,8 @@ export function freeSeq(reds: Redemption[], periodId: string, credits: number): 
  * cannot both take the last credit: the second insert is refused and reads again.
  */
 async function takeCredit(d: MembershipDeps, m: Membership, row: Pick<Redemption, 'status' | 'receipt_id' | 'grow_payment_id' | 'reserved_until' | 'service'>): Promise<RedeemResult> {
+  // A closed business takes no new credit at the till or for a link (a link already paid is still honoured: consumeReservation).
+  if (!(await d.repo.tenantActive(m.tenant_id))) return { ok: false, code: 'closed', error: BUSINESS_CLOSED_HE };
   const nowIso = clock(d).toISOString();
   const today = israelDay(clock(d));
   await d.repo.releaseExpiredReservations(nowIso, { tenantId: m.tenant_id, membershipId: m.id });
@@ -735,6 +767,25 @@ export async function settleReservations(d: MembershipDeps, skipTenant?: (tenant
   }
   out.released += await d.repo.releaseExpiredReservations(clock(d).toISOString());
   return out;
+}
+
+// ── a refunded month ─────────────────────────────────────────────────────────
+
+/**
+ * The Grow payment of a paid month was refunded (the till's refund on void, or the Grow card's refund: Vercel review on PR #64). The
+ * month becomes 'refunded': its unused credits are gone at the till, for a Grow link and on her page (creditsOf counts paid months
+ * only), the daily run never charges it again, and any credit held on it by an unpaid link is released. Credits already used stay
+ * used (history). Idempotent: a second call changes nothing.
+ */
+export async function onPaymentRefunded(d: MembershipDeps, i: { tenantId: string; paymentId: string }): Promise<'none' | 'refunded' | 'already'> {
+  const p = await d.repo.findPeriodByPayment(i.tenantId, i.paymentId);
+  if (!p) return 'none';
+  const moved = p.status === 'paid' ? await d.repo.transitionPeriod(i.tenantId, p.id, ['paid'], { status: 'refunded', error: 'refunded' }) : null;
+  await d.repo.releasePeriodReservations(i.tenantId, p.id);
+  if (!moved) return 'already';
+  const m = await d.repo.getMembership(i.tenantId, p.membership_id);
+  await tell(d, { tenantId: i.tenantId, title: 'מנוי: החודש הוחזר', body: `החיוב החודשי של ${m?.client_name || 'לקוחה'} הוחזר דרך Grow. הטיפולים שלא נוצלו בחודש הזה כבר לא זמינים לה.` });
+  return 'refunded';
 }
 
 // ── her actions and the client's ─────────────────────────────────────────────

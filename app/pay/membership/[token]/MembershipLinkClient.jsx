@@ -117,7 +117,7 @@ export default function MembershipLinkClient({ token }) {
                   <p style={{ fontSize: 13, color: '#656A56', marginTop: 10, lineHeight: 1.6, textAlign: 'center' }}>פרטי הכרטיס נכתבים רק בדף של Grow ולא נשמרים אצלנו.</p>
                 </>
               ) : (
-                <p style={{ fontSize: 16, lineHeight: 1.7, textAlign: 'center' }}>ההצטרפות לא זמינה כרגע. אפשר לפנות לבעלת העסק.</p>
+                <p data-testid="membership-unavailable" style={{ fontSize: 16, lineHeight: 1.7, textAlign: 'center' }}>{info.unavailableNote || 'ההצטרפות לא זמינה כרגע. אפשר לפנות לבעלת העסק.'}</p>
               )
             )}
 

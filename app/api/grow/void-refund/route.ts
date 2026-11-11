@@ -22,6 +22,7 @@ import { recordHiddenVoidRefund, refundStatesFor, supabaseRefundStatesRepo } fro
 import { moneyAlert } from '@/lib/moneyAlert.js';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { admin, caller, callerTenant, DEMO_NOTE } from '../_shared';
+import { membershipRefunded } from '../../memberships/_deps';
 
 export const maxDuration = 30;
 
@@ -62,6 +63,11 @@ export async function POST(request: Request) {
   try {
     const r = await refundVoidedGrowReceipt({ repo: supabaseVoidRefundRepo(db), ops, userId, alert: moneyAlert }, { tenantId: c.tenantId, receiptId });
     if (r.refunded) console.log('[grow] refunded on void: receipt', receiptId, 'tenant', c.tenantId);
+    // A client membership's month: its unused credits go with the money. Also on "already refunded", so a missed step is repaired (idempotent).
+    if (r.status === 'refunded' || r.status === 'already_refunded') {
+      const pay = await supabaseVoidRefundRepo(db).findPaymentByReceipt(c.tenantId, receiptId).catch(() => null);
+      if (pay) await membershipRefunded(c.tenantId, String(pay.id));
+    }
     return NextResponse.json({ success: r.refunded, ...r });
   } catch (e) {
     await moneyAlert('grow:void-refund', 'refund on void crashed', { tenantId: c.tenantId, receiptId, error: String((e as Error)?.message || e).slice(0, 160) }, { key: `${receiptId}:crash` });

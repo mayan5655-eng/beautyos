@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   sanitizePlan, consentTextHe, createEnrollment, startCardPage, onMembershipCardToken, saveMembershipCard, chargeMembership, runDueMemberships,
-  creditsOf, redeemCredit, reserveCredit, attachReservation, consumeReservation, releaseReservation, freeSeq, ownerAction, clientCancel, clientCancelFrom, dashboardOf, membershipsReady, nextPeriodStart, addDays, israelDay,
+  BUSINESS_CLOSED_HE, onPaymentRefunded, creditsOf, redeemCredit, reserveCredit, attachReservation, consumeReservation, releaseReservation, freeSeq, ownerAction, clientCancel, clientCancelFrom, dashboardOf, membershipsReady, nextPeriodStart, addDays, israelDay,
   membershipRef, isMembershipRef, planLineHe, MAX_ATTEMPTS, MEMBERSHIP_CONSENT_VERSION, STATUS_HE,
 } from './lib/memberships.ts';
 import type { Membership, MembershipDeps, MembershipRepo, Period, Plan, PlanFields, Redemption, StoredToken } from './lib/memberships.ts';
@@ -50,6 +50,8 @@ function makeWorld() {
     { tenant_id: T2, id: 'c-9', name: 'נועה', phone: '0531234567' },
   ];
   const plans: Plan[] = [];
+  /** Businesses whose Kalmea subscription lapsed (expired / paused). */
+  const closed = new Set<string>();
   const memberships: Membership[] = [];
   const periods: Period[] = [];
   const redemptions: Redemption[] = [];
@@ -60,6 +62,7 @@ function makeWorld() {
   const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
   const repo: MembershipRepo = {
     async getAccount(t) { return accounts.get(t) || null; },
+    async tenantActive(t) { return !closed.has(t); },
     async businessName(t) { return t === T1 ? 'סטודיו דנה' : 'העסק של נועה'; },
     async listPlans(t) { return plans.filter((p) => p.tenant_id === t).map(clone); },
     async getPlan(t, pid) { const p = plans.find((x) => x.id === pid && x.tenant_id === t); return p ? clone(p) : null; },
@@ -87,6 +90,8 @@ function makeWorld() {
       if (periods.some((p) => p.membership_id === row.membership_id && p.period_start === row.period_start)) return null;
       const p = { ...clone(row), id: uuid(), updated_at: new Date(now()).toISOString() } as Period; periods.push(p); return clone(p);
     },
+    async findPeriodByPayment(t, pid) { const p = periods.filter((x) => x.tenant_id === t && x.grow_payment_id === pid); return p.length === 1 ? clone(p[0]) : null; },
+    async releasePeriodReservations(t, pid) { let k = 0; for (const r of redemptions) if (r.tenant_id === t && r.period_id === pid && r.status === 'reserved') { r.status = 'released'; k++; } return k; },
     async getPeriodByStart(t, mid, start) { const p = periods.find((x) => x.tenant_id === t && x.membership_id === mid && x.period_start === start); return p ? clone(p) : null; },
     async transitionPeriod(t, pid, from, patch, expect) {
       const p = periods.find((x) => x.id === pid && x.tenant_id === t);
@@ -159,7 +164,7 @@ function makeWorld() {
     };
   };
   return {
-    repo, grow, accounts, clients, plans, memberships, periods, redemptions, tokens, ledger, payments, receipts, notices, sealed, deps,
+    repo, grow, accounts, clients, closed, plans, memberships, periods, redemptions, tokens, ledger, payments, receipts, notices, sealed, deps,
     setDay: (ymd: string) => { clockMs = Date.parse(`${ymd}T08:00:00Z`); },
     advanceMs: (ms: number) => { clockMs += ms; },
   };
@@ -778,6 +783,91 @@ await ok('credit numbers: a released low number is used again while a higher one
   assert.equal(live.length, 2); assert.ok(live.every((r) => r.seq >= 1 && r.seq <= 2));
   assert.equal(freeSeq([{ id: 'x', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 2, receipt_id: 'a', service: null, status: 'used' }, { id: 'y', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 1, receipt_id: null, service: null, status: 'released' }], 'p', 2), 1);
   assert.equal(freeSeq([{ id: 'x', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 1, receipt_id: 'a', service: null, status: 'used' }, { id: 'z', tenant_id: T1, membership_id: m.id, period_id: 'p', client_id: C1, seq: 2, receipt_id: null, service: null, status: 'reserved' }], 'p', 2), null);
+});
+
+// ── her Kalmea subscription lapsed: the system is closed ────────────────────
+await ok('a lapsed business: its members are not charged (nothing written), and on renewal only the month due then is charged', async () => {
+  const w = makeWorld(); const d = w.deps(mockOps());
+  const m = await activeMember(w, d);
+  await chargeMembership(d, m); // November paid
+  w.closed.add(T1);
+  const before = JSON.stringify(await w.repo.getMembership(T1, m.id));
+  for (const day of ['2026-12-11', '2026-12-12', '2027-01-11']) {
+    w.setDay(day);
+    const s = await runDueMemberships(d);
+    assert.equal(s.paid + s.failed, 0, day);
+  }
+  assert.equal(w.ledger.length, 1); assert.equal(w.periods.length, 1); assert.equal(w.payments.length, 1);
+  assert.equal(JSON.stringify(await w.repo.getMembership(T1, m.id)), before, 'no status, date or attempt changed');
+  assert.equal((await chargeMembership(d, m)).outcome, 'business-closed');
+  // she renews on 20 January: January (from the 11th) is charged once; December is never back-charged
+  w.closed.delete(T1); w.setDay('2027-01-20');
+  const s = await runDueMemberships(d); await runDueMemberships(d);
+  assert.equal(s.paid, 1); assert.equal(w.periods.length, 2);
+  assert.equal(w.periods[1].period_start, '2027-01-11'); assert.equal(w.periods[1].period_end, '2027-02-11');
+  assert.equal((await w.repo.getMembership(T1, m.id))!.next_charge_on, '2027-02-11');
+  const run = read('lib/membershipsRepo.ts');
+  assert.match(run, /return !planState\(data as TenantPlanRow\)\.isBlocked;/, 'the same rule and fail-open as is_tenant_active()');
+});
+
+await ok('a lapsed business: no enrollment, no card step on the link (neutral words), no credit at the till or for a link; the client can still cancel', async () => {
+  const w = makeWorld(); const d = w.deps(mockOps());
+  const m = await activeMember(w, d);
+  await chargeMembership(d, m);
+  const plan = (await w.repo.listPlans(T1))[0];
+  const waiting = ((await createEnrollment(d, { tenantId: T1, clientId: C2, planId: plan.id })) as { membership: Membership }).membership;
+  w.closed.add(T1);
+  const e = await createEnrollment(d, { tenantId: T1, clientId: 'c-none', planId: plan.id });
+  assert.equal((e as { code: string }).code, 'closed');
+  const st = await startCardPage(d, { linkId: waiting.link_id, agree: true, consentText: consentTextHe(waiting.plan, 'סטודיו דנה'), returnUrl: 'https://k' });
+  assert.equal((st as { code: string }).code, 'closed'); assert.equal((st as { error: string }).error, BUSINESS_CLOSED_HE);
+  assert.equal(BUSINESS_CLOSED_HE, 'המנוי אינו זמין כרגע, אפשר לפנות לעסק');
+  assert.equal((await redeemCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, receiptId: 'cash-1', service: 'מניקור' }) as { code: string }).code, 'closed');
+  assert.equal((await reserveCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, service: 'מניקור' }) as { code: string }).code, 'closed');
+  assert.ok((await clientCancel(d, { linkId: m.link_id })).ok, 'cancel keeps working');
+  // the routes: the owner side is plan-guarded before anything is read; the client link is not
+  const owner = read('app/api/memberships/route.ts');
+  for (const verb of ['GET', 'POST']) {
+    const body = owner.slice(owner.indexOf(`export async function ${verb}`));
+    const g = body.indexOf('requireActiveTenant(c.session)');
+    assert.ok(g > 0 && g < body.indexOf('membershipDeps()') && g < body.indexOf('readyFor('), `${verb}: plan guard first`);
+    assert.match(body.slice(g, g + 120), /if \(!guard\.ok\) return guard\.response;/);
+  }
+  const link = read('app/api/memberships/link/route.ts');
+  assert.ok(!link.includes('requireActiveTenant'), 'the client\'s link is never plan-guarded as a whole (her cancel must work)');
+  assert.match(link, /canStart: waiting && ready\.ready && open,/);
+  assert.match(link, /BUSINESS_CLOSED_HE/);
+});
+
+// ── a refunded month ─────────────────────────────────────────────────────────
+await ok('a refunded month loses its credits (till and Grow link), its holds are released, it is never charged again; a second call is a no-op', async () => {
+  const w = makeWorld(); const d = w.deps(mockOps());
+  const m = await activeMember(w, d, { plan: { credits: 3 } as Partial<Plan> });
+  await chargeMembership(d, m);
+  assert.ok((await redeemCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, receiptId: 'cash-1', service: 'מניקור' })).ok);
+  const held = await heldLink(w, d, m);
+  assert.ok(held.r.ok);
+  const payId = String(w.periods[0].grow_payment_id);
+  const n0 = w.notices.length;
+  assert.equal(await onPaymentRefunded(d, { tenantId: T1, paymentId: payId }), 'refunded');
+  assert.equal(w.periods[0].status, 'refunded');
+  assert.equal(w.redemptions.find((r) => r.receipt_id === 'cash-1')!.status, 'used', 'a used credit stays used (history)');
+  assert.equal(w.redemptions.find((r) => r.grow_payment_id === held.pay!.id)!.status, 'released', 'the unpaid hold on it is released');
+  assert.equal((await redeemCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, receiptId: 'cash-2', service: 'מניקור' }) as { code: string }).code, 'none-left');
+  assert.equal((await reserveCredit(d, { tenantId: T1, membershipId: m.id, clientId: C1, service: 'מניקור' }) as { code: string }).code, 'none-left');
+  assert.equal(creditsOf((await w.repo.getMembership(T1, m.id))!, w.periods, w.redemptions, '2026-11-12').available, 0, 'her page shows none');
+  assert.equal(await onPaymentRefunded(d, { tenantId: T1, paymentId: payId }), 'already');
+  assert.equal(w.notices.length - n0, 1, 'she is told once');
+  assert.equal(await onPaymentRefunded(d, { tenantId: T1, paymentId: 'not-a-membership' }), 'none');
+  // the daily run never charges a refunded month again, even when the membership still points at it
+  await w.repo.updateMembership(T1, m.id, { next_charge_on: '2026-11-11' });
+  const before = w.ledger.length;
+  assert.equal((await chargeMembership(d, m)).outcome, 'skipped');
+  assert.equal(w.ledger.length, before); assert.equal((await w.repo.getMembership(T1, m.id))!.next_charge_on, '2026-12-11');
+  // wiring: both refund paths tell memberships
+  assert.match(read('app/api/grow/refund/route.ts'), /await membershipRefunded\(c\.tenantId, String\(p\.id\)\);/);
+  assert.match(read('app/api/grow/void-refund/route.ts'), /r\.status === 'refunded' \|\| r\.status === 'already_refunded'/);
+  assert.match(read('supabase/migrations/add_client_memberships_2026-11-11.sql'), /check \(status in \('charging', 'paid', 'failed', 'unknown', 'refunded'\)\)/);
 });
 
 // ── nothing is ever sent to a client ────────────────────────────────────────
