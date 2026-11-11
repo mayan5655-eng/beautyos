@@ -38,8 +38,24 @@ export type GoogleKitDeps = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 /** Treatment names only, from loadBusinessProfile's "name (₪price, duration)" lines. Prices are not needed on Google. */
+// Service names are tenant-written text. Every step below is linear and bounded, so a huge or whitespace-heavy
+// name cannot burn server CPU before the prompt caps and the AI allowance run.
+const MAX_SERVICES = 60;
+const MAX_SERVICE_LINE = 200;
+const MAX_SERVICE_NAME = 80;
+
 export function serviceNamesOf(profile: BusinessProfile): string[] {
-  return (profile.services || []).map((s) => String(s).replace(/\s*\([^)]*\)\s*$/, '').trim()).filter(Boolean);
+  const out: string[] = [];
+  for (const s of (profile.services || []).slice(0, MAX_SERVICES)) {
+    let t = String(s ?? '').slice(0, MAX_SERVICE_LINE).trimEnd();
+    if (t.endsWith(')')) {
+      const open = t.lastIndexOf('(');
+      if (open >= 0 && !t.slice(open + 1, -1).includes(')')) t = t.slice(0, open);
+    }
+    t = t.split(/\s+/).filter(Boolean).join(' ').slice(0, MAX_SERVICE_NAME).trim();
+    if (t) out.push(t);
+  }
+  return out;
 }
 
 export function kitInputFrom(profile: BusinessProfile, body: { years?: unknown; city?: unknown }): KitInput {

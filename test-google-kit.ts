@@ -282,6 +282,16 @@ await ok('route: ads kind, refusals (logged out, bad kind, no treatments, plan b
   assert.match((await rc.json()).error, /הכתיבות לגוגל/);
 });
 
+await ok('service names: bounded linear parsing, no regex blowup on whitespace runs', () => {
+  const evil = 'א' + ' '.repeat(200000) + 'ב';
+  const t0 = Date.now();
+  const names = serviceNamesOf({ services: [evil, evil + ' (₪100, 60 דק׳)'] } as any);
+  assert.ok(Date.now() - t0 < 200, 'fast');
+  assert.ok(names.every((n) => n.length <= 80), 'capped');
+  assert.deepEqual(serviceNamesOf({ services: ['פנים  מלא (₪250, 60 דק׳)', 'לק', '  ', 'גבות (עיצוב) (₪80, 20 דק׳)'] } as any), ['פנים מלא', 'לק', 'גבות (עיצוב)']);
+  assert.equal(serviceNamesOf({ services: Array.from({ length: 500 }, (_, i) => 's' + i) } as any).length, 60);
+});
+
 await ok('quota and rate limits are registered', () => {
   assert.ok(MONTHLY_CALL_CAPS[GOOGLE_KIT_CALL_SITE] > 0 && MONTHLY_CALL_CAPS[GOOGLE_KIT_CALL_SITE] <= 100);
   assert.ok(RATE_POLICIES['google-kit'].perTenant.limit >= 5);
