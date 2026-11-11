@@ -34,6 +34,9 @@
 //                share is a popup, not a frame. One opt-in exception: Grow's
 //                registration form inside the Grow card, ONLY when
 //                GROW_REGISTER_FRAME_ORIGIN names one Grow host (growRegisterFrameOrigin).
+//                Second opt-in exception: the Academy's lesson video (lib/academy.ts parseVideoUrl), ONLY on /dashboard/academy
+//                (next.config.ts passes `academy`) and ONLY while NEXT_PUBLIC_ACADEMY is on: exactly two origins,
+//                www.youtube-nocookie.com and player.vimeo.com. Off, the CSP never names a video host.
 //   frame-ancestors 'none': the point. Also sent as X-Frame-Options DENY for
 //                the browsers that still read it.
 //
@@ -41,6 +44,7 @@
 // the directive, so a future addition that breaks is loud, not silent.
 
 import { metaPixelId, META_PIXEL_SCRIPT_ORIGIN, META_PIXEL_BEACON_ORIGIN } from './metaPixel.ts';
+import { academyEnabled, ACADEMY_FRAME_ORIGINS } from './academy.ts';
 
 export type HeaderPair = { key: string; value: string };
 
@@ -75,7 +79,7 @@ export function growRegisterFrameOrigin(env: Record<string, string | undefined> 
   return /^https:\/\/([a-z0-9-]+\.)+(meshulam\.co\.il|grow\.business|grow\.link)$/.test(v) ? v : null;
 }
 
-export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean; pixel?: boolean } = {}): string {
+export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean; pixel?: boolean; academy?: boolean } = {}): string {
   const dev = !!opts.dev;
   const env = opts.env || process.env;
   const supabase = supabaseOrigin(env);
@@ -131,13 +135,17 @@ export function buildCsp(opts: { dev?: boolean; env?: Record<string, string | un
     directives['connect-src'].push(META_PIXEL_BEACON_ORIGIN, META_PIXEL_SCRIPT_ORIGIN);
     directives['img-src'].push(META_PIXEL_BEACON_ORIGIN);
   }
+  // Kalmea Academy lesson videos: the two embed origins parseVideoUrl ever produces, on the Academy pages, while the flag is on.
+  if (opts.academy && academyEnabled(env)) {
+    directives['frame-src'] = [...directives['frame-src'].filter((v) => v !== "'none'"), ...ACADEMY_FRAME_ORIGINS];
+  }
   const parts = Object.entries(directives).map(([k, v]) => `${k} ${v.join(' ')}`);
   if (!dev) parts.push('upgrade-insecure-requests');
   return parts.join('; ');
 }
 
 /** Every header, for next.config.ts's headers(). */
-export function securityHeaders(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean; pixel?: boolean } = {}): HeaderPair[] {
+export function securityHeaders(opts: { dev?: boolean; env?: Record<string, string | undefined>; grow?: boolean; pixel?: boolean; academy?: boolean } = {}): HeaderPair[] {
   const dev = !!opts.dev;
   const headers: HeaderPair[] = [
     { key: 'Content-Security-Policy', value: buildCsp(opts) },
