@@ -13,7 +13,7 @@
 // Hidden behind NEXT_PUBLIC_GOOGLE_KIT: off (empty) renders nothing at all.
 //
 // Props:
-//   settings     her settings row (automations, branding, review_url, hours, whatsapp, business_fields)
+//   settings     her settings row (automations, branding, review_url, hours, business_phone, business_fields)
 //   bookingUrl   her booking link, untagged (her short address when she has one)
 //   serviceNames her active treatment names
 //   onSaveTicks(next) -> Promise<boolean>   saves automations.google_kit; false = not saved (the tick goes back)
@@ -22,7 +22,7 @@
 import { useMemo, useState } from 'react';
 import {
   googleKitEnabled, googleLink, suggestCategories, categoriesText, hoursLinesHe, CHECKLIST, checklistState, withTick,
-  scoreLineHe, phoneForGoogle, LIMITS, ADS_BUDGET_HE,
+  scoreLineHe, googlePhoneOf, LIMITS, ADS_BUDGET_HE,
 } from '@/lib/googleKit';
 import { parseClinicAddress } from '@/lib/ai/profileHygiene';
 
@@ -62,7 +62,7 @@ export default function GoogleKitCard({ settings, bookingUrl, serviceNames = [],
   const state = useMemo(() => checklistState({ automations, branding, reviewUrl: s.review_url }), [automations, branding, s.review_url]);
   const cats = useMemo(() => suggestCategories(s.business_fields, serviceNames), [s.business_fields, serviceNames]);
   const hours = useMemo(() => hoursLinesHe(s), [s]);
-  const phone = phoneForGoogle(branding.whatsapp_number || s.whatsapp_number || s.phone);
+  const phone = googlePhoneOf(s);
   const gbpLink = googleLink(bookingUrl, 'gbp');
   const cpcLink = googleLink(bookingUrl, 'cpc');
   const savedCity = parseClinicAddress(branding.public_address)?.city || '';

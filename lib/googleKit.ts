@@ -312,6 +312,16 @@ export function phoneForGoogle(raw: unknown): string {
   return displayPhone(String(raw || '')) || '';
 }
 
+/**
+ * The number to put on Google: the same one her public booking page links to (lib/publicContact.ts publicWhatsapp):
+ * branding.whatsapp_number, else settings.business_phone. Repeated here rather than imported because publicContact.ts
+ * pulls server-only signing code into the browser bundle; test-google-kit.ts checks the two agree.
+ */
+export function googlePhoneOf(settings: { business_phone?: unknown; branding?: unknown } | null | undefined): string {
+  const b = (settings?.branding && typeof settings.branding === 'object' ? settings.branding : {}) as { whatsapp_number?: unknown };
+  return phoneForGoogle(String(b.whatsapp_number || '').trim() || settings?.business_phone || '');
+}
+
 // ── AI prompts ───────────────────────────────────────────────────────────────
 
 export type KitInput = {

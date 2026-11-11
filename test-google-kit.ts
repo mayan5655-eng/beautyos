@@ -6,11 +6,12 @@ import { readFileSync } from 'node:fs';
 import {
   googleKitEnabled, googleLink, suggestCategories, isNailsOnly, categoriesText, hoursLinesHe, CHECKLIST, checklistState,
   kitTicks, withTick, cleanForPrompt, cleanYears, buildProfilePrompt, buildAdsPrompt, parseProfileKit, parseAdsKit, LIMITS,
-  GOOGLE_KIT_CALL_SITE, GOOGLE_KIT_KEY, phoneForGoogle, scoreLineHe, ADS_BUDGET_HE,
+  GOOGLE_KIT_CALL_SITE, GOOGLE_KIT_KEY, phoneForGoogle, googlePhoneOf, scoreLineHe, ADS_BUDGET_HE,
 } from './lib/googleKit.ts';
 import { handleGoogleKit, kitInputFrom, serviceNamesOf } from './lib/ai/googleKitAI.ts';
 import { readSourceParams } from './lib/bookingSource.ts';
-import { localBusinessJsonLd, aggregateRatingOf, priceRangeOf, PUBLIC_REVIEWS_LIMIT } from './lib/localBusinessJsonLd.ts';
+import { publicWhatsapp, waDigits } from './lib/publicContact.ts';
+import { localBusinessJsonLd, priceRangeOf } from './lib/localBusinessJsonLd.ts';
 import { MODELS } from './lib/ai/models.ts';
 import { MONTHLY_CALL_CAPS, AiCapExceededError } from './lib/ai/callCaps.ts';
 import { RATE_POLICIES } from './lib/rateLimit.ts';
@@ -122,6 +123,14 @@ await ok('hours and phone to copy: only what she entered, never invented', () =>
     ['ראשון: 09:00 עד 18:30', 'שישי: 08:00 עד 13:00']);
   assert.equal(phoneForGoogle('0501234567'), '050-123-4567');
   assert.equal(phoneForGoogle(''), '');
+  // The same number her public page links to: branding.whatsapp_number, else the standard business_phone.
+  assert.equal(googlePhoneOf({ business_phone: '0521112222' }), '052-111-2222', 'only business_phone saved');
+  assert.equal(googlePhoneOf({ business_phone: '0521112222', branding: { whatsapp_number: '050-123-4567' } }), '050-123-4567');
+  assert.equal(googlePhoneOf({ branding: { whatsapp_number: '  ' }, business_phone: '0521112222' }), '052-111-2222');
+  assert.equal(googlePhoneOf(null), '');
+  for (const row of [{ business_phone: '0521112222' }, { business_phone: '0521112222', branding: { whatsapp_number: '0501234567' } }]) {
+    assert.equal(waDigits(googlePhoneOf(row)), publicWhatsapp(row), 'agrees with lib/publicContact.ts');
+  }
 });
 
 // ── prompts ──────────────────────────────────────────────────────────────────
@@ -335,7 +344,6 @@ await ok('JSON-LD: full local business shape from what she entered', () => {
       business_hours: { 0: { open: 9, close: 18 }, 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
     } as any,
     services: [{ name: 'מניקור', price: 120 }, { name: 'לק ג׳ל', price: 150 }],
-    reviews: [{ rating: 5 }, { rating: 4 }, { rating: null }],
     url: 'https://kalmea.app/ronit',
   })!;
   assert.equal(ld['@type'], 'NailSalon', 'nails by treatment when no field is chosen');
@@ -345,17 +353,14 @@ await ok('JSON-LD: full local business shape from what she entered', () => {
   assert.equal(ld.hasMap, 'https://maps.app.goo.gl/abc');
   assert.deepEqual(ld.sameAs, ['https://www.instagram.com/ronit.nails', 'https://www.tiktok.com/@ronit', 'https://ronit.co.il/', 'https://maps.app.goo.gl/abc']);
   assert.equal((ld.openingHoursSpecification as any[]).length, 1);
-  assert.deepEqual(ld.aggregateRating, { '@type': 'AggregateRating', ratingValue: 4.5, reviewCount: 2, bestRating: 5, worstRating: 1 });
+  assert.equal(ld.aggregateRating, undefined, 'never a self-served rating, even with a Google rating typed in');
   assert.equal(ld.geo, undefined, 'no coordinates are stored, none are invented');
 });
 
-await ok('JSON-LD: no rating from a typed Google rating, none from a list that may be cut, none from nothing', () => {
+await ok('JSON-LD: never an aggregateRating; price range and half-typed addresses', () => {
   const base = { brand: { businessName: 'דנה' }, services: [], url: 'https://kalmea.app/d' };
   assert.equal(localBusinessJsonLd({ ...base, settings: { branding: { google_rating: '4.9', google_reviews_count: '120' } } as any })!.aggregateRating, undefined);
-  assert.equal(aggregateRatingOf(Array.from({ length: PUBLIC_REVIEWS_LIMIT }, () => ({ rating: 5 }))), null);
-  assert.equal(aggregateRatingOf([]), null);
-  assert.equal(aggregateRatingOf(null), null);
-  assert.equal(aggregateRatingOf([{ rating: 0 }, { rating: 7 }]), null);
+  assert.ok(!/aggregateRating\s*=|AggregateRating/.test(rd('lib/localBusinessJsonLd.ts').replace(/\/\/.*$/gm, '')), 'the rule stays: no rating in her schema.org data');
   assert.equal(priceRangeOf([{ price: 80 }]), '₪80');
   assert.equal(priceRangeOf([{ price: '' }]), null);
   // A half-typed address stays one line; a non-Google "place" link is not a map.

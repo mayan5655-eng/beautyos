@@ -12,12 +12,10 @@
 // No geo: Kalmea stores no coordinates, and invented ones would pin her on the
 // wrong street. Google geocodes the address itself.
 //
-// aggregateRating comes ONLY from reviews her clients wrote after a real visit
-// (get_public_reviews, the same rows the page shows), never from the Google
-// rating or the reviews she typed by hand: those are not ours to assert. It is
-// left out when the list may be cut (get_public_reviews returns at most 50), so
-// the count is never wrong. Google does not show stars for a business's own
-// page, so this is for completeness and other readers, not a ranking trick.
+// No aggregateRating: Google ignores ratings a business publishes about itself
+// on its own page (self-served LocalBusiness reviews are ineligible), it can
+// read as self-promotion, and a rating she typed by hand is not ours to assert.
+// The page's own review rows are not passed in here for that reason.
 
 import { normalizeBusinessHours, type HoursSettings } from './businessHours.ts';
 import { hasRealHours, fmtHour, instagramHandle, facebookHref, googleInfo } from './publicLanding.ts';
@@ -40,10 +38,6 @@ type Brand = {
 };
 
 type Service = { name?: string; price?: number | string | null; duration?: number | null; description?: string | null };
-type PublicReview = { rating?: number | string | null };
-
-/** get_public_reviews returns at most this many rows; a list this long may be cut, so no count is claimed from it. */
-export const PUBLIC_REVIEWS_LIMIT = 50;
 
 /** "@handle" or a tiktok.com link -> the profile URL; anything else -> null. */
 function tiktokHref(raw: string | undefined): string | null {
@@ -72,15 +66,6 @@ export function priceRangeOf(services: Service[] | null | undefined): string | n
   return min === max ? `₪${min}` : `₪${min}-₪${max}`;
 }
 
-/** Average and count of the real, published client reviews; null when there are none or the list may be cut. */
-export function aggregateRatingOf(reviews: PublicReview[] | null | undefined): Record<string, unknown> | null {
-  if (!Array.isArray(reviews) || reviews.length >= PUBLIC_REVIEWS_LIMIT) return null;
-  const ratings = reviews.map((r) => Number(r?.rating)).filter((n) => Number.isFinite(n) && n >= 1 && n <= 5);
-  if (!ratings.length) return null;
-  const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-  return { '@type': 'AggregateRating', ratingValue: Math.round(avg * 10) / 10, reviewCount: ratings.length, bestRating: 5, worstRating: 1 };
-}
-
 /** "0501234567" / "+972 50-123-4567" -> "+972501234567"; anything else -> null. */
 function intlPhone(raw: string | undefined): string | null {
   const d = String(raw || '').replace(/\D/g, '');
@@ -93,7 +78,6 @@ export function localBusinessJsonLd(opts: {
   brand: Brand;
   settings: (HoursSettings & { business_fields?: unknown; branding?: unknown }) | null | undefined;
   services: Service[] | null | undefined;
-  reviews?: PublicReview[] | null;
   url: string;
   image?: string;
   fallbackName?: string;
@@ -169,9 +153,6 @@ export function localBusinessJsonLd(opts: {
       return offer;
     });
   if (offers.length) out.makesOffer = offers;
-
-  const rating = aggregateRatingOf(opts.reviews);
-  if (rating) out.aggregateRating = rating;
 
   return out;
 }
