@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import { securityHeaders } from "./lib/securityHeaders";
+import { academyEnabled } from "./lib/academy";
 import { metaPixelId, META_PIXEL_PATHS } from "./lib/metaPixel";
 
 // Tenant photos live in Supabase storage and are served by the optimizer, so the
@@ -70,6 +71,11 @@ const nextConfig: NextConfig = {
       // (lib/metaPixel.ts). Never the app, never a business's public pages.
       ...(metaPixelId()
         ? META_PIXEL_PATHS.map((source) => ({ source, headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", pixel: true }) }))
+        : []),
+      // Kalmea Academy (lib/academy.ts): the lesson pages may frame YouTube (nocookie) and Vimeo players, nothing else, and only
+      // while NEXT_PUBLIC_ACADEMY is on. Off, this rule does not exist and the Academy pages answer 404 anyway.
+      ...(academyEnabled()
+        ? [{ source: "/dashboard/academy/:path*", headers: securityHeaders({ dev: process.env.NODE_ENV !== "production", academy: true }) }]
         : []),
       // Apple Pay domain verification (Grow wallet): the file has no extension, so it was served as application/octet-stream and a
       // browser downloaded it. Apple and Grow want it readable as text at this exact path.

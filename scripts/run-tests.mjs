@@ -62,6 +62,9 @@ const FAKE_ENV = {
   NEXT_PUBLIC_IMPORT_TOOL: '',
   // Client memberships (lib/memberships.ts): off, whatever the deployment builds with. test-client-memberships.ts sets it itself.
   NEXT_PUBLIC_CLIENT_MEMBERSHIPS: '',
+  // Kalmea Academy (lib/academy.ts): off, whatever the deployment builds with. test-academy.ts sets it itself. Premium never live in tests.
+  NEXT_PUBLIC_ACADEMY: '',
+  ACADEMY_PREMIUM_LIVE: '',
   // Kalmea's own Meta Pixel (lib/metaPixel.ts): off, so no test ever sees a pixel unless it sets the id itself.
   NEXT_PUBLIC_META_PIXEL_ID: '',
   WA_CLOUD_ENABLED: '',

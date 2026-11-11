@@ -120,6 +120,9 @@ const ClientPrivacyPanel = dynamic(() => import("./ClientPrivacyPanel"), { ssr: 
 const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 // "מעבר מתוכנה אחרת": a CSV / Excel export from any system. Renders nothing unless NEXT_PUBLIC_IMPORT_TOOL is on.
 const ImportFromSystem = dynamic(() => import("./ImportFromSystem"), { ssr: false });
+// Kalmea Academy: renders nothing unless NEXT_PUBLIC_ACADEMY is on and she can open a course (app/AcademyNavEntry.jsx).
+const AcademyNavEntry = dynamic(() => import("./AcademyNavEntry"), { ssr: false });
+const ACADEMY_ON = academyEnabled();
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
 const WaAutoMessagesSetting = dynamic(() => import("./WaAutoMessagesSetting"), { ssr: false });
 const RebookSetting = dynamic(() => import("./RebookSetting"), { ssr: false });
@@ -794,6 +797,7 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 // skintype: the table has both, and the rest of the app writes camelCase.
 import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, withServiceDefaults, countExistingServices, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
 import { vcardImportText, isVcardFile, VCARD_ACCEPT } from "@/lib/vcard";
+import { academyEnabled } from "@/lib/academy";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -9193,6 +9197,7 @@ ${MARKETING_FOOTER}`)}`;
  <span className="nav-ico"><svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4L5.3 5.3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg></span>
  <span style={{flex:1}}>הגדרות</span>
  </button>
+ {ACADEMY_ON&&!tillOnly&&<AcademyNavEntry variant="nav" onOpen={()=>{setShowMobileSidebar(false);router.push("/dashboard/academy");}}/>}
           {/* The two header icons that do not fit on a phone. Inline display
               none + .mobile-only{display:flex!important} is this file's
               established pattern - the inline value has to be the DESKTOP one,
@@ -12836,6 +12841,7 @@ ${MARKETING_FOOTER}`)}`;
  <span aria-hidden style={{fontSize:20,lineHeight:1}}>⌕</span>
  <span style={{fontSize:"var(--t-sm)",fontWeight:600}}>חיפוש</span>
  </button>
+              {ACADEMY_ON&&!tillOnly&&<AcademyNavEntry variant="more" onOpen={()=>{setShowMoreSheet(false);router.push("/dashboard/academy");}}/>}
               {ownerEntry}
  </div>
  </div>
