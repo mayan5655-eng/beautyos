@@ -17,7 +17,7 @@ const snap = (raw: unknown): PlanSnapshot => {
 const plan = (r: Record<string, unknown>): Plan => ({ ...(r as unknown as Plan), price: Number(r.price), credits: Number(r.credits), min_months: Number(r.min_months) || 0, rollover: r.rollover === true, services: Array.isArray(r.services) ? (r.services as unknown[]).map(String) : [], active: r.active !== false });
 const mem = (r: Record<string, unknown>): Membership => ({ ...(r as unknown as Membership), plan: snap(r.plan), failed_attempts: Number(r.failed_attempts) || 0, anchor_day: r.anchor_day == null ? null : Number(r.anchor_day) });
 const per = (r: Record<string, unknown>): Period => ({ ...(r as unknown as Period), amount: Number(r.amount), credits: Number(r.credits), attempts: Number(r.attempts) || 0 });
-const red = (r: Record<string, unknown>): Redemption => ({ ...(r as unknown as Redemption), seq: Number(r.seq) });
+const red = (r: Record<string, unknown>): Redemption => ({ ...(r as unknown as Redemption), seq: Number(r.seq), status: (r.status as Redemption['status']) || 'used' });
 
 export function supabaseMembershipRepo(db: SupabaseClient): MembershipRepo {
   return {
@@ -150,6 +150,44 @@ export function supabaseMembershipRepo(db: SupabaseClient): MembershipRepo {
       const { data, error } = await db.from('membership_redemptions').select('*').eq('tenant_id', tenantId).eq('receipt_id', receiptId).maybeSingle();
       if (error) fail(error, 'findRedemptionByReceipt');
       return data ? red(data as Record<string, unknown>) : null;
+    },
+    async findRedemptionByPayment(tenantId, paymentId) {
+      const { data, error } = await db.from('membership_redemptions').select('*').eq('tenant_id', tenantId).eq('grow_payment_id', paymentId).maybeSingle();
+      if (error) fail(error, 'findRedemptionByPayment');
+      return data ? red(data as Record<string, unknown>) : null;
+    },
+    async updateRedemption(tenantId, redemptionId, from, patch) {
+      const { data, error } = await db.from('membership_redemptions').update(patch).eq('tenant_id', tenantId).eq('id', redemptionId).in('status', from).select('*');
+      if (error) { if (error.code === '23505') return null; fail(error, 'updateRedemption'); }
+      return data && data[0] ? red(data[0] as Record<string, unknown>) : null;
+    },
+    async releaseExpiredReservations(nowIso, scope) {
+      let q = db.from('membership_redemptions').update({ status: 'released' }).eq('status', 'reserved').lt('reserved_until', nowIso);
+      if (scope) q = q.eq('tenant_id', scope.tenantId).eq('membership_id', scope.membershipId);
+      const { data, error } = await q.select('id');
+      if (error) fail(error, 'releaseExpiredReservations');
+      return (data || []).length;
+    },
+    async listOpenReservations() {
+      const { data, error } = await db.from('membership_redemptions').select('*').eq('status', 'reserved').not('grow_payment_id', 'is', null).limit(1000);
+      if (error) fail(error, 'listOpenReservations');
+      return (data || []).map((r) => red(r as Record<string, unknown>));
+    },
+    async paymentState(tenantId, paymentId) {
+      const { data, error } = await db.from('grow_payments').select('status, receipt_id').eq('tenant_id', tenantId).eq('id', paymentId).maybeSingle();
+      if (error) fail(error, 'paymentState');
+      return (data || null) as { status: string; receipt_id: string | null } | null;
+    },
+    async claimCharge(tenantId, read, nowIso, staleBeforeIso) {
+      // Exactly the state this run read, and no fresh lock: anything else and nothing changes (null), so the run skips.
+      let q = db.from('client_memberships').update({ charge_lock_at: nowIso, updated_at: nowIso })
+        .eq('tenant_id', tenantId).eq('id', read.id).eq('status', read.status).eq('failed_attempts', read.failed_attempts)
+        .or(`charge_lock_at.is.null,charge_lock_at.lt."${staleBeforeIso}"`);
+      q = read.next_charge_on ? q.eq('next_charge_on', read.next_charge_on) : q.is('next_charge_on', null);
+      q = read.next_retry_on ? q.eq('next_retry_on', read.next_retry_on) : q.is('next_retry_on', null);
+      const { data, error } = await q.select('*');
+      if (error) fail(error, 'claimCharge');
+      return data && data.length === 1 ? mem(data[0] as Record<string, unknown>) : null;
     },
     async insertToken(row) {
       const { data, error } = await db.from('grow_card_tokens').insert(row).select('id').single();

@@ -40,7 +40,7 @@ create index if not exists membership_plans_tenant_idx on public.membership_plan
 create table if not exists public.client_memberships (
   id               uuid primary key default gen_random_uuid(),
   tenant_id        uuid not null references public.tenants(id) on delete cascade,
-  client_id        text not null,
+  client_id        text,            -- null once the client was erased (lib/clientData.ts eraseClientData, and the trigger below)
   client_name      text,
   client_phone     text,
   plan_id          uuid,
@@ -60,7 +60,10 @@ create table if not exists public.client_memberships (
   next_retry_on    date,
   failed_attempts  integer not null default 0,
   cancelled_at     timestamptz,
-  cancelled_by     text check (cancelled_by is null or cancelled_by in ('owner', 'client')),
+  cancelled_by     text check (cancelled_by is null or cancelled_by in ('owner', 'client', 'erased')),
+  -- The charge lock (lib/memberships.ts chargeMembership): set only by a conditional update that still sees the state the run read;
+  -- a stale or concurrent run finds it changed and charges nothing. Cleared when the run is done; stale after an hour.
+  charge_lock_at   timestamptz,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
@@ -119,15 +122,45 @@ create table if not exists public.membership_redemptions (
   tenant_id      uuid not null references public.tenants(id) on delete cascade,
   membership_id  uuid not null references public.client_memberships(id) on delete cascade,
   period_id      uuid not null references public.membership_periods(id) on delete cascade,
-  client_id      text not null,
+  client_id      text,
   seq            integer not null check (seq >= 1),
-  receipt_id     text not null,
+  -- 'used' by a receipt (receipt_id) or a paid Grow link (grow_payment_id); 'reserved' while a discounted Grow link is payable
+  -- (held until reserved_until, then 'released' and free again). A held credit cannot be used twice.
+  status         text not null default 'used' check (status in ('reserved', 'used', 'released')),
+  receipt_id     text,
+  grow_payment_id uuid,
+  reserved_until timestamptz,
   service        text,
   created_at     timestamptz not null default now()
 );
-create unique index if not exists membership_redemptions_period_seq_uniq on public.membership_redemptions (period_id, seq);
+-- One credit number per month among the rows that hold it (a released hold frees its number).
+create unique index if not exists membership_redemptions_period_seq_uniq on public.membership_redemptions (period_id, seq) where status <> 'released';
 create unique index if not exists membership_redemptions_receipt_uniq on public.membership_redemptions (receipt_id);
+-- One credit per Grow link: the callback, the browser and the daily run all use THIS row, once.
+create unique index if not exists membership_redemptions_payment_uniq on public.membership_redemptions (grow_payment_id);
+create index if not exists membership_redemptions_reserved_idx on public.membership_redemptions (status, reserved_until) where status = 'reserved';
 create index if not exists membership_redemptions_tenant_idx on public.membership_redemptions (tenant_id, membership_id);
+
+-- 5 ─ a client card that is deleted stops her membership ─────────────────────
+-- No foreign key (client_id is text, like grow_card_tokens and the other Grow tables), so the deletion is followed here: billing stops,
+-- her name, phone and public link go, and the card saved for it is revoked. The erasure route does the same first (lib/clientData.ts);
+-- this covers any other way a client row is deleted. Nothing is deleted: the months already paid stay for the books.
+create or replace function public.client_memberships_on_client_delete() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  update public.grow_card_tokens t set revoked_at = coalesce(t.revoked_at, now()), client_id = null
+    from public.client_memberships m
+   where m.tenant_id = old.tenant_id and m.client_id = old.id::text and t.tenant_id = m.tenant_id and t.id = m.token_id;
+  update public.membership_redemptions set client_id = null where tenant_id = old.tenant_id and client_id = old.id::text;
+  update public.client_memberships
+     set status = 'cancelled', cancelled_by = 'erased', cancelled_at = coalesce(cancelled_at, now()), client_id = null,
+         client_name = 'לקוחה שנמחקה', client_phone = null, token_id = null, process_id = null, next_retry_on = null,
+         charge_lock_at = null, link_id = 'erased-' || gen_random_uuid()::text, updated_at = now()
+   where tenant_id = old.tenant_id and client_id = old.id::text;
+  return old;
+end $$;
+drop trigger if exists client_memberships_on_client_delete on public.clients;
+create trigger client_memberships_on_client_delete after delete on public.clients
+  for each row execute function public.client_memberships_on_client_delete();
 
 -- row level security: reads of her own rows only; no browser writes ─────────
 do $$
@@ -176,6 +209,8 @@ end $$;
 --      select has_column_privilege('authenticated', 'public.client_memberships', 'link_id', 'select');
 -- 4) the trial gate (expect 12 rows):
 --      select tablename, policyname from pg_policies where tablename in ('membership_plans', 'client_memberships', 'membership_periods', 'membership_redemptions') and policyname like '%require_active%';
+-- 5b) a deleted client stops her membership (expect the trigger):
+--      select tgname from pg_trigger where tgname = 'client_memberships_on_client_delete';
 -- 5) THE FREEZE IS PROVEN only with a row to refuse (an empty table proves nothing). In a transaction that is rolled back:
 --      begin;
 --        insert into public.client_memberships (tenant_id, client_id, plan, link_id, consent_text, consent_version, consented_at)

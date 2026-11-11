@@ -145,7 +145,7 @@ export default function MembershipLinkClient({ token }) {
                     {askCancel && <button type="button" onClick={() => setAskCancel(false)} style={{ width: '100%', minHeight: 44, marginTop: 6, background: 'none', border: 'none', color: '#656A56', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}>לא, להשאיר</button>}
                   </div>
                 )}
-                {!info.canCancel && info.cancelFrom && info.status !== 'cancelled' && <p style={{ fontSize: 14, color: '#656A56', marginTop: 14, textAlign: 'center' }}>לפי תנאי המנוי אפשר לבטל החל מ-{info.cancelFrom}.</p>}
+                {!info.canCancel && info.cancelFrom && info.status !== 'cancelled' && <p style={{ fontSize: 14, color: '#656A56', marginTop: 14, textAlign: 'center' }}>לפי תנאי המנוי אפשר לבטל אחרי החיוב של {info.cancelFrom}.</p>}
               </>
             )}
             {msg && <p role="alert" style={{ color: '#B3261E', marginTop: 12, textAlign: 'center' }}>{msg}</p>}

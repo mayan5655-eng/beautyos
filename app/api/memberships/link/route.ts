@@ -52,9 +52,10 @@ export async function GET(request: Request) {
       canStart: waiting && ready.ready,
       nextChargeOn: m.next_charge_on ? dayHe(m.next_charge_on) : null,
       // Right after the card is saved the first month is still being charged: say so, rather than "nothing available".
-      credits: waiting ? null : m.status === 'active' && !periods.some((p) => p.status === 'paid') ? 'החודש הראשון מחויב עכשיו, הטיפולים יופיעו כאן מיד אחרי' : creditsOf(m, periods, reds, today).labelHe,
-      canCancel: m.status !== 'cancelled' && !waiting && !(from && from > today),
-      cancelFrom: from && from > today ? dayHe(from) : null,
+      credits: waiting ? null : m.status === 'active' && !periods.some((p) => p.status === 'paid') ? 'החודש הראשון מחויב עכשיו, הטיפולים יופיעו כאן מיד אחרי' : creditsOf(m, periods, reds, today, new Date().toISOString()).labelHe,
+      // By the count of paid months only (lib/memberships.ts clientCancelFrom); the date is for her to read.
+      canCancel: m.status !== 'cancelled' && !waiting && !from,
+      cancelFrom: from ? dayHe(from) : null,
     });
   } catch (e) {
     console.error('[memberships] link read failed:', (e as Error)?.message);

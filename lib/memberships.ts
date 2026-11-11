@@ -84,6 +84,8 @@ export type Membership = {
   failed_attempts: number;
   cancelled_at: string | null;
   cancelled_by: string | null;
+  /** The charge lock (chargeMembership): set by the one run that may charge now, cleared when it is done. Stale after STALE_CHARGING_MS. */
+  charge_lock_at?: string | null;
   created_at?: string;
 };
 
@@ -106,7 +108,20 @@ export type Period = {
   updated_at?: string;
 };
 
-export type Redemption = { id: string; tenant_id: string; membership_id: string; period_id: string; client_id: string; seq: number; receipt_id: string; service: string | null; created_at?: string };
+/**
+ * One credit of one paid month. 'used' at the till (receipt_id) or by a paid Grow link (grow_payment_id). 'reserved' while a discounted
+ * Grow link is payable: the credit is held so it cannot be used twice, and becomes 'used' when Grow's verified callback says the link
+ * was paid (consumeReservation), however late. 'released' when the link expired or failed: the credit is free again.
+ */
+export type RedemptionStatus = 'reserved' | 'used' | 'released';
+export type Redemption = {
+  id: string; tenant_id: string; membership_id: string; period_id: string; client_id: string | null; seq: number; receipt_id: string | null; service: string | null;
+  status?: RedemptionStatus; grow_payment_id?: string | null; reserved_until?: string | null; created_at?: string;
+};
+/** A Grow link stays payable LINK_LIFETIME_HOURS (24, lib/grow/wallet.ts): its credit is held a little longer than that. */
+export const RESERVATION_HOURS = 25;
+/** Between holding the credit and Grow answering with the link: a hold that never got its link frees itself after this. */
+export const RESERVATION_OPEN_MINUTES = 15;
 
 export type StoredToken = { id: string; tenant_id: string; client_id: string | null; token_ref: string; token_encrypted?: boolean };
 
@@ -139,6 +154,20 @@ export type MembershipRepo = LedgerRepo & {
   /** 'seq': that credit number of that period is taken (another device). 'receipt': this receipt already used a credit. */
   insertRedemption(row: Omit<Redemption, 'id' | 'created_at'>): Promise<{ row: Redemption | null; conflict: 'seq' | 'receipt' | null }>;
   findRedemptionByReceipt(tenantId: string, receiptId: string): Promise<Redemption | null>;
+  findRedemptionByPayment(tenantId: string, paymentId: string): Promise<Redemption | null>;
+  /** Compare-and-set on status. Null when it moved meanwhile (or a unique index refused the new period/seq). */
+  updateRedemption(tenantId: string, redemptionId: string, from: RedemptionStatus[], patch: Partial<Redemption>): Promise<Redemption | null>;
+  /** reserved -> released for holds whose time ran out (one membership, or every business for the daily run). Returns how many. */
+  releaseExpiredReservations(nowIso: string, scope?: { tenantId: string; membershipId: string }): Promise<number>;
+  /** Across businesses, for the daily run: holds that carry a Grow payment, to settle by that payment's state. */
+  listOpenReservations(): Promise<Redemption[]>;
+  /** The Grow payment's own state (status and receipt), tenant-scoped. */
+  paymentState(tenantId: string, paymentId: string): Promise<{ status: string; receipt_id: string | null } | null>;
+  /**
+   * The charge lock: sets charge_lock_at=now ONLY while the row still has exactly the state this run read (status, next_charge_on,
+   * next_retry_on, failed_attempts) and no fresh lock is held. Null when anything moved: the run skips.
+   */
+  claimCharge(tenantId: string, read: Membership, nowIso: string, staleBeforeIso: string): Promise<Membership | null>;
   insertToken(row: { tenant_id: string; client_id: string; appointment_id: string; token_ref: string; token_encrypted: boolean; card_last4: string | null; card_brand: string | null }): Promise<{ id: string }>;
   getToken(tenantId: string, tokenId: string): Promise<StoredToken | null>;
 };
@@ -364,7 +393,21 @@ export async function chargeMembership(d: MembershipDeps, m0: Membership): Promi
   // Grow switched off on her side: no attempt is made and none is counted. It is charged once Grow is back.
   if (!account || !account.enabled) return { outcome: 'not-connected' };
 
-  const start = m.next_charge_on;
+  // THE CLAIM (Vercel review on PR #64): a run whose read is stale (a delayed cron, a second run, her retry tap) must never charge. The
+  // lock is taken only if the row still says exactly what was read above, so a retry date moved by another run, a pause after a final
+  // card refusal, or a charge in flight elsewhere all make it fail, and nothing is charged. Released by every way out below.
+  const nowD = clock(d);
+  const claimed = await d.repo.claimCharge(m.tenant_id, m, nowD.toISOString(), new Date(nowD.getTime() - STALE_CHARGING_MS).toISOString());
+  if (!claimed) return { outcome: 'in-progress' };
+  try {
+    return await chargeClaimed(d, claimed, account, today);
+  } finally {
+    await d.repo.updateMembership(m.tenant_id, m.id, { charge_lock_at: null }).catch((e) => console.error('[memberships] could not release the charge lock of', m.id, (e as Error)?.message));
+  }
+}
+
+async function chargeClaimed(d: MembershipDeps, m: Membership, account: { user_id: string }, today: string): Promise<ChargeOutcome> {
+  const start = m.next_charge_on as string;
   const end = nextPeriodStart(start, m.anchor_day);
   let period = await d.repo.insertPeriod({
     tenant_id: m.tenant_id, membership_id: m.id, period_start: start, period_end: end, amount: m.plan.price, credits: m.plan.credits,
@@ -400,7 +443,7 @@ export async function chargeMembership(d: MembershipDeps, m0: Membership): Promi
     return { outcome: 'failed', periodId: p.id, retryOn, paused: pause };
   };
 
-  const stored = await d.repo.getToken(m.tenant_id, m.token_id);
+  const stored = m.token_id ? await d.repo.getToken(m.tenant_id, m.token_id) : null;
   const card = stored ? openCard(d, stored) : null;
   if (!card) return failed('no usable saved card', true);
 
@@ -470,6 +513,7 @@ export async function runDueMemberships(
       await tell(d, { tenantId: m.tenant_id, title: 'מנוי: צריך לבדוק ב-Grow', body: `החיוב החודשי של ${m.client_name || 'לקוחה'} נקטע באמצע. בדקי ב-Grow אם עבר לפני ניסיון נוסף. עד אז לא נחייב אותה.` });
     }
   }
+  try { await settleReservations(d, o.skipTenant); } catch (e) { s.errors++; console.error('[memberships] settling held credits failed:', (e as Error)?.message); }
   const due = (await d.repo.listDue(israelDay(now))).filter((m) => !o.skipTenant?.(m.tenant_id));
   s.due = due.length;
   const byTenant = new Map<string, Membership[]>();
@@ -503,9 +547,12 @@ export type Credits = { available: number; currentCredits: number; currentLeft: 
  * What she may still redeem today. Each PAID period grants its credits for that period; with rollover, what was not used stays for one
  * more period only (and not after the membership was cancelled). Paused or cancelled: what was already paid for stays usable to its end.
  */
-export function creditsOf(m: Membership, periods: Period[], redemptions: Redemption[], today: string): Credits {
+/** Whether a redemption takes its credit: used, or a hold still in time (with no clock given, every hold counts: the safe side). */
+export const holdsCredit = (r: Redemption, nowIso?: string) => r.status === 'released' ? false : r.status === 'reserved' ? (!nowIso || !r.reserved_until || r.reserved_until > nowIso) : true;
+
+export function creditsOf(m: Membership, periods: Period[], redemptions: Redemption[], today: string, nowIso?: string): Credits {
   const used = new Map<string, number>();
-  for (const r of redemptions) if (r.membership_id === m.id) used.set(r.period_id, (used.get(r.period_id) || 0) + 1);
+  for (const r of redemptions) if (r.membership_id === m.id && holdsCredit(r, nowIso)) used.set(r.period_id, (used.get(r.period_id) || 0) + 1);
   const rows: CreditRow[] = [];
   for (const p of periods) {
     if (p.membership_id !== m.id || p.status !== 'paid') continue;
@@ -535,34 +582,146 @@ export const planCovers = (p: Pick<PlanFields, 'services'>, service: string) => 
 export type RedeemResult = { ok: true; redemption: Redemption; already: boolean; credits: Credits } | { ok: false; code: 'gone' | 'none-left' | 'not-covered' | 'busy'; error: string };
 
 /**
- * The till used one credit for this receipt. Once per receipt (a retried request answers with the same redemption), and one credit number
- * per period (two devices at once: the unique index refuses the second, which reads again). The client is checked against the membership.
+ * Takes the next free credit (oldest-expiring month first) as a new row: 'used' for a receipt, or 'reserved' for a Grow link. Expired
+ * holds are freed first. One credit number per month (unique period_id + seq among rows that are not released), so two devices at once
+ * cannot both take the last credit: the second insert is refused and reads again.
  */
-export async function redeemCredit(d: MembershipDeps, i: { tenantId: string; membershipId: string; clientId: string; receiptId: string; service: string }): Promise<RedeemResult> {
-  const m = await d.repo.getMembership(i.tenantId, i.membershipId);
-  if (!m || String(m.client_id) !== String(i.clientId)) return { ok: false, code: 'gone', error: 'המנוי לא נמצא ללקוחה הזו' };
-  if (!planCovers(m.plan, i.service)) return { ok: false, code: 'not-covered', error: 'הטיפול הזה לא כלול במנוי שלה' };
-  const prior = await d.repo.findRedemptionByReceipt(i.tenantId, i.receiptId);
+async function takeCredit(d: MembershipDeps, m: Membership, row: Pick<Redemption, 'status' | 'receipt_id' | 'grow_payment_id' | 'reserved_until' | 'service'>): Promise<RedeemResult> {
+  const nowIso = clock(d).toISOString();
   const today = israelDay(clock(d));
+  await d.repo.releaseExpiredReservations(nowIso, { tenantId: m.tenant_id, membershipId: m.id });
   const read = async () => {
-    const [periods, reds] = await Promise.all([d.repo.listPeriods(i.tenantId, [m.id]), d.repo.listRedemptions(i.tenantId, [m.id])]);
-    return { periods, reds, credits: creditsOf(m, periods, reds, today) };
+    const [periods, reds] = await Promise.all([d.repo.listPeriods(m.tenant_id, [m.id]), d.repo.listRedemptions(m.tenant_id, [m.id])]);
+    return { periods, reds, credits: creditsOf(m, periods, reds, today, nowIso) };
   };
-  if (prior) return { ok: true, redemption: prior, already: true, credits: (await read()).credits };
   for (let tries = 0; tries < 4; tries++) {
     const { reds, credits } = await read();
-    const row = credits.rows.find((r) => r.left > 0);
-    if (!row) return { ok: false, code: 'none-left', error: 'לא נשארו טיפולים במנוי לתקופה הזו' };
-    const seq = reds.filter((r) => r.period_id === row.periodId).reduce((mx, r) => Math.max(mx, Number(r.seq)), 0) + 1;
-    if (seq > row.credits) continue;
-    const ins = await d.repo.insertRedemption({ tenant_id: i.tenantId, membership_id: m.id, period_id: row.periodId, client_id: String(m.client_id), seq, receipt_id: String(i.receiptId), service: String(i.service || '').slice(0, 120) || null });
+    const free = credits.rows.find((r) => r.left > 0);
+    if (!free) return { ok: false, code: 'none-left', error: 'לא נשארו טיפולים במנוי לתקופה הזו' };
+    const seq = reds.filter((r) => r.period_id === free.periodId && r.status !== 'released').reduce((mx, r) => Math.max(mx, Number(r.seq)), 0) + 1;
+    if (seq > free.credits) continue;
+    const ins = await d.repo.insertRedemption({ tenant_id: m.tenant_id, membership_id: m.id, period_id: free.periodId, client_id: m.client_id, seq, ...row });
     if (ins.row) return { ok: true, redemption: ins.row, already: false, credits: (await read()).credits };
-    if (ins.conflict === 'receipt') {
-      const again = await d.repo.findRedemptionByReceipt(i.tenantId, i.receiptId);
+    if (ins.conflict === 'receipt' && row.receipt_id) {
+      const again = await d.repo.findRedemptionByReceipt(m.tenant_id, row.receipt_id);
       if (again) return { ok: true, redemption: again, already: true, credits: (await read()).credits };
     }
   }
   return { ok: false, code: 'busy', error: 'לא הצלחנו לנכות מהמנוי, נסי שוב' };
+}
+
+/**
+ * The till used one credit for this receipt (cash, Bit, a split: anything she recorded herself). Once per receipt. A receipt that a paid
+ * Grow link made (growPaymentId) uses the credit that link held, never a second one: the browser's onPaid and Grow's callback are the
+ * same redemption, once.
+ */
+export async function redeemCredit(d: MembershipDeps, i: { tenantId: string; membershipId: string; clientId: string; receiptId: string; service: string; growPaymentId?: string | null }): Promise<RedeemResult> {
+  const m = await d.repo.getMembership(i.tenantId, i.membershipId);
+  if (!m || String(m.client_id) !== String(i.clientId)) return { ok: false, code: 'gone', error: 'המנוי לא נמצא ללקוחה הזו' };
+  if (i.growPaymentId) {
+    const held = await d.repo.findRedemptionByPayment(i.tenantId, i.growPaymentId);
+    if (held && held.membership_id === m.id) {
+      const c = await consumeReservation(d, { tenantId: i.tenantId, paymentId: i.growPaymentId, receiptId: i.receiptId });
+      const r = await d.repo.findRedemptionByPayment(i.tenantId, i.growPaymentId);
+      const [periods, reds] = await Promise.all([d.repo.listPeriods(i.tenantId, [m.id]), d.repo.listRedemptions(i.tenantId, [m.id])]);
+      const credits = creditsOf(m, periods, reds, israelDay(clock(d)), clock(d).toISOString());
+      if (r && (c === 'used' || c === 'already')) return { ok: true, redemption: r, already: c === 'already', credits };
+      return { ok: false, code: 'none-left', error: 'לא נשארו טיפולים במנוי לתקופה הזו' };
+    }
+  }
+  if (!planCovers(m.plan, i.service)) return { ok: false, code: 'not-covered', error: 'הטיפול הזה לא כלול במנוי שלה' };
+  const prior = await d.repo.findRedemptionByReceipt(i.tenantId, i.receiptId);
+  if (prior) {
+    const [periods, reds] = await Promise.all([d.repo.listPeriods(i.tenantId, [m.id]), d.repo.listRedemptions(i.tenantId, [m.id])]);
+    return { ok: true, redemption: prior, already: true, credits: creditsOf(m, periods, reds, israelDay(clock(d)), clock(d).toISOString()) };
+  }
+  return takeCredit(d, m, { status: 'used', receipt_id: String(i.receiptId), grow_payment_id: null, reserved_until: null, service: String(i.service || '').slice(0, 120) || null });
+}
+
+// ── a discounted Grow link: hold the credit, use it when Grow says paid ──────
+
+/**
+ * The till asked for a Grow link whose amount already has one treatment taken off by the membership (Vercel review on PR #64: before,
+ * only the browser's onPaid used the credit, so a link paid after the till stopped polling left it free to use again). Called by the
+ * charge route BEFORE the link is opened: the credit is held (validated: her membership, this client, a treatment the plan covers, a
+ * credit left), and a second discounted link or a till payment at the same time cannot take it.
+ */
+export async function reserveCredit(d: MembershipDeps, i: { tenantId: string; membershipId: string; clientId: string; service: string }): Promise<RedeemResult> {
+  const m = await d.repo.getMembership(i.tenantId, i.membershipId);
+  if (!m || String(m.client_id) !== String(i.clientId)) return { ok: false, code: 'gone', error: 'המנוי לא נמצא ללקוחה הזו' };
+  if (!planCovers(m.plan, i.service)) return { ok: false, code: 'not-covered', error: 'הטיפול הזה לא כלול במנוי שלה' };
+  const until = new Date(clock(d).getTime() + RESERVATION_OPEN_MINUTES * 60_000).toISOString();
+  return takeCredit(d, m, { status: 'reserved', receipt_id: null, grow_payment_id: null, reserved_until: until, service: String(i.service || '').slice(0, 120) || null });
+}
+
+/** The link exists: the hold is tied to its Grow payment and lasts as long as the link can be paid. */
+export async function attachReservation(d: MembershipDeps, i: { tenantId: string; reservationId: string; paymentId: string }): Promise<boolean> {
+  const until = new Date(clock(d).getTime() + RESERVATION_HOURS * 3_600_000).toISOString();
+  return !!(await d.repo.updateRedemption(i.tenantId, i.reservationId, ['reserved'], { grow_payment_id: i.paymentId, reserved_until: until }));
+}
+
+/** The link could not be opened, or it failed: the credit is free again. */
+export async function releaseReservation(d: MembershipDeps, i: { tenantId: string; reservationId: string }): Promise<boolean> {
+  return !!(await d.repo.updateRedemption(i.tenantId, i.reservationId, ['reserved'], { status: 'released' }));
+}
+
+export type ConsumeOutcome = 'none' | 'used' | 'already' | 'overdrawn';
+
+/**
+ * Grow's verified callback says this payment was paid (lib/grow/service.ts afterPaid, and the daily run as a safety net): its held credit
+ * becomes used, keyed by the payment, so a retried callback, the browser's onPaid and the daily run are one redemption, once. A link paid
+ * AFTER its hold ran out takes a credit again if one is left; if none is, she is told in the app (the client paid a discounted price).
+ */
+export async function consumeReservation(d: MembershipDeps, i: { tenantId: string; paymentId: string; receiptId?: string | null }): Promise<ConsumeOutcome> {
+  const r = await d.repo.findRedemptionByPayment(i.tenantId, i.paymentId);
+  if (!r) return 'none';
+  if (r.status === 'used' || r.status === undefined) {
+    if (!r.receipt_id && i.receiptId) await d.repo.updateRedemption(i.tenantId, r.id, ['used'], { receipt_id: i.receiptId }).catch(() => null);
+    return 'already';
+  }
+  const patch = { status: 'used' as const, reserved_until: null, ...(i.receiptId ? { receipt_id: i.receiptId } : {}) };
+  if (r.status === 'reserved') {
+    if (await d.repo.updateRedemption(i.tenantId, r.id, ['reserved'], patch)) return 'used';
+    const again = await d.repo.findRedemptionByPayment(i.tenantId, i.paymentId);
+    return again && again.status === 'used' ? 'already' : consumeReleased(d, i, again);
+  }
+  return consumeReleased(d, i, r);
+}
+
+async function consumeReleased(d: MembershipDeps, i: { tenantId: string; paymentId: string; receiptId?: string | null }, r: Redemption | null): Promise<ConsumeOutcome> {
+  if (!r) return 'none';
+  const m = await d.repo.getMembership(i.tenantId, r.membership_id);
+  if (m) {
+    const nowIso = clock(d).toISOString();
+    for (let tries = 0; tries < 4; tries++) {
+      const [periods, reds] = await Promise.all([d.repo.listPeriods(i.tenantId, [m.id]), d.repo.listRedemptions(i.tenantId, [m.id])]);
+      const free = creditsOf(m, periods, reds, israelDay(clock(d)), nowIso).rows.find((x) => x.left > 0);
+      if (!free) break;
+      const seq = reds.filter((x) => x.period_id === free.periodId && x.status !== 'released').reduce((mx, x) => Math.max(mx, Number(x.seq)), 0) + 1;
+      if (seq > free.credits) continue;
+      if (await d.repo.updateRedemption(i.tenantId, r.id, ['released'], { status: 'used', period_id: free.periodId, seq, reserved_until: null, ...(i.receiptId ? { receipt_id: i.receiptId } : {}) })) return 'used';
+      const again = await d.repo.findRedemptionByPayment(i.tenantId, i.paymentId);
+      if (again && again.status === 'used') return 'already';
+    }
+  }
+  await tell(d, { tenantId: i.tenantId, title: 'מנוי: תשלום מאוחר', body: `${m?.client_name || 'לקוחה'} שילמה קישור עם הנחת מנוי אחרי שפג תוקפו, ולא נשאר טיפול במנוי לנכות. כדאי לבדוק בכרטיס שלה.` });
+  return 'overdrawn';
+}
+
+/**
+ * The daily run's pass over held credits: a hold whose time ran out is freed; a hold whose Grow payment was paid (its callback missed)
+ * is used; one whose payment failed or was cancelled is freed.
+ */
+export async function settleReservations(d: MembershipDeps, skipTenant?: (tenantId: string) => boolean): Promise<{ used: number; released: number }> {
+  const out = { used: 0, released: 0 };
+  for (const r of await d.repo.listOpenReservations()) {
+    if (skipTenant?.(r.tenant_id) || !r.grow_payment_id) continue;
+    const p = await d.repo.paymentState(r.tenant_id, r.grow_payment_id);
+    if (p && p.status === 'paid') { if ((await consumeReservation(d, { tenantId: r.tenant_id, paymentId: r.grow_payment_id, receiptId: p.receipt_id })) === 'used') out.used++; }
+    else if (p && (p.status === 'failed' || p.status === 'cancelled')) { if (await releaseReservation(d, { tenantId: r.tenant_id, reservationId: r.id })) out.released++; }
+  }
+  out.released += await d.repo.releaseExpiredReservations(clock(d).toISOString());
+  return out;
 }
 
 // ── her actions and the client's ─────────────────────────────────────────────
@@ -572,16 +731,18 @@ export type ActionResult = { ok: true; membership: Membership; charge?: ChargeOu
 /** How many months were paid (the minimum term counts these). */
 export const paidMonths = (periods: Period[], membershipId: string) => periods.filter((p) => p.membership_id === membershipId && p.status === 'paid').length;
 
-/** The first day the client may cancel by herself: after the plan's minimum months were PAID. Null when she may cancel now. */
+/**
+ * Whether the client may cancel by herself: only once the plan's minimum months were PAID (counted, never a calendar date: Vercel review
+ * on PR #64, a client could cancel on the morning of the last committed charge, before the daily run, and skip it). Null when she may
+ * cancel now; otherwise the day of the last committed charge, for display only ("אפשר לבטל אחרי החיוב של ...").
+ */
 export function clientCancelFrom(m: Membership, periods: Period[]): string | null {
   const min = Number(m.plan.min_months) || 0;
   if (min <= 0) return null;
-  const paid = paidMonths(periods, m.id);
-  if (paid >= min) return null;
-  if (!m.started_on) return null; // never charged: nothing binds her yet
+  if (paidMonths(periods, m.id) >= min) return null;
+  if (!m.started_on) return null; // no card saved yet: nothing binds her
   let d = m.started_on;
   for (let k = 0; k < min - 1; k++) d = nextPeriodStart(d, m.anchor_day);
-  // The minimum is complete once the last committed month was charged: from that charge day on.
   return d;
 }
 
@@ -626,9 +787,9 @@ export async function clientCancel(d: MembershipDeps, i: { linkId: string }): Pr
   const m = await d.repo.findMembershipByLink(i.linkId);
   if (!m || m.status === 'cancelled') return { ok: false, code: 'gone', error: 'המנוי כבר לא פעיל' };
   const periods = await d.repo.listPeriods(m.tenant_id, [m.id]);
+  // The paid count only ever grows, so a count read here can only refuse too early, never let a committed month be skipped.
   const from = clientCancelFrom(m, periods);
-  const today = israelDay(clock(d));
-  if (from && from > today) return { ok: false, code: 'min-term', error: `לפי תנאי המנוי אפשר לבטל החל מ-${dayHe(from)}`, until: from };
+  if (from) return { ok: false, code: 'min-term', error: `לפי תנאי המנוי אפשר לבטל אחרי החיוב של ${dayHe(from)}`, until: from };
   const x = await d.repo.updateMembership(m.tenant_id, m.id, { status: 'cancelled', cancelled_at: clock(d).toISOString(), cancelled_by: 'client', next_retry_on: null }, LIVE_STATUSES);
   if (!x) return { ok: false, code: 'state', error: 'משהו השתנה בינתיים, רענני ונסי שוב' };
   await tell(d, { tenantId: m.tenant_id, title: 'מנוי בוטל', body: `${m.client_name || 'לקוחה'} ביטלה את המנוי "${m.plan.name}". לא נחייב אותה יותר, והטיפולים ששולמו נשארים לה עד סוף החודש.` });

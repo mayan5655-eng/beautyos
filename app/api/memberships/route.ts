@@ -30,7 +30,7 @@ const unavailable = (migration = true) => NextResponse.json({ success: true, ava
 
 function memberView(m: Membership, periods: Period[], reds: Redemption[], today: string) {
   const mine = periods.filter((p) => p.membership_id === m.id);
-  const credits = creditsOf(m, mine, reds, today);
+  const credits = creditsOf(m, mine, reds, today, new Date().toISOString());
   const lastFailed = [...mine].reverse().find((p) => p.status === 'failed' || p.status === 'unknown') || null;
   return {
     id: m.id, clientId: m.client_id, clientName: m.client_name, plan: m.plan, planLine: planLineHe(m.plan), status: m.status, statusHe: STATUS_HE[m.status],
@@ -76,12 +76,12 @@ export async function GET(request: Request) {
     if (view === 'till') {
       if (!live || !['active', 'past_due', 'paused', 'attention'].includes(live.status)) {
         // A cancelled membership whose paid month has credits left still counts at the till.
-        const ended = mine.ms.find((m) => m.status === 'cancelled' && creditsOf(m, mine.periods, mine.reds, today).available > 0);
+        const ended = mine.ms.find((m) => m.status === 'cancelled' && creditsOf(m, mine.periods, mine.reds, today, new Date().toISOString()).available > 0);
         if (!ended) return NextResponse.json({ success: true, available: true, membership: null });
-        const credits = creditsOf(ended, mine.periods, mine.reds, today);
+        const credits = creditsOf(ended, mine.periods, mine.reds, today, new Date().toISOString());
         return NextResponse.json({ success: true, available: true, membership: { id: ended.id, planName: ended.plan.name, services: ended.plan.services, available: credits.available, label: credits.labelHe } });
       }
-      const credits = creditsOf(live, mine.periods, mine.reds, today);
+      const credits = creditsOf(live, mine.periods, mine.reds, today, new Date().toISOString());
       return NextResponse.json({ success: true, available: true, membership: { id: live.id, planName: live.plan.name, services: live.plan.services, available: credits.available, label: credits.labelHe, status: live.status } });
     }
 
@@ -154,10 +154,12 @@ export async function POST(request: Request) {
       const receiptId = str('receiptId');
       if (!receiptId) return bad('חסר אישור תשלום');
       // The receipt must be one of HER receipts, for THIS client: a receipt id from the body is never trusted on its own.
-      const { data: rc, error } = await admin().from('receipts').select('id, client_id').eq('id', receiptId).eq('tenant_id', c.tenantId).maybeSingle();
+      const { data: rc, error } = await admin().from('receipts').select('id, client_id, grow_payment_id').eq('id', receiptId).eq('tenant_id', c.tenantId).maybeSingle();
       if (error) throw new Error(error.message);
       if (!rc || String((rc as { client_id: unknown }).client_id) !== str('clientId')) return bad('אישור התשלום לא נמצא ללקוחה הזו', 404);
-      const x = await redeemCredit(d, { tenantId: c.tenantId, membershipId: str('membershipId'), clientId: str('clientId'), receiptId, service: str('service') });
+      // A receipt a paid Grow link made: the credit that link held is the one (already used by Grow's callback: then this is a no-op).
+      const growPaymentId = (rc as { grow_payment_id?: unknown }).grow_payment_id ? String((rc as { grow_payment_id: unknown }).grow_payment_id) : null;
+      const x = await redeemCredit(d, { tenantId: c.tenantId, membershipId: str('membershipId'), clientId: str('clientId'), receiptId, service: str('service'), growPaymentId });
       if (!x.ok) return bad(x.error, x.code === 'gone' ? 404 : 409);
       return NextResponse.json({ success: true, already: x.already, label: x.credits.labelHe, available: x.credits.available });
     }

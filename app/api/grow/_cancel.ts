@@ -22,6 +22,8 @@ import { isDepositRequest } from '@/lib/grow/paymentRequest';
 import { moneyAlert } from '@/lib/moneyAlert.js';
 import { ensureVoucherForPayment } from '@/lib/giftVoucherIssue';
 import { VOUCHER_SERVICE_PREFIX } from '@/lib/giftVouchers';
+import { consumeReservation } from '@/lib/memberships';
+import { membershipDeps } from '../memberships/_deps';
 
 export function cancelDeps(): Deps | null {
   const grow = resolveGrow(process.env, APP_URL);
@@ -50,6 +52,20 @@ export function cancelDeps(): Deps | null {
  */
 export function afterPaidHook(): (p: GrowPayment, raw?: Record<string, unknown>) => Promise<void> {
   return async (p, raw) => {
+    // A client membership credit held by this (discounted) link: used now, keyed by the payment, so the browser's onPaid, a retried
+    // callback and the daily run are one redemption, once (lib/memberships.ts consumeReservation). Never stops what follows.
+    const md = membershipDeps();
+    if (md) {
+      try {
+        const st = await md.repo.paymentState(p.tenant_id, p.id);
+        await consumeReservation(md, { tenantId: p.tenant_id, paymentId: p.id, receiptId: st?.receipt_id ?? p.receipt_id ?? null });
+      } catch (e) {
+        if (!/does not exist|schema cache/i.test((e as Error)?.message || '')) {
+          console.error('[memberships] using the held credit failed for payment', p.id, (e as Error)?.message);
+          await moneyAlert('memberships:consume', 'a paid Grow link held a membership credit that could not be marked used (the daily run tries again)', { paymentId: p.id, tenantId: p.tenant_id }, { key: String(p.id) });
+        }
+      }
+    }
     // A gift voucher bought online (grow_payments.gift_voucher, add_gift_vouchers_2026-11-08.sql): Grow's verified callback has just
     // marked it paid, so the voucher is issued now, once (lib/giftVoucherIssue.ts). Nothing is sent: the buyer shares it herself.
     // Only payments the voucher purchase route opened carry that description, so no other payment pays for an extra read.

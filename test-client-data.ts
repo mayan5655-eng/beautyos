@@ -26,6 +26,9 @@ const COLUMNS: Record<string, string[]> = {
   whatsapp_messages: ['id', 'tenant_id', 'recipient_phone', 'recipient_name', 'message_body'],
   waitlist: ['id', 'tenant_id', 'phone', 'client_name'],
   grow_payments: ['id', 'tenant_id', 'client_id', 'client_name'],
+  client_memberships: ['id', 'tenant_id', 'client_id', 'client_name', 'client_phone', 'status', 'cancelled_by', 'cancelled_at', 'token_id', 'process_id', 'next_retry_on', 'charge_lock_at', 'link_id'],
+  grow_card_tokens: ['id', 'tenant_id', 'client_id', 'revoked_at', 'token_ref'],
+  membership_redemptions: ['id', 'tenant_id', 'client_id', 'membership_id'],
 };
 function fakeDb(tables: Record<string, Row[]>, opts: { missingTables?: string[]; failDelete?: string[]; files?: Record<string, Array<{ name: string; id: string | null }>>; wrongColumn?: Record<string, string> } = {}) {
   const removed: string[] = [];
@@ -304,6 +307,47 @@ assert.ok(isColumnMissing({ code: '42703' }) && isColumnMissing({ code: 'PGRST20
   for (const s of ['חיכיתי חצי שעה', 'דנה כתבה', '"דנה"', '0501234567', '050-123-4567']) assert.ok(!left.includes(s), `nothing left after the retry: ${s}`);
 }
 assert.ok(fs.readFileSync('app/api/reviews/feedback/route.js', 'utf8').includes('appointmentId: appt.id'), 'a private-note notification carries its appointment, so deletion finds it');
+
+// her client membership (lib/memberships.ts): billing stops, nothing of her stays, the public link and the saved card are dead
+{
+  const data = seed();
+  const link = 'a'.repeat(48);
+  data.client_memberships = [
+    { id: 'mb1', tenant_id: T, client_id: 'c1', client_name: 'דנה', client_phone: '0501234567', status: 'active', token_id: 'tk1', process_id: 'proc1', link_id: link, next_retry_on: null },
+    { id: 'mb2', tenant_id: T, client_id: 'c2', client_name: 'רחל', client_phone: '0507654321', status: 'active', token_id: 'tk2', link_id: 'b'.repeat(48) },
+    { id: 'mb3', tenant_id: OTHER, client_id: 'c1', client_name: 'אחרת', status: 'active', token_id: 'tk3', link_id: 'c'.repeat(48) },
+  ];
+  data.grow_card_tokens = [
+    { id: 'tk1', tenant_id: T, client_id: 'c1', token_ref: 'sealed', revoked_at: null },
+    { id: 'tk2', tenant_id: T, client_id: 'c2', token_ref: 'sealed', revoked_at: null },
+    { id: 'tk3', tenant_id: OTHER, client_id: 'c1', token_ref: 'sealed', revoked_at: null },
+  ];
+  data.membership_redemptions = [{ id: 'rd1', tenant_id: T, client_id: 'c1', membership_id: 'mb1' }];
+  const r = await eraseClientData(fakeDb(data) as never, T, 'c1');
+  assert.ok(r.ok, JSON.stringify(r));
+  const m1 = data.client_memberships.find((m) => m.id === 'mb1')!;
+  assert.equal(m1.status, 'cancelled', 'billing stops: the daily run charges only active / past-due memberships');
+  assert.equal(m1.cancelled_by, 'erased');
+  assert.equal(m1.client_id, null); assert.equal(m1.client_name, ANONYMOUS_NAME_HE); assert.equal(m1.client_phone, null);
+  assert.equal(m1.token_id, null); assert.equal(m1.process_id, null);
+  assert.notEqual(m1.link_id, link); assert.ok(!/^[0-9a-f]{48}$/.test(String(m1.link_id)), 'her old link can never match again');
+  assert.ok(data.grow_card_tokens.find((t) => t.id === 'tk1')!.revoked_at, 'the card saved for it is revoked');
+  assert.equal(data.grow_card_tokens.find((t) => t.id === 'tk1')!.client_id, null);
+  assert.equal(data.membership_redemptions[0].client_id, null);
+  assert.equal(data.client_memberships.find((m) => m.id === 'mb2')!.status, 'active', 'another client untouched');
+  assert.equal(data.client_memberships.find((m) => m.id === 'mb3')!.client_name, 'אחרת', 'the same client id in another business untouched');
+  assert.equal(data.grow_card_tokens.find((t) => t.id === 'tk3')!.revoked_at, null);
+  assert.ok(!JSON.stringify(data.client_memberships.filter((m) => m.tenant_id === T && m.id === 'mb1')).includes('0501234567'));
+  // before the migration: nothing to erase, and the card is still deleted
+  const r2 = await eraseClientData(fakeDb(seed(), { missingTables: ['client_memberships'] }) as never, T, 'c1');
+  assert.ok(r2.ok && r2.steps.some((x) => x.table === 'client_memberships' && x.action === 'skipped'));
+  // a failure keeps the card so it can be run again
+  const d3 = seed(); d3.client_memberships = [{ id: 'mb1', tenant_id: T, client_id: 'c1', status: 'active', link_id: link }];
+  const r3 = await eraseClientData(fakeDb(d3, { wrongColumn: { client_memberships: 'nope' } }) as never, T, 'c1');
+  assert.ok(!r3.ok && d3.clients.some((c) => c.id === 'c1' && c.tenant_id === T));
+  const sql = fs.readFileSync('supabase/migrations/add_client_memberships_2026-11-11.sql', 'utf8');
+  assert.ok(/create trigger client_memberships_on_client_delete after delete on public\.clients/.test(sql), 'any other deletion of a client card stops her membership too');
+}
 
 // ── the routes ──
 const exp = fs.readFileSync('app/api/clients/export/route.ts', 'utf8');
