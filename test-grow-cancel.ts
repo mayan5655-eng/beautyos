@@ -206,7 +206,7 @@ await ok('saved_card: consent snapshot -> hosted card page -> token (no card num
   assert.equal(d.ok, true);
   assert.equal(w.calls.chargeToken, 1);
   const pay = [...w.payments.values()][0];
-  assert.equal(pay.status, 'paid'); assert.equal(pay.kind, 'fee'); assert.equal(Number(pay.amount), 100); assert.ok(pay.transaction_id); assert.equal(pay.appointment_id, 'a1');
+  assert.equal(pay.status, 'paid'); assert.equal(pay.kind, 'fee'); assert.equal(Number(pay.amount), 100); assert.ok(pay.transaction_id); assert.ok(pay.transaction_token, 'fee charge keeps the Grow token a refund needs'); assert.equal(pay.appointment_id, 'a1');
   assert.equal(w.receipts.length, 1);
   const rc = w.receipts[0];
   assert.equal(rc.amount, 100); assert.equal(rc.payment_method, 'אשראי'); assert.equal(rc.legal_provider, 'grow'); assert.equal(rc.client_id, 'c-dana'); assert.equal(rc.legal_status, 'issued'); assert.ok(String(rc.legal_doc_url).startsWith('https://') && rc.legal_doc_number, 'Grow issues the receipt: its link and number are stored');

@@ -556,7 +556,7 @@ export async function decide(d: Deps, i: { tenantId: string; feeId: string; deci
   }
 
   const now = clock(d).toISOString();
-  await d.grow.markPaid(payment.id, { status: 'paid', paid_at: now, transaction_id: r.transactionId, asmachta: r.asmachta || null, updated_at: now });
+  await d.grow.markPaid(payment.id, { status: 'paid', paid_at: now, transaction_id: r.transactionId, transaction_token: r.transactionToken || null, asmachta: r.asmachta || null, updated_at: now });
   let receiptId: string | null = null;
   try {
     const receipt = await d.grow.insertReceipt({
