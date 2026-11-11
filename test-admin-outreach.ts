@@ -7,53 +7,90 @@ import { join } from 'node:path'
 import {
   PROSPECT_STATUSES, TREATMENTS, SOURCES, canSend, statusAfterSend, contactedRecently, parsePastedProspects, planAdd, isChannel,
   cleanProspectInput, cleanInstagram, firstName, outreachCounts, sentToday, sortProspects, isMissingProspectsTable, DAILY_LIMIT_HE,
-  MIGRATION_NEEDED_HE,
+  MIGRATION_NEEDED_HE, CURRENT_SYSTEMS, ENRICH_MIGRATION_NEEDED_HE, ENRICH_MIGRATION_FILE, DAILY_SOFT_LIMIT, parseFollowers,
+  formatFollowers, parseCurrentSystem, cleanEnrichFields, isFollowupDate, isMissingEnrichColumns, prospectPriority, sortByPriority,
+  todayList, followupDue, followupOverdueDays,
 } from './lib/prospects.ts'
 import type { Prospect } from './lib/prospects.ts'
 import {
-  WHATSAPP_TEMPLATES, INSTAGRAM_TEMPLATE, OPT_OUT_LINE, personalize, whatsappMessage, instagramMessage, templateKeyFor,
-  prospectWaLink, instagramDmLink,
+  personalize, whatsappMessage, instagramMessage, prospectWaLink, instagramDmLink, messageTemplate, tailoredLine, outreachLink,
+  BASE_TAILORED_LINE,
 } from './lib/prospectTemplates.ts'
+import { toProspect } from './lib/prospectsData.ts'
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n')
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '')
 const walk = (d: string): string[] => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]))
 let n = 0
-const ok = (name: string, fn: () => void) => { fn(); n++; console.log('ok -', name) }
+const pending: Array<Promise<void>> = []
+const ok = (name: string, fn: () => void | Promise<void>) => {
+  const r = fn()
+  if (r instanceof Promise) pending.push(r.then(() => { n++; console.log('ok -', name) }))
+  else { n++; console.log('ok -', name) }
+}
 
 const NOW = new Date('2026-11-09T10:00:00Z')
 const day = (d: number) => new Date(NOW.getTime() - d * 86_400_000).toISOString()
 const p = (id: string, o: Partial<Prospect> = {}): Prospect => ({
   id, name: `שם ${id}`, phone: null, instagram: null, city: null, treatment: 'other', source: 'whatsapp', notes: '', status: 'new',
-  lastContactedAt: null, lastChannel: null, contactCount: 0, createdAt: day(30), signedUp: false, ...o,
+  lastContactedAt: null, lastChannel: null, contactCount: 0, createdAt: day(30), signedUp: false,
+  followers: null, currentSystem: 'unknown', nextFollowup: null, ...o,
 })
 
 // ── templates ────────────────────────────────────────────────────────────────
-ok('every template: signed by מעיין from ביוטי פלייס, free month with no card, asks before a link, the opt-out line, no em dash', () => {
-  for (const t of [...Object.values(WHATSAPP_TEMPLATES), INSTAGRAM_TEMPLATE]) {
-    assert.match(t, /מעיין מביוטי פלייס/)
-    assert.match(t, /חודש ניסיון חינם/)
-    assert.match(t, /בלי כרטיס אשראי/)
-    assert.match(t, /רוצה שאשלח לך קישור/)
-    assert.ok(t.includes(OPT_OUT_LINE))
-    assert.ok(OPT_OUT_LINE.startsWith('אם לא רלוונטי, תגידי לי ולא אפנה שוב'))
-    assert.doesNotMatch(t, /—|–/)
-    assert.doesNotMatch(t, /https?:\/\//, 'the first message never carries a link')
-    assert.ok(t.includes('{name}'))
-  }
-  assert.equal(new Set(Object.values(WHATSAPP_TEMPLATES)).size, 5)
+// The approved DM (2026-11), with "[שם]" as {name}. Every message is exactly this with one line swapped and the link tagged.
+const APPROVED_DM = "היי {name}, נעים מאוד, אני מעיין 🌸\n\nהקמתי את Kalmea, מערכת לקוסמטיקאיות ומניקוריסטיות שמנהלת לך את כל העסק במקום אחד, כדי שתוכלי להתמקד בטיפולים ולגדול:\n\n📅 יומן וניהול: אתר אישי משלך שבו הלקוחות קובעות ומזיזות תור לבד, עם מקדמה בכרטיס או בביט. פחות וואטסאפ, פחות לקוחות שלא מגיעות.\n📣 שיווק: פוסטים ורילסים לאינסטגרם עם AI, בעיצוב של העסק שלך, תוך דקות.\n💰 מכירות: קופה וסליקה, כרטיסיית ניקובים, שוברי מתנה ודוח חודשי שמראה כמה הרווחת ומאיפה.\n\nהכל בתוכנה אחת, במקום שלוש אפליקציות ומחברת ✨\n\nאם תרצי, אני מקימה לך את הכל בעצמי תוך 10 דקות, וחודש ראשון עליי 💛\nלהצצה: https://kalmea.app/?utm_source=instagram&utm_medium=dm\n\nמוזמנת לעקוב אחרינו ב-@kal.mea לטיפים ועדכונים 🌸\nלכל שאלה אני זמינה לך באופן אישי, כאן או בוואטסאפ: 054-2845655"
+const allMessages = () => CURRENT_SYSTEMS.flatMap((sys) => TREATMENTS.flatMap((t) => (['instagram', 'whatsapp'] as const).map((ch) => ({ sys, t, ch, m: messageTemplate(ch, t, sys) }))))
+
+ok('the approved DM is the base: unknown system + "other" on Instagram is it word for word, plus utm_campaign', () => {
+  assert.equal(messageTemplate('instagram', 'other', 'unknown'), APPROVED_DM.replace('utm_medium=dm', 'utm_medium=dm&utm_campaign=other'))
+  assert.equal(tailoredLine('other', 'unknown'), BASE_TAILORED_LINE)
 })
 
-ok('the template follows the treatment type; hair removal and other get the general one', () => {
-  assert.equal(templateKeyFor('brows'), 'brows')
-  assert.equal(templateKeyFor('lashes'), 'lashes')
-  assert.equal(templateKeyFor('face'), 'face')
-  assert.equal(templateKeyFor('nails'), 'nails')
-  assert.equal(templateKeyFor('hair_removal'), 'general')
-  assert.equal(templateKeyFor('other'), 'general')
-  assert.match(whatsappMessage('brows', 'נועה'), /גבות/)
-  assert.match(whatsappMessage('lashes', 'נועה'), /ריסים/)
-  assert.match(whatsappMessage('nails', 'נועה'), /ציפורניים/)
+ok('every message differs from the approved one in exactly one line (the tailored one), the link and the contact line', () => {
+  const base = APPROVED_DM.split('\n')
+  for (const { sys, t, ch, m } of allMessages()) {
+    const lines = m.split('\n')
+    assert.equal(lines.length, base.length, `${sys}/${t}/${ch}`)
+    const diff = lines.map((l, i) => (l === base[i] ? -1 : i)).filter((i) => i >= 0)
+    const allowed = new Set([base.indexOf(BASE_TAILORED_LINE), base.findIndex((l) => l.startsWith('להצצה:')), base.length - 1])
+    for (const i of diff) assert.ok(allowed.has(i), `${sys}/${t}/${ch}: line ${i} changed: ${lines[i]}`)
+  }
+})
+
+ok('every message: signed by מעיין, the free first month, the tagged link, nothing not live, no em dash', () => {
+  for (const { sys, t, ch, m } of allMessages()) {
+    assert.match(m, /אני מעיין/)
+    assert.match(m, /חודש ראשון עליי/)
+    assert.ok(m.includes(`https://kalmea.app/?utm_source=${ch}&utm_medium=dm&utm_campaign=${t}`), `${sys}/${t}/${ch}`)
+    assert.equal((m.match(/https?:\/\//g) || []).length, 1, 'one link only')
+    assert.doesNotMatch(m, /קבלה|קבלות/)
+    assert.doesNotMatch(m, /תזכורת|תזכורות|אוטומטי/, 'no automatic reminders claim')
+    assert.doesNotMatch(m, /—|–/)
+    assert.ok(m.includes('{name}'))
+  }
+  assert.equal(outreachLink('whatsapp', 'brows'), 'https://kalmea.app/?utm_source=whatsapp&utm_medium=dm&utm_campaign=brows')
+})
+
+ok('tailoring: WhatsApp by hand gets the evenings in WhatsApp; another system gets "moving over is easy"; treatment is in the line', () => {
+  assert.match(tailoredLine('brows', 'whatsapp_manual'), /הערבים הולכים על התכתבויות בוואטסאפ על תורי גבות/)
+  assert.match(tailoredLine('lashes', 'whatsapp_manual'), /ריסים/)
+  assert.match(tailoredLine('nails', 'excel_or_notebook'), /מחברת.*ציפורניים/)
+  for (const sys of ['calmark', 'pink', 'tor4you', 'other_system'] as const) {
+    const l = tailoredLine('face', sys)
+    assert.match(l, /המעבר קל/)
+    assert.doesNotMatch(l, /וואטסאפ על/)
+    // the free month is already in the base, so the whole message carries both
+    assert.match(whatsappMessage('face', 'נועה', sys), /המעבר קל[\s\S]*חודש ראשון עליי/)
+  }
+  assert.match(tailoredLine('brows', 'calmark'), /Calmark/)
+  assert.match(tailoredLine('face', 'unknown'), /מטיפולי פנים ועד הקופה/)
+  // different systems give different messages; different treatments too
+  assert.notEqual(whatsappMessage('brows', 'x', 'whatsapp_manual'), whatsappMessage('brows', 'x', 'pink'))
+  assert.notEqual(whatsappMessage('brows', 'x', 'unknown'), whatsappMessage('nails', 'x', 'unknown'))
+  // WhatsApp asks to answer right here; Instagram gives the number
+  assert.match(whatsappMessage('brows', 'x'), /כאן בוואטסאפ$/)
+  assert.match(instagramMessage('x'), /בוואטסאפ: 054-2845655$/)
 })
 
 ok('personalized with her first name only; no name gives a clean greeting with no placeholder left', () => {
@@ -62,13 +99,13 @@ ok('personalized with her first name only; no name gives a clean greeting with n
   assert.equal(firstName(''), '')
   assert.equal(firstName('🌸'), '')
   const m = whatsappMessage('face', 'נועה כהן')
-  assert.ok(m.startsWith('היי נועה, מה שלומך?'))
+  assert.ok(m.startsWith('היי נועה, נעים מאוד, אני מעיין 🌸'))
   assert.doesNotMatch(m, /כהן|\{name\}/)
   const anon = whatsappMessage('face', '')
-  assert.ok(anon.startsWith('היי, מה שלומך?'))
+  assert.ok(anon.startsWith('היי, נעים מאוד'))
   assert.doesNotMatch(anon, /\{name\}|  /)
-  assert.ok(instagramMessage('').startsWith('היי 🌸'))
-  assert.ok(instagramMessage('דנה').startsWith('היי דנה 🌸'))
+  assert.ok(instagramMessage('').startsWith('היי, נעים מאוד'))
+  assert.ok(instagramMessage('דנה').startsWith('היי דנה, נעים מאוד'))
   assert.equal(personalize('{name}!', 'שירה'), 'שירה!')
 })
 
@@ -76,6 +113,9 @@ ok('wa.me link: her number, the typed message, nothing else; Instagram opens the
   const l = prospectWaLink('972541234567', 'brows', 'נועה כהן')!
   assert.match(l, /^https:\/\/wa\.me\/972541234567\?text=/)
   assert.equal(decodeURIComponent(l.split('?text=')[1]), whatsappMessage('brows', 'נועה כהן'))
+  const l2 = prospectWaLink('972541234567', 'nails', 'נועה', 'whatsapp_manual')!
+  assert.equal(decodeURIComponent(l2.split('?text=')[1]), whatsappMessage('nails', 'נועה', 'whatsapp_manual'))
+  assert.ok(decodeURIComponent(l2).includes('utm_source=whatsapp&utm_medium=dm&utm_campaign=nails'))
   assert.equal(prospectWaLink(null, 'brows', 'x'), null)
   assert.equal(instagramDmLink('@Noa.Brows'), 'https://ig.me/m/noa.brows')
   assert.equal(instagramDmLink(null), null)
@@ -149,7 +189,7 @@ ok('Vercel review #1, server side: a merge updates only the keys; insert only fo
 ok('one prospect: Israeli mobile normalized, phone or Instagram required, unknown types fall back', () => {
   const r = cleanProspectInput({ name: ' נועה  כהן ', phone: '054-123-4567', instagram: 'https://instagram.com/Noa.B/', treatment: 'x', source: 'y' })
   assert.ok(r.ok)
-  if (r.ok) assert.deepEqual(r.value, { name: 'נועה כהן', phone: '972541234567', instagram: 'noa.b', city: null, treatment: 'other', source: 'whatsapp', notes: '' })
+  if (r.ok) assert.deepEqual(r.value, { name: 'נועה כהן', phone: '972541234567', instagram: 'noa.b', city: null, treatment: 'other', source: 'whatsapp', notes: '', followers: null, currentSystem: null, nextFollowup: null })
   assert.deepEqual(cleanProspectInput({ name: 'x', phone: '03-1234567' }), { ok: false, error: 'מספר נייד לא תקין' })
   assert.deepEqual(cleanProspectInput({ name: 'x' }), { ok: false, error: 'צריך טלפון או אינסטגרם' })
   assert.deepEqual(cleanProspectInput({ phone: '0541234567' }), { ok: false, error: 'חסר שם' })
@@ -186,6 +226,228 @@ ok('the numbers at the top are a funnel; signed-up counts as trial; today counts
   assert.equal(DAILY_LIMIT_HE, 'מומלץ עד 20 הודעות ביום מהטלפון שלך')
   assert.deepEqual(sortProspects(rows).map((r) => r.id).slice(0, 2), ['a', 'b'])
   assert.equal(sortProspects(rows).at(-1)!.id, 'f')
+})
+
+// ── enrich: followers, current system, next follow-up ─────────────────────
+ok('followers: "12.5K", "1.2M", "3,400", "12.5 אלף", "980 עוקבות" parse; out of range or junk is null; shown short', () => {
+  assert.equal(parseFollowers('12.5K'), 12500)
+  assert.equal(parseFollowers('12.5k'), 12500)
+  assert.equal(parseFollowers('1.2M'), 1_200_000)
+  assert.equal(parseFollowers('3,400'), 3400)
+  assert.equal(parseFollowers('12.5 אלף'), 12500)
+  assert.equal(parseFollowers('980 עוקבות'), 980)
+  assert.equal(parseFollowers('4K followers'), 4000)
+  assert.equal(parseFollowers(4200), 4200)
+  assert.equal(parseFollowers('0'), 0)
+  assert.equal(parseFollowers('10000001'), null)
+  assert.equal(parseFollowers('11M'), null)
+  assert.equal(parseFollowers(-1), null)
+  assert.equal(parseFollowers(1.5), null)
+  assert.equal(parseFollowers('12.5'), null, 'a fraction without K/M is not a count')
+  assert.equal(parseFollowers('abc'), null)
+  assert.equal(formatFollowers(12500), '12.5K')
+  assert.equal(formatFollowers(3000), '3K')
+  assert.equal(formatFollowers(980), '980')
+  assert.equal(formatFollowers(1_200_000), '1.2M')
+  assert.equal(formatFollowers(null), '')
+})
+
+ok('system names in Hebrew or English map to the stored keys', () => {
+  assert.equal(parseCurrentSystem('קלמרק'), 'calmark')
+  assert.equal(parseCurrentSystem('Calmark'), 'calmark')
+  assert.equal(parseCurrentSystem('פינק'), 'pink')
+  assert.equal(parseCurrentSystem('Tor4You'), 'tor4you')
+  assert.equal(parseCurrentSystem('תור פור יו'), 'tor4you')
+  assert.equal(parseCurrentSystem('ווטסאפ'), 'whatsapp_manual')
+  assert.equal(parseCurrentSystem('וואטסאפ ידני'), 'whatsapp_manual')
+  assert.equal(parseCurrentSystem('מחברת'), 'excel_or_notebook')
+  assert.equal(parseCurrentSystem('Excel'), 'excel_or_notebook')
+  assert.equal(parseCurrentSystem('מערכת אחרת'), 'other_system')
+  assert.equal(parseCurrentSystem('pink'), 'pink')
+  assert.equal(parseCurrentSystem('תל אביב'), null)
+  assert.equal(parseCurrentSystem(''), null)
+})
+
+ok('paste with the new columns: city, @handle, followers and system in any order; a handle alone is enough', () => {
+  const r = parsePastedProspects([
+    'נועה כהן, 050-123-4567, חיפה, 12.5K, ווטסאפ',
+    'דנה\t0521112233\tקלמרק\t3400\tתל אביב',
+    'שירה, @shira.nails, 980 עוקבות, Pink',
+    'מיכל, @Shira.Nails', // same handle as line 3
+    'רותם, 0541112233, 1.2M',
+    'גלית, @galit, מחברת, ראשון לציון',
+  ].join('\n'))
+  assert.deepEqual(r.rows, [
+    { name: 'נועה כהן', phone: '972501234567', city: 'חיפה', followers: 12500, currentSystem: 'whatsapp_manual' },
+    { name: 'דנה', phone: '972521112233', city: 'תל אביב', followers: 3400, currentSystem: 'calmark' },
+    { name: 'שירה', phone: null, instagram: 'shira.nails', followers: 980, currentSystem: 'pink' },
+    { name: 'רותם', phone: '972541112233', followers: 1_200_000 },
+    { name: 'גלית', phone: null, instagram: 'galit', city: 'ראשון לציון', currentSystem: 'excel_or_notebook' },
+  ])
+  assert.deepEqual(r.repeated.map((x) => x.line), [4])
+  assert.deepEqual(r.invalid, [])
+  // the two-column format still works exactly as before
+  assert.deepEqual(parsePastedProspects('נועה כהן, 050-123-4567').rows, [{ name: 'נועה כהן', phone: '972501234567' }])
+})
+
+ok('enrich validation: followers 0..10M, a known system, a real date; only keys present are patched; empty clears', () => {
+  assert.deepEqual(cleanEnrichFields({}), { ok: true, patch: {}, touched: false })
+  assert.deepEqual(cleanEnrichFields({ followers: '12.5K', current_system: 'קלמרק', next_followup: '2026-11-20' }),
+    { ok: true, patch: { followers: 12500, current_system: 'calmark', next_followup: '2026-11-20' }, touched: true })
+  assert.deepEqual(cleanEnrichFields({ followers: null, next_followup: '' }), { ok: true, patch: { followers: null, next_followup: null }, touched: true })
+  assert.equal(cleanEnrichFields({ followers: 10_000_001 }).ok, false)
+  assert.equal(cleanEnrichFields({ followers: 'lots' }).ok, false)
+  assert.equal(cleanEnrichFields({ current_system: 'wix' }).ok, false)
+  assert.equal(cleanEnrichFields({ next_followup: '2026-02-30' }).ok, false)
+  assert.equal(cleanEnrichFields({ next_followup: '20-11-2026' }).ok, false)
+  assert.equal(cleanEnrichFields({ next_followup: '2101-01-01' }).ok, false)
+  assert.equal(isFollowupDate('2026-11-11'), true)
+  const one = cleanProspectInput({ name: 'x', phone: '0541234567', followers: '3K', current_system: 'pink' })
+  assert.ok(one.ok && one.value.followers === 3000 && one.value.currentSystem === 'pink' && one.value.nextFollowup === null)
+  assert.deepEqual(cleanProspectInput({ name: 'x', phone: '0541234567', followers: 'x' }), { ok: false, error: 'מספר עוקבות לא תקין (0 עד 10,000,000)' })
+})
+
+ok('priority: a due follow-up first, then WhatsApp-by-hand with 1K-10K followers; recent contact sinks; declined is never', () => {
+  const rows = [
+    p('big', { followers: 200_000, currentSystem: 'calmark' }),
+    p('sweet', { followers: 4_000, currentSystem: 'whatsapp_manual' }),
+    p('tiny', { followers: 120, currentSystem: 'whatsapp_manual' }),
+    p('unknown'),
+    p('due', { status: 'messaged', lastContactedAt: day(20), nextFollowup: '2026-11-08' }),
+    p('recent', { status: 'messaged', lastContactedAt: day(2), followers: 4_000, currentSystem: 'whatsapp_manual' }),
+    p('later', { followers: 4_000, currentSystem: 'whatsapp_manual', nextFollowup: '2026-11-20' }),
+    p('stop', { status: 'opted_out', followers: 4_000, currentSystem: 'whatsapp_manual', nextFollowup: '2026-11-01' }),
+  ]
+  assert.deepEqual(sortByPriority(rows, NOW).map((r) => r.id), ['due', 'sweet', 'later', 'tiny', 'unknown', 'big', 'recent', 'stop'])
+  assert.equal(prospectPriority(rows[7], NOW), -1)
+  assert.ok(prospectPriority(p('a', { currentSystem: 'whatsapp_manual' }), NOW) > prospectPriority(p('b', { currentSystem: 'pink' }), NOW))
+  assert.ok(prospectPriority(p('a', { followers: 5_000 }), NOW) > prospectPriority(p('b', { followers: 500 }), NOW))
+  assert.ok(prospectPriority(p('a', { followers: 5_000 }), NOW) > prospectPriority(p('b', { followers: 60_000 }), NOW))
+  assert.ok(prospectPriority(p('a', { status: 'replied', lastContactedAt: day(20) }), NOW) > prospectPriority(p('b', { status: 'messaged', lastContactedAt: day(20) }), NOW))
+})
+
+ok('follow-up due uses the Israel day: today and overdue count, tomorrow does not', () => {
+  // 2026-11-09T23:30Z is already 2026-11-10 in Israel
+  const late = new Date('2026-11-09T23:30:00Z')
+  assert.equal(followupDue('2026-11-10', late), true)
+  assert.equal(followupDue('2026-11-11', late), false)
+  assert.equal(followupOverdueDays('2026-11-10', late), 0)
+  assert.equal(followupOverdueDays('2026-11-07', late), 3)
+  assert.equal(followupOverdueDays('2026-11-12', late), null)
+  assert.equal(followupDue(null, late), false)
+  assert.equal(followupDue('junk', late), false)
+})
+
+ok('"לפנות היום": due follow-ups first (oldest date first), then the best new ones; capped by what is left of the daily limit', () => {
+  const rows = [
+    p('n1', { followers: 4_000, currentSystem: 'whatsapp_manual' }),
+    p('n2', { followers: 120 }),
+    p('d2', { status: 'replied', lastContactedAt: day(5), nextFollowup: '2026-11-09' }),
+    p('d1', { status: 'messaged', lastContactedAt: day(20), nextFollowup: '2026-11-02' }),
+    p('future', { nextFollowup: '2026-11-30' }),
+    p('messaged', { status: 'messaged', lastContactedAt: day(20) }),
+    p('stop', { status: 'not_interested', nextFollowup: '2026-11-01' }),
+  ]
+  const t = todayList(rows, NOW)
+  assert.deepEqual(t.map((x) => [x.p.id, x.reason]), [['d1', 'followup'], ['d2', 'followup'], ['n1', 'new'], ['n2', 'new']])
+  assert.deepEqual(todayList(rows, NOW, 2).map((x) => x.p.id), ['d1', 'd2'])
+  // 19 sent today leaves room for one
+  const sent = Array.from({ length: DAILY_SOFT_LIMIT - 1 }, (_, i) => p(`s${i}`, { status: 'messaged', lastContactedAt: NOW.toISOString() }))
+  assert.deepEqual(todayList([...rows, ...sent], NOW).map((x) => x.p.id), ['d1'])
+  const full = [...sent, p('s-last', { status: 'messaged', lastContactedAt: NOW.toISOString() })]
+  assert.deepEqual(todayList([...rows, ...full], NOW), [])
+})
+
+ok('missing enrich columns: recognised, never mistaken for a missing table; rows default to unknown', () => {
+  assert.equal(isMissingEnrichColumns({ code: '42703', message: 'column prospects.followers does not exist' }), true)
+  assert.equal(isMissingEnrichColumns({ code: 'PGRST204', message: "Could not find the 'current_system' column of 'prospects' in the schema cache" }), true)
+  assert.equal(isMissingEnrichColumns({ code: '42P01', message: 'relation "public.prospects" does not exist' }), false)
+  assert.equal(isMissingProspectsTable({ code: '42703', message: 'column prospects.followers does not exist' }), false)
+  assert.equal(isMissingProspectsTable({ code: '42P01', message: 'relation "public.prospects" does not exist' }), true)
+  const r = toProspect({ id: 'a', name: 'x', phone_e164: null, instagram: 'x', city: null, treatment: 'brows', source: 'instagram', notes: '', status: 'new',
+    last_contacted_at: null, contact_count: 0, created_at: day(1) }, new Set())
+  assert.deepEqual([r.followers, r.currentSystem, r.nextFollowup], [null, 'unknown', null])
+  const r2 = toProspect({ id: 'a', name: 'x', phone_e164: null, instagram: 'x', city: null, treatment: 'brows', source: 'instagram', notes: '', status: 'new',
+    last_contacted_at: null, contact_count: 0, created_at: day(1), followers: 4000, current_system: 'pink', next_followup: '2026-11-12' }, new Set())
+  assert.deepEqual([r2.followers, r2.currentSystem, r2.nextFollowup], [4000, 'pink', '2026-11-12'])
+  assert.match(ENRICH_MIGRATION_NEEDED_HE, new RegExp(ENRICH_MIGRATION_FILE))
+  assert.doesNotMatch(ENRICH_MIGRATION_NEEDED_HE, /—|–/)
+})
+
+ok('missing enrich columns: the read falls back to the old columns, and the route writes none of them until the SQL ran', () => {
+  const route = strip(rd('app/api/admin/prospects/route.ts'))
+  const post = route.slice(route.indexOf('export async function POST'))
+  assert.ok(post.indexOf('requirePlatformAdmin()') < post.indexOf('probeEnrichColumns(db)'))
+  assert.match(post, /const enriched = \(await probeEnrichColumns\(db\)\) === true/)
+  assert.match(post, /\.\.\.\(enriched \? \{ followers: v\.followers, current_system: v\.currentSystem \?\? 'unknown', next_followup: v\.nextFollowup \} : \{\}\)/)
+  assert.match(post, /if \(enrich\.touched\) \{\s*if \(!enriched\) return enrichNeeded\(\)\s*Object\.assign\(patch, enrich\.patch\)/)
+  assert.match(post, /if \(enriched && followupDue\(row\.next_followup, new Date\(\)\)\) patch\.next_followup = null/)
+  assert.match(route, /function enrichNeeded\(\) \{\s*return NextResponse\.json\(\{ error: ENRICH_MIGRATION_NEEDED_HE, migrationNeeded: true \}, \{ status: 503 \}\)/)
+  // every column the route selects or writes outside that guard is a base column
+  assert.match(post, /const PROSPECT_COLUMNS = prospectColumns\(enriched\)/)
+  const data = strip(rd('lib/prospectsData.ts'))
+  assert.match(data, /if \(res\.error && isMissingEnrichColumns\(res\.error\)\) \{\s*enriched = false\s*res = await read\(PROSPECT_COLUMNS\)/)
+  // the client shows the enrich fields and filter only when enriched, and the admin-only note otherwise
+  const c = strip(rd('app/dashboard/admin/outreach/OutreachClient.tsx'))
+  for (const id of ['followers', 'current-system', 'next-followup', 'system-filter']) {
+    const i = c.indexOf(`data-testid="${id}"`)
+    assert.ok(i > 0, id)
+    assert.ok(c.slice(Math.max(0, i - 400), i).includes('{enriched && ('), id)
+  }
+  assert.match(c, /available && !enriched && \(\s*<p role="status" data-testid="enrich-migration-note"/)
+})
+
+ok('the read with a fake database: missing enrich columns -> a second read without them, enriched false, nothing written', async () => {
+  const calls: string[] = []
+  const fakeDb = {
+    from(table: string) {
+      return {
+        select(cols: string) {
+          calls.push(`${table}:${cols}`)
+          const missing = table === 'prospects' && /followers/.test(cols)
+          const res = missing
+            ? { data: null, error: { code: '42703', message: 'column prospects.followers does not exist' } }
+            : { data: table === 'prospects' ? [{ id: 'a', name: 'x', phone_e164: '972541234567', instagram: null, city: null, treatment: 'nails', source: 'whatsapp', notes: '', status: 'new', last_contacted_at: null, contact_count: 0, created_at: day(1) }] : [], error: null }
+          const q = Promise.resolve(res) as Promise<typeof res> & { order: () => typeof q; limit: () => typeof q }
+          q.order = () => q
+          q.limit = () => q
+          return q
+        },
+        insert() { throw new Error('no writes') }, update() { throw new Error('no writes') }, delete() { throw new Error('no writes') },
+      }
+    },
+  }
+  const { readProspects } = await import('./lib/prospectsData.ts')
+  const r = await readProspects(fakeDb as never)
+  assert.ok(r.ok && r.available && r.enriched === false)
+  if (r.ok) assert.deepEqual([r.rows[0].treatment, r.rows[0].currentSystem, r.rows[0].followers], ['nails', 'unknown', null])
+  assert.equal(calls.filter((x) => x.startsWith('prospects:')).length, 2)
+})
+
+ok('nothing sends: the templates module and the new screen code only build links and text', () => {
+  const t = strip(rd('lib/prospectTemplates.ts'))
+  assert.doesNotMatch(t, /fetch\(|sendWhatsApp|greenapi|waCloud|XMLHttpRequest|navigator\.sendBeacon/i)
+  const lib = strip(rd('lib/prospects.ts'))
+  assert.doesNotMatch(lib, /fetch\(|sendWhatsApp|greenapi|waCloud/i)
+  const c = strip(rd('app/dashboard/admin/outreach/OutreachClient.tsx'))
+  // the "לפנות היום" button is a wa.me link she opens herself, and it records the send through the same route
+  assert.match(c, /function TodayRow[\s\S]*const wa = prospectWaLink\(p\.phone, p\.treatment, p\.name, p\.currentSystem\)/)
+  assert.match(c, /data-testid="today"/)
+  assert.match(c, /todayList\(rows, now\)/)
+  assert.doesNotMatch(c, /window\.open|sendBeacon/)
+})
+
+ok('the enrich migration: additive, nullable, checked, every system listed, no drop or delete, nothing about grants loosened', () => {
+  const sql = rd('supabase/migrations/add_prospects_enrich_2026-11-11.sql')
+  for (const col of ['followers integer', 'current_system text', 'next_followup date']) {
+    assert.match(sql, new RegExp(`alter table public\\.prospects add column if not exists ${col};`), col)
+  }
+  assert.match(sql, /followers between 0 and 10000000/)
+  for (const s of CURRENT_SYSTEMS) assert.match(sql, new RegExp(`'${s}'`), s)
+  assert.match(sql, /next_followup between date '2020-01-01' and date '2100-12-31'/)
+  const code = sql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n')
+  assert.doesNotMatch(code, /\bdrop\b|\bdelete\b|\btruncate\b|\bgrant\b|create policy|add column[^;]*not null|set not null/i)
+  assert.match(code.trim(), /^begin;[\s\S]*commit;$/)
 })
 
 // ── migration ────────────────────────────────────────────────────────────────
@@ -282,4 +544,5 @@ ok('the admin page and the owner hub link to the screen', () => {
   assert.match(rd('app/dashboard/owner/page.tsx'), /'\/dashboard\/admin\/outreach'/)
 })
 
+await Promise.all(pending)
 console.log(`${n} passed`)

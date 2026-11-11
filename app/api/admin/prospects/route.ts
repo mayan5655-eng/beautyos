@@ -8,15 +8,20 @@
 //
 // It writes only that table and never deletes. IT NEVER SENDS A MESSAGE: "sent" only records that she opened WhatsApp (or
 // Instagram) on her own phone. A prospect who declined or asked to stop is refused here too, not only hidden in the screen.
+//
+// THE ENRICH FIELDS (followers, current_system, next_followup) come from add_prospects_enrich_2026-11-11.sql. Every request
+// probes for them first; until that file ran, none of them is read or written: an add simply leaves them out, and an update
+// that only changes them answers 503 with ENRICH_MIGRATION_NEEDED_HE instead of pretending it saved.
 
 import { NextResponse } from 'next/server'
 import { requirePlatformAdmin, createAdminClient } from '@/lib/adminGuard'
 import {
   cleanProspectInput, planAdd, isProspectStatus, isChannel, canSend, statusAfterSend, isMissingProspectsTable,
-  ADD_MAX, NOTES_MAX, MIGRATION_NEEDED_HE, isTreatment,
+  ADD_MAX, NOTES_MAX, MIGRATION_NEEDED_HE, isTreatment, cleanEnrichFields, isMissingEnrichColumns, ENRICH_MIGRATION_NEEDED_HE,
+  followupDue, cleanInstagram, cleanCity,
 } from '@/lib/prospects'
 import type { ProspectInput } from '@/lib/prospects'
-import { PROSPECT_COLUMNS, readSignedUpPhones, toProspect } from '@/lib/prospectsData'
+import { prospectColumns, probeEnrichColumns, readSignedUpPhones, toProspect } from '@/lib/prospectsData'
 import type { ProspectDbRow } from '@/lib/prospectsData'
 
 /** The largest request body accepted (characters). */
@@ -27,7 +32,13 @@ function notFound() {
   return NextResponse.json({ error: 'Not found' }, { status: 404 })
 }
 
+function enrichNeeded() {
+  return NextResponse.json({ error: ENRICH_MIGRATION_NEEDED_HE, migrationNeeded: true }, { status: 503 })
+}
+
 function dbError(e: { code?: string; message?: string }, what: string) {
+  if (isMissingEnrichColumns(e)) return enrichNeeded()
+  if (e.code === '23505') return NextResponse.json({ error: 'הטלפון או האינסטגרם האלה כבר שייכים לקוסמטיקאית אחרת ברשימה' }, { status: 409 })
   if (isMissingProspectsTable(e)) return NextResponse.json({ error: MIGRATION_NEEDED_HE, migrationNeeded: true }, { status: 503 })
   console.error(`[admin/prospects] ${what} failed:`, e.message)
   return NextResponse.json({ error: 'השמירה נכשלה, אפשר לנסות שוב' }, { status: 500 })
@@ -45,6 +56,9 @@ export async function POST(request: Request) {
   if (!body || typeof body !== 'object') body = {}
   const action = body?.action
   const db = createAdminClient()
+  // The enrich columns are written only when they exist (null = the probe failed: treat as missing, write none of them).
+  const enriched = (await probeEnrichColumns(db)) === true
+  const PROSPECT_COLUMNS = prospectColumns(enriched)
 
   // ── add one or many ────────────────────────────────────────────────────────
   if (action === 'add') {
@@ -80,7 +94,7 @@ export async function POST(request: Request) {
       const { data, error } = await db.from('prospects').update({ ...m.patch, updated_at: new Date().toISOString() })
         .eq('id', m.id).select(PROSPECT_COLUMNS).maybeSingle()
       if (error) return dbError(error, 'merge')
-      if (data) updated.push(data as ProspectDbRow)
+      if (data) updated.push(data as unknown as ProspectDbRow)
     }
     let added: ProspectDbRow[] = []
     if (fresh.length) {
@@ -88,9 +102,10 @@ export async function POST(request: Request) {
       const { data, error } = await db.from('prospects').insert(fresh.map((v) => ({
         name: v.name, phone_e164: v.phone, instagram: v.instagram, city: v.city, treatment: v.treatment, source: v.source,
         notes: v.notes, status: 'new', created_at: now, updated_at: now, created_by: admin.userId,
+        ...(enriched ? { followers: v.followers, current_system: v.currentSystem ?? 'unknown', next_followup: v.nextFollowup } : {}),
       }))).select(PROSPECT_COLUMNS)
       if (error) return dbError(error, 'insert')
-      added = (data || []) as ProspectDbRow[]
+      added = (data || []) as unknown as ProspectDbRow[]
     }
     const signed = await readSignedUpPhones(db)
     return NextResponse.json({
@@ -108,7 +123,7 @@ export async function POST(request: Request) {
   const prior = await db.from('prospects').select(PROSPECT_COLUMNS).eq('id', id).maybeSingle()
   if (prior.error) return dbError(prior.error, 'read')
   if (!prior.data) return NextResponse.json({ error: 'לא נמצאה ברשימה' }, { status: 404 })
-  const row = prior.data as ProspectDbRow
+  const row = prior.data as unknown as ProspectDbRow
   const status = isProspectStatus(row.status) ? row.status : 'new'
   const now = new Date().toISOString()
 
@@ -118,6 +133,8 @@ export async function POST(request: Request) {
     if (!canSend(status)) return NextResponse.json({ error: 'היא ביקשה לא לקבל הודעות, אז לא שולחים לה שוב.' }, { status: 409 })
     const channel = isChannel(body.channel) ? body.channel : 'whatsapp'
     patch = { status: statusAfterSend(status), last_contacted_at: now, last_channel: channel, contact_count: (row.contact_count || 0) + 1, updated_at: now }
+    // The follow-up she had for today (or overdue) is done once she wrote to her. A later date stays.
+    if (enriched && followupDue(row.next_followup, new Date())) patch.next_followup = null
   } else if (action === 'update') {
     patch = { updated_at: now }
     if (body.status !== undefined) {
@@ -133,6 +150,21 @@ export async function POST(request: Request) {
       if (!isTreatment(body.treatment)) return NextResponse.json({ error: 'סוג טיפול לא מוכר' }, { status: 400 })
       patch.treatment = body.treatment
     }
+    if (body.city !== undefined) patch.city = cleanCity(body.city)
+    if (body.instagram !== undefined) {
+      const raw = typeof body.instagram === 'string' ? body.instagram.trim().slice(0, 200) : ''
+      const handle = cleanInstagram(raw)
+      if (raw && !handle) return NextResponse.json({ error: 'שם משתמש באינסטגרם לא תקין' }, { status: 400 })
+      if (!handle && !row.phone_e164) return NextResponse.json({ error: 'צריך טלפון או אינסטגרם' }, { status: 400 })
+      patch.instagram = handle
+    }
+    const enrich = cleanEnrichFields(body)
+    if (!enrich.ok) return NextResponse.json({ error: enrich.error }, { status: 400 })
+    if (enrich.touched) {
+      // Never written before the enrich SQL file ran: say so, never a silent no-op that looks saved.
+      if (!enriched) return enrichNeeded()
+      Object.assign(patch, enrich.patch)
+    }
   } else {
     return NextResponse.json({ error: 'פעולה לא מוכרת' }, { status: 400 })
   }
@@ -141,5 +173,5 @@ export async function POST(request: Request) {
   if (error) return dbError(error, 'update')
   if (!data) return NextResponse.json({ error: 'לא נמצאה ברשימה' }, { status: 404 })
   const signed = await readSignedUpPhones(db)
-  return NextResponse.json({ ok: true, prospect: toProspect(data as ProspectDbRow, signed) })
+  return NextResponse.json({ ok: true, prospect: toProspect(data as unknown as ProspectDbRow, signed) })
 }

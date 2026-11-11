@@ -8,7 +8,7 @@ import { readProspects } from '@/lib/prospectsData'
 import { sortProspects } from '@/lib/prospects'
 import type { Prospect } from '@/lib/prospects'
 
-export type OutreachPage = { ok: true; available: boolean; rows: Prospect[]; now: string } | { ok: false }
+export type OutreachPage = { ok: true; available: boolean; enriched: boolean; rows: Prospect[]; now: string } | { ok: false }
 
 export async function loadOutreach(): Promise<OutreachPage> {
   const admin = await requirePlatformAdmin()
@@ -16,5 +16,5 @@ export async function loadOutreach(): Promise<OutreachPage> {
   const db = createAdminClient()
   const r = await readProspects(db)
   if (!r.ok) return { ok: false }
-  return { ok: true, available: r.available, rows: sortProspects(r.rows), now: new Date().toISOString() }
+  return { ok: true, available: r.available, enriched: r.enriched, rows: sortProspects(r.rows), now: new Date().toISOString() }
 }
