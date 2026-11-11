@@ -41,6 +41,7 @@ export const usePathname = () => '/';
 export const useParams = () => ({ token: 'abc123' });
 export const useSearchParams = () => new URLSearchParams('');
 export const notFound = () => { throw new Error('notFound'); };
+export const redirect = (to) => { throw new Error('redirect:' + to); };
 `,
   'next/dynamic': `export default function dynamic() { return function Dynamic() { return null; }; }
 `,

@@ -15,6 +15,7 @@ import { ConfirmDialog } from '../../MiniToast'
 import type { InstanceState } from '@/lib/greenApi/health'
 import ChromeFlowerBg from '../../ChromeFlowerBg'
 import { countBySource } from '@/lib/attribution'
+import { academyEnabled } from '@/lib/academy'
 
 export interface AdminTenantRow {
   id: string
@@ -282,6 +283,12 @@ export default function AdminClient({
           border: `1px solid ${line}`, borderRadius:"var(--r-full)", padding: '9px 16px',
           textDecoration: 'none', whiteSpace: 'nowrap',
         }}>פניות תמיכה ←</a>
+        {/* Kalmea Academy: only while NEXT_PUBLIC_ACADEMY is on (lib/academy.ts). */}
+        {academyEnabled() && <a href="/dashboard/admin/academy" style={{
+          fontSize:"var(--t-sm)", fontWeight: 600, color: ink, background: surface,
+          border: `1px solid ${line}`, borderRadius:"var(--r-full)", padding: '9px 16px',
+          textDecoration: 'none', whiteSpace: 'nowrap',
+        }}>האקדמיה ←</a>}
         </div>
       </div>
 
