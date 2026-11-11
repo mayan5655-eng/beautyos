@@ -11,6 +11,7 @@ import {
   canView, courseProgress, bySort, visibleLessons, certificateEligible, courseStats,
   type CourseRow, type LessonRow, type AccessRow, type ProgressRow, type CourseProgress, type CourseStats, type TenantTier,
 } from './academy.ts';
+import { readAllRows } from './pagedRead.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Db = { from: (table: string) => any };
@@ -122,7 +123,7 @@ export async function loadCourse(db: Db, viewer: Viewer, isAdmin: boolean, slug:
 }
 
 /** The certificate's facts: her name and business from her settings, the course, the date she finished. null = not earned. */
-export async function loadCertificate(db: Db, viewer: Viewer, isAdmin: boolean, slug: string, env?: Record<string, string | undefined>): Promise<{ ok: true; cert: { name: string; business: string; course: string; completedAt: string } | null } | LoadFail> {
+export async function loadCertificate(db: Db, viewer: Viewer, isAdmin: boolean, slug: string, env?: Record<string, string | undefined>): Promise<{ ok: true; cert: { name: string; business: string; course: string; courseSlug: string; completedAt: string } | null } | LoadFail> {
   const c = await loadCourse(db, viewer, isAdmin, slug, env);
   if (!c.ok) return c;
   if (!c.view || !c.view.certificate || !c.view.progress.completedAt) return { ok: true, cert: null };
@@ -130,7 +131,7 @@ export async function loadCertificate(db: Db, viewer: Viewer, isAdmin: boolean, 
   const row = (s?.data || {}) as { therapist_name?: string | null; business_name?: string | null };
   return {
     ok: true,
-    cert: { name: String(row.therapist_name || '').trim(), business: String(row.business_name || '').trim(), course: c.view.course.title, completedAt: c.view.progress.completedAt },
+    cert: { name: String(row.therapist_name || '').trim(), business: String(row.business_name || '').trim(), course: c.view.course.title, courseSlug: c.view.course.slug, completedAt: c.view.progress.completedAt },
   };
 }
 
@@ -172,26 +173,42 @@ export async function markLessonDone(db: Db, viewer: Viewer, lessonId: string, n
 export type AdminOverview = {
   courses: (CourseRow & { lessons: LessonRow[]; stats: CourseStats })[];
   grants: (AccessRow & { business: string })[];
+  /**
+   * false when any table could not be read in full (lib/pagedRead.js hit its ceiling). The counts are then a lower bound and the
+   * screen says so: a capped read is never presented as everything.
+   */
+  complete: boolean;
 };
 
+const NAME_CHUNK = 200;
+// readAllRows accepts a list of columns that together are unique (its JSDoc types order as one string; the code does [].concat(order)).
+const PROGRESS_KEY = ['tenant_id', 'user_id', 'lesson_id'];
+
+/**
+ * Everything the admin screen shows. Every table is read through readAllRows (lib/pagedRead.js), which pages past PostgREST's
+ * silent max-rows cap and reports `complete: false` instead of handing back a fragment as if it were the whole table. Progress has
+ * no id column, so it is ordered by its primary key (tenant_id, user_id, lesson_id) for stable pages.
+ */
 export async function loadAdminOverview(db: Db): Promise<{ ok: true; data: AdminOverview } | LoadFail> {
   const [courses, lessons, grants, progress] = await Promise.all([
-    db.from('academy_courses').select(COURSE_COLS).order('sort'),
-    db.from('academy_lessons').select(LESSON_COLS).order('sort'),
-    db.from('academy_course_access').select('tenant_id, course_id, source, granted_at, revoked_at').order('granted_at'),
-    db.from('academy_lesson_progress').select('tenant_id, user_id, lesson_id, completed_at').limit(50000),
+    readAllRows(db, 'academy_courses', { columns: COURSE_COLS }),
+    readAllRows(db, 'academy_lessons', { columns: LESSON_COLS }),
+    readAllRows(db, 'academy_course_access', { columns: 'id, tenant_id, course_id, source, granted_at, revoked_at' }),
+    readAllRows(db, 'academy_lesson_progress', { columns: 'tenant_id, user_id, lesson_id, completed_at', order: PROGRESS_KEY as unknown as string }),
   ]);
   const err = courses.error || lessons.error || grants.error || progress.error;
   if (err) return { ok: false, reason: isMissingTable(err) ? 'missing-migration' : 'error' };
+  let complete = [courses, lessons, grants, progress].every((r) => r.complete);
   const C = bySort((courses.data || []) as CourseRow[]);
-  const L = (lessons.data || []) as LessonRow[];
-  const G = (grants.data || []) as AccessRow[];
+  const L = bySort((lessons.data || []) as LessonRow[]);
+  const G = [...((grants.data || []) as AccessRow[])].sort((a, b) => String(a.granted_at || '').localeCompare(String(b.granted_at || '')));
   const P = (progress.data || []) as ProgressRow[];
   const stats = courseStats(C, L, G, P);
   const ids = [...new Set(G.map((g) => g.tenant_id))];
   const names = new Map<string, string>();
-  if (ids.length) {
-    const s = await db.from('settings').select('tenant_id, business_name').in('tenant_id', ids);
+  for (let i = 0; i < ids.length; i += NAME_CHUNK) {
+    const s = await db.from('settings').select('tenant_id, business_name').in('tenant_id', ids.slice(i, i + NAME_CHUNK));
+    if (s?.error) { complete = false; continue; }
     for (const r of (s?.data || []) as { tenant_id: string; business_name?: string | null }[]) names.set(r.tenant_id, String(r.business_name || ''));
   }
   return {
@@ -199,6 +216,7 @@ export async function loadAdminOverview(db: Db): Promise<{ ok: true; data: Admin
     data: {
       courses: C.map((c, i) => ({ ...c, lessons: visibleLessons(L, c.id, true), stats: stats[i] })),
       grants: G.map((g) => ({ ...g, business: names.get(g.tenant_id) || '' })),
+      complete,
     },
   };
 }

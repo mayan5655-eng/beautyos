@@ -197,6 +197,11 @@ export default function AcademyAdminClient({ data }: { data: AdminOverview }) {
       <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink-2)', lineHeight: 1.7, margin: '0 0 16px' }}>
         קורסים ושיעורים, קישורי וידאו, ומי קיבלה גישה. עסק רואה רק קורס מפורסם שיש לו גישה אליו. שום פעולה כאן לא מוחקת.
       </p>
+      {!data.complete && (
+        <p role="status" data-testid="academy-admin-incomplete" style={{ fontSize: 'var(--t-md)', background: 'var(--k-petal)', borderRadius: 'var(--r-lg)', padding: '10px 14px', margin: '0 0 14px' }}>
+          חלק מהנתונים לא נטענו במלואם, אז המספרים כאן הם לפחות ולא סופיים.
+        </p>
+      )}
       {data.courses.map((c) => <CourseCard key={c.id} course={c} />)}
       <section style={box}>
         {adding ? <CourseForm onCancel={() => setAdding(false)} /> : <button style={ghost} onClick={() => setAdding(true)}>+ קורס חדש</button>}

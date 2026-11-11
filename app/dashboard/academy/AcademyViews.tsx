@@ -67,7 +67,7 @@ export function LoadError() {
 }
 
 function ctaFor(p: CourseProgress): string {
-  if (p.complete) return 'סיימת! לתעודה';
+  if (p.complete) return 'סיימת! לשיעורים ולתעודה';
   return p.done > 0 ? 'להמשיך מאיפה שעצרת' : 'להתחיל';
 }
 
@@ -81,7 +81,8 @@ export function CatalogView({ items, isAdmin }: { items: CatalogItem[]; isAdmin:
       ) : (
         <div style={{ display: 'grid', gap: 12 }}>
           {items.map(({ course, progress, lessonCount, draft }) => {
-            const href = progress.complete ? `${base}/${course.slug}/certificate` : `${base}/${course.slug}`;
+            // Always the course page, finished or not: she can go back to any lesson, and the certificate is a button there.
+            const href = `${base}/${course.slug}`;
             return (
               <a key={course.id} href={href} style={card} data-testid="academy-course">
                 <h2 style={{ fontFamily: 'var(--display)', fontSize: 'var(--t-xl)', fontWeight: 700, margin: 0, color: 'var(--ink)' }}>
@@ -109,9 +110,10 @@ export function CourseView({ view, isAdmin }: { view: CourseViewData; isAdmin: b
       {progress.total > 0 && <div style={{ margin: '0 0 18px' }}><ProgressBar p={progress} /></div>}
       {certificate && (
         <p style={{ background: 'var(--k-petal)', borderRadius: 'var(--r-lg)', padding: '12px 14px', fontSize: 'var(--t-md)', margin: '0 0 16px' }}>
-          סיימת את כל השיעורים, כל הכבוד! <a href={`${base}/${course.slug}/certificate`} style={{ color: 'var(--ink)', fontWeight: 700 }}>לתעודת הסיום שלך</a>
+          סיימת את כל השיעורים, כל הכבוד! אפשר לחזור לכל שיעור מתי שתרצי.
         </p>
       )}
+      {certificate && <p style={{ margin: '0 0 16px' }}><a href={`${base}/${course.slug}/certificate`} style={primaryBtn} data-testid="academy-certificate-link">תעודה</a></p>}
       {!certificate && next && <p style={{ margin: '0 0 16px' }}><a href={`${base}/${course.slug}/${next.slug}`} style={primaryBtn}>{progress.done > 0 ? 'לשיעור הבא' : 'להתחיל מהשיעור הראשון'}</a></p>}
       <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
         {lessons.map((l, i) => (
@@ -192,12 +194,12 @@ export function LessonView({ view, lesson, isAdmin }: { view: CourseViewData; le
   );
 }
 
-export function CertificateView({ cert }: { cert: { name: string; business: string; course: string; completedAt: string } }) {
+export function CertificateView({ cert }: { cert: { name: string; business: string; course: string; courseSlug: string; completedAt: string } }) {
   return (
     <div dir="rtl" style={{ ...wrap, paddingTop: 8 }}>
       <style>{`@media print { .academy-noprint { display: none !important; } @page { size: A4 landscape; margin: 12mm; } body { background: #fff !important; } }`}</style>
       <p className="academy-noprint" style={{ margin: '0 0 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <a href={base} style={backLink}>→ לכל הקורסים</a>
+        <a href={`${base}/${cert.courseSlug}`} style={backLink} data-testid="academy-back-to-course">→ חזרה לשיעורי הקורס</a>
         <PrintButton />
       </p>
       <section data-testid="academy-certificate" style={{ background: 'var(--k-cream)', border: '2px solid var(--k-green)', borderRadius: 'var(--r-xl)', padding: '40px 24px', textAlign: 'center', boxShadow: 'inset 0 0 0 6px var(--k-cream), inset 0 0 0 7px var(--k-pink)' }}>

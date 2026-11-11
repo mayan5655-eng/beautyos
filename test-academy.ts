@@ -22,6 +22,7 @@ import {
 import { loadCatalog, loadCourse, loadCertificate, markLessonDone, resolveViewer, loadAdminOverview, type Db } from './lib/academyData.ts';
 import { runAdminAction } from './lib/academyAdmin.ts';
 import { buildCsp } from './lib/securityHeaders.ts';
+import { makeCapDb } from './testkit/capDb.js';
 import { importApp, renderApp } from './testkit/render.mjs';
 
 let n = 0;
@@ -45,8 +46,8 @@ function makeDb(tables: Record<string, Row[]>) {
   const db = {
     tables, writes,
     from(table: string) {
-      const st: { filters: ((r: Row) => boolean)[]; op: string; payload: any; opts: any; single: boolean; limit: number | null } =
-        { filters: [], op: 'select', payload: null, opts: null, single: false, limit: null };
+      const st: { filters: ((r: Row) => boolean)[]; op: string; payload: any; opts: any; single: boolean; limit: number | null; range: [number, number] | null; count: boolean } =
+        { filters: [], op: 'select', payload: null, opts: null, single: false, limit: null, range: null, count: false };
       const rows = () => (tables[table] ||= []);
       const run = () => {
         if (st.op === 'insert') {
@@ -67,12 +68,14 @@ function makeDb(tables: Record<string, Row[]>) {
           for (const r of hit) { Object.assign(r, st.payload); writes.push({ table, op: 'update', row: r }); }
           return { data: st.single ? (hit[0] ? { id: hit[0].id } : null) : hit, error: null };
         }
-        const out = hit.slice(0, st.limit ?? undefined).map((r) => ({ ...r }));
-        return { data: st.single ? out[0] || null : out, error: null };
+        const ranged = st.range ? hit.slice(st.range[0], st.range[1] + 1) : hit;
+        const out = ranged.slice(0, st.limit ?? undefined).map((r) => ({ ...r }));
+        return { data: st.single ? out[0] || null : out, error: null, count: st.count ? hit.length : null };
       };
       const api: any = {
-        select: () => api,
+        select: (_c?: string, o?: { count?: string }) => { if (o?.count) st.count = true; return api; },
         order: () => api,
+        range: (a: number, b: number) => { st.range = [a, b]; return api; },
         limit: (k: number) => { st.limit = k; return api; },
         eq: (c: string, v: unknown) => { st.filters.push((r) => r[c] === v); return api; },
         is: (c: string, v: unknown) => { st.filters.push((r) => (v === null ? r[c] == null : r[c] === v)); return api; },
@@ -323,7 +326,7 @@ await ok('certificate: only after every published lesson is done', async () => {
   assert.ok(last.ok && last.certificate, 'the last lesson unlocks it (the draft lesson is not required)');
   const c = await loadCertificate(D, viewer, false, 'paid-social');
   assert.ok(c.ok && c.cert);
-  assert.deepEqual(c.cert, { name: 'דנה כהן', business: 'הסטודיו של דנה', course: 'קורס paid-social', completedAt: '2026-11-11T09:30:00.000Z' });
+  assert.deepEqual(c.cert, { name: 'דנה כהן', business: 'הסטודיו של דנה', course: 'קורס paid-social', courseSlug: 'paid-social', completedAt: '2026-11-11T09:30:00.000Z' });
   assert.equal(certificateDate(c.cert.completedAt), '11.11.2026');
   // another business with the same lesson ids done does not earn hers, and hers does not leak into theirs
   assert.equal((await loadCertificate(D, { tenantId: T2, userId: U1 }, false, 'paid-social') as any).cert, null);
@@ -482,7 +485,7 @@ await ok('screens: catalog, course, lesson and certificate show no price, no buy
   const evil = renderApp(V.LessonView, { view: cv.view, lesson: { ...cv.view.lessons[0], video_url: 'https://evil.com/x' }, isAdmin: false });
   assert.ok(!evil.includes('<iframe'), 'a link outside the allowlist renders no frame at all');
 
-  const cert = renderApp(V.CertificateView, { cert: { name: 'דנה כהן', business: 'הסטודיו של דנה', course: 'קורס', completedAt: '2026-11-11T09:30:00Z' } });
+  const cert = renderApp(V.CertificateView, { cert: { name: 'דנה כהן', business: 'הסטודיו של דנה', course: 'קורס', courseSlug: 'paid-social', completedAt: '2026-11-11T09:30:00Z' } });
   assert.doesNotMatch(cert, SELLING);
   assert.ok(cert.includes('תעודת סיום') && cert.includes('דנה כהן') && cert.includes('הסטודיו של דנה') && cert.includes('11.11.2026'));
 
@@ -496,6 +499,82 @@ await ok('no screen or admin form reads or offers a price; no em dash in the cop
     assert.ok(!/price_ils/.test(src.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')), `${f} reads price_ils`);
     assert.ok(!src.includes('—'), `${f} has an em dash`);
   }
+});
+
+// ── 8. PR #63 review follow-ups ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+function bigWorld(progressRows: number, grantRows: number) {
+  const progress: Row[] = [];
+  for (let i = 0; i < progressRows; i++) progress.push({ tenant_id: `t-${String(i).padStart(5, '0')}`, user_id: U1, lesson_id: L(1 + (i % 2)), completed_at: '2026-11-01T00:00:00Z' });
+  const grants: Row[] = [];
+  for (let i = 0; i < grantRows; i++) grants.push({ id: `g-${String(i).padStart(5, '0')}`, tenant_id: `t-${String(i).padStart(5, '0')}`, course_id: C1, source: 'gift', granted_at: '2026-11-01T00:00:00Z', revoked_at: null });
+  return {
+    academy_courses: [course(C1, 'paid-social')],
+    academy_lessons: [lesson(L(1), C1, 1), lesson(L(2), C1, 2)],
+    academy_course_access: grants,
+    academy_lesson_progress: progress,
+    settings: [],
+  };
+}
+
+await ok('admin overview: pages past the 1,000-row cap, so no progress or grant row is silently dropped', async () => {
+  const db = makeCapDb(bigWorld(2600, 1500), { maxRows: 1000 });
+  const o = await loadAdminOverview(db as unknown as Db);
+  assert.ok(o.ok);
+  assert.equal(o.data.complete, true);
+  const s = o.data.courses[0].stats;
+  assert.equal(s.grantees, 1500, 'every grant counted');
+  assert.equal(o.data.grants.length, 1500);
+  assert.equal(s.perLesson[L(1)] + s.perLesson[L(2)], 2600, 'every progress row counted');
+  assert.equal(s.started, 2600);
+  // and the paged reads really were paged (more than one page of progress was asked for)
+  assert.ok(db.log.filter((e: { table: string }) => e.table === 'academy_lesson_progress').length >= 3);
+  assert.doesNotMatch(readFileSync('lib/academyData.ts', 'utf8').split('export async function loadAdminOverview')[1].split('\n}\n')[0], /\.limit\(/);
+});
+
+await ok('admin overview: a read that cannot be completed says so (complete: false) and the screen shows it', async () => {
+  const inner = makeCapDb(bigWorld(1200, 3), { maxRows: 1000 });
+  // a database whose count promises more rows than it can deliver: readAllRows retries once, then reports incomplete
+  const db = { from(t: string) {
+    const c = inner.from(t);
+    if (t !== 'academy_lesson_progress') return c;
+    const then = c.then.bind(c);
+    c.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => then((r: { count: number | null }) => res({ ...r, count: r.count == null ? null : r.count + 500 }), rej);
+    return c;
+  } };
+  const o = await loadAdminOverview(db as unknown as Db);
+  assert.ok(o.ok);
+  assert.equal(o.data.complete, false);
+  const { default: AdminScreen } = await importApp('app/dashboard/admin/academy/AcademyAdminClient.tsx');
+  assert.match(renderApp(AdminScreen, { data: o.data }), /data-testid="academy-admin-incomplete"/);
+  const full = await loadAdminOverview(makeCapDb(bigWorld(10, 3), { maxRows: 1000 }) as unknown as Db);
+  assert.ok(full.ok && full.data.complete);
+  assert.doesNotMatch(renderApp(AdminScreen, { data: full.data }), /academy-admin-incomplete/);
+});
+
+await ok('a finished course: the catalog card opens the lessons, the course page has a "תעודה" button, the certificate links back', async () => {
+  const V = await importApp('app/dashboard/academy/AcademyViews.tsx');
+  const D = world() as unknown as Db;
+  await markLessonDone(D, viewer, L(1));
+  await markLessonDone(D, viewer, L(2));
+  const cat = await loadCatalog(D, viewer, false);
+  assert.ok(cat.ok && cat.items[0].progress.complete);
+  const catHtml = renderApp(V.CatalogView, { items: cat.items, isAdmin: false });
+  assert.match(catHtml, /<a href="\/dashboard\/academy\/paid-social"[^>]*data-testid="academy-course"/);
+  assert.ok(!catHtml.includes('/certificate'), 'the card no longer jumps past the lessons');
+  const cv = await loadCourse(D, viewer, false, 'paid-social');
+  assert.ok(cv.ok && cv.view && cv.view.certificate);
+  const courseHtml = renderApp(V.CourseView, { view: cv.view, isAdmin: false });
+  assert.match(courseHtml, /<a href="\/dashboard\/academy\/paid-social\/certificate"[^>]*data-testid="academy-certificate-link"[^>]*>תעודה<\/a>/);
+  assert.equal((courseHtml.match(/data-testid="academy-lesson"/g) || []).length, 2, 'every lesson is still there to revisit');
+  const c = await loadCertificate(D, viewer, false, 'paid-social');
+  assert.ok(c.ok && c.cert);
+  const certHtml = renderApp(V.CertificateView, { cert: c.cert });
+  assert.match(certHtml, /<a href="\/dashboard\/academy\/paid-social"[^>]*data-testid="academy-back-to-course"/);
+  // not finished: no certificate button
+  const fresh = await loadCourse(world() as unknown as Db, viewer, false, 'paid-social');
+  assert.ok(fresh.ok && fresh.view);
+  assert.ok(!renderApp(V.CourseView, { view: fresh.view, isAdmin: false }).includes('academy-certificate-link'));
 });
 
 globalThis.fetch = realFetch;
