@@ -1,15 +1,16 @@
 // lib/tillTabs.ts
 //
-// The till (קופה) screen in simple tabs: payments always, gift vouchers and products only while that feature is on for her.
+// The till (קופה) screen in simple tabs: payments always, gift vouchers, products and client memberships only while that feature is on for her.
 // One tab alone shows no tab bar at all (app/beautyos.jsx), so a business with vouchers and products off sees the till as before.
 
-export type TillTabKey = 'pay' | 'vouchers' | 'products';
+export type TillTabKey = 'pay' | 'vouchers' | 'products' | 'memberships';
 export type TillTab = { k: TillTabKey; l: string };
 
-export function tillTabsOf(on: { vouchers?: boolean; products?: boolean }): TillTab[] {
+export function tillTabsOf(on: { vouchers?: boolean; products?: boolean; memberships?: boolean }): TillTab[] {
   const tabs: TillTab[] = [{ k: 'pay', l: 'תשלומים' }];
   if (on.vouchers) tabs.push({ k: 'vouchers', l: 'שוברי מתנה' });
   if (on.products) tabs.push({ k: 'products', l: 'מוצרים' });
+  if (on.memberships) tabs.push({ k: 'memberships', l: 'מנויים' });
   return tabs;
 }
 

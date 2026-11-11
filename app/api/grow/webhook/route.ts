@@ -13,7 +13,7 @@
 // payload): Grow retrying then is what keeps the update from being lost.
 //
 // Nothing here logs a request body, a user_id or an api_key.
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
@@ -29,6 +29,8 @@ import { afterPaidHook, cancelDeps } from '../_cancel';
 import { onCardTokenNotification } from '@/lib/grow/cancelFees';
 import { readCardTokenNotification } from '@/lib/grow/tokenFlow';
 import { readNotification } from '@/lib/grow/payload';
+import { onMembershipCardToken, chargeMembership, isMembershipRef } from '@/lib/memberships';
+import { membershipDeps } from '../../memberships/_deps';
 import { moneyAlert } from '@/lib/moneyAlert.js';
 
 export const maxDuration = 30;
@@ -91,12 +93,26 @@ export async function POST(request: Request) {
       if (tokenCb) {
         const cd = cancelDeps();
         const tokenCreds = resolveGrow(process.env, APP_URL).tokenCreds;
+        const first = readNotification(raw);
+        const approve = tokenCreds && first ? () => approveTransaction(first, tokenCreds) : undefined;
+        // A client membership's card page (lib/memberships.ts): its ref is "mbr" + the membership id. Tried first for that ref, and as a
+        // fallback when no booking opened this process. Its first month is charged right after the answer (and by the daily run).
+        const membership = async () => {
+          const md = membershipDeps();
+          if (!md) return null;
+          const mr = await onMembershipCardToken(md, tokenCb, approve);
+          if (mr.status === 'unknown-process') return null;
+          const saved = mr.status === 'saved' ? mr.membership : undefined;
+          if (saved) after(async () => { try { await chargeMembership(md, saved); } catch (e) { console.error('[memberships] first charge failed:', (e as Error)?.message); } });
+          return NextResponse.json({ success: mr.status !== 'failed', kind: 'card-token', status: mr.status }, { status: mr.status === 'failed' ? 503 : 200 });
+        };
+        if (isMembershipRef(tokenCb.appointmentRef)) { const res = await membership(); if (res) return res; }
         if (cd) {
-          const first = readNotification(raw);
-          const approve = tokenCreds && first ? () => approveTransaction(first, tokenCreds) : undefined;
           const tr = await onCardTokenNotification(cd, tokenCb, approve);
           if (tr.status !== 'unknown-process') return NextResponse.json({ success: tr.status !== 'failed', kind: 'card-token', status: tr.status }, { status: tr.status === 'failed' ? 503 : 200 });
         }
+        // The fallback never stands in the way of the payment logic below (a missing table, a read error: on to the payment as before).
+        if (!isMembershipRef(tokenCb.appointmentRef)) { const res = await membership().catch(() => null); if (res) return res; }
       }
       const grow = resolveGrow(process.env, APP_URL);
       // The page code of the page the client paid on (wallet or card page), decided by the payment, not by which URL Grow reached first.

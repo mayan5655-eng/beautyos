@@ -95,6 +95,10 @@
     {
       "path": "/api/wa-auto/run",
       "schedule": "7 * * * *"
+    },
+    {
+      "path": "/api/memberships/run",
+      "schedule": "23 6 * * *"
     }
   ]
 }

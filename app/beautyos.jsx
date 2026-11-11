@@ -127,6 +127,12 @@ const WaitlistActivity = dynamic(() => import("./WaitlistActivity"), { ssr: fals
 const AutomationSuggestCard = dynamic(() => import("./AutomationSuggestCard"), { ssr: false });
 const GrowChargePanel = dynamic(() => import("./GrowChargePanel"), { ssr: false });
 const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: false });
+// Client memberships (lib/memberships.ts): the till tab, the client card and the till credit. Each renders nothing unless
+// NEXT_PUBLIC_CLIENT_MEMBERSHIPS is on AND the server says memberships are available for her (Grow connected, saved-card credentials).
+const MembershipsPanel = dynamic(() => import("./MembershipsPanel"), { ssr: false });
+const MembershipClientCard = dynamic(() => import("./MembershipClientCard"), { ssr: false });
+const MembershipTill = dynamic(() => import("./MembershipTill"), { ssr: false });
+import { clientMembershipsEnabled, MEMBERSHIP_PAYMENT } from "@/lib/membershipFlag";
 // Gift vouchers (lib/giftVouchers.ts): the cashier list and sale, the till redemption, the settings. Each renders nothing unless the
 // platform flag automations.feature_flags.gift_vouchers is on.
 const GiftVouchersPanel = dynamic(() => import("./GiftVouchersPanel"), { ssr: false });
@@ -519,9 +525,12 @@ const PAYMENT_METHODS = [
   {key:"פייבוקס",icon:"◦",color:"#CBA15E"},
   {key:"העברה",icon:"◦",color:"#8C6239"},
   {key:PACKAGE_PAYMENT,icon:"◦",color:"#6B5279"},
+  // A visit covered by a client membership (₪0: the month was counted as income when it was charged). Listed only while the
+  // feature is on, so no empty "מנוי" row or filter appears for anyone else.
+  ...(clientMembershipsEnabled() ? [{key:MEMBERSHIP_PAYMENT,icon:"◦",color:"#4F6B5A"}] : []),
 ];
-/** What the till offers. PACKAGE_PAYMENT is reached by drawing, not by tapping. */
-const SELECTABLE_PAYMENT_METHODS = PAYMENT_METHODS.filter(m=>m.key!==PACKAGE_PAYMENT);
+/** What the till offers. PACKAGE_PAYMENT and MEMBERSHIP_PAYMENT are reached by drawing a credit, not by tapping. */
+const SELECTABLE_PAYMENT_METHODS = PAYMENT_METHODS.filter(m=>m.key!==PACKAGE_PAYMENT&&m.key!==MEMBERSHIP_PAYMENT);
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -1346,6 +1355,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // up front, and a session leaving her balance without being asked for is the
   // one thing this must never do.
   const [drawFromPackage, setDrawFromPackage] = useState(false);
+  // A client membership credit used on this visit (app/MembershipTill.jsx): { membershipId, service, price, planName } or null. OFF until she taps it.
+  const [membershipAdj, setMembershipAdj] = useState(null);
+  // false until the memberships tab says it has something to show (flag on, Grow connected, the migration run).
+  const [membershipsAvail, setMembershipsAvail] = useState(false);
   // Grow cancellation policy in the cashier: a deposit already paid for this appointment and client credit (app/GrowCashierCredit.jsx).
   const [growAdj, setGrowAdj] = useState({ deposit: 0, creditAvail: 0, creditOn: false });
   // A gift voucher used on this sale (app/VoucherRedeemTill.jsx): { ledgerId, voucherId, code, amount, balanceAfter, receiptId? }.
@@ -2041,7 +2054,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // One session, one unit. A client taking two of the same treatment in a visit
   // draws ONE session and pays for the other - anything else spends a balance
   // she cannot see being spent.
-  const packageCredit = (drawFromPackage && cashierPackage)
+  const packageSessionCredit = (drawFromPackage && cashierPackage)
     ? Number(cashierItems.find(i => i.name === cashierPackage.service)?.price || 0)
     : 0;
   // Subtotal, then the discount in shekels whichever way she typed it, then
@@ -2049,6 +2062,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // handed, not what the treatment cost.
   const cashierSubtotal = cashierItems.reduce((s,item)=>s+(item.price*item.qty),0);
   const cashierDiscountIls = discountAmount(cashierSubtotal, cashierDiscountMode, Number(cashierDiscount||0));
+  // A client membership credit covers one treatment's price, like a package session (never both on one visit: app/MembershipTill.jsx
+  // is blocked while a package is drawn). Both are paid up front, so together they are the "package credit" the totals take off.
+  const membershipCredit = membershipAdj ? Math.min(Number(membershipAdj.price) || 0, Math.max(0, cashierSubtotal - cashierDiscountIls - packageSessionCredit)) : 0;
+  const packageCredit = packageSessionCredit + membershipCredit;
   // Deposit and credit come off AFTER the discount and the package: the deposit first (it was paid for this visit), then credit if she ticked it.
   const growBase = Math.max(0, cashierSubtotal - cashierDiscountIls - packageCredit);
   const growDepositUsed = Math.min(Number(growAdj.deposit) || 0, growBase);
@@ -2057,6 +2074,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const voucherDue = Math.max(0, Math.round((growBase - growDepositUsed - growCreditUsed) * 100) / 100);
   const voucherUsed = voucherAdj ? Math.min(Number(voucherAdj.amount) || 0, voucherDue) : 0;
   const cashierTotal = Math.max(0, Math.round((cashierSubtotal - cashierDiscountIls - packageCredit - growDepositUsed - growCreditUsed - voucherUsed) * 100) / 100);
+  // A membership credit belongs to one sale and one client: a closed till, or no client chosen, drops it (app/MembershipTill.jsx).
+  useEffect(() => { if (!showCashier || !cashierClient?.id) setMembershipAdj(null); }, [showCashier, cashierClient?.id]);
   // The voucher belongs to one sale: a till that opens starts without it. A till closed after the voucher was used but before the
   // payment was recorded says so (the amount is already off the voucher; the vouchers list can give it back).
   const voucherOpenRef = useRef(false);
@@ -5767,7 +5786,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const svc=activeServices.find(s=>s.name===appt.service);
       setCashierItems([{id:Date.now(),name:appt.service,price:svc?.price||appt.price||0,qty:1,color:svc?.color||DEFAULT_SERVICE_COLOR}]);
     }else{setCashierClient(null);setCashierSearch("");setCashierItems([]);}
-    setPaymentMethod(favoritePaymentMethod);setCashierAllServices(false);setCashierExtrasOpen(false);setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setLoyaltyApplied(null);setShowCashier(true);
+    setPaymentMethod(favoritePaymentMethod);setCashierAllServices(false);setCashierExtrasOpen(false);setCashierDiscount(0);setCashierDiscountMode("ils");setCashierTip(0);setSplitOn(false);setSplitLines([{method:"ביט",amount:0},{method:"מזומן",amount:0}]);setCashierNote("");setDrawFromPackage(false);setMembershipAdj(null);setGrowAdj({deposit:0,creditAvail:0,creditOn:false});setLoyaltyApplied(null);setShowCashier(true);
     // A loyalty ledger read that failed shows no card at the till (see loyaltyFor): opening the till tries it again.
     if (loyaltyCfg.enabled && loyaltyDb.ready === "error") loadLoyaltyRows();
   };
@@ -5917,6 +5936,12 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // so this write meets the unique index on receipt_id and is the same redemption, once. It stays for a charge made before the
     // migration (no column to carry the reward): then it is the only record, and a failure is said out loud.
     if (snap.loyalty && snap.client?.id) recordLoyaltyRedemption(String(snap.client.id), receiptId, { quiet: !!snap.loyaltyMarked, stampsUsed: snap.loyaltyEvery });
+    // A membership credit: used once for THIS receipt by the server (lib/memberships.ts redeemCredit; a retry of the same receipt uses nothing more).
+    if (snap.membership && snap.client?.id) {
+      fetch("/api/memberships",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"redeem",membershipId:snap.membership.membershipId,clientId:String(snap.client.id),receiptId,service:snap.membership.service})})
+        .then(async r=>{const j=await r.json().catch(()=>null); if(!r.ok||!j?.success) throw new Error(j?.error||""); toast(`נוכה טיפול מהמנוי ✦ ${j.label||""}`);})
+        .catch((e)=>toast(`התשלום נרשם, אבל הטיפול לא נוכה מהמנוי${e?.message?`: ${e.message}`:""}. בדקי בכרטיס הלקוחה.`,"error"));
+    }
     if (snap.pkg) {
       const fresh = await writePackageEntry(snap.pkg, -1, { appointmentId: snap.appt?.id || null, reason: "ניכוי בקופה" });
       if (!fresh) toast(`התשלום נרשם, אך הטיפול לא נוכה מהחבילה של ${snap.pkg.client_name}. נסי לפתוח את הקופה שוב ולנכות, או פני לתמיכה.`, "error");
@@ -5950,10 +5975,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // revenue is untouched either way.
       const drewFromPackage = drawFromPackage && !!cashierPackage;
       const coveredByPackage = drewFromPackage && cashierTotal === 0;
+      const coveredByMembership = !!membershipAdj && !coveredByPackage && cashierTotal === 0;
       // A split has to add up before anything is written. validateSplit is the
       // same arithmetic the tests prove; a rounding slip becomes a sentence
       // naming both numbers, not a receipt whose lines disagree with its total.
-      const useSplit = splitOn && !coveredByPackage && cashierTotal > 0;
+      const useSplit = splitOn && !coveredByPackage && !coveredByMembership && cashierTotal > 0;
       if (useSplit) {
         const v = validateSplit(splitResolved, cashierTotal);
         if (!v.ok) { toast(v.error, "error"); return; }
@@ -5982,8 +6008,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // still a card payment, and calling that "package" would put real money
         // in the wrong column of her breakdown. A split is the literal SPLIT
         // string, with the lines in `payments`.
-        payment_method:coveredByPackage ? PACKAGE_PAYMENT : useSplit ? SPLIT_METHOD : paymentMethod,
-        note:[cashierNote, loyaltyRewardLive?`🎁 מתנת כרטיסיית נאמנות: ${loyaltyCfg.reward}`:"", growDepositUsed>0?`מקדמה ₪${growDepositUsed} שולמה מראש ונוכתה`:"", growCreditUsed>0?`קרדיט ₪${growCreditUsed} נוכה`:""].filter(Boolean).join(" · "),
+        payment_method:coveredByPackage ? PACKAGE_PAYMENT : coveredByMembership ? MEMBERSHIP_PAYMENT : useSplit ? SPLIT_METHOD : paymentMethod,
+        note:[cashierNote, loyaltyRewardLive?`🎁 מתנת כרטיסיית נאמנות: ${loyaltyCfg.reward}`:"", growDepositUsed>0?`מקדמה ₪${growDepositUsed} שולמה מראש ונוכתה`:"", growCreditUsed>0?`קרדיט ₪${growCreditUsed} נוכה`:"", membershipAdj?`${membershipAdj.service} מהמנוי "${membershipAdj.planName||""}"`:""].filter(Boolean).join(" · "),
         items:JSON.stringify(loyaltyRewardLive?[...cashierItems,loyaltyApplied.marker]:cashierItems),
         discount:cashierDiscountIls,
         // The three new columns. Tip is never part of amount; discount_pct is
@@ -6014,7 +6040,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       // Products on this receipt: the server moves their stock, once per line (app/useProducts.js). Never blocks the sale.
       productsApi.afterReceipt(data[0], toast);
       const loyaltyUsed = loyaltyRewardLive;
-      await applyCashierAdjustments(String(data[0].id), { depositUsed: growDepositUsed, creditUsed: growCreditUsed, appt: cashierAppt, client: cashierClient, pkg: drewFromPackage ? cashierPackage : null, loyalty: loyaltyUsed, loyaltyMarked: loyaltyUsed, loyaltyEvery: loyaltyUsed ? loyaltyApplied.marker?.loyalty_every : null });
+      await applyCashierAdjustments(String(data[0].id), { depositUsed: growDepositUsed, creditUsed: growCreditUsed, appt: cashierAppt, client: cashierClient, pkg: drewFromPackage ? cashierPackage : null, membership: membershipAdj, loyalty: loyaltyUsed, loyaltyMarked: loyaltyUsed, loyaltyEvery: loyaltyUsed ? loyaltyApplied.marker?.loyalty_every : null });
+      setMembershipAdj(null);
       setLoyaltyApplied(null);
       // Auto-send the receipt to the client on WhatsApp when enabled in settings.
       // Fire-and-forget: never blocks or breaks receipt creation; only warns on
@@ -9734,13 +9761,14 @@ ${MARKETING_FOOTER}`)}`;
                         if(ls)q.push({key:ls.key,icon:"🧴",accent:"var(--warning)",source:"מלאי",what:"מלאי נמוך",who:ls.count===1?"מוצר אחד":`${ls.count} מוצרים`,why:ls.names,primaryLabel:"למוצרים ומלאי",run:()=>{const ids=ownerNotifs.filter(n=>n.kind==="low_stock").map(n=>n.id);if(ids.length){supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).in("id",ids).then(()=>{});setOwnerNotifs(prev=>prev.filter(n=>n.kind!=="low_stock"));}setActiveTab("cashier");}});
                       }
                       const listedNotifs=ownerNotifs.filter(n=>n.kind!=="low_stock");
-                      listedNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.kind==="monthly_report"?"לדוח החודשי":n.kind==="visit_feedback"?"לקריאה":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
+                      listedNotifs.slice(0,3).forEach(n=>q.push({key:`ownernotif:${n.id}`,icon:n.kind==="cancellation"?"✕":n.kind==="skin_hot_lead"?"🧴":n.kind==="reminders_ready"?"✆":"✦",accent:n.kind==="cancellation"?"var(--danger)":"var(--success)",source:"התראה",what:n.title,who:"",why:n.body,primaryLabel:n.kind==="reminders_ready"?"לשליחת התזכורות":n.kind==="weekly_report"?"לסיכום המלא":n.kind==="monthly_report"?"לדוח החודשי":n.kind==="visit_feedback"?"לקריאה":n.kind==="membership"?"למנויים":n.appointment_id?"פתיחת התור":"סימון כנקרא",run:()=>{
                         supabase.from("owner_notifications").update({read_at:new Date().toISOString()}).eq("id",n.id).then(()=>{});
                         setOwnerNotifs(prev=>prev.filter(x=>x.id!==n.id));
                         if(n.kind==="reminders_ready"){refreshWaQueue();setShowWaQueue(true);return;}
                         if(n.kind==="weekly_report"){router.push("/dashboard/digest");return;}
                         if(n.kind==="monthly_report"){router.push("/dashboard/monthly");return;}
                         if(n.kind==="visit_feedback"){router.push("/dashboard/feedback");return;}
+                        if(n.kind==="membership"){setActiveTab("cashier");setTillTab("memberships");return;}
                         if(n.appointment_id){
                           const appt=appointments.find(a=>String(a.id)===String(n.appointment_id));
                           if(appt){setActiveTab("calendar");setCalView("day");setCalDay(new Date(appt.date+"T00:00:00"));}
@@ -10433,7 +10461,7 @@ ${MARKETING_FOOTER}`)}`;
  {(()=>{
    // Tabs only when there is more than one thing to show (lib/tillTabs.ts). Every panel stays MOUNTED and is only hidden, so a
    // voucher sale asked for from "תשלום חדש" finds its panel loaded, and switching tabs never loses a half-filled form.
-   const tabs=tillTabsOf({vouchers:giftVouchersVisible(settings)&&vouchersAvail,products:productsApi.visible&&(productsApi.status==="ready"||productsApi.status==="error")});
+   const tabs=tillTabsOf({vouchers:giftVouchersVisible(settings)&&vouchersAvail,products:productsApi.visible&&(productsApi.status==="ready"||productsApi.status==="error"),memberships:membershipsAvail});
    const cur=activeTillTab(tillTab,tabs);
    return(<>
  {tabs.length>1&&(
@@ -10451,6 +10479,12 @@ ${MARKETING_FOOTER}`)}`;
  <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="products"}>
  <ProductsPanel api={productsApi} receipts={receipts} receiptVoids={receiptVoids} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)} defaultThreshold={productsConfig(settings).lowStockThreshold}/>
  </div>
+ {/* Client memberships: her numbers, the plans she sells, every member. Renders nothing unless the flag is on and Grow is ready for it. */}
+ {!isDemoTenantId(settings?.tenant_id)&&clientMembershipsEnabled()&&(
+ <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="memberships"}>
+ <MembershipsPanel services={services} pc={pc} pcTint={pcTint} pcGrad={pcGrad} toast={toast} onAvailable={setMembershipsAvail}/>
+ </div>
+ )}
  <div role={tabs.length>1?"tabpanel":undefined} hidden={cur!=="pay"}>
  {/* Payment links for a deposit or the full amount (Grow). Renders nothing unless Grow is on and connected. */}
  {!isDemoTenantId(settings?.tenant_id)&&<GrowPaymentRequests clients={clients} pc={pc} pcTint={pcTint} toast={toast}/>}
@@ -12284,6 +12318,8 @@ ${MARKETING_FOOTER}`)}`;
                 {drawFromPackage&&<p style={{fontSize:"var(--t-xs)",color:pcDeep,marginTop:6,lineHeight:1.5}}>טיפול אחד ינוכה מהחבילה עם רישום התשלום.</p>}
  </div>
             )}
+ {/* A client membership: "יש לה מנוי: נשארו 1 מתוך 2", one tap to cover a treatment with a credit (app/MembershipTill.jsx). */}
+ {!isDemoTenantId(settings?.tenant_id)&&cashierClient?.id&&(<MembershipTill clientId={String(cashierClient.id)} items={cashierItems} blocked={drawFromPackage&&!!cashierPackage} onChange={setMembershipAdj} pc={pc} pcGrad={pcGrad} pcDeep={pcDeep}/>)}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>אמצעי תשלום</p>
  {cashierTotal>0&&<button onClick={()=>setSplitOn(v=>!v)} style={{background:splitOn?pc:"var(--surface)",color:splitOn?"var(--surface)":pcDeep,border:`1px solid ${splitOn?pc:"var(--line-2)"}`,borderRadius:"var(--r-lg)",padding:"6px 12px",fontSize:"var(--t-sm)",fontWeight:700,cursor:"pointer",fontFamily:"inherit",minHeight:32}}>{splitOn?"✓ פיצול תשלום":"פיצול תשלום"}</button>}
@@ -12322,7 +12358,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
             )}
  {!isDemoTenantId(settings?.tenant_id)&&(cashierAppt?.id||cashierClient?.id)&&(<GrowCashierCredit appointmentId={cashierAppt?.id||null} clientId={cashierClient?.id||null} pcTint={pcTint} onChange={setGrowAdj}/>)}
- {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} loyalty={loyaltyRewardLive?{reward:loyaltyCfg.reward,stampsUsed:loyaltyApplied.marker?.loyalty_every??loyaltyCfg.every}:null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,loyalty:loyaltyRewardLive,loyaltyMarked:false,loyaltyEvery:loyaltyRewardLive?loyaltyApplied.marker?.loyalty_every:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
+ {!isDemoTenantId(settings?.tenant_id)&&cashierTotal>0&&(<GrowChargePanel amount={cashierTotal} description={cashierItems.map(i=>i.name).join(", ")} client={cashierClient} appointmentId={cashierAppt?.id||null} loyalty={loyaltyRewardLive?{reward:loyaltyCfg.reward,stampsUsed:loyaltyApplied.marker?.loyalty_every??loyaltyCfg.every}:null} pc={pc} pcTint={pcTint} toast={toast} onPaid={async(receiptId)=>{await applyCashierAdjustments(String(receiptId),{depositUsed:growDepositUsed,creditUsed:growCreditUsed,appt:cashierAppt,client:cashierClient,pkg:drawFromPackage&&cashierPackage?cashierPackage:null,membership:membershipAdj,loyalty:loyaltyRewardLive,loyaltyMarked:false,loyaltyEvery:loyaltyRewardLive?loyaltyApplied.marker?.loyalty_every:null});try{const {data}=await supabase.from("receipts").select("*").eq("id",receiptId);if(data&&data[0])setReceipts(prev=>prev.some(x=>String(x.id)===String(data[0].id))?prev:[...prev,data[0]]);}catch{}}}/>)}
  <div style={{padding:"12px 14px",background:pcTint,borderRadius:"var(--r-md)",marginBottom:14}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600}}>סה״כ לתשלום</span>
@@ -14130,6 +14166,8 @@ ${MARKETING_FOOTER}`)}`;
  {/* Her loyalty stamp card (app/LoyaltyClientCard): progress, rewards given, and a +1 / -1 correction with a reason. */}
  <LoyaltyClientCard state={loyaltyFor(c.id)} client={c} businessName={settings?.business_name} pc={pc} pcTint={pcTint} dbReady={loyaltyDb.ready} busy={isBusy("loyaltyAdjust")} onAdjust={(d,reason)=>writeLoyaltyAdjustment(c.id,d,reason)}/>
  <FeeQuestions clientId={selectedClient?.id} pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
+ {/* Her membership, or "צירוף למנוי" (app/MembershipClientCard): renders nothing unless memberships are on and ready for this business. */}
+ {!isDemoTenantId(settings?.tenant_id)&&(<MembershipClientCard client={c} pc={pc} pcTint={pcTint} pcGrad={pcGrad} toast={toast}/>)}
                       {/* Where she came from. Always shown, including when the
                           answer is "we do not know" - a blank row would read as
                           "no source", and לא ידוע is the honest version for a

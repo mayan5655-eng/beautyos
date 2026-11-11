@@ -388,6 +388,20 @@ export const RATE_POLICIES = {
     ipMessage: (m: string) => `אפשר לנסות שוב ${m}.`,
     tenantMessage: (m: string) => `אפשר לנסות שוב ${m}.`,
   },
+  // Client memberships (lib/memberships.ts). The owner's side is session-bound; the client's link (/pay/membership/<id>) is public and
+  // its 192-bit id is the authorisation, so its per-IP cap only stops a script, never a woman reading her terms and saving a card.
+  'memberships': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 200, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `בוצעו הרבה פעולות בזמן קצר. אפשר לנסות שוב ${m}.`,
+  },
+  'membership-link': {
+    perIp: { limit: 40, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `אפשר לנסות שוב ${m}.`,
+  },
   'client-erase': {
     perIp: { limit: 10, windowMs: 10 * MINUTE },
     perTenant: { limit: 10, windowMs: 10 * MINUTE },
