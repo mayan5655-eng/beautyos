@@ -21,5 +21,5 @@ export default async function OutreachPage() {
       </div>
     )
   }
-  return <OutreachClient rows={r.rows} available={r.available} nowIso={r.now} />
+  return <OutreachClient rows={r.rows} available={r.available} enriched={r.enriched} nowIso={r.now} />
 }
