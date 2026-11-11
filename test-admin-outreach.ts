@@ -8,7 +8,7 @@ import {
   PROSPECT_STATUSES, TREATMENTS, SOURCES, canSend, statusAfterSend, contactedRecently, parsePastedProspects, planAdd, isChannel,
   cleanProspectInput, cleanInstagram, firstName, outreachCounts, sentToday, sortProspects, isMissingProspectsTable, DAILY_LIMIT_HE,
   MIGRATION_NEEDED_HE, CURRENT_SYSTEMS, ENRICH_MIGRATION_NEEDED_HE, ENRICH_MIGRATION_FILE, DAILY_SOFT_LIMIT, parseFollowers,
-  formatFollowers, parseCurrentSystem, cleanEnrichFields, isFollowupDate, isMissingEnrichColumns, prospectPriority, sortByPriority,
+  formatFollowers, parseCurrentSystem, splitPastedLine, cleanEnrichFields, isFollowupDate, isMissingEnrichColumns, prospectPriority, sortByPriority,
   todayList, followupDue, followupOverdueDays,
 } from './lib/prospects.ts'
 import type { Prospect } from './lib/prospects.ts'
@@ -494,6 +494,32 @@ ok('Vercel review (4539220954): "3,400" and "200000" are followers; numbers neve
   ])
   assert.equal(r.rows[5].phone, '972541112235')
   for (const row of r.rows) assert.doesNotMatch(`${row.name} ${row.city ?? ''}`, /\d/)
+})
+
+ok('Vercel review (4539299341): 00972 / +972 (0) / 972- mobiles go through lib/phone.ts and are kept', () => {
+  const r = parsePastedProspects([
+    'נועה, 00972541234567',
+    'דנה, +972 (0)52-111-2233',
+    'שירה, 972-54-999-8877',
+    'מיכל, +972 54 111 2234',
+    'רותם, (054) 111-2235',
+    'גלית, 00972-3-1234567', // a landline: refused, not dropped
+  ].join('\n'))
+  assert.deepEqual(r.rows.map((x) => x.phone), ['972541234567', '972521112233', '972549998877', '972541112234', '972541112235'])
+  assert.deepEqual(r.invalid.map((x) => [x.line, x.error]), [[6, 'מספר נייד לא תקין']])
+})
+
+ok('Vercel review (4539299351): tabs split alone; a comma glues a thousands group only after 1-3 plain digits', () => {
+  assert.deepEqual(splitPastedLine('נועה,0541234567,980'), ['נועה', '0541234567', '980'])
+  assert.deepEqual(splitPastedLine('נועה\t0541234567\t3,400'), ['נועה', '0541234567', '3,400'])
+  assert.deepEqual(splitPastedLine('נועה,3,400,0541234567'), ['נועה', '3,400', '0541234567'])
+  assert.deepEqual(splitPastedLine('נועה, 10,000,000, 0541234567'), ['נועה', '10,000,000', '0541234567'])
+  assert.deepEqual(splitPastedLine('נועה, כהן; חיפה - 0541234567'), ['נועה', 'כהן', 'חיפה', '0541234567'])
+  assert.deepEqual(splitPastedLine('נועה, כהן\tחיפה'), ['נועה, כהן', 'חיפה'], 'with a tab, commas stay inside the cell')
+  const f = (line: string) => { const r = parsePastedProspects(line); assert.deepEqual(r.invalid, [], line); return r.rows[0] }
+  assert.deepEqual(f('נועה,0541234567,980'), { name: 'נועה', phone: '972541234567', followers: 980 })
+  assert.deepEqual(f('נועה\t0541234567\t3,400'), { name: 'נועה', phone: '972541234567', followers: 3400 })
+  assert.deepEqual(f('נועה,3,400,0541234567'), { name: 'נועה', phone: '972541234567', followers: 3400 })
 })
 
 ok('paste: a plain cell is the city only when it is a known Israeli city or starts with "עיר:"; otherwise it is her name', () => {

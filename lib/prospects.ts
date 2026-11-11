@@ -286,13 +286,33 @@ export type PasteResult = {
 
 /** A follower count: "12.5K", "1.2M", "3,400", "200000", "980 עוקבות". Plain digits only up to 8 (10,000,000 at most). */
 const FOLLOWERS_CELL = /^\d+(?:[.,]\d+)?\s*(k|m|אלף|מיליון)(\s*(עוקבים|עוקבות|followers))?$|^\d[\d,.]*\s*(עוקבים|עוקבות|followers)$|^\d{1,3}(,\d{3})+$|^\d{1,8}$/iu
-/** Looks like a phone once spaces, dashes, dots, brackets and a leading + are stripped: 9 to 12 digits (mobile or landline). */
-const looksLikePhone = (cell: string): boolean => /^\+?[\d\s().-]+$/.test(cell) && /^\d{9,12}$/.test(cell.replace(/[\s().+-]/g, ''))
+/**
+ * A phone-shaped cell: only digits and phone punctuation (spaces, dashes, dots, brackets, a leading +) and at least 9 digits.
+ * Whether it IS a valid Israeli mobile is decided by lib/phone.ts normalizeIsraeliMobile alone (00972 / +972 (0) / 972- / 05x),
+ * never by a digit count here. Shorter numbers are follower counts.
+ */
+const looksLikePhone = (cell: string): boolean => /^\+?[\d\s().-]+$/.test(cell) && cell.replace(/\D/g, '').length >= 9
 /** Only digits and number punctuation (with an optional followers word): never part of a name or a city. */
 const isNumericCell = (cell: string): boolean => /^[\d\s,.+()-]+\s*(k|m|אלף|מיליון)?\s*(עוקבים|עוקבות|followers)?$/iu.test(cell) && /\d/.test(cell)
-/** "3,400" inside a line is one number, not two cells: a comma between digits with exactly three after it. */
-const THOUSANDS_COMMA = /(\d),(?=\d{3}(?!\d))/g
-const COMMA_MARK = '\u0000'
+/**
+ * A line into cells. With a tab anywhere (a spreadsheet paste) ONLY tabs separate, so "3,400" inside a cell is one number.
+ * Otherwise commas, semicolons and " - " separate, and a fragment is glued back to the previous one as a thousands group ONLY
+ * when the separator was a bare comma, the previous fragment is 1-3 plain digits (or an already glued "3,400") and this one is
+ * exactly 3 digits: "3,400" is one cell, "0541234567,980" stays two.
+ */
+export function splitPastedLine(line: string): string[] {
+  if (line.includes('\t')) return line.split('\t').map((c) => c.trim()).filter(Boolean)
+  const bits = line.split(/(\s*[,;]\s*|\s+-\s+)/)
+  const cells: string[] = []
+  for (let k = 0; k < bits.length; k += 2) {
+    const frag = bits[k].trim()
+    const sep = k > 0 ? bits[k - 1] : ''
+    const prev = cells.length ? cells[cells.length - 1] : ''
+    if (sep === ',' && /^\d{1,3}(,\d{3})*$/.test(prev) && /^\d{3}$/.test(frag)) { cells[cells.length - 1] = `${prev},${frag}`; continue }
+    cells.push(frag)
+  }
+  return cells.filter(Boolean)
+}
 
 /**
  * One prospect per line: "name, phone" (a tab, a semicolon or " - " also separate; the order may be either way round).
@@ -308,8 +328,7 @@ export function parsePastedProspects(text: string): PasteResult {
   lines.forEach((rawLine, i) => {
     const line = rawLine.trim()
     if (!line) return
-    const parts = line.replace(THOUSANDS_COMMA, `$1${COMMA_MARK}`).split(/\s*[,\t;]\s*|\s+-\s+/)
-      .map((p) => p.split(COMMA_MARK).join(',').trim()).filter(Boolean)
+    const parts = splitPastedLine(line)
     let phone: string | null = null
     let instagram: string | undefined
     let followers: number | undefined
