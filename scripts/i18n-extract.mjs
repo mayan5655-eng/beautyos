@@ -92,6 +92,8 @@ const OWNER_FILES = [
       'app/TrialNudge.jsx',
       'app/Sheet.tsx',
       // lib modules that only build words for her screens (wrapped with --mode=lib)
+      'app/GoogleKitCard.jsx',
+      'app/AcademyNavEntry.jsx',
       'lib/myDay.js',
       'lib/closingList.js',
     ];

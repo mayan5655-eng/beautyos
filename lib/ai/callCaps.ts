@@ -108,6 +108,9 @@ export const MONTHLY_CALL_CAPS: Record<string, number> = {
   // The help chat in the "תקועה?" sheet (lib/ai/helpChat.ts): Haiku 5.5, ~$0.001 a question. Heavy honest use is a
   // few questions on a hard week; 300 a month is only reached by a loop (worst case about $0.30).
   'help_chat': 300,
+  // The Google growth kit (lib/ai/googleKitAI.ts): Sonnet 5.5, ~$0.03 a press (a profile set or an ad set). Heavy honest
+  // use is a few presses a month; 60 is only reached by a loop (worst case about $2).
+  'marketing/google-kit': 60,
 };
 
 /**

@@ -112,6 +112,8 @@ import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const VisitFeedbackPanel = dynamic(() => import("./VisitFeedbackPanel"), { ssr: false });
 const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
+// "להימצא בגוגל" in the content tab (lib/googleKit.ts). Renders nothing unless NEXT_PUBLIC_GOOGLE_KIT is on.
+const GoogleKitCard = dynamic(() => import("./GoogleKitCard"), { ssr: false });
 const GrowCard = dynamic(() => import("./GrowCard"), { ssr: false });
 const PaymentsSettings = dynamic(() => import("./PaymentsSettings"), { ssr: false });
 // Panels that open only inside Settings, the till or a sheet: loaded when first shown, not in the dashboard's first download (2026-11-02
@@ -120,6 +122,9 @@ const ClientPrivacyPanel = dynamic(() => import("./ClientPrivacyPanel"), { ssr: 
 const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 // "מעבר מתוכנה אחרת": a CSV / Excel export from any system. Renders nothing unless NEXT_PUBLIC_IMPORT_TOOL is on.
 const ImportFromSystem = dynamic(() => import("./ImportFromSystem"), { ssr: false });
+// Kalmea Academy: renders nothing unless NEXT_PUBLIC_ACADEMY is on and she can open a course (app/AcademyNavEntry.jsx).
+const AcademyNavEntry = dynamic(() => import("./AcademyNavEntry"), { ssr: false });
+const ACADEMY_ON = academyEnabled();
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
 const WaAutoMessagesSetting = dynamic(() => import("./WaAutoMessagesSetting"), { ssr: false });
 const RebookSetting = dynamic(() => import("./RebookSetting"), { ssr: false });
@@ -171,6 +176,7 @@ import { countHe } from "@/lib/hebrewCount";
 import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
 import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
 import { withSource } from "@/lib/bookingSource";
+import { googleKitEnabled } from "@/lib/googleKit";
 import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
 import { VIEW_MODE_KEY, VIEW_MODES, VIEW_MODE_LABELS, viewModeOf, isTillOnly, viewAllowsTab, viewAllowsSettingsGroup, bottomNavIds, moreNavIds } from "@/lib/viewMode";
 import { reviewTimingOf, looksLikeGoogleLink, GOOGLE_LINK_HELP, GOOGLE_LINK_INVALID_HE } from "@/lib/reviewRequests";
@@ -788,6 +794,7 @@ import { vcardImportText, isVcardFile, VCARD_ACCEPT } from "@/lib/vcard";
 import { LANGS, LANG_LABELS, langOfSettings, speechLangOf } from "@/lib/i18n/core";
 import { applyOwnerLang, cachedOwnerLang, devLangOverride } from "@/lib/i18n/ownerLang";
 import { tr, trv, uiDir, getActiveLang } from "@/lib/i18n/tr";
+import { academyEnabled } from "@/lib/academy";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -9188,6 +9195,7 @@ ${MARKETING_FOOTER}`)}`;
  <span className="nav-ico"><svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4L5.3 5.3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg></span>
  <span style={{flex:1}}>{tr("הגדרות")}</span>
  </button>
+ {ACADEMY_ON&&!tillOnly&&<AcademyNavEntry variant="nav" onOpen={()=>{setShowMobileSidebar(false);router.push("/dashboard/academy");}}/>}
           {/* The two header icons that do not fit on a phone. Inline display
               none + .mobile-only{display:flex!important} is this file's
               established pattern - the inline value has to be the DESKTOP one,
@@ -10832,6 +10840,8 @@ ${MARKETING_FOOTER}`)}`;
 
  {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
  {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");setTillTab("vouchers");}}/>}
+ {/* Getting found on Google: profile checklist, texts to paste, a first search ad (app/GoogleKitCard.jsx). Off = nothing renders. */}
+ {googleKitEnabled()&&settings?.tenant_id&&<GoogleKitCard settings={settings} bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`} serviceNames={activeServices.map(sv=>sv.name).filter(Boolean)} onSaveTicks={(next)=>saveAutomationsKey("google_kit",next)} toast={toast}/>}
  {marketingView==="campaigns"&&(<>
  <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -12822,6 +12832,7 @@ ${MARKETING_FOOTER}`)}`;
  <span aria-hidden style={{fontSize:20,lineHeight:1}}>⌕</span>
  <span style={{fontSize:"var(--t-sm)",fontWeight:600}}>{tr("חיפוש")}</span>
  </button>
+              {ACADEMY_ON&&!tillOnly&&<AcademyNavEntry variant="more" onOpen={()=>{setShowMoreSheet(false);router.push("/dashboard/academy");}}/>}
               {ownerEntry}
  </div>
  </div>
