@@ -233,6 +233,15 @@ export const RATE_POLICIES = {
       `נשאלו הרבה שאלות ברצף. אפשר לשאול שוב ${m}, או לשלוח לנו הודעה למטה.`,
   },
 
+  // The Google growth kit's writer (app/api/marketing/google-kit). One press writes one set of texts; the monthly cap
+  // (callCaps.ts 'marketing/google-kit') is the budget, this only stops a loop.
+  'google-kit': {
+    perIp: { limit: 20, windowMs: 10 * MINUTE },
+    perTenant: { limit: 15, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נכתבו כבר כמה גרסאות ברצף. אפשר לבקש שוב ${m}.`,
+    tenantMessage: (m: string) => `נכתבו כבר כמה גרסאות ברצף. אפשר לבקש שוב ${m}.`,
+  },
+
   // The feedback banner. One answer per business, so this only stops a retry loop.
   feedback: {
     perIp: { limit: 20, windowMs: 10 * MINUTE },

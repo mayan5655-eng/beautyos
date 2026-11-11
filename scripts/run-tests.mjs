@@ -60,6 +60,8 @@ const FAKE_ENV = {
   NEXT_PUBLIC_ANNUAL_PLAN: '',
   // Import from another system (lib/importFile.ts): off, whatever the deployment builds with. test-import-from-system.ts sets it itself.
   NEXT_PUBLIC_IMPORT_TOOL: '',
+  // The Google growth kit (lib/googleKit.ts): off, whatever the deployment builds with. test-google-kit.ts sets it itself.
+  NEXT_PUBLIC_GOOGLE_KIT: '',
   // Kalmea's own Meta Pixel (lib/metaPixel.ts): off, so no test ever sees a pixel unless it sets the id itself.
   NEXT_PUBLIC_META_PIXEL_ID: '',
   WA_CLOUD_ENABLED: '',

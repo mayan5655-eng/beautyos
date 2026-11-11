@@ -227,6 +227,7 @@ export default async function SlugPage({ params, searchParams }: Props) {
         brand,
         settings: initialSettings,
         services: initialServices,
+        reviews: Array.isArray(reviews) ? reviews : null,
         url: `${APP_URL}/${encodeURIComponent(slug)}`,
         image: `${APP_URL}/og/${encodeURIComponent(slug)}?v=${ogVersion(brand, brand.businessName || tenant.name)}`,
         fallbackName: tenant.name,
