@@ -811,7 +811,7 @@ import { academyEnabled } from "@/lib/academy";
 // The team calendar (lib/team.ts, NEXT_PUBLIC_TEAM_CALENDAR): off, or fewer than two active staff = team.on is false and the
 // calendar is exactly the one-practitioner calendar it was.
 import useTeam from "./useTeam";
-import { activeStaff as teamActiveStaff, ownerOf as teamOwnerOf, sameStaff, staffIdForWrite, staffOfAppt } from "@/lib/team";
+import { activeStaff as teamActiveStaff, ownerOf as teamOwnerOf, sameStaff, staffIdForWrite, staffOfAppt, formDayHours } from "@/lib/team";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -2196,8 +2196,10 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // Day-of-week of the picked date, parsed as LOCAL (not UTC) so it never shifts
   // across the date line. Falls back to today's day if the string is malformed.
   const apptDay = (()=>{ const p=String(newAppt.date||"").split("-"); return p.length===3?new Date(Number(p[0]),Number(p[1])-1,Number(p[2])).getDay():new Date().getDay(); })();
-  // That day's open/close from the per-day business_hours (null = closed that day).
-  const apptDayHours = dayHoursFrom(settings, apptDay);
+  // That day's open/close from the per-day business_hours (null = closed that day). In the team calendar: the picked person's own
+  // hours for that weekday when she set them (lib/team.ts formDayHours, the same rule /api/book-appointment applies), so a staff
+  // member who works on a day the business is closed can be booked, and one who is off that day cannot.
+  const apptDayHours = teamCal ? formDayHours(team, apptStaff, settings, apptDay) : dayHoursFrom(settings, apptDay);
   // Bookable START hours for the day. Half-hour granularity, and slotsBetween
   // refuses any start whose treatment would run past the end of the range.
   const APPT_SLOT_STEP = 30;

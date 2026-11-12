@@ -167,6 +167,21 @@ export function staffDayHours(s: Pick<Staff, 'hours'> | null | undefined, settin
   return dayHoursFrom(settings, weekday);
 }
 
+/**
+ * The hours the owner's appointment form checks against: the picked person's own hours (staffDayHours, the same resolution
+ * /api/book-appointment uses through pickStaff) in team mode, the business hours otherwise. An unknown id (or none) is the owner.
+ */
+export function formDayHours(
+  team: { on: boolean; staff: Staff[] } | null | undefined,
+  staffId: string | null | undefined,
+  settings: HoursSettings | null | undefined,
+  weekday: number,
+): DayHours {
+  if (!team || !team.on) return dayHoursFrom(settings, weekday);
+  const s = (staffId && team.staff.find((x) => x.id === staffId)) || ownerOf(team.staff);
+  return s ? staffDayHours(s, settings, weekday) : dayHoursFrom(settings, weekday);
+}
+
 /** The whole week for one person (0..6). */
 export function staffWeek(s: Pick<Staff, 'hours'> | null | undefined, settings: HoursSettings | null | undefined): Record<number, DayHours> {
   const out: Record<number, DayHours> = {};

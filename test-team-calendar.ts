@@ -15,7 +15,7 @@ import { teamCalendarEnabled } from './lib/teamFlag.ts';
 import {
   normalizeStaff, sanitizeStaffInput, cleanHours, cleanServices, activeStaff, teamOn, eligibleFor, performs, staffDayHours, staffIdForWrite,
   belongsTo, staffOfAppt, sameStaff, staffSlotState, pickStaff, publicTeam, staffBusyRanges, publicEligible, publicSlotFree, teamDayWindow,
-  ANY_STAFF, MAX_ACTIVE_STAFF, type Staff, type TeamAppt, type SlotQuery,
+  ANY_STAFF, MAX_ACTIVE_STAFF, formDayHours, type Staff, type TeamAppt, type SlotQuery,
 } from './lib/team.ts';
 import { readTeam, readTeamSafe, ensureOwner, saveStaff, setStaffActive, staffTableMissing } from './lib/teamRepo.ts';
 import { teamMonthReport } from './lib/teamReport.ts';
@@ -218,6 +218,27 @@ await ok('per-staff availability: the public page offers a time when the chosen 
   assert.deepEqual(publicEligible(team, 'גבות').map((s) => s.id), [OWNER, NOA]);
   assert.deepEqual(teamDayWindow([o, d], 1), { open: 9, close: 20 }, 'the widest hours anyone works that day');
   assert.equal(teamDayWindow([d], 2), null);
+});
+
+await ok('the owner form checks the picked person’s own hours, the same rule as the booking route', () => {
+  // Rinat works Saturday, when the business is closed; Dana is off on Tuesday, when the business is open.
+  const rinat = mk({ id: 'aaaaaaaa-0000-4000-8000-000000000005', name: 'רינת', sort_order: 4, hours: { 6: { open: 10, close: 16 } } as never });
+  const team = { on: true, staff: [owner, noa, dana, rinat] };
+  assert.equal(formDayHours({ on: false, staff: [] }, null, SETTINGS as never, 6), null, 'no team: business hours, closed Saturday');
+  assert.deepEqual(formDayHours(team, rinat.id, SETTINGS as never, 6), { open: 10, close: 16 }, 'Rinat on Saturday: bookable');
+  assert.equal(formDayHours(team, DANA, SETTINGS as never, 2), null, 'Dana off on Tuesday');
+  assert.deepEqual(formDayHours(team, DANA, SETTINGS as never, 1), { open: 12, close: 20 });
+  assert.deepEqual(formDayHours(team, NOA, SETTINGS as never, 3), { open: 9, close: 18 }, 'no own hours: the business hours');
+  assert.equal(formDayHours(team, null, SETTINGS as never, 6), null, 'nobody picked: the owner');
+  assert.equal(formDayHours(team, OTHER_BIZ, SETTINGS as never, 6), null, 'an unknown id: the owner');
+  // The server agrees: the same person, the same day.
+  const sat = '2026-11-21';
+  assert.equal(staffSlotState(rinat, q({ date: sat, start: 660 })), 'ok');
+  assert.equal(staffSlotState(owner, q({ date: sat, start: 660 })), 'closed');
+  assert.equal(staffSlotState(dana, q({ date: TUE, start: 660 })), 'closed');
+  const app = read('app/beautyos.jsx');
+  assert.match(app, /const apptDayHours = teamCal \? formDayHours\(team, apptStaff, settings, apptDay\) : dayHoursFrom\(settings, apptDay\);/, 'the form uses it');
+  assert.match(read('app/api/book-appointment/route.js'), /const pick = pickStaff\(candidates, requestedStaff, \{\n        settings: settingsRow,/, 'the route resolves hours per person through pickStaff');
 });
 
 // ── 4. "first available" ───────────────────────────────────────────────────
