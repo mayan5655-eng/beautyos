@@ -39,63 +39,50 @@ const p = (id: string, o: Partial<Prospect> = {}): Prospect => ({
 })
 
 // ── templates ────────────────────────────────────────────────────────────────
-// The approved DM (2026-11), with "[שם]" as {name}. Every message is exactly this with one line swapped and the link tagged.
-const APPROVED_DM = "היי {name}, נעים מאוד, אני מעיין 🌸\n\nהקמתי את Kalmea, מערכת לקוסמטיקאיות ומניקוריסטיות שמנהלת לך את כל העסק במקום אחד, כדי שתוכלי להתמקד בטיפולים ולגדול:\n\n📅 יומן וניהול: אתר אישי משלך שבו הלקוחות קובעות ומזיזות תור לבד, עם מקדמה בכרטיס או בביט. פחות וואטסאפ, פחות לקוחות שלא מגיעות.\n📣 שיווק: פוסטים ורילסים לאינסטגרם עם AI, בעיצוב של העסק שלך, תוך דקות.\n💰 מכירות: קופה וסליקה, כרטיסיית ניקובים, שוברי מתנה ודוח חודשי שמראה כמה הרווחת ומאיפה.\n\nהכל בתוכנה אחת, במקום שלוש אפליקציות ומחברת ✨\n\nאם תרצי, אני מקימה לך את הכל בעצמי תוך 10 דקות, וחודש ראשון עליי 💛\nלהצצה: https://kalmea.app/?utm_source=instagram&utm_medium=dm\n\nמוזמנת לעקוב אחרינו ב-@kal.mea לטיפים ועדכונים 🌸\nלכל שאלה אני זמינה לך באופן אישי, כאן או בוואטסאפ: 054-2845655"
+// The short first DM (owner decision 2026-11-12): greeting, who I am, ONE tailored question, the Instagram invite, the opt-out.
+const SHORT_DM = (line: string, follow: string) => `היי {name} 🌸\nאני מעיין מ-Kalmea, מערכת לקוסמטיקאיות ומניקוריסטיות.\n\n${line}\n\n${follow}\n\n${OPT_OUT_LINE}`
 const allMessages = () => CURRENT_SYSTEMS.flatMap((sys) => TREATMENTS.flatMap((t) => (['instagram', 'whatsapp'] as const).map((ch) => ({ sys, t, ch, m: messageTemplate(ch, t, sys) }))))
 
-ok('the approved DM is the base: unknown system + "other" on Instagram is it word for word, plus utm_campaign and the opt-out line', () => {
-  assert.equal(messageTemplate('instagram', 'other', 'unknown'), `${APPROVED_DM.replace('utm_medium=dm', 'utm_medium=dm&utm_campaign=other')}\n\n${OPT_OUT_LINE}`)
+ok('the base: unknown system + "other" is the short DM word for word, on both channels', () => {
+  assert.equal(messageTemplate('instagram', 'other', 'unknown'), SHORT_DM(BASE_TAILORED_LINE, 'אני מעלה כאן ב-@kal.mea טיפים לניהול העסק, אשמח אם תעקבי 💛'))
+  assert.equal(messageTemplate('whatsapp', 'other', 'unknown'), SHORT_DM(BASE_TAILORED_LINE, 'אני מעלה באינסטגרם טיפים לניהול העסק, אשמח אם תעקבי: https://instagram.com/kal.mea 💛'))
   assert.equal(tailoredLine('other', 'unknown'), BASE_TAILORED_LINE)
 })
 
-ok('every message differs from the approved one in exactly one line (the tailored one), the link and the contact line', () => {
-  const base = `${APPROVED_DM}\n\n${OPT_OUT_LINE}`.split('\n')
-  for (const { sys, t, ch, m } of allMessages()) {
-    const lines = m.split('\n')
-    assert.equal(lines.length, base.length, `${sys}/${t}/${ch}`)
-    const diff = lines.map((l, i) => (l === base[i] ? -1 : i)).filter((i) => i >= 0)
-    const allowed = new Set([base.indexOf(BASE_TAILORED_LINE), base.findIndex((l) => l.startsWith('להצצה:')), base.findIndex((l) => l.startsWith('לכל שאלה'))])
-    for (const i of diff) assert.ok(allowed.has(i), `${sys}/${t}/${ch}: line ${i} changed: ${lines[i]}`)
-  }
-})
-
-ok('every message: signed by מעיין, the free first month, the tagged link, nothing not live, no em dash', () => {
+ok('every message: short, signed by מעיין, one question, no site link, the Instagram invite, nothing not live, no em dash', () => {
   for (const { sys, t, ch, m } of allMessages()) {
     assert.match(m, /אני מעיין/)
     assert.ok(m.endsWith(`\n\n${OPT_OUT_LINE}`), `${sys}/${t}/${ch}: the opt-out line is the very last line`)
     assert.equal(m.split(OPT_OUT_LINE).length, 2, 'exactly once')
-    assert.match(m, /חודש ראשון עליי/)
-    assert.ok(m.includes(`https://kalmea.app/?utm_source=${ch}&utm_medium=dm&utm_campaign=${t}`), `${sys}/${t}/${ch}`)
-    assert.equal((m.match(/https?:\/\//g) || []).length, 1, 'one link only')
+    assert.equal(m.split('\n').length, 8, `${sys}/${t}/${ch}: short`)
+    assert.equal((m.match(/\?/g) || []).length >= 1, true)
+    assert.equal(m.split('\n').filter((l) => l.startsWith('שאלה קצרה:')).length, 1, 'one question line')
+    assert.doesNotMatch(m, /kalmea\.app/, 'no site link in the first message')
+    assert.match(m, /kal\.mea/)
+    assert.ok((m.match(/https?:\/\//g) || []).length <= 1)
     assert.doesNotMatch(m, /קבלה|קבלות/)
     assert.doesNotMatch(m, /תזכורת|תזכורות|אוטומטי/, 'no automatic reminders claim')
     assert.doesNotMatch(m, /—|–/)
     assert.ok(m.includes('{name}'))
   }
+  // the link for the reply, sent by hand after she answers
   assert.equal(outreachLink('whatsapp', 'brows'), 'https://kalmea.app/?utm_source=whatsapp&utm_medium=dm&utm_campaign=brows')
 })
 
-ok('tailoring: WhatsApp by hand gets the evenings in WhatsApp; another system gets "moving over is easy"; treatment is in the line', () => {
-  assert.match(tailoredLine('brows', 'whatsapp_manual'), /הערבים הולכים על התכתבויות בוואטסאפ על תורי גבות/)
-  assert.match(tailoredLine('lashes', 'whatsapp_manual'), /ריסים/)
-  assert.match(tailoredLine('nails', 'excel_or_notebook'), /מחברת.*ציפורניים/)
+ok('tailoring: WhatsApp by hand asks about late-night messages; a notebook asks about the month; another system asks what is missing', () => {
+  assert.match(tailoredLine('brows', 'whatsapp_manual'), /ב-11 בלילה/)
+  assert.match(tailoredLine('nails', 'excel_or_notebook'), /כמה בדיוק הכניסו לך תורי ציפורניים/)
   for (const sys of ['calmark', 'pink', 'tor4you', 'other_system'] as const) {
-    const l = tailoredLine('face', sys)
-    assert.match(l, /המעבר קל/)
-    assert.doesNotMatch(l, /וואטסאפ על/)
-    // the free month is already in the base, so the whole message carries both
-    assert.match(whatsappMessage('face', 'נועה', sys), /המעבר קל[\s\S]*חודש ראשון עליי/)
+    assert.match(tailoredLine('face', sys), /יש משהו שחסר לך\?/)
   }
   assert.match(tailoredLine('brows', 'calmark'), /Calmark/)
-  assert.match(tailoredLine('face', 'unknown'), /מטיפולי פנים ועד הקופה/)
-  // different systems give different messages; different treatments too
+  assert.match(tailoredLine('face', 'unknown'), /את טיפולי פנים והתשלומים/)
   assert.notEqual(whatsappMessage('brows', 'x', 'whatsapp_manual'), whatsappMessage('brows', 'x', 'pink'))
   assert.notEqual(whatsappMessage('brows', 'x', 'unknown'), whatsappMessage('nails', 'x', 'unknown'))
-  // WhatsApp asks to answer right here; Instagram gives the number
-  assert.match(whatsappMessage('brows', 'x'), /כאן בוואטסאפ\n\n/)
-  assert.match(instagramMessage('x'), /בוואטסאפ: 054-2845655\n\n/)
+  // Instagram invites to follow right here; WhatsApp gives the Instagram link
+  assert.match(instagramMessage('x'), /כאן ב-@kal\.mea/)
+  assert.match(whatsappMessage('brows', 'x'), /https:\/\/instagram\.com\/kal\.mea/)
   assert.equal(OPT_OUT_LINE, 'ואם זה לא רלוונטי לך, רק תכתבי לי ולא אפנה שוב 🙏')
-  // what she actually sends (name filled in, wa.me decoded) still ends with it
   for (const m of [whatsappMessage('nails', 'נועה', 'pink'), instagramMessage('', 'face', 'whatsapp_manual'),
     decodeURIComponent(prospectWaLink('972541234567', 'lashes', 'דנה', 'excel_or_notebook')!.split('?text=')[1])]) {
     assert.ok(m.endsWith(OPT_OUT_LINE))
@@ -108,13 +95,13 @@ ok('personalized with her first name only; no name gives a clean greeting with n
   assert.equal(firstName(''), '')
   assert.equal(firstName('🌸'), '')
   const m = whatsappMessage('face', 'נועה כהן')
-  assert.ok(m.startsWith('היי נועה, נעים מאוד, אני מעיין 🌸'))
+  assert.ok(m.startsWith('היי נועה 🌸\nאני מעיין'))
   assert.doesNotMatch(m, /כהן|\{name\}/)
   const anon = whatsappMessage('face', '')
-  assert.ok(anon.startsWith('היי, נעים מאוד'))
+  assert.ok(anon.startsWith('היי 🌸\n'))
   assert.doesNotMatch(anon, /\{name\}|  /)
-  assert.ok(instagramMessage('').startsWith('היי, נעים מאוד'))
-  assert.ok(instagramMessage('דנה').startsWith('היי דנה, נעים מאוד'))
+  assert.ok(instagramMessage('').startsWith('היי 🌸'))
+  assert.ok(instagramMessage('דנה').startsWith('היי דנה 🌸'))
   assert.equal(personalize('{name}!', 'שירה'), 'שירה!')
 })
 
@@ -124,7 +111,6 @@ ok('wa.me link: her number, the typed message, nothing else; Instagram opens the
   assert.equal(decodeURIComponent(l.split('?text=')[1]), whatsappMessage('brows', 'נועה כהן'))
   const l2 = prospectWaLink('972541234567', 'nails', 'נועה', 'whatsapp_manual')!
   assert.equal(decodeURIComponent(l2.split('?text=')[1]), whatsappMessage('nails', 'נועה', 'whatsapp_manual'))
-  assert.ok(decodeURIComponent(l2).includes('utm_source=whatsapp&utm_medium=dm&utm_campaign=nails'))
   assert.equal(prospectWaLink(null, 'brows', 'x'), null)
   assert.equal(instagramDmLink('@Noa.Brows'), 'https://ig.me/m/noa.brows')
   assert.equal(instagramDmLink(null), null)
