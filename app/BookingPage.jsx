@@ -30,6 +30,8 @@ import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
 import { fmtTime, overlaps, slotsBetween } from "@/lib/apptTime";
 import { cleanBufferMinutes, serviceBufferMinutes, businessBufferDefault } from "@/lib/serviceBuffer";
+// The team calendar (lib/team.ts): only when /api/availability sends `team` (flag on, two or more active staff). Otherwise unused.
+import { publicEligible, publicSlotFree, teamDayWindow, ANY_STAFF } from "@/lib/team";
 import { isTooSoonForSelfBooking, bookingTermsRequired } from "@/lib/bookingPolicy";
 import { policyAppliesToService } from "@/lib/cancellationPolicy";
 import { phoneErrorHe } from "@/lib/phone";
@@ -267,6 +269,20 @@ function ResultLightbox({ items, index, title, onClose, onStep }) {
 }
 
 /**
+ * The `team` field of /api/availability (lib/team.ts), checked: two or more people with an id, a name and a week of hours, and a
+ * busy list per person. Anything else is null, which is one practitioner: the page then works exactly as it always did.
+ */
+function cleanTeam(t) {
+  if (!t || typeof t !== "object" || !Array.isArray(t.staff) || !t.busy || typeof t.busy !== "object") return null;
+  const staff = t.staff.filter((x) => x && typeof x.id === "string" && typeof x.name === "string" && x.name.trim() && x.hours && typeof x.hours === "object")
+    .map((x) => ({ id: x.id, name: x.name.trim(), color: typeof x.color === "string" ? x.color : null, services: Array.isArray(x.services) ? x.services : null, hours: x.hours }));
+  if (staff.length < 2) return null;
+  const busy = {};
+  for (const x of staff) busy[x.id] = Array.isArray(t.busy[x.id]) ? t.busy[x.id] : [];
+  return { staff, busy };
+}
+
+/**
  * The whole client-facing page: her shop window and the four-step booking flow.
  *
  * It lives here rather than under a route because TWO routes render it now.
@@ -322,6 +338,11 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // treatment being booked comes from that service's own row in the public services list; absent (an older deployment,
   // a failed read) falls back to her public branding, then 0, which is what the page did before buffers existed.
   const [defaultBuffer, setDefaultBuffer] = useState(null);
+  // The team (lib/team.ts publicTeam + per-person busy intervals), from /api/availability; null for one practitioner, which is
+  // every business without the team calendar: then nothing below changes. staffPick: a staff id, or ANY_STAFF ("לא משנה לי").
+  const [team, setTeam] = useState(null);
+  const [staffPick, setStaffPick] = useState(ANY_STAFF);
+  const [bookedWith, setBookedWith] = useState("");
   const [brand, setBrand] = useState(() => (initialSettings ? resolveBranding(initialSettings) : null)); // resolved clinic branding (safe fallbacks)
   const [posts, setPosts] = useState([]); // her client-facing announcements (public, read-only)
   // Reviews written by clients. null until the read resolves, so "none yet" and
@@ -464,7 +485,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
     if (!tenantId) return;
     try {
       const ap = await fetch(`/api/availability?t=${encodeURIComponent(tenantId)}`, { cache: "no-store" }).then((r) => r.json());
-      if (ap && ap.success && Array.isArray(ap.busy)) { setAppointments(ap.busy); setDefaultBuffer(cleanBufferMinutes(ap.defaultBuffer)); setAvailabilityError(false); }
+      if (ap && ap.success && Array.isArray(ap.busy)) { setAppointments(ap.busy); setTeam(cleanTeam(ap.team)); setDefaultBuffer(cleanBufferMinutes(ap.defaultBuffer)); setAvailabilityError(false); }
       else setAvailabilityError(true);
     } catch { setAvailabilityError(true); }
   };
@@ -547,6 +568,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       const ap = await availabilityP;
       if (ap && ap.success && Array.isArray(ap.busy)) {
         setAppointments(ap.busy);
+        setTeam(cleanTeam(ap.team));
         setDefaultBuffer(cleanBufferMinutes(ap.defaultBuffer));
         setAvailabilityError(false);
       } else {
@@ -617,14 +639,26 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // nothing there for her, and saying so is shorter and kinder. It matters more
   // now that a day off is a thing she can block out in one action - a week of
   // holiday would otherwise be seven days of dead chips.
+  // ── The team (lib/team.ts), only when the server sent one ──
+  // Who does this treatment (nobody listed for it = everyone, the same rule as /api/book-appointment). The client is asked
+  // "עם מי?" only when two or more of them do it; the times are then theirs: a time is free when the one she chose is free, or,
+  // for "לא משנה לי", when anyone is. The server picks and checks again.
+  const teamAll = team ? team.staff : [];
+  const teamForSvc = !team ? [] : (selectedService ? (publicEligible(teamAll, selectedService.name).length ? publicEligible(teamAll, selectedService.name) : teamAll) : teamAll);
+  const askWho = teamForSvc.length >= 2;
+  const pickedStaff = askWho && staffPick !== ANY_STAFF ? teamForSvc.find((x) => x.id === staffPick) || null : null;
+  const teamPool = !team ? null : pickedStaff ? [pickedStaff] : teamForSvc;
+  const dayWindow = (d) => (teamPool ? teamDayWindow(teamPool, d.getDay()) : dayHoursFrom(settings, d.getDay()));
+  const freeAt = (ds, m) => (teamPool
+    ? teamPool.some((x) => publicSlotFree(x, team.busy[x.id], ds, m, svcDuration, svcBuffer))
+    : !busyOn(ds).some(([bs, be]) => overlaps(m, m + svcDuration + svcBuffer, bs, be)));
+
   const dayHasFreeSlot = (d) => {
-    const dh = dayHoursFrom(settings, d.getDay());
+    const dh = dayWindow(d);
     if (!dh) return false;
     const ds = formatDate(d);
-    const busy = busyOn(ds);
     return slotsBetween(dh.open, dh.close, SLOT_STEP, svcDuration).some((m) =>
-      !isTooSoonForSelfBooking(ds, m, new Date(), bookingRules.minLeadMinutes) &&
-      !busy.some(([bs, be]) => overlaps(m, m + svcDuration + svcBuffer, bs, be))
+      !isTooSoonForSelfBooking(ds, m, new Date(), bookingRules.minLeadMinutes) && freeAt(ds, m)
     );
   };
 
@@ -641,18 +675,19 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   for (let i = 0; mounted && i <= bookingRules.maxDaysAhead && availableDays.length < 14; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    if (isOpenOn(settings, d) && dayHasFreeSlot(d)) availableDays.push(d);
+    if ((teamPool ? !!dayWindow(d) : isOpenOn(settings, d)) && dayHasFreeSlot(d)) availableDays.push(d);
   }
 
   // === Build hours for the SELECTED day (its own open→close window) ===
-  const selDayHours = selectedDate ? dayHoursFrom(settings, selectedDate.getDay()) : null;
+  const selDayHours = selectedDate ? dayWindow(selectedDate) : null;
   const allSlots = selDayHours
     ? slotsBetween(selDayHours.open, selDayHours.close, SLOT_STEP, svcDuration)
     : [];
 
-  const busyToday = selectedDate ? busyOn(formatDate(selectedDate)) : [];
-  const slotTaken = (start) =>
-    busyToday.some(([bs, be]) => overlaps(start, start + svcDuration + svcBuffer, bs, be));
+  const busyToday = selectedDate && !teamPool ? busyOn(formatDate(selectedDate)) : [];
+  const slotTaken = (start) => (teamPool
+    ? !selectedDate || !freeAt(formatDate(selectedDate), start)
+    : busyToday.some(([bs, be]) => overlaps(start, start + svcDuration + svcBuffer, bs, be)));
 
   // Minimum notice for client self-booking. The server enforces the same rule -
   // this only keeps the page from offering a slot that would then be rejected.
@@ -702,6 +737,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           // Her real colour, never the CSS variable: this is stored on the appointment (the server checks it is a hex).
           color: selectedService.color || accent,
           tenantId: tenantId,
+          // Only when the page asked "עם מי?": her pick, or "לא משנה לי". The server checks it belongs to this business and is active.
+          ...(team ? { staffId: pickedStaff ? pickedStaff.id : ANY_STAFF } : {}),
           ...(() => { const r = recalledSource(tenantId, typeof window !== "undefined" ? window.location.search : ""); return { src: r.src || undefined, ref: r.ref || undefined }; })(),
           marketingConsent: marketingOk === true,
           acceptedTerms: termsRequired ? termsOk === true : undefined,
@@ -713,6 +750,16 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       // Prefer the server's specific message (e.g. "slot taken") when provided,
       // otherwise fall back to the generic error.
       // Someone else took that time a moment ago: back to the times, nothing picked, the grid read again so it shows as taken.
+      // The person she chose is not available any more (left, or stopped doing this treatment): back to the times, "לא משנה לי".
+      if (!result.success && result.code === "staff_unavailable") {
+        setStaffPick(ANY_STAFF);
+        setSelectedStart(null);
+        setSlotTakenMsg(result.error || tr("המטפלת שבחרת לא זמינה לטיפול הזה, אפשר לבחור שוב?"));
+        setStep(2);
+        setSubmitting(false);
+        refetchAvailability();
+        return;
+      }
       if (!result.success && result.code === "slot_taken") {
         setSelectedStart(null);
         setSlotTakenMsg(result.error || tr("השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?"));
@@ -731,6 +778,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       setPolicyStep(result.policyStep || null);
       setPolicyStepAt(Date.now());
       setBookedId(result.appointmentId || null);
+      setBookedWith(result.staff && typeof result.staff.name === "string" ? result.staff.name : "");
       setStep(4);
     } catch (err) {
       setErrorMsg(CLIENT_STUCK_HE);
@@ -1365,6 +1413,24 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <p className="serif" style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep }}>₪{selectedService.price}</p>
                 </div>
 
+                {askWho && !availabilityPending && (
+                  <div data-testid="staff-pick" style={{ marginBottom: 20 }}>
+                    <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>{tr("עם מי?")}</p>
+                    <div role="radiogroup" aria-label={tr("עם מי?")} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {[{ id: ANY_STAFF, name: tr("לא משנה לי"), color: null }, ...teamForSvc].map((x) => {
+                        const on = (pickedStaff ? pickedStaff.id : ANY_STAFF) === x.id;
+                        return (
+                          <button key={x.id} type="button" role="radio" aria-checked={on} className="bk-btn"
+                            onClick={() => { setStaffPick(x.id); setSelectedDate(null); setSelectedStart(null); setSlotTakenMsg(""); }}
+                            style={{ minHeight: 44, padding: "8px 16px", borderRadius: "var(--r-full)", fontSize: "var(--t-md)", fontWeight: 600, fontFamily: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8, background: on ? pc : "var(--brand-surface, #FDFBF9)", color: on ? "var(--pc-contrast, #FFFFFF)" : ink, border: on ? "none" : `1px solid ${hair}`, boxShadow: on ? "var(--shadow-accent)" : "var(--shadow-sm)" }}>
+                            {x.color && <span aria-hidden style={{ width: 10, height: 10, borderRadius: "50%", background: x.color, flexShrink: 0 }} />}
+                            {x.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <p style={{ fontSize:"var(--t-sm)", letterSpacing: "3px", color: pcText, fontWeight: 700, marginBottom: 12 }}>{tr("בחרי יום")}</p>
                 {availabilityPending ? (
                   // The page is already up; only the diary is still being read. Say so, never show an unchecked grid.
@@ -1542,6 +1608,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 </p>
                 <div style={{ background: cream, borderRadius:"var(--r-card)", padding: "20px 22px", border: `1px solid ${hair}`, textAlign: "start", marginBottom: 22 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("טיפול")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{selectedService.name}</span></div>
+                  {bookedWith && <div data-testid="booked-with" style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("עם")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{bookedWith}</span></div>}
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("שם")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("טלפון")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
