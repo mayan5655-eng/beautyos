@@ -24,18 +24,21 @@ import { apptBufferField, writeWithApptBuffer } from "../../../lib/apptBuffer";
 // error names: never a column the check cannot do without.
 const SAME_DAY_BASE = ["start_minute", "hour", "duration", "confirmation_status", "service"];
 const SAME_DAY_OPTIONAL = ["kind", "buffer_minutes"];
-async function readSameDayAppointments(supabase, tenantId, date) {
-  let optional = [...SAME_DAY_OPTIONAL];
+// withStaff: the team calendar (lib/team.ts) also needs whose appointment each one is. Asked for only then, and optional like the
+// others: `staffRead` says whether it came back, and without it the booking is checked as one practitioner, as before.
+async function readSameDayAppointments(supabase, tenantId, date, withStaff = false) {
+  const all = withStaff ? [...SAME_DAY_OPTIONAL, "staff_id"] : SAME_DAY_OPTIONAL;
+  let optional = [...all];
   const read = () => supabase.from("appointments").select([...SAME_DAY_BASE, ...optional].join(", ")).eq("tenant_id", tenantId).eq("date", date);
   let res = await read();
-  for (let i = 0; i < SAME_DAY_OPTIONAL.length && res.error && isMissingColumnError(res.error); i++) {
+  for (let i = 0; i < all.length && res.error && isMissingColumnError(res.error); i++) {
     const col = missingColumnName(res.error);
     if (col && !optional.includes(col)) break; // a column the check needs: the error stands
     // Unnamed: drop the optional ones together rather than lose the clash check over them.
     optional = col ? optional.filter((c) => c !== col) : [];
     res = await read();
   }
-  return res;
+  return { ...res, staffRead: optional.includes("staff_id") };
 }
 
 
@@ -61,6 +64,11 @@ import { intakePublicAnswer } from "../../../lib/intakeCopy";
 import { ensureIntakeForm, queueIntakeMessage } from "../../../lib/intakeQueue.js";
 import { sendWhatsApp } from "../../../lib/whatsapp.js";
 import { hebrewDate } from "../../../lib/messages.js";
+// The team calendar (NEXT_PUBLIC_TEAM_CALENDAR): who the booking is with, per staff member. Off, or fewer than two active staff, or
+// the migration not run = none of it runs and this route is exactly the single-practitioner route it was.
+import { teamCalendarEnabled } from "../../../lib/teamFlag";
+import { readTeamSafe } from "../../../lib/teamRepo";
+import { teamOn, eligibleFor, activeStaff, pickStaff, staffIdForWrite } from "../../../lib/team";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -94,7 +102,7 @@ export async function POST(request) {
     const ipHourly = checkIpLimit(request, "book-appointment-hourly", logBlock(null));
     if (ipHourly) return ipHourly;
 
-    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy, acceptedCardSave, src: rawSrc, ref: rawRef } =
+    const { name: rawName, phone, service, date, hour, startMinute, duration, price, color, tenantId, marketingConsent, acceptedTerms, acceptedPolicy, acceptedCardSave, src: rawSrc, ref: rawRef, staffId: requestedStaff } =
       await request.json();
     // The page trims, but this route is reachable directly: collapse whitespace and cap the length so a megabyte
     // name cannot be stored or pasted into the owner's WhatsApp text.
@@ -193,10 +201,18 @@ export async function POST(request) {
       policy = null;
     }
 
+    // Her team, only with the flag on and two or more ACTIVE people of THIS business (lib/teamRepo.ts reads by this tenant only, so a
+    // staff id from another business is simply not in the list). A failed read is "one practitioner": never a refused booking.
+    let team = [];
+    if (teamCalendarEnabled()) {
+      const t = await readTeamSafe(supabase, activeTenantId);
+      if (t.available && teamOn(t.staff)) team = t.staff;
+    }
+
     const [
       { data: svcRows, error: svcError },
       { data: settingsRows, error: settingsErr },
-      { data: sameDay },
+      { data: sameDay, staffRead },
       { data: existing },
       { data: bufferRows },
     ] = await Promise.all([
@@ -216,7 +232,7 @@ export async function POST(request) {
       // service, kind and buffer_minutes are read for the buffer after each treatment (lib/serviceBuffer.ts); kind
       // (add_appointment_kind.sql) and buffer_minutes (add_service_buffer_2026-11-05.sql) are dropped one at a time, only
       // the one the database names, when their migration has not run, so a missing column can never switch the clash check off.
-      readSameDayAppointments(supabase, activeTenantId, date),
+      readSameDayAppointments(supabase, activeTenantId, date, team.length > 0),
       supabase
         .from("clients")
         .select("id, phone")
@@ -248,6 +264,12 @@ export async function POST(request) {
     const svcPrice = Number.isFinite(Number(svcRow.price)) ? Number(svcRow.price) : Number(price) || 0;
     // A real hex only (lib/serviceColors.ts): the page once sent "var(--pc)", which was stored as the appointment's colour.
     const svcColor = bookedAppointmentColor(svcRow.color, color, settingsRows && settingsRows[0] ? settingsRows[0].primary_color : null);
+
+    // Team mode: the people who do this treatment (lib/team.ts eligibleFor). Nobody listed for it (a renamed treatment her lists do
+    // not know yet) = everyone active, so a stale list never turns a client away. Without staff_id in the read: one practitioner.
+    if (team.length && !staffRead) team = [];
+    const teamMode = team.length > 0;
+    const candidates = teamMode ? (eligibleFor(team, service).length ? eligibleFor(team, service) : activeStaff(team)) : [];
 
     // Wire format, explicit on BOTH sides - never one field carrying two
     // meanings:
@@ -358,7 +380,7 @@ export async function POST(request) {
       return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 503 });
     }
 
-    {
+    if (!teamMode) {
       // Midday, not midnight: the weekday of a plain date is what is wanted,
       // and noon cannot be pushed across a day boundary by an offset.
       const weekday = new Date(String(date) + "T12:00:00").getDay();
@@ -392,7 +414,7 @@ export async function POST(request) {
     // but not into her break or another appointment.
     const bufferDefault = businessBufferDefault(settingsRow?.branding);
     const svcBuffer = serviceBufferMinutes(svcRow, bufferDefault);
-    if (overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration + svcBuffer)) {
+    if (!teamMode && overlapsLunch(resolveLunch(settingsRow?.branding), newStart, svcDuration + svcBuffer)) {
       return Response.json(
         { success: false, code: "slot_taken", error: "השעה הזו כבר לא פנויה, אפשר לבחור שעה אחרת?" },
         { status: 409 }
@@ -403,7 +425,7 @@ export async function POST(request) {
     //    this slot on the same date for this tenant, fail with a friendly message
     //    instead of silently stacking a second appointment on top of it. Mirrors
     //    the in-app overlap guard (cancelled appointments free their slot).
-    {
+    if (!teamMode) {
       // Fetched above, alongside the service/settings rows.
       // start_minute is the truth; hour*60 is the fallback for rows written
       // before the migration or by an older deployment mid-rollout. Doing this
@@ -424,6 +446,29 @@ export async function POST(request) {
           { status: 409 }
         );
       }
+    }
+
+    // 0b-team. The same three rules (her hours, the break, no double booking), PER PERSON (lib/team.ts pickStaff): the one she
+    //    chose, who must be active, of this business and doing this treatment; or for "לא משנה לי" whoever is free, the one with
+    //    the fewest clients that day first. Her own hours replace the business hours; the break is the owner's only.
+    let chosenStaff = null;
+    if (teamMode) {
+      const bufferOfTeam = bufferLookup(bufferRows || [], bufferDefault);
+      const pick = pickStaff(candidates, requestedStaff, {
+        settings: settingsRow, date, start: newStart, duration: svcDuration, buffer: svcBuffer,
+        appointments: sameDay || [], bufferOf: bufferOfTeam, lunch: resolveLunch(settingsRow?.branding),
+      });
+      if (!pick.ok) {
+        if (pick.reason === "unknown_staff") {
+          return Response.json({ success: false, code: "staff_unavailable", error: "המטפלת שבחרת לא זמינה לטיפול הזה, אפשר לבחור שוב?" }, { status: 409 });
+        }
+        // Back to the times on the page (slot_taken), with the reason that helps her choose again.
+        const why = pick.reason === "closed" ? "אין טיפולים בתאריך הזה, אפשר לבחור יום אחר?"
+          : pick.reason === "outside" ? "השעה הזו מחוץ לשעות העבודה. אפשר לבחור מועד אחר."
+          : "השעה הזו כבר נתפסה, אפשר לבחור שעה אחרת?";
+        return Response.json({ success: false, code: "slot_taken", error: why }, { status: 409 });
+      }
+      chosenStaff = pick.staff;
     }
 
     // 0c. THE CLIENT THIS BOOKING BELONGS TO.
@@ -531,6 +576,8 @@ export async function POST(request) {
         // True only after the WhatsApp message really went out (lib/bookingNotify.js sets it).
         confirmation_sent: false,
         ...apptBufferField(svcBuffer),
+        // NULL for the owner, always (lib/team.ts staffIdForWrite). Only in team mode, where the column was just read.
+        ...(chosenStaff ? { staff_id: staffIdForWrite(chosenStaff) } : {}),
       }, (row) => supabase.from("appointments").insert(row).select().single());
 
     if (error) {
@@ -670,6 +717,8 @@ export async function POST(request) {
       intake: intakeOut,
       // What she asked for up front, so the confirmation screen can say how to pay it.
       deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,
+      // Team mode only: who she is booked with, for the confirmation screen.
+      ...(chosenStaff ? { staff: { name: chosenStaff.name } } : {}),
     });
   } catch (err) {
     console.error("[book-appointment] failed:", err?.message);

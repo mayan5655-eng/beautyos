@@ -411,6 +411,13 @@ export const RATE_POLICIES = {
     ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
     tenantMessage: (m: string) => `אפשר לנסות שוב ${m}.`,
   },
+  // The team calendar (lib/team.ts): her own staff screen, session-bound. Loose: it only stops a script.
+  'team': {
+    perIp: { limit: 120, windowMs: 10 * MINUTE },
+    perTenant: { limit: 120, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `בוצעו הרבה פעולות בזמן קצר. אפשר לנסות שוב ${m}.`,
+  },
   'client-erase': {
     perIp: { limit: 10, windowMs: 10 * MINUTE },
     perTenant: { limit: 10, windowMs: 10 * MINUTE },
