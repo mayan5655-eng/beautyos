@@ -20,7 +20,8 @@ import PublicFooterLinks from "./PublicFooterLinks";
 import KalmeaLegalFooter from "./KalmeaLegalFooter";
 import { supportWhatsAppUrl } from "@/lib/support";
 import { PLAN_PRICES, priceHe, annualPlanEnabled } from "@/lib/pricing";
-import { annualOfferHe } from "@/lib/planCopy";
+import { annualOfferHe, daysHe } from "@/lib/planCopy";
+import { publicGraceDays } from "@/lib/planState";
 import PublicAnalytics from "./PublicAnalytics";
 import MetaPixel from "./MetaPixel";
 import Testimonials from "./landing/Testimonials";
@@ -100,7 +101,8 @@ const AREAS = [
 const FAQ = [
   {
     q: "צריך כרטיס אשראי כדי להתחיל?",
-    a: "לא. נרשמים עם אימייל וסיסמה, והחודש הראשון חינם. בסוף החודש המערכת נסגרת עד שמצטרפים למנוי, ושום דבר לא נמחק. לפני כן תראי הודעה בתוך האפליקציה, ואפשר לכתוב לנו בוואטסאפ.",
+    // The grace sentence follows NEXT_PUBLIC_BOOKING_GRACE_DAYS (lib/planState publicGraceDays): her booking page stays open that long.
+    a: `לא. נרשמים עם אימייל וסיסמה, והחודש הראשון חינם. בסוף החודש המערכת נסגרת עד שמצטרפים למנוי, ושום דבר לא נמחק.${publicGraceDays() > 0 ? ` דף ההזמנות שלך ממשיך לקבל תורים עוד ${daysHe(publicGraceDays())}, כדי שאף לקוחה לא תיתקע.` : ""} לפני כן תראי הודעה בתוך האפליקציה, ואפשר לכתוב לנו בוואטסאפ.`,
   },
   {
     q: "אפשר להפסיק מתי שרוצים?",

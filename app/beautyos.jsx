@@ -73,7 +73,7 @@ import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings, tourMaySta
 import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
 import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
 import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
-import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink, hebrewDate as msgHebrewDate } from "@/lib/messages.js";
+import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink, hebrewDate as msgHebrewDate, moveLine as msgMoveLine } from "@/lib/messages.js";
 
 // " היום" / " מחר" from the appointment's own date at the moment the text is built, never assumed (2026-11-02 audit).
 function dayWordFor(dateStr) {
@@ -608,7 +608,7 @@ async function fetchConfirmLinks(apptId) {
     const res = await fetch(`/api/confirm/link?id=${encodeURIComponent(apptId)}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) return null;
-    return { confirmUrl: data.confirmUrl, cancelUrl: data.cancelUrl };
+    return { confirmUrl: data.confirmUrl, cancelUrl: data.cancelUrl, rescheduleUrl: data.rescheduleUrl || null };
   } catch {
     return null;
   }
@@ -754,6 +754,7 @@ function waConfirmLink(phone, name, service, date, time, links, extra = {}) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmUrl}`,
+      msgMoveLine(links.rescheduleUrl, extra.branding),
       `אם צריך לבטל, אפשר כאן: ${cancelUrl}`
     )
   );
@@ -4229,6 +4230,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       businessName: settings.business_name,
       address: brandJson.public_address || brandJson.address,
       arrivalNote: brandJson.arrival_note,
+      branding: brandJson,
     });
     const opened = w ? (w.location.href = link, true) : !!window.open(link, "_blank");
     if (!opened) { toast(tr("הדפדפן חסם את פתיחת וואטסאפ, אפשר לנסות שוב"), "info"); return false; }
@@ -6686,6 +6688,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmLink}`,
+      msgMoveLine(links.rescheduleUrl, brandJson),
       `אם צריך לבטל, אפשר כאן: ${cancelLink}`
     );
   };

@@ -493,5 +493,6 @@
  "✦ טוען": "✦ Loading",
  "🎁 שובר מתנה": "🎁 Gift voucher",
  "💳 אפשר לשלם אצלנו בכרטיס אשראי. אחרי קביעת התור יופיע כאן כפתור לתשלום בדף מאובטח.": "💳 You can pay us by credit card. After you book, a button to pay on a secure page will appear here.",
- "💳 לתשלום ₪{0} בכרטיס אשראי": "💳 Pay ₪{0} by credit card"
+ "💳 לתשלום ₪{0} בכרטיס אשראי": "💳 Pay ₪{0} by credit card",
+ "אחרי התשלום אני פותחת לך את החשבון, בדרך כלל באותו יום. שילמת? אפשר לשלוח לי צילום של האישור בוואטסאפ ואפתח מיד.": "Once the payment arrives I reopen your account, usually the same day. Already paid? Send me a screenshot of the confirmation on WhatsApp and I'll open it right away."
 }

@@ -47,7 +47,7 @@ import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
 import { suppressionHash } from "../../../lib/clientData";
 import { APP_URL } from "../../../lib/appUrl";
-import { tenantIsBlocked } from "../../../lib/tenantActive";
+import { tenantPublicClosed } from "../../../lib/tenantActive";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
 // A released hold is a freed slot: offered to the waiting list after this booking is in (its own after(); the offer re-checks the slot is free).
@@ -153,7 +153,9 @@ export async function POST(request) {
     // A business whose trial ended (or that is paused) takes no NEW bookings from strangers: she cannot manage, move or cancel them
     // in the app while blocked, and the waitlist already refuses (app/api/waitlist/join). Appointments already booked keep their
     // reminders. Fails open like every plan check (lib/tenantActive.ts): an unreadable plan never turns a client away.
-    if (await tenantIsBlocked(supabase, activeTenantId)) {
+    // A trial that ended in the last few days keeps taking bookings (lib/planState publicGraceDays, 2026-11-12): her clients are
+    // not turned away the morning it ends, and what they book waits in her calendar for when she renews.
+    if (await tenantPublicClosed(supabase, activeTenantId)) {
       return Response.json(
         { success: false, code: "business_paused", error: "ההזמנות אונליין סגורות כרגע. אפשר לפנות לעסק ישירות בוואטסאפ או בטלפון." },
         { status: 403 }

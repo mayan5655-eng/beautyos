@@ -5,7 +5,7 @@
 // Meta's error). The queue text is the daily reminder's (lib/reminders/dailyReminders.js), links included, so the
 // fallback reads exactly like the message she already sends by hand.
 
-import { greet, lines, hebrewDate, timeRange, durationHe, mapsLink } from '../messages.js';
+import { greet, lines, hebrewDate, timeRange, durationHe, mapsLink, moveLine } from '../messages.js';
 import { startMinute } from '../apptTime.ts';
 
 export type ApptLike = { id: string; name?: string | null; service?: string | null; date: string; start_minute?: number | null; hour?: number | null; duration?: number | null };
@@ -29,7 +29,7 @@ export function autoParams(appt: ApptLike, settings: SettingsLike): string[] {
 }
 
 /** The reminder as it waits in her manual queue. */
-export function reminderQueueText(appt: ApptLike, settings: SettingsLike, links: { confirmUrl: string; cancelUrl: string }): string {
+export function reminderQueueText(appt: ApptLike, settings: SettingsLike, links: { confirmUrl: string; cancelUrl: string; rescheduleUrl?: string }): string {
   const brand = settings?.branding && typeof settings.branding === 'object' ? (settings.branding as Record<string, unknown>) : {};
   const address = String(brand.public_address || brand.address || '').trim();
   const arrivalNote = String(brand.arrival_note || '').trim();
@@ -47,6 +47,7 @@ export function reminderQueueText(appt: ApptLike, settings: SettingsLike, links:
     arrivalNote || null,
     '',
     `לאישור: ${links.confirmUrl}`,
+    moveLine(links.rescheduleUrl, brand),
     `אם צריך לבטל, אפשר כאן: ${links.cancelUrl}`,
   );
 }

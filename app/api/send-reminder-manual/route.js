@@ -21,7 +21,7 @@ import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp } from "../../../lib/whatsapp";
 import { confirmLinks } from "../../../lib/confirmToken";
 import { startMinute } from "../../../lib/apptTime";
-import { greet, lines, hebrewDate, timeRange, durationHe, mapsLink } from "../../../lib/messages.js";
+import { greet, lines, hebrewDate, timeRange, durationHe, mapsLink, moveLine } from "../../../lib/messages.js";
 import { isPersonal } from "../../../lib/calendarKind";
 import { isMissingColumnError } from "../../../lib/pgError";
 import { markReminderHandled } from "../../../lib/reminders/handled.js";
@@ -139,7 +139,7 @@ export async function POST(request) {
     // Same message as the automatic cron reminder, including confirm/cancel
     // links. Signed: /api/confirm now requires a token binding the id to
     // the action.
-    const { confirmUrl: confirmLink, cancelUrl: cancelLink } = confirmLinks(APP_URL, appt.id, { date: appt.date });
+    const { confirmUrl: confirmLink, cancelUrl: cancelLink, rescheduleUrl: moveLink } = confirmLinks(APP_URL, appt.id, { date: appt.date });
     // Character-for-character the cron's message. They were two hand-written
     // copies that had already drifted apart in wording; now they drift only if
     // someone edits lib/messages, which changes both.
@@ -160,6 +160,7 @@ export async function POST(request) {
       arrivalNote || null,
       "",
       `לאישור: ${confirmLink}`,
+      moveLine(moveLink, brandJson),
       `אם צריך לבטל, אפשר כאן: ${cancelLink}`
     );
 

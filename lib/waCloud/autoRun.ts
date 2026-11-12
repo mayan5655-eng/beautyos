@@ -40,7 +40,7 @@ type Appt = {
 export type AutoRunDeps = {
   /** sendWhatsApp, used ONLY with forceManual: the queue fallback. */
   queue: (phone: string, text: string, opts: Record<string, unknown>) => Promise<unknown>;
-  confirmLinks: (origin: string, id: string, o: { date?: string | null }) => { confirmUrl: string; cancelUrl: string };
+  confirmLinks: (origin: string, id: string, o: { date?: string | null }) => { confirmUrl: string; cancelUrl: string; rescheduleUrl?: string };
   baseUrl: string;
   isYomTov?: YomTov;
   adapter?: WaCloudAdapter;

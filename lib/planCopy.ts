@@ -63,10 +63,14 @@ export function trialUrgentTitleHe(days: number): string {
 /** Says plainly that the system closes at the end, so the day after is not a surprise. */
 export const TRIAL_URGENT_BODY_HE = `בסוף ההתנסות המערכת נסגרת עד לחידוש המנוי. ${PRICE_LINE_HE} כתבי לי ונסגור את זה בקלות, בלי הפסקה בעבודה. כל מה שיצרת נשמר אצלנו, גם אם תרצי לעצור.`
 
-/** The urgent card's body, led by the date the trial ends when it is known. */
-export function trialUrgentBodyHe(endsAt?: Date | null): string {
+/**
+ * The urgent card's body, led by the date the trial ends when it is known. With a grace period for her public page
+ * (lib/planState publicGraceDays) it says so, so she knows her clients are not turned away on that day.
+ */
+export function trialUrgentBodyHe(endsAt?: Date | null, graceDays = 0): string {
   const date = trialEndDateHe(endsAt)
-  return date ? `תקופת ההתנסות מסתיימת בתאריך ${date}. ${TRIAL_URGENT_BODY_HE}` : TRIAL_URGENT_BODY_HE
+  const grace = date && graceDays > 0 ? ` דף ההזמנות שלך יישאר פתוח ללקוחות עוד ${daysHe(graceDays)} אחרי זה.` : ''
+  return date ? `תקופת ההתנסות מסתיימת בתאריך ${date}.${grace} ${TRIAL_URGENT_BODY_HE}` : TRIAL_URGENT_BODY_HE
 }
 
 /**
@@ -90,6 +94,24 @@ export function blockedNoticeHe(status: PlanStatus, endedAt?: Date | null): { ti
 /** What keeps running and what does not while the system is closed, so nothing about her clients is a surprise. */
 export const BLOCKED_CLIENTS_NOTE_HE =
   'הלקוחות שכבר קבעו תור ממשיכות לקבל תזכורות כרגיל. דף ההזמנות שלך לא מקבל תורים חדשים עד החידוש.'
+
+/**
+ * The same note while her public page is still inside its grace period (lib/planState publicGraceEndsAt): says until
+ * when her clients can still book, that those bookings wait for her, and what happens after. Falls back to the closed note.
+ */
+export function blockedClientsNoteHe(graceEndsAt?: Date | null, now: Date = new Date()): string {
+  if (!graceEndsAt || graceEndsAt.getTime() <= now.getTime()) return BLOCKED_CLIENTS_NOTE_HE
+  const date = trialEndDateHe(graceEndsAt)
+  return `דף ההזמנות שלך עדיין פתוח ללקוחות עד ${date}, כדי שאף לקוחה לא תיתקע. תורים חדשים נשמרים ביומן ומחכים לך כשתחדשי. אחרי התאריך הזה הדף מפסיק לקבל תורים חדשים עד החידוש. הלקוחות שכבר קבעו תור ממשיכות לקבל תזכורות כרגיל.`
+}
+
+/** The payment-link button (lib/planPay.ts) on her closed screen and her last-week banner. */
+export function planPayCtaHe(price: number): string {
+  return `לתשלום המנוי, ${priceHe(price)} לחודש`
+}
+
+/** Under the payment-link button: the account is opened by hand after the payment arrives, so she knows what to expect. */
+export const PLAN_PAY_HINT_HE = 'אחרי התשלום אני פותחת לך את החשבון, בדרך כלל באותו יום. שילמת? אפשר לשלוח לי צילום של האישור בוואטסאפ ואפתח מיד.'
 
 /** Compact badge for a control that cannot be used while the system is closed. */
 export const READ_ONLY_BADGE_HE = 'המערכת סגורה עד לחידוש המנוי'

@@ -12,7 +12,7 @@ import { resolveLunch } from '@/lib/lunchBreak';
 import { bufferLookup, businessBufferDefault, serviceBufferMinutes, bufferedRange } from '@/lib/serviceBuffer';
 import { isMissingColumnError, missingColumnName } from '@/lib/pgError';
 import { checkIpLimit, checkTenantLimit, checkRescheduleLinkLimit } from '@/lib/rateLimit';
-import { tenantIsBlocked } from '@/lib/tenantActive';
+import { tenantPublicClosed } from '@/lib/tenantActive';
 import { notifyOwner } from '@/lib/ownerNotify';
 import { askGapFillAfterClientCancel } from '@/lib/ownerQuestions';
 import { runWaitlistOffer } from '@/lib/waitlistRuntime';
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       NextResponse.json({ success: false, refused: true, ...brand, ...contact, appointment: summary, error, ...extra }, { status: 409 });
 
     // ── Can this appointment be moved from the link at all? ─────────────────────────────────────────────────────
-    if (await tenantIsBlocked(db, tenantId)) return refuse(tr('כדי להזיז את התור אפשר ליצור קשר ישירות עם {0}.', [brand.businessName || tr('העסק')]), { tooLate: true });
+    if (await tenantPublicClosed(db, tenantId)) return refuse(tr('כדי להזיז את התור אפשר ליצור קשר ישירות עם {0}.', [brand.businessName || tr('העסק')]), { tooLate: true });
     if (appt.confirmation_status === 'cancelled') return refuse(tr('התור הזה בוטל. כדי לקבוע מחדש, אפשר ליצור קשר עם {0}.', [brand.businessName || tr('העסק')]));
     // The Grow policy she agreed to, for EVERY move (not only a deposit hold): its snapshot window is what a later cancel is judged by
     // (lib/grow/cancelFees.ts detect), so the move is judged by max(branding window, snapshot window). Read-only here: the consent

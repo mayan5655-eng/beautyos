@@ -8,7 +8,7 @@
 // FAILS OPEN, like everything billing-related: an unreadable row, a missing table or a missing column is
 // "not blocked". A billing check must never be the reason a paying tenant loses a lead.
 
-import { planState } from './planState.ts';
+import { planState, publicBookingClosedFor } from './planState.ts';
 import { isDemoTenantId } from './demoTenants.ts';
 
 type Reader = { from: (table: string) => any };
@@ -24,6 +24,27 @@ export async function tenantIsBlocked(admin: Reader, tenantId: string): Promise<
       .maybeSingle();
     if (error || !data) return false;
     return planState(data).isBlocked;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Is her PUBLIC booking page closed to new bookings? Like tenantIsBlocked, except a trial that ended in the last few days
+ * (lib/planState publicGraceDays) keeps her page open, so her clients are not turned away the morning her trial ends.
+ * Used by every path a stranger books through: the page itself, /api/book-appointment, the waitlist, and the client's own
+ * "move my appointment" link. Fails open, like tenantIsBlocked.
+ */
+export async function tenantPublicClosed(admin: Reader, tenantId: string, now: Date = new Date()): Promise<boolean> {
+  if (isDemoTenantId(tenantId)) return false;
+  try {
+    const { data, error } = await admin
+      .from('tenants')
+      .select('plan_status, trial_started_at, trial_ends_at')
+      .eq('id', tenantId)
+      .maybeSingle();
+    if (error || !data) return false;
+    return publicBookingClosedFor(data, now);
   } catch {
     return false;
   }

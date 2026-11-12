@@ -3,7 +3,7 @@
 // Read-only: activating or extending is done on /dashboard/admin, linked below.
 import { loadTenants } from '../loader'
 import { OwnerShell, Unavailable, Row, card, muted, h2, bigNumber } from '../OwnerShell'
-import { trialsEndingSoon, planStatusCounts, launchPriceQualifiers, dateHe, LAUNCH_PRICE_CUTOFF_ISO } from '@/lib/ownerControl'
+import { trialsEndingSoon, trialsInGrace, planStatusCounts, launchPriceQualifiers, dateHe, LAUNCH_PRICE_CUTOFF_ISO } from '@/lib/ownerControl'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -18,6 +18,7 @@ export default async function OwnerTrialsPage() {
   const now = new Date()
   const counts = planStatusCounts(r.rows, now)
   const ending = trialsEndingSoon(r.rows, now, 7)
+  const grace = trialsInGrace(r.rows, now)
   const offer = launchPriceQualifiers(r.rows, now)
 
   return (
@@ -37,6 +38,16 @@ export default async function OwnerTrialsPage() {
           <Row key={e.id} left={e.name} right={e.daysLeft <= 1 ? 'עד מחר' : `עוד ${e.daysLeft} ימים`} />
         ))}
       </section>
+
+      {grace.length > 0 && (
+        <section style={card} data-testid="owner-trials-grace">
+          <h2 style={h2}>הניסיון הסתיים, דף ההזמנות עדיין פתוח</h2>
+          <p style={{ ...muted, marginBottom: 8 }}>המערכת שלהן סגורה, אבל לקוחות עדיין קובעות אצלן תורים. אחרי התשלום מפעילים את המנוי בניהול מנויים, בקישור למטה.</p>
+          {grace.map((g) => (
+            <Row key={g.id} left={g.name} right={g.daysLeft <= 1 ? 'הדף נסגר מחר' : `הדף נסגר בעוד ${g.daysLeft} ימים`} />
+          ))}
+        </section>
+      )}
 
       <section style={card}>
         <h2 style={h2}>זכאיות למחיר 349</h2>
