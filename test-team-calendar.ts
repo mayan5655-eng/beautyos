@@ -19,6 +19,9 @@ import {
 } from './lib/team.ts';
 import { readTeam, readTeamSafe, ensureOwner, saveStaff, setStaffActive, staffTableMissing } from './lib/teamRepo.ts';
 import { teamMonthReport } from './lib/teamReport.ts';
+import { scopeFor, resolveScope, claimSlotOk, staffIdOfAppointment, staffHoursSettings, mineOnly, SLOT_GONE_HE } from './lib/teamGuard.ts';
+import { offerFreedSlot } from './lib/waitlistOffers.js';
+import { moveSlotProblem, rescheduleDays } from './lib/reschedule.ts';
 import { publicBusyRanges } from './lib/busyIntervals.ts';
 import { REFERENCED_TABLES, REFERENCED_COLUMNS } from './lib/referencedTables.js';
 import { RATE_POLICIES } from './lib/rateLimit.ts';
@@ -465,6 +468,215 @@ await ok('copy: no dashes, never "קבלה", feminine to her', () => {
   }
   const card = read('app/TeamSettings.jsx');
   assert.match(card, /סמני לפחות טיפול אחד/);
+});
+
+
+// ── 9. offers and claims keep the staff member (Vercel Security Review, PR #67) ──
+const withFlag = async <T>(fn: () => Promise<T> | T): Promise<T> => {
+  const was = process.env.NEXT_PUBLIC_TEAM_CALENDAR;
+  process.env.NEXT_PUBLIC_TEAM_CALENDAR = '1';
+  try { return await fn(); } finally { process.env.NEXT_PUBLIC_TEAM_CALENDAR = was; }
+};
+const TEAM_READ = { available: true, staff: TEAM };
+
+await ok('scope: a staff slot is hers or refused, never the owner’s', () => {
+  assert.deepEqual(scopeFor({ flag: true, team: TEAM_READ, staffId: NOA }), { kind: 'staff', staff: noa });
+  assert.deepEqual(scopeFor({ flag: true, team: TEAM_READ, staffId: LEFT }), { kind: 'refuse' }, 'inactive');
+  assert.deepEqual(scopeFor({ flag: true, team: TEAM_READ, staffId: OTHER_BIZ }), { kind: 'refuse' }, 'another business: not in her team');
+  assert.deepEqual(scopeFor({ flag: true, team: TEAM_READ, staffId: DANA, service: 'גבות' }), { kind: 'refuse' }, 'does not do the treatment');
+  assert.deepEqual(scopeFor({ flag: false, team: TEAM_READ, staffId: NOA }), { kind: 'refuse' }, 'flag off later: still not the owner’s');
+  assert.deepEqual(scopeFor({ flag: true, team: null, staffId: NOA }), { kind: 'refuse' }, 'team unreadable');
+  assert.deepEqual(scopeFor({ flag: true, team: { available: false, staff: [] }, staffId: NOA }), { kind: 'refuse' });
+  assert.deepEqual(scopeFor({ flag: true, team: TEAM_READ, staffId: 'garbage' }), { kind: 'refuse' });
+  for (const sc of [scopeFor({ flag: true, team: TEAM_READ, staffId: NOA }), scopeFor({ flag: true, team: TEAM_READ, staffId: LEFT })]) {
+    assert.ok(sc.kind !== 'single' && !(sc.kind === 'staff' && sc.staff.is_owner), 'never falls back to the owner');
+  }
+  // The owner: her own hours and calendar with the team on; the old path otherwise.
+  assert.deepEqual(scopeFor({ flag: true, team: TEAM_READ, staffId: null }), { kind: 'staff', staff: owner });
+  assert.deepEqual(scopeFor({ flag: false, team: TEAM_READ, staffId: null }), { kind: 'single' }, 'flag off: unchanged');
+  assert.deepEqual(scopeFor({ flag: true, team: { available: true, staff: [owner] }, staffId: null }), { kind: 'single' }, 'one person: unchanged');
+  assert.deepEqual(scopeFor({ flag: true, team: { available: false, staff: [] }, staffId: null }), { kind: 'single' }, 'no table: unchanged');
+});
+
+// A tiny database for the guard and the offer (the shape of test-waitlist-offers.ts, plus order/limit and an optional missing column).
+function makeDb(tables: Record<string, any[]>, o: { noStaffColumn?: string[]; failOn?: string[] } = {}) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const db: any = { tables, from(name: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    let rows = [...(tables[name] || (tables[name] = []))];
+    let mode = 'select', patch: any = null, wantCount = false, head = false, cols = ''; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const missing = () => (o.noStaffColumn || []).includes(name) && (/staff_id/.test(cols) || (patch && 'staff_id' in patch));
+    const err = () => ({ data: null, error: { code: '42703', message: `column ${name}.staff_id does not exist` } });
+    const f: any = { // eslint-disable-line @typescript-eslint/no-explicit-any
+      select(c?: string, op?: any) { cols = c || ''; if (op?.count) wantCount = true; if (op?.head) head = true; return f; }, // eslint-disable-line @typescript-eslint/no-explicit-any
+      eq(c: string, v: unknown) { rows = rows.filter((r) => r[c] === v); return f; },
+      neq(c: string, v: unknown) { rows = rows.filter((r) => r[c] !== v); return f; },
+      in(c: string, vs: unknown[]) { rows = rows.filter((r) => vs.includes(r[c])); return f; },
+      gte(c: string, v: unknown) { rows = rows.filter((r) => r[c] >= (v as never)); return f; },
+      order() { return f; }, limit() { return f; },
+      update(p: unknown) { mode = 'update'; patch = p; return f; },
+      insert(r: unknown) { mode = 'insert'; patch = r; return f; },
+      maybeSingle() { if ((o.failOn || []).includes(name)) return Promise.resolve({ data: null, error: { code: '57014', message: 'down' } }); return Promise.resolve(missing() ? err() : { data: rows[0] || null, error: null }); },
+      then(res: any, rej: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        if ((o.failOn || []).includes(name)) return Promise.resolve({ data: null, error: { code: '57014', message: 'down' } }).then(res, rej);
+        if (missing()) return Promise.resolve(err()).then(res, rej);
+        if (mode === 'insert') { tables[name].push({ id: `${name}-${tables[name].length + 1}`, ...patch }); return Promise.resolve({ error: null }).then(res, rej); }
+        if (mode === 'update') { for (const r of rows) Object.assign(r, patch); return Promise.resolve({ error: null }).then(res, rej); }
+        return Promise.resolve({ data: head ? null : rows, count: wantCount ? rows.length : null, error: null }).then(res, rej);
+      },
+    };
+    return f;
+  } };
+  return db;
+}
+const staffRows = TEAM.map((x) => ({ ...x, tenant_id: T1 }));
+const settingsRow = { tenant_id: T1, business_name: 'סטודיו', ...SETTINGS, automations: { waitlist_offers: true } };
+
+await ok('claim: a staff offer is booked with the same person only when she is still free and inside her hours', async () => {
+  const db = makeDb({ settings: [settingsRow], service_prices: [], appointments: [
+    { tenant_id: T1, date: MON, start_minute: 600, duration: 60, staff_id: null, confirmation_status: 'confirmed' },   // the owner at 10:00
+    { tenant_id: T1, date: MON, start_minute: 900, duration: 60, staff_id: DANA, confirmation_status: 'confirmed' },  // Dana at 15:00
+  ] });
+  assert.equal(await claimSlotOk(db, T1, noa, { date: MON, start: 600, duration: 60, service: 'גבות' }), true, 'Noa is free at 10:00 while the owner works');
+  assert.equal(await claimSlotOk(db, T1, owner, { date: MON, start: 600, duration: 60, service: 'גבות' }), false, 'the owner is busy');
+  assert.equal(await claimSlotOk(db, T1, dana, { date: MON, start: 1080, duration: 60, service: 'לק ג׳ל' }), true, '18:00 is inside Dana’s hours (12 to 20)');
+  assert.equal(await claimSlotOk(db, T1, owner, { date: MON, start: 1080, duration: 60, service: 'לק ג׳ל' }), false, 'but outside the owner’s: never an owner booking at 18:00');
+  assert.equal(await claimSlotOk(db, T1, dana, { date: MON, start: 600, duration: 60, service: 'לק ג׳ל' }), false, 'before Dana starts');
+  assert.equal(await claimSlotOk(db, T1, dana, { date: MON, start: 930, duration: 30, service: 'לק ג׳ל' }), false, 'Dana is busy');
+  assert.equal(await claimSlotOk(db, T1, dana, { date: TUE, start: 780, duration: 30, service: 'לק ג׳ל' }), false, 'Dana is off on Tuesday');
+  const down = makeDb({ settings: [settingsRow] }, { failOn: ['appointments'] });
+  assert.equal(await claimSlotOk(down, T1, noa, { date: MON, start: 600, duration: 60, service: 'גבות' }), false, 'unreadable: refused');
+});
+await ok('claim: the route books her or refuses with a neutral message, never the owner', () => {
+  const claim = read('app/api/claim/route.ts');
+  assert.match(claim, /const scope = await resolveScope\(supabase, String\(pre\.offer\.tenant_id\), offerStaffId, pre\.offer\.service \|\| null\);/);
+  assert.match(claim, /if \(scope\.kind === "refuse"\) return gone\(\);/);
+  assert.match(claim, /if \(sm === null \|\| !\(await claimSlotOk\(supabase, String\(pre\.offer\.tenant_id\), scope\.staff, /);
+  assert.match(claim, /return NextResponse\.json\(\{ state: "taken", message: SLOT_GONE_HE \}\);/);
+  assert.match(claim, /staff_id: claimStaff && !claimStaff\.is_owner \? claimStaff\.id : null,/);
+  assert.match(claim, /if \(so\.error && isMissingColumnError\(so\.error\)\) so = await supabase\.from\("slot_offers"\)\.select\("duration"\)/, 'before the migration every offer is the owner’s');
+  assert.equal(SLOT_GONE_HE, 'המשבצת כבר לא זמינה');
+  assert.match(read('lib/booking.ts'), /\.\.\.\(b\.staff_id \? \{ staff_id: b\.staff_id \} : \{\}\),/, 'the owner never names the column');
+  const sql = read('supabase/migrations/add_team_calendar_2026-11-12.sql');
+  assert.match(sql, /alter table public\.slot_offers add column if not exists staff_id uuid;/);
+  assert.match(sql, /foreign key \(tenant_id, staff_id\) references public\.staff_members \(tenant_id, id\);\n    raise notice 'added slot_offers_staff_same_tenant_fk';/);
+  assert.match(sql, /on public\.slot_offers \(tenant_id, \(coalesce\(staff_id, '00000000-0000-0000-0000-000000000000'::uuid\)\), slot_date, \(coalesce\(slot_start_minute, slot_hour \* 60\)\)\)/);
+});
+
+const cancelled = { id: 'ap-noa', date: '2026-11-16', start_minute: 14 * 60, hour: 14, duration: 45, service: 'גבות', client_id: 'c-x', confirmation_status: 'cancelled' };
+const offerWorld = (o: { staff: string | null; noStaffColumn?: string[]; apptHasKey?: boolean }) => makeDb({
+  settings: [settingsRow], staff_members: staffRows,
+  appointments: [{ ...cancelled, tenant_id: T1, staff_id: o.staff }],
+  waitlist: [{ id: 'w1', tenant_id: T1, status: 'waiting', client_name: 'דנה', phone: '0500000011', service: 'גבות', created_at: '2026-11-01T10:00:00Z' }],
+  service_prices: [{ tenant_id: T1, name: 'גבות', duration: 45, active: true }],
+  clients: [], slot_offers: [], whatsapp_messages: [],
+}, { noStaffColumn: o.noStaffColumn });
+const offerArgs = (db: unknown, appt: unknown) => ({
+  db, tenantId: T1, appt, baseUrl: 'https://kalmea.example', now: new Date('2026-11-16T06:00:00Z'),
+  send: async () => ({ ok: true }), notify: async () => {}, newToken: () => 'wl' + '0'.repeat(32),
+});
+
+await ok('offer: a staff member’s cancelled slot is offered as hers', async () => {
+  await withFlag(async () => {
+    const db = offerWorld({ staff: NOA });
+    const r = await offerFreedSlot(offerArgs(db, cancelled) as never);
+    assert.equal(r.status, 'offered');
+    assert.equal(db.tables.slot_offers.length, 1);
+    assert.equal(db.tables.slot_offers[0].staff_id, NOA, 'the offer carries her');
+  });
+});
+await ok('offer: no slot_offers.staff_id yet = a staff slot is not offered at all', async () => {
+  await withFlag(async () => {
+    const db = offerWorld({ staff: NOA, noStaffColumn: ['slot_offers'] });
+    const r = await offerFreedSlot(offerArgs(db, cancelled) as never);
+    assert.equal(r.status, 'staff_offer_needs_migration');
+    assert.equal(db.tables.slot_offers.length, 0, 'never written as the owner’s');
+  });
+});
+await ok('offer: someone who left, or the flag off, offers nothing for her slot', async () => {
+  await withFlag(async () => {
+    const db = offerWorld({ staff: LEFT });
+    assert.equal((await offerFreedSlot(offerArgs(db, cancelled) as never)).status, 'staff_unavailable');
+    assert.equal(db.tables.slot_offers.length, 0);
+  });
+  const off = offerWorld({ staff: NOA });
+  assert.equal((await offerFreedSlot(offerArgs(off, cancelled) as never)).status, 'staff_unavailable', 'flag off: not offered as the owner’s');
+});
+await ok('offer: single staff unchanged (an owner slot, no column, no flag)', async () => {
+  for (const flag of [false, true]) {
+    const run = async () => {
+      const db = offerWorld({ staff: null, noStaffColumn: ['appointments', 'slot_offers'] });
+      const r = await offerFreedSlot(offerArgs(db, cancelled) as never);
+      assert.equal(r.status, 'offered', `flag ${flag}`);
+      assert.ok(!('staff_id' in db.tables.slot_offers[0]), 'the owner’s offer never names the column');
+    };
+    if (flag) await withFlag(run); else await run();
+  }
+  // The appointment's staff, read by id when the caller did not select it; a failed read offers nothing.
+  assert.deepEqual(await staffIdOfAppointment(offerWorld({ staff: NOA }), T1, { id: 'ap-noa' }), { ok: true, staffId: NOA });
+  assert.deepEqual(await staffIdOfAppointment(offerWorld({ staff: NOA, noStaffColumn: ['appointments'] }), T1, { id: 'ap-noa' }), { ok: true, staffId: null });
+  assert.deepEqual(await staffIdOfAppointment(makeDb({}, { failOn: ['appointments'] }), T1, { id: 'ap-noa' }), { ok: false });
+  assert.deepEqual(await staffIdOfAppointment(makeDb({}), T1, { id: 'x', staff_id: DANA }), { ok: true, staffId: DANA });
+});
+await ok('gap-fill: the owner’s "offer it?" path carries the staff member too', () => {
+  const q = read('lib/ownerQuestions.js');
+  assert.match(q, /const who = await staffIdOfAppointment\(admin, tenantId, appt\);\n    if \(!who\.ok\) return "staff_unreadable";\n    if \(who\.staffId\) payload\.staffId = who\.staffId;/);
+  const route = read('app/api/slots/offer/route.js');
+  assert.match(route, /const scope = await resolveScope\(admin, tenantId, staffId, service \|\| null\);\n      if \(scope\.kind !== "staff"\) return Response\.json\(\{ success: false, error: SLOT_GONE_HE \}, \{ status: 409 \}\);/);
+  assert.equal((route.match(/\.\.\.staffField,/g) || []).length, 2, 'both offer inserts');
+  assert.equal((route.match(/if \(staffColumnMissing\(insErr\)\) return Response\.json\(\{ success: true, skipped: true, reason: "staff_offer_needs_migration"/g) || []).length, 2);
+  const app = read('app/beautyos.jsx');
+  assert.match(app, /\.\.\.\(p\.staffId \? \{ staffId: p\.staffId \} : \{\}\),/);
+  assert.match(app, /\.\.\.\(appt\.staff_id \? \{ staffId: String\(appt\.staff_id\) \} : \{\}\),/);
+});
+
+// ── 10. the client's own move (Vercel Security Review, PR #67) ──
+await ok('reschedule: a staff appointment moves inside HER hours and against HER calendar only', () => {
+  // Business 09-18, Dana 12-20 on Monday. Her slot list and the write are judged by the same q.
+  const rules = { minLeadMinutes: 0, maxDaysAhead: 30 };
+  const now = new Date('2026-11-15T06:00:00Z');
+  const rows = [
+    { date: MON, start_minute: 780, duration: 60, staff_id: null },   // the owner 13:00
+    { date: MON, start_minute: 900, duration: 60, staff_id: DANA },   // Dana 15:00
+  ];
+  const qFor = (s: Staff) => {
+    const busyByDate: Record<string, Array<[number, number]>> = {};
+    for (const a of mineOnly(rows, s)) (busyByDate[a.date] ||= []).push([a.start_minute, a.start_minute + a.duration]);
+    return { hours: staffHoursSettings(s, SETTINGS as never), rules, duration: 60, buffer: 0, lunch: null, busyByDate, now };
+  };
+  const qd = qFor(dana);
+  assert.equal(moveSlotProblem({ ...qd, date: MON, start: 540 }), 'hours', 'the write: 09:00 is before Dana starts, though the business is open');
+  assert.equal(moveSlotProblem({ ...qd, date: MON, start: 780 }), null, '13:00: the owner’s client is not Dana’s');
+  assert.equal(moveSlotProblem({ ...qd, date: MON, start: 900 }), 'taken', 'her own 15:00');
+  assert.equal(moveSlotProblem({ ...qd, date: MON, start: 1080 }), null, '18:00 is inside her hours');
+  assert.equal(moveSlotProblem({ ...qd, date: TUE, start: 780 }), 'closed', 'she is off on Tuesday');
+  const monday = rescheduleDays({ ...qd }).find((d) => d.date === MON)!;
+  assert.equal(monday.slots[0], 720, 'the slot list starts at her 12:00');
+  assert.ok(monday.slots.includes(1140) && !monday.slots.includes(540) && !monday.slots.includes(900));
+  assert.ok(!rescheduleDays({ ...qd }).some((d) => d.date === TUE), 'no Tuesday in her list');
+  // The owner without a team: the business hours and every appointment, as before.
+  const single = { hours: SETTINGS as never, rules, duration: 60, buffer: 0, lunch: null, busyByDate: { [MON]: rows.map((a) => [a.start_minute, a.start_minute + a.duration] as [number, number]) }, now };
+  assert.equal(moveSlotProblem({ ...single, date: MON, start: 540 }), null);
+  assert.equal(moveSlotProblem({ ...single, date: MON, start: 900 }), 'taken');
+});
+await ok('reschedule: the route resolves her within the tenant, refuses someone who left, owner path unchanged', async () => {
+  const route = read('app/api/confirm/reschedule/route.ts');
+  assert.match(route, /const who = await staffIdOfAppointment\(db, tenantId, appt\);/);
+  assert.match(route, /const scope = await resolveScope\(db, tenantId, who\.staffId, String\(appt\.service \|\| ''\) \|\| null\);\n    if \(scope\.kind === 'refuse'\) return refuse\(/);
+  assert.match(route, /const busyRows = staffScope \? mineOnly\(\(rows \|\| \[\]\) as Appt\[\], staffScope\) : \(\(rows \|\| \[\]\) as Appt\[\]\);/);
+  assert.match(route, /const hours = staffScope \? staffHoursSettings\(staffScope, settings\) : settings;/);
+  assert.match(route, /const q = \{ hours, rules, duration, buffer, lunch, busyByDate \};/);
+  // one q for the list and the write
+  assert.match(route, /const days = rescheduleDays\(\{ \.\.\.q, skip:/);
+  assert.match(route, /const problem = moveSlotProblem\(\{ \.\.\.q, date, start: newStart \}\);/);
+  // the existing guards are still there
+  for (const g of ['clientLinkRefusal({', 'moveWindowHours(rules.cancelWindowHours, consent)', 'if (used >= maxMoves)', ".eq('date', oldDate).in('confirmation_status', LIVE)"]) assert.ok(route.includes(g), g);
+  // the owner: single with the flag off, whatever the database holds
+  assert.deepEqual(await resolveScope(makeDb({ staff_members: staffRows }), T1, null), { kind: 'single' });
+  await withFlag(async () => {
+    assert.deepEqual(await resolveScope(makeDb({ staff_members: staffRows }), T1, LEFT, 'גבות'), { kind: 'refuse' }, 'someone who left');
+    assert.deepEqual(await resolveScope(makeDb({ staff_members: staffRows.map((r) => ({ ...r, tenant_id: T2 })) }), T1, NOA, 'גבות'), { kind: 'refuse' }, 'another business');
+    assert.deepEqual(await resolveScope(makeDb({}, { failOn: ['staff_members'] }), T1, NOA, 'גבות'), { kind: 'refuse' }, 'unreadable');
+    assert.deepEqual(await resolveScope(makeDb({}, { failOn: ['staff_members'] }), T1, null), { kind: 'single' }, 'the owner, team unreadable: as before');
+  });
 });
 
 console.log(`team calendar: passed ${n} failed 0`);

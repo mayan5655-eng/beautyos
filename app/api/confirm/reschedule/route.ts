@@ -17,6 +17,7 @@ import { notifyOwner } from '@/lib/ownerNotify';
 import { askGapFillAfterClientCancel } from '@/lib/ownerQuestions';
 import { runWaitlistOffer } from '@/lib/waitlistRuntime';
 import { publicContactFor } from '@/lib/publicContact';
+import { staffIdOfAppointment, resolveScope, staffHoursSettings, mineOnly } from '@/lib/teamGuard';
 import {
   maxMovesFrom, cleanMoveCount, rescheduleDays, moveSlotProblem, addDays, movesUsedHe, ownerMoveMessage,
   consentReadFrom, moveWindowHours, moveConsentUnreadableHe,
@@ -153,13 +154,27 @@ export async function POST(request: NextRequest) {
       .neq('confirmation_status', 'cancelled').neq('id', id).limit(2000);
     // "Nothing is booked" and "I could not find out" are different answers: an unreadable calendar offers nothing.
     if (calErr) return NextResponse.json({ error: tr('לא הצלחנו לטעון את היומן, אפשר לנסות שוב בעוד רגע?') }, { status: 503 });
+
+    // The team calendar (Vercel Security Review, PR #67): an appointment with a staff member moves within HER hours and against HER
+    // own calendar, the same rule as booking her (lib/team.ts staffSlotState, through lib/teamGuard.ts); her break is the owner's
+    // only. Someone who left, or a team that cannot be read, refuses the move with the neutral "contact the business". With the
+    // flag off and one practitioner the owner's appointment takes exactly the old path (scope 'single'). Both the times listed
+    // (peek) and the move itself below are judged by this same q.
+    const who = await staffIdOfAppointment(db, tenantId, appt);
+    if (!who.ok) return NextResponse.json({ error: tr('לא הצלחנו לטעון את היומן, אפשר לנסות שוב בעוד רגע?') }, { status: 503 });
+    const scope = await resolveScope(db, tenantId, who.staffId, String(appt.service || '') || null);
+    if (scope.kind === 'refuse') return refuse(tr('כדי לשנות את התור הזה אפשר ליצור קשר ישירות עם {0}.', [brand.businessName || tr('העסק')]), { tooLate: true });
+    const staffScope = scope.kind === 'staff' ? scope.staff : null;
+    const busyRows = staffScope ? mineOnly((rows || []) as Appt[], staffScope) : ((rows || []) as Appt[]);
     const busyByDate: Record<string, BusyRange[]> = {};
-    for (const a of (rows || []) as Appt[]) {
+    for (const a of busyRows) {
       const s = apptStart(a), e = apptEnd(a);
       if (s === null || e === null) continue;
       (busyByDate[String(a.date)] ||= []).push(bufferedRange(s, e, bufferOf(a)));
     }
-    const q = { hours: settings, rules, duration, buffer, lunch: resolveLunch(settings.branding), busyByDate };
+    const hours = staffScope ? staffHoursSettings(staffScope, settings) : settings;
+    const lunch = !staffScope || staffScope.is_owner ? resolveLunch(settings.branding) : null;
+    const q = { hours, rules, duration, buffer, lunch, busyByDate };
 
     if (body.peek === true) {
       const days = rescheduleDays({ ...q, skip: oldStart != null ? { date: oldDate, start: oldStart } : null });

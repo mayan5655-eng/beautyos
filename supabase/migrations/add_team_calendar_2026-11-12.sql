@@ -1,8 +1,8 @@
 -- add_team_calendar_2026-11-12.sql
 --
 -- STATUS: pending. RUN BY HAND in the Supabase SQL editor. Safe to run more than once. Nothing here deletes or rewrites any
--- appointment. Run AFTER add_service_buffer_2026-11-05.sql (it rebuilds appointments_no_overlap, which that file last built) and
--- after trial-gate-policies.sql (it uses public.is_tenant_active()).
+-- appointment. Run AFTER add_service_buffer_2026-11-05.sql (it rebuilds appointments_no_overlap, which that file last built), after
+-- add_waitlist_windows_2026-10-25.sql (it rebuilds uniq_slot_offer_claimed_minute) and after trial-gate-policies.sql (it uses public.is_tenant_active()).
 --
 -- The team calendar ("יומן צוות", lib/team.ts), behind NEXT_PUBLIC_TEAM_CALENDAR. Until this runs the code reads "one staff member"
 -- everywhere: no staff table means single staff, never an error.
@@ -17,6 +17,10 @@
 --   3. The double-booking guarantees become PER STAFF MEMBER: two people can each have a client at 10:00, one person cannot have
 --                             two. uniq_appt_slot_active and appointments_no_overlap get coalesce(staff_id, zero uuid) as a key.
 --                             This only loosens them for rows with a staff_id; every existing row (NULL) is checked exactly as before.
+--   4. slot_offers.staff_id   a waiting-list or gap-fill offer of a staff member's freed slot carries her (same composite key), so the
+--                             claim books it with HER, after checking she is still active, does the treatment, works then and is
+--                             free (lib/teamGuard.ts). Never silently turned into an owner booking. Until this column exists, a
+--                             staff member's freed slot is simply not offered. uniq_slot_offer_claimed_minute becomes per person.
 --
 -- Row level security: a business reads only its own staff; nothing is written from the browser (every write is /api/team with the
 -- service role, which checks the session's tenant). Trial gate: the same restrictive write block as the other tables.
@@ -135,6 +139,25 @@ begin
   raise notice 'rebuilt appointments_no_overlap per staff member';
 end $$;
 
+-- 4 ─────────────────────────────────────────────────────────────────────────
+alter table public.slot_offers add column if not exists staff_id uuid;
+comment on column public.slot_offers.staff_id is
+  'The staff member (public.staff_members) whose freed slot this offer is. NULL = the owner. The claim books with her or not at all (lib/teamGuard.ts).';
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'slot_offers_staff_same_tenant_fk' and conrelid = 'public.slot_offers'::regclass) then
+    alter table public.slot_offers
+      add constraint slot_offers_staff_same_tenant_fk
+      foreign key (tenant_id, staff_id) references public.staff_members (tenant_id, id);
+    raise notice 'added slot_offers_staff_same_tenant_fk';
+  end if;
+end $$;
+-- One claimed offer per slot PER PERSON (same expression as add_waitlist_windows_2026-10-25.sql, one more key column).
+drop index if exists public.uniq_slot_offer_claimed_minute;
+create unique index if not exists uniq_slot_offer_claimed_minute
+  on public.slot_offers (tenant_id, (coalesce(staff_id, '00000000-0000-0000-0000-000000000000'::uuid)), slot_date, (coalesce(slot_start_minute, slot_hour * 60)))
+  where status = 'claimed';
+
 -- row level security: reads of her own rows only; no browser writes ─────────
 alter table public.staff_members enable row level security;
 drop policy if exists staff_members_select_own on public.staff_members;
@@ -176,5 +199,8 @@ commit;
 --      select policyname from pg_policies where tablename = 'staff_members' and policyname like '%require_active%';
 -- 6) the triggers (expect 2 rows):
 --      select tgname from pg_trigger where tgname in ('staff_members_owner_guard', 'appointments_staff_check');
+-- 6b) offers carry the staff member, and a claim is unique per person (expect true, then 1 row mentioning staff_id):
+--      select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'slot_offers' and column_name = 'staff_id');
+--      select indexdef from pg_indexes where indexname = 'uniq_slot_offer_claimed_minute';
 -- 7) nothing changed for existing data (expect 0: every appointment is still the owner's):
 --      select count(*) from public.appointments where staff_id is not null;

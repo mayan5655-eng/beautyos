@@ -46,6 +46,12 @@ export interface SlotBooking {
    * appointments_no_overlap refuses a booking that eats it, or that this one would eat (lib/apptBuffer.ts). Missing = 0.
    */
   buffer_minutes?: number | null;
+  /**
+   * The team calendar (lib/team.ts): the staff member this slot is booked with, already checked by the caller (lib/teamGuard.ts).
+   * Written only when set: NULL (the owner) is the column's default, so a booking for the owner never names the column and works
+   * before add_team_calendar_2026-11-12.sql runs.
+   */
+  staff_id?: string | null;
 }
 
 export type BookResult =
@@ -82,6 +88,7 @@ export async function bookAppointmentSlot(
     confirmation_sent: b.confirmation_sent ?? true,
     // Retried once without this one column before add_service_buffer_2026-11-05.sql runs.
     ...apptBufferField(b.buffer_minutes),
+    ...(b.staff_id ? { staff_id: b.staff_id } : {}),
   }, (row) => admin.from("appointments").insert(row).select("id").maybeSingle());
 
   if (error) {

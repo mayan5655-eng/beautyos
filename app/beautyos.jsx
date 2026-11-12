@@ -3928,6 +3928,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           const reqBody = q.kind === "gap_fill"
             ? { date: p.date, startMinute: p.startMinute, service: p.service,
                 duration: p.duration, cancelledClientId: p.cancelledClientId,
+                ...(p.staffId ? { staffId: p.staffId } : {}),
                 explicitConfirm: true, mode: "prepare" }
             : { quietStart: p.quiet_start, mode: "prepare" };
           const res = await fetch(url, {
@@ -4031,6 +4032,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         body: JSON.stringify({
           date: appt.date, startMinute: startMinute(appt), service: appt.service,
           duration: appt.duration, cancelledClientId: appt.client_id,
+          // The team calendar: her slot stays hers (the route checks it is one of this business's active staff).
+          ...(appt.staff_id ? { staffId: String(appt.staff_id) } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
