@@ -195,6 +195,10 @@ const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false })
 const BookingSourceReport = dynamic(() => import("./BookingSourceReport"), { ssr: false });
 const MonthValueCard = dynamic(() => import("./MonthValueCard"), { ssr: false });
 const MonthlyReportCard = dynamic(() => import("./MonthlyReportCard"), { ssr: false });
+const TeamSettings = dynamic(() => import("./TeamSettings"), { ssr: false });
+const TeamReport = dynamic(() => import("./TeamReport"), { ssr: false });
+// The team calendar filter's "everyone".
+const STAFF_FILTER_ALL = "all";
 import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
 import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
 import { ownServices } from "@/lib/serviceScope";
@@ -804,6 +808,10 @@ import { LANGS, LANG_LABELS, langOfSettings, speechLangOf } from "@/lib/i18n/cor
 import { applyOwnerLang, cachedOwnerLang, devLangOverride } from "@/lib/i18n/ownerLang";
 import { tr, trv, uiDir, getActiveLang } from "@/lib/i18n/tr";
 import { academyEnabled } from "@/lib/academy";
+// The team calendar (lib/team.ts, NEXT_PUBLIC_TEAM_CALENDAR): off, or fewer than two active staff = team.on is false and the
+// calendar is exactly the one-practitioner calendar it was.
+import useTeam from "./useTeam";
+import { activeStaff as teamActiveStaff, ownerOf as teamOwnerOf, sameStaff, staffIdForWrite, staffOfAppt } from "@/lib/team";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -1309,10 +1317,34 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [newClient,  setNewClient]  = useState(emptyClient);
   const [newLead,    setNewLead]    = useState(emptyLead);
   const [apptNote,   setApptNote]   = useState("");
+  // The team calendar: who the open appointment is with (a staff id; the owner's own id for her), and the calendar's filter
+  // ("all" or a staff id). Read only when team.on (lib/team.ts teamOn: the flag, the migration, two or more active people).
+  const team = useTeam();
+  const teamCal = team.on === true;
+  const [apptStaff, setApptStaff] = useState(null);
+  const [staffFilter, setStaffFilter] = useState("all");
+  const teamOwnerId = teamCal ? (teamOwnerOf(team.staff)?.id || null) : null;
+  // A filter on someone who is no longer active (or no team at all) shows everyone.
+  const calStaffFilter = teamCal && staffFilter !== "all" && teamActiveStaff(team.staff).some(s => s.id === staffFilter) ? staffFilter : "all";
+  const staffShown = (a) => !teamCal || calStaffFilter === "all" || sameStaff(a, calStaffFilter, team.staff);
+  const staffColorOf = (a) => (teamCal ? staffOfAppt(a, team.staff)?.color || null : null);
+  const staffNameOf = (a) => (teamCal ? staffOfAppt(a, team.staff)?.name || "" : "");
+  // What an appointment write carries: nothing at all without the team (the column may not exist yet), else staff_id, NULL = her.
+  const apptStaffWrite = () => (teamCal ? { staff_id: staffIdForWrite(team.staff.find(s => s.id === apptStaff) || null) } : {});
   // When set, the appointment modal is in EDIT mode for this appointment id
   // (reschedule/edit an existing row) rather than CREATE mode. Reset to null on
   // every close so the modal never opens stale in edit mode.
   const [editingAppointmentId, setEditingAppointmentId] = useState(null);
+  // Opening the appointment form: an existing appointment is with whoever it is with; a new one is with the person the calendar is
+  // filtered on, otherwise with her.
+  useEffect(() => {
+    if (!showModal || !teamCal) return;
+    const editing = editingAppointmentId ? appointments.find(a => a.id === editingAppointmentId) : null;
+    if (editing) setApptStaff(editing.staff_id ? String(editing.staff_id) : teamOwnerId);
+    else setApptStaff(calStaffFilter !== "all" ? calStaffFilter : teamOwnerId);
+    // Only when the form opens (or switches appointment): later changes are hers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, editingAppointmentId, teamCal]);
   // Personal events. The draft carries a date RANGE; the save expands it into
   // one row per day, because that is the only shape the calendar, the
   // availability endpoint and the overlap constraint all understand. null when
@@ -2216,8 +2248,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   // and only then is appointments.buffer_minutes rewritten (lib/apptBuffer.ts), so the database agrees with this check.
   const apptEditOrig = editingAppointmentId ? appointments.find(a=>a.id===editingAppointmentId) : null;
   const apptBuffersApply = !(apptEditOrig && apptEditOrig.date===newAppt.date && startMinute(apptEditOrig)===apptEffectiveStart && Number(apptEditOrig.duration||0)===Number(newAppt.duration||0) && String(apptEditOrig.service||"")===String(newAppt.service||""));
+  // Per person in the team calendar: another staff member's client at the same time is not a clash.
   const apptBusy = appointments
-    .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled" && a.id!==editingAppointmentId)
+    .filter(a=>a.date===newAppt.date && a.confirmation_status!=="cancelled" && a.id!==editingAppointmentId && (!teamCal || sameStaff(a, apptStaff, team.staff)))
     .map(a=>{const s=startMinute(a),e=endMinute(a);return [s, e===null?null:e+(apptBuffersApply?apptBufferOf(a):0)];}).filter(([s,e])=>s!==null&&e!==null);
   const newApptBuffer = apptBuffersApply ? newApptBufferFor(newAppt.service) : 0;
   // Is a candidate start hour taken, given the currently selected duration?
@@ -2959,6 +2992,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const winbackDays   = winbackDaysOf(settings?.automations);
   // The simple monthly report (lib/monthlyReport.ts): the same live receipts and the same incomeTotals as the income screen.
   // An unchosen registration is read as "what she took" (the exempt rule: no VAT carved out), never as a guess at VAT.
+  // "לפי מטפלת" under the monthly report: the same VAT treatment as the report itself.
+  const teamNet = useCallback((gross) => incomeTotals([gross], settings?.business_tax_status || "exempt", vatRateForYear(new Date().getFullYear())).net, [settings?.business_tax_status]);
   const monthlyReportData = useMemo(() => historyReady ? monthlyReport({ receipts: liveRcpts, appointments, status: settings?.business_tax_status || "exempt", vatRate: vatRateForYear(new Date().getFullYear()), now: new Date() }) : null, [liveRcpts, appointments, settings?.business_tax_status, today, historyReady]);
   const coldClients   = useMemo(() => historyReady ? clients.filter(c=>isColdClient(getLastApptDate(c.id), now, winbackDays)) : [], [clients, appointments, today, historyReady, winbackDays]);
   const topClients    = useMemo(() => [...clients].sort((a,b)=>getClientTotal(b.id)-getClientTotal(a.id)).filter(c=>getClientTotal(c.id)>0).slice(0,5), [clients, liveRcpts]);
@@ -3241,8 +3276,9 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
    */
   const dayLanes = (date) => {
     const ds = formatDate(date);
+    // The team calendar's filter (staffShown): only that person's appointments. Without the team every appointment is shown.
     const list = appointments
-      .filter(a => a.date === ds && startMinute(a) !== null)
+      .filter(a => a.date === ds && startMinute(a) !== null && staffShown(a))
       .sort((a, b) => startMinute(a) - startMinute(b));
     const laid = [];
     for (const appt of list) {
@@ -3258,11 +3294,19 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
     // and no-show rows free their slot the same way the clash check does -
     // nothing to reset a station for. Computed here, once, so both calendars
     // (the week grid and the mobile agenda) read the same answer.
-    const tightGapIds = tightGapAppointmentIds(
-      list
-        .filter(a => a.confirmation_status !== "cancelled" && a.confirmation_status !== NO_SHOW)
-        .map(a => { const s = startMinute(a); return { id: a.id, start: s, end: Math.max(endMinute(a) ?? s + 30, s + 30), kind: a.kind }; })
-    );
+    const gapRows = (rows) => rows
+      .filter(a => a.confirmation_status !== "cancelled" && a.confirmation_status !== NO_SHOW)
+      .map(a => { const s = startMinute(a); return { id: a.id, start: s, end: Math.max(endMinute(a) ?? s + 30, s + 30), kind: a.kind }; });
+    // In the team calendar a turnover is per person: one staff member's 10:00 right after another's 9:00 is not tight.
+    let tightGapIds;
+    if (teamCal) {
+      tightGapIds = new Set();
+      const groups = new Map();
+      for (const a of list) { const k = staffOfAppt(a, team.staff)?.id || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); }
+      for (const g of groups.values()) for (const id of tightGapAppointmentIds(gapRows(g))) tightGapIds.add(id);
+    } else {
+      tightGapIds = tightGapAppointmentIds(gapRows(list));
+    }
     return { laid, lanes, tightGapIds };
   };
 
@@ -3651,6 +3695,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       const clash = appointments.some(a=>{
         if(a.id===editingAppointmentId) return false; // don't clash with self when editing
         if(a.date!==newAppt.date || a.confirmation_status==="cancelled") return false;
+        if(teamCal && !sameStaff(a, apptStaff, team.staff)) return false; // another person's client: not a clash
         const bs = startMinute(a), rawEnd = endMinute(a); if(bs===null||rawEnd===null) return false;
         const be = rawEnd + (apptBuffersApply ? apptBufferOf(a) : 0);
         return newStart < be && bs < newEnd;
@@ -3684,7 +3729,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         const moved=!!orig && (orig.date!==newAppt.date || orig.start!==apptEffectiveStart);
         // A move (date, time, length or service: apptBuffersApply) stores the buffer it was just checked with. An edit that
         // does not move it leaves buffer_minutes alone, so it is never refused over a buffer.
-        const patch={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{}),...(apptBuffersApply?apptBufferField(newApptBuffer):{})};
+        const patch={...apptStaffWrite(),date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,...(moved?{confirmation_status:"pending",confirmation_sent:false}:{}),...(apptBuffersApply?apptBufferField(newApptBuffer):{})};
         const {data,error}=await writeWithApptBuffer(patch, (r) => supabase.from("appointments").update(r).eq("id",editingAppointmentId).select());
         if(error){handleDbError(error, "update appointment"); return;}
         // Zero rows back means nothing was saved (deleted on another device, or not hers): say so instead of "updated", and never put
@@ -3702,7 +3747,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // the series can be found again.
         const dates = recurrenceDates(newAppt.date, apptRepeat.everyWeeks, apptRepeat.count);
         const seriesId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : null;
-        const base={...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField,...apptBufferField(newApptBuffer)};
+        const base={...apptStaffWrite(),...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...(seriesId?{series_id:seriesId}:{}),...tenantField,...apptBufferField(newApptBuffer)};
         // Buffers included, the same rule as a single booking: the database refuses the rest anyway (appointments_no_overlap).
         const start = apptEffectiveStart, end = start + Number(newAppt.duration||0) + newApptBuffer;
         const clashed = [], saved = [];
@@ -3710,6 +3755,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         for (const date of dates) {
           const localClash = appointments.some(a=>{
             if(a.date!==date || a.confirmation_status==="cancelled") return false;
+            if(teamCal && !sameStaff(a, apptStaff, team.staff)) return false;
             const bs=startMinute(a), rawEnd=endMinute(a); if(bs===null||rawEnd===null) return false;
             return start < rawEnd + apptBufferOf(a) && bs < end;
           });
@@ -3739,7 +3785,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
           toast(tr("נקבעו {0} תורים, כל {1}", [saved.length, apptRepeat.everyWeeks===1?"שבוע":`${apptRepeat.everyWeeks} שבועות`]));
         }
       } else {
-        const appt={date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField,...apptBufferField(newApptBuffer)};
+        const appt={...apptStaffWrite(),date:newAppt.date,...startFields(apptEffectiveStart),name:newAppt.name,service:newAppt.service,duration:Number(newAppt.duration),color:svcColor,client_id:clientId,note:apptNote,price:Number(newAppt.price)||0,confirmation_status:"pending",confirmation_sent:false,...tenantField,...apptBufferField(newApptBuffer)};
         const {data,error}=await writeWithApptBuffer([appt], (r) => supabase.from("appointments").insert(r).select());
         if(error){handleDbError(error, "create appointment"); return;}
         if(data)setAppointments(prev=>[...prev,data[0]]);
@@ -8612,6 +8658,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       {showMonthlyReport && (
         <Sheet open onClose={() => setShowMonthlyReport(false)} width={460} zIndex={1000} ariaLabel={tr("הדוח החודשי שלי")}>
           <MonthlyReportCard variant="sheet" needsStatus={!settings?.business_tax_status} onChooseStatus={()=>{setShowMonthlyReport(false);openSettings("general");}} report={monthlyReportData} accent={herAccent} businessName={settings?.business_name} toast={toast} fullHref={monthlyPageOn(settings)?"/dashboard/monthly":null}/>
+          {teamCal&&historyReady&&<TeamReport staff={team.staff} appointments={appointments} receipts={liveRcpts} netOfVat={(settings?.business_tax_status||"exempt")!=="exempt"} net={teamNet}/>}
         </Sheet>
       )}
 
@@ -10026,6 +10073,14 @@ ${MARKETING_FOOTER}`)}`;
  <button className={calView==="day"?"primary-btn desktop-only":"primary-btn"} onClick={()=>{const svc=activeServices[0];setNewAppt({clientId:"",name:"",service:svc?.name||"",duration:svc?.duration||60,date:formatDate(nextOpenDay(settings)),hour:settings.working_hours_start,price:svc?.price||0});setApptNote("");setShowModal(true);}} style={{background:pcGrad,color:"var(--pc-contrast)",padding:"10px 18px",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)"}}>{tr("✦ תור חדש")}</button>
  </div>
  </div>
+ {teamCal&&(
+ <div data-testid="staff-filter" role="radiogroup" aria-label={tr("מטפלת")} style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12,maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
+   {[{id:STAFF_FILTER_ALL,name:tr("כולן"),color:null},...teamActiveStaff(team.staff)].map(x=>{const on=calStaffFilter===x.id;return(
+ <button key={x.id} type="button" role="radio" aria-checked={on} onClick={()=>setStaffFilter(x.id)} style={{display:"inline-flex",alignItems:"center",gap:6,minHeight:40,padding:"6px 14px",borderRadius:"var(--r-full)",border:`1px solid ${on?pc:"var(--line-2)"}`,background:on?pcTint:"var(--surface)",color:"var(--ink)",fontWeight:on?700:500,fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit"}}>
+   {x.color&&<span aria-hidden style={{width:10,height:10,borderRadius:"50%",background:x.color,flexShrink:0}}/>}{x.name}
+ </button>);})}
+ </div>
+ )}
  <div className={calView==="week"?"glass-card card-flush":"glass-card card-flush desktop-only"} style={{overflow:"hidden",maxWidth:1180,marginLeft:"auto",marginRight:"auto"}}>
                 {/* ONE implementation for phone and desktop.
                     It used to be two - an hour-cell grid for desktop and a chip
@@ -10115,9 +10170,9 @@ ${MARKETING_FOOTER}`)}`;
                             const cancelled=appt.confirmation_status==="cancelled";
                             const tightGap=tightGapIds.has(appt.id);
                             return(
- <div key={appt.id} className="appt-card" title={`${appt.name}${entrySubtitle(appt)?" · "+entrySubtitle(appt):""} · ${isAllDay(appt)?"כל היום":`${fmtTime(s)}–${fmtTime(e)}`}${tightGap?" · אין רווח מהתור הקודם":""}`}
+ <div key={appt.id} className="appt-card" title={`${appt.name}${entrySubtitle(appt)?" · "+entrySubtitle(appt):""}${staffNameOf(appt)?" · "+staffNameOf(appt):""} · ${isAllDay(appt)?"כל היום":`${fmtTime(s)}–${fmtTime(e)}`}${tightGap?" · אין רווח מהתור הקודם":""}`}
                                 onClick={ev=>{ev.stopPropagation();handleApptClick(appt);}}
-                                style={{position:"absolute",top,height:h,insetInlineStart:`${(lane/lanes)*100}%`,width:`calc(${100/lanes}% - 2px)`,background:getApptColor(appt),borderRadius:"var(--r-xs)",padding:"2px 4px",boxSizing:"border-box",overflow:"hidden",cursor:"pointer",opacity:cancelled?0.55:1,boxShadow:"var(--shadow-sm)",border:appt.confirmation_status==="confirmed"?"1.5px solid var(--success)":cancelled?"1.5px solid var(--danger)":"1.5px solid rgba(255,255,255,0.35)"}}>
+                                style={{position:"absolute",top,height:h,insetInlineStart:`${(lane/lanes)*100}%`,width:`calc(${100/lanes}% - 2px)`,background:getApptColor(appt),borderRadius:"var(--r-xs)",padding:"2px 4px",boxSizing:"border-box",overflow:"hidden",cursor:"pointer",opacity:cancelled?0.55:1,boxShadow:"var(--shadow-sm)",border:appt.confirmation_status==="confirmed"?"1.5px solid var(--success)":cancelled?"1.5px solid var(--danger)":"1.5px solid rgba(255,255,255,0.35)",...(staffColorOf(appt)?{borderInlineStart:`5px solid ${staffColorOf(appt)}`}:{})}}>
                                 {tightGap&&<span aria-hidden style={{position:"absolute",top:2,insetInlineEnd:2,fontSize:10,lineHeight:1,filter:"drop-shadow(0 1px 1px rgba(0,0,0,0.5))"}}>⏱</span>}
  <p style={{fontSize:"var(--t-sm)",fontWeight:700,color:"var(--surface)",textShadow:"0 1px 2px rgba(0,0,0,0.35)",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{appt.name}</p>
                                 {!compact&&(<>
@@ -10206,6 +10261,7 @@ ${MARKETING_FOOTER}`)}`;
  {(()=>{const s0=apptStatus(appt,{personal:isPersonal(appt)});const st={l:s0.label,c:APPT_STATUS_TONE_COLOR[s0.tone]};return <span style={{flexShrink:0,fontSize:"var(--t-xs)",fontWeight:700,color:st.c,border:`1px solid ${st.c}`,borderRadius:"var(--r-full)",padding:"2px 8px",whiteSpace:"nowrap"}}>{trv(st.l)}</span>;})()}
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?tr("כל היום"):tr("{0}ד׳", [appt.duration])}</p>
+ {teamCal&&staffNameOf(appt)&&<p data-testid="agenda-staff" style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink-2)",marginTop:4}}><span aria-hidden style={{width:9,height:9,borderRadius:"50%",background:staffColorOf(appt)||"var(--line-2)"}}/>{staffNameOf(appt)}</p>}
  {!isPersonal(appt)&&<HoldBadge appointmentId={appt.id}/>}
  {!isPersonal(appt)&&<IntakeBadge appointmentId={appt.id}/>}
                                 {appt.actual_start_at&&appt.actual_end_at&&(()=>{
@@ -11783,6 +11839,19 @@ ${MARKETING_FOOTER}`)}`;
  </div>
               )}
 
+              {/* WHO, in the team calendar only: the clash check and the free times below are this person's. */}
+              {teamCal&&(()=>{
+                const opts=teamActiveStaff(team.staff);
+                const cur=team.staff.find(s=>s.id===apptStaff);
+                const list=cur&&!cur.active?[...opts,cur]:opts;
+                return(
+ <div data-testid="appt-staff" style={{marginBottom:10}}>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,marginBottom:3}}>{tr("מטפלת")}</p>
+ <select aria-label={tr("מטפלת")} value={apptStaff||teamOwnerId||""} onChange={e=>setApptStaff(e.target.value)} style={{width:"100%",minHeight:44,border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)"}}>
+   {list.map(s=><option key={s.id} value={s.id}>{s.name}{s.is_owner?` ${tr("(את)")}`:""}{!s.active?` · ${tr("לא פעילה")}`:""}</option>)}
+ </select>
+ </div>);
+              })()}
               {/* WHEN. Already correct when she came from a calendar slot, so
                   it stays a single row she confirms rather than fills. */}
  <div style={{display:"flex",gap:6}}>
@@ -13719,6 +13788,7 @@ ${MARKETING_FOOTER}`)}`;
  </div>
                 );
               })()}
+              {inG("booking")&&team.enabled&&(<TeamSettings services={services} settings={settings} pc={pc} pcTint={pcTint} toast={toast} isDemo={isDemoTenantId(settings?.tenant_id)}/>)}
               {inG("booking")&&(
  <div>
                   {(()=>{
