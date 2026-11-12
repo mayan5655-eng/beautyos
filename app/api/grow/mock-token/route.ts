@@ -12,6 +12,8 @@ import { newMockCardToken } from '@/lib/grow/ops';
 import { verifyGrowSession } from '@/lib/grow/mockSession';
 import { saveToken } from '@/lib/grow/cancelFees';
 import { cancelDeps } from '../_cancel';
+import { isMembershipRef, saveMembershipCard, chargeMembership, MEMBERSHIP_REF_PREFIX } from '@/lib/memberships';
+import { membershipDeps, membershipLinkUrl } from '../../memberships/_deps';
 
 const STYLE = `body{margin:0;background:#FBF8F1;color:#1F3A30;font-family:Assistant,Heebo,system-ui,sans-serif;display:flex;justify-content:center;padding:24px 16px}
 main{max-width:420px;width:100%;background:#fff;border:1px solid #E8E1D1;border-radius:16px;padding:22px}
@@ -51,6 +53,16 @@ export async function POST(request: Request) {
   const back = `<a class="b ok" href="${esc(APP_URL)}/book?t=${esc(session.tenantId)}">חזרה לדף קביעת התור</a>`;
 
   if (result !== 'ok' && result !== 'decline') return page(`<div class="test">מצב בדיקה</div><h1>הכרטיס לא נשמר</h1><p>לא נשמר כלום ולא נגבה כסף. אפשר לנסות שוב.</p>${back}`);
+  // A client membership's card page (lib/memberships.ts): the same save, then its first month is charged on the mock (no money).
+  if (isMembershipRef(session.appointmentId)) {
+    const md = membershipDeps();
+    const m = md ? await md.repo.getMembership(session.tenantId, session.appointmentId.slice(MEMBERSHIP_REF_PREFIX.length)).catch(() => null) : null;
+    if (!md || !m) return gone();
+    const saved = await saveMembershipCard(md, m, { tokenRef: newMockCardToken(result === 'ok' ? 'ok' : 'decline'), last4: result === 'ok' ? '4242' : '0002', brand: 'Visa' });
+    const charged = saved ? await chargeMembership(md, saved).catch(() => null) : null;
+    const backM = `<a class="b ok" href="${esc(membershipLinkUrl(m.link_id))}">חזרה לדף המנוי</a>`;
+    return page(`<div class="test">מצב בדיקה</div><h1>${saved ? 'הכרטיס נשמר ✓' : 'הכרטיס לא נשמר'}</h1><p>${charged?.outcome === 'paid' ? 'החודש הראשון חויב בבדיקה, בלי כסף אמיתי.' : saved ? 'החיוב הראשון לא עבר בבדיקה.' : 'אפשר לנסות שוב.'}</p>${backM}`);
+  }
   const deps = cancelDeps();
   if (!deps) return gone();
   try {

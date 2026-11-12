@@ -11,6 +11,7 @@
 //   till             a payment link from the till, after a treatment
 //   client_link      a payment request she sent a client (deposit or full amount)
 //   cancel_fee       a late-cancellation / no-show fee charged to a saved card
+//   membership       a client membership's monthly charge on her saved card (lib/memberships.ts)
 //
 // Until the migration runs, and for every payment made before it, there is no stored origin: originLabelHe then infers it from
 // kind and description, which every deployment has. An inferred deposit cannot tell her booking page from her calendar, so it reads
@@ -18,7 +19,7 @@
 
 import { isPaymentRequest } from './paymentRequest.ts';
 
-export const PAYMENT_ORIGINS = ['booking_deposit', 'owner_deposit', 'booking_visit', 'gift_voucher', 'till', 'client_link', 'cancel_fee'] as const;
+export const PAYMENT_ORIGINS = ['booking_deposit', 'owner_deposit', 'booking_visit', 'gift_voucher', 'till', 'client_link', 'cancel_fee', 'membership'] as const;
 export type PaymentOrigin = (typeof PAYMENT_ORIGINS)[number];
 
 export const ORIGIN_HE: Record<PaymentOrigin, string> = {
@@ -29,6 +30,7 @@ export const ORIGIN_HE: Record<PaymentOrigin, string> = {
   till: 'קישור מהקופה',
   client_link: 'בקשת תשלום ללקוחה',
   cancel_fee: 'דמי ביטול',
+  membership: 'מנוי חודשי',
 };
 
 export function isPaymentOrigin(v: unknown): v is PaymentOrigin {
@@ -49,6 +51,7 @@ export function paymentOriginOf(p: PaymentLike): PaymentOrigin | 'deposit' | nul
   const d = asStored(p.description);
   if (d.startsWith(asStored(VOUCHER_PREFIX))) return 'gift_voucher';
   if (isPaymentRequest(String(p.description ?? ''))) return 'client_link';
+  if (d.startsWith('מנוי ')) return 'membership';
   if (d.startsWith(asStored(BOOKING_VISIT_PREFIX))) return 'booking_visit';
   if (p.kind === 'fee') return 'cancel_fee';
   if (p.kind === 'deposit' || d.startsWith('מקדמה')) return 'deposit';

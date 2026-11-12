@@ -9,7 +9,7 @@
 // What "erase" means here, table by table (the reasoning is the point, so it is written down):
 //   deleted outright   health declarations, skin scans, photos (rows and files), her personal results-page links (client_pages), reviews, reminder log, her WhatsApp messages, waitlist,
 //                      her leads and slot offers, the owner's notifications about her bookings, then the client card itself
-//   anonymised         appointments and payment records (receipts, packages): a business must keep its accounting records for years,
+//   anonymised         appointments and payment records (receipts, packages, client memberships: billing stopped, link revoked): a business must keep its accounting records for years,
 //                      so the amounts and dates stay, but the name, phone, note and the link to her card are removed
 //   NOT covered        published before/after results (treatment_results has no link to a client in the database): the result says so
 //
@@ -21,7 +21,7 @@
 // message log by a column called `phone` that is really `recipient_phone`, reported "skipped", and deleted the card with every message
 // still in the database. If any step fails the client card is NOT deleted and the result says so, so the owner can run it again.
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { feedbackNotice } from './reviewRequests.ts'
 import { normalizeIsraeliMobile } from './phone.ts'
 
@@ -167,6 +167,37 @@ async function listAllFiles(bucket: any, folder: string, depth = 0): Promise<{ p
   return { paths, ok }
 }
 
+/**
+ * Client memberships (supabase/migrations/add_client_memberships_2026-11-11.sql): kept for the books (the months she paid), but nothing
+ * of her remains and nothing more is charged. Each membership is cancelled ('erased'), loses her card id, name, phone and Grow process,
+ * and gets a new link id that no link can match (her old link stops working at once). The cards saved for her memberships are revoked
+ * and unlinked, and her credits lose her card id. A table not created yet (the migration not run) is nothing to erase.
+ */
+async function eraseMemberships(db: Db, tenantId: string, clientId: string): Promise<Step[]> {
+  const out: Step[] = []
+  const read = await db.from('client_memberships').select('id, token_id').eq('tenant_id', tenantId).eq('client_id', clientId)
+  if (read.error) return [{ table: 'client_memberships', action: isTableMissing(read.error) ? 'skipped' : 'failed', note: isTableMissing(read.error) ? 'table not on this install' : 'read' }]
+  const rows: Array<{ id: string; token_id: string | null }> = read.data || []
+  const tokenIds = rows.map((r) => r.token_id).filter(Boolean) as string[]
+  if (tokenIds.length) {
+    const t = await db.from('grow_card_tokens').update({ revoked_at: new Date().toISOString(), client_id: null }).eq('tenant_id', tenantId).in('id', tokenIds).select('id')
+    out.push(t.error ? { table: 'grow_card_tokens (membership cards)', action: isTableMissing(t.error) ? 'skipped' : 'failed' } : { table: 'grow_card_tokens (membership cards)', action: 'anonymised', count: (t.data || []).length })
+  }
+  let done = 0
+  for (const r of rows) {
+    const u = await db.from('client_memberships').update({
+      status: 'cancelled', cancelled_by: 'erased', cancelled_at: new Date().toISOString(), client_id: null, client_name: ANONYMOUS_NAME_HE, client_phone: null,
+      token_id: null, process_id: null, next_retry_on: null, charge_lock_at: null, link_id: `erased-${randomUUID()}`,
+    }).eq('tenant_id', tenantId).eq('id', r.id).select('id')
+    if (u.error) { out.push({ table: 'client_memberships', action: 'failed', note: isColumnMissing(u.error) ? 'column missing' : String(u.error.code || 'error') }); return out }
+    done++
+  }
+  out.push({ table: 'client_memberships', action: done ? 'anonymised' : 'none', count: done })
+  const c = await db.from('membership_redemptions').update({ client_id: null }).eq('tenant_id', tenantId).eq('client_id', clientId).select('id')
+  out.push(c.error ? { table: 'membership_redemptions', action: isTableMissing(c.error) ? 'skipped' : 'failed' } : { table: 'membership_redemptions', action: (c.data || []).length ? 'anonymised' : 'none', count: (c.data || []).length })
+  return out
+}
+
 export async function eraseClientData(db: Db, tenantId: string, clientId: string): Promise<EraseResult> {
   const steps: Step[] = []
   const { data: client, error } = await db.from('clients').select('id, name, phone').eq('tenant_id', tenantId).eq('id', clientId).maybeSingle()
@@ -274,7 +305,10 @@ export async function eraseClientData(db: Db, tenantId: string, clientId: string
   run('receipts', 'anonymised', () => db.from('receipts').update({ client_id: null, client_name: ANONYMOUS_NAME_HE, note: null }).eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
   run('packages', 'anonymised', () => db.from('packages').update({ client_id: null, client_name: ANONYMOUS_NAME_HE }).eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
   run('grow_payments', 'anonymised', () => db.from('grow_payments').update({ client_id: null, client_name: ANONYMOUS_NAME_HE }).eq('tenant_id', tenantId).eq('client_id', clientId).select('id'))
-  steps.push(...(await Promise.all(jobs)))
+  // her client membership (lib/memberships.ts): billing stops, her name, phone and public link go, the card saved for it is revoked
+  const membershipSteps = await eraseMemberships(db, tenantId, clientId)
+  if (membershipSteps.some((x) => x.action === 'failed')) failed = true
+  steps.push(...(await Promise.all(jobs)), ...membershipSteps)
   // the database cannot link published before/after results to a client, so they are not touched: said plainly in the result
   steps.push({ table: 'treatment_results', action: 'skipped', note: 'not linked to a client in the database; remove published results in the results screen' })
 

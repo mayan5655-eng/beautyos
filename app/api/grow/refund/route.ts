@@ -15,6 +15,7 @@ import { APP_URL } from '@/lib/appUrl';
 import { resolveGrow } from '@/lib/grow/adapter';
 import { createLiveOps } from '@/lib/grow/ops';
 import { admin, caller, DEMO_NOTE } from '../_shared';
+import { membershipRefunded } from '../../memberships/_deps';
 
 export const maxDuration = 30;
 
@@ -83,6 +84,8 @@ export async function POST(request: Request) {
     const v = await db.from('receipt_voids').insert({ receipt_id: p.receipt_id, tenant_id: c.tenantId, reason: 'הוחזר ללקוחה דרך Grow' });
     if (v.error && !/duplicate|23505/i.test(`${v.error.code} ${v.error.message}`)) console.error('[grow] void of the refunded payment receipt failed:', p.id, v.error.message);
   }
+  // A client membership's month charged through this payment: its unused credits go with the money (lib/memberships.ts onPaymentRefunded).
+  await membershipRefunded(c.tenantId, String(p.id));
   console.log('[grow] refunded payment', p.id, 'tenant', c.tenantId);
   return NextResponse.json({ success: true, refundId: r.refundId, markedRefunded: !upd.error });
 }

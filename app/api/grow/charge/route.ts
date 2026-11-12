@@ -22,6 +22,9 @@ import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { walletAsCreds } from '@/lib/grow/wallet';
 import { parseLoyaltyIntent } from '@/lib/loyalty';
 import { admin, caller, tableMissing, DEMO_NOTE } from '../_shared';
+import { reserveCredit, attachReservation, releaseReservation } from '@/lib/memberships';
+import { membershipDeps, readyFor } from '../../memberships/_deps';
+import { moneyAlert } from '@/lib/moneyAlert.js';
 
 export async function POST(request: Request) {
   const c = await caller();
@@ -62,7 +65,22 @@ export async function POST(request: Request) {
     if (!intent || !clientId) return NextResponse.json({ success: false, error: 'מתנת הכרטיסייה לא תקינה. הסירי אותה ונסי שוב.' }, { status: 400 });
     loyalty = { client_id: clientId, ...intent };
   }
-  const result = await createCharge(
+  // A client membership credit took a treatment off this amount (app/MembershipTill.jsx): the credit is HELD now, server side, before the
+  // link exists (her membership, this client, a covered treatment, a credit left), and used when Grow's verified callback says the link
+  // was paid, however late (lib/memberships.ts reserveCredit / consumeReservation). Refused rather than dropped: the discount needs it.
+  let held: { deps: NonNullable<ReturnType<typeof membershipDeps>>; reservationId: string } | null = null;
+  if (b.membership != null) {
+    const md = membershipDeps();
+    const mb = (b.membership && typeof b.membership === 'object' ? b.membership : {}) as Record<string, unknown>;
+    if (!md || !clientId || !(await readyFor(md, c.tenantId)).ready) return NextResponse.json({ success: false, error: 'הניכוי מהמנוי לא זמין כרגע. הסירי אותו ונסי שוב.' }, { status: 409 });
+    const r = await reserveCredit(md, { tenantId: c.tenantId, membershipId: String(mb.membershipId ?? ''), clientId, service: String(mb.service ?? '') });
+    if (!r.ok) return NextResponse.json({ success: false, error: `${r.error}. הסירי את הניכוי מהמנוי ונסי שוב.` }, { status: 409 });
+    held = { deps: md, reservationId: r.redemption.id };
+  }
+  const release = async () => { if (held) await releaseReservation(held.deps, { tenantId: c.tenantId, reservationId: held.reservationId }).catch(() => false); };
+  let result: Awaited<ReturnType<typeof createCharge>>;
+  try {
+  result = await createCharge(
     {
       tenantId: c.tenantId,
       userId: String(acc.data.user_id),
@@ -79,9 +97,15 @@ export async function POST(request: Request) {
     },
     { repo: supabaseGrowRepo(db), creds, fetchImpl: grow.fetchImpl, appUrl: APP_URL, newToken: () => randomBytes(24).toString('hex') },
   );
+  } catch (e) { await release(); throw e; }
   if (!result.ok) {
+    await release();
     const status = result.code === 'bad-amount' || result.code === 'bad-phone' ? 400 : 502;
     return NextResponse.json({ success: false, code: result.code, error: result.message }, { status });
+  }
+  if (held && !(await attachReservation(held.deps, { tenantId: c.tenantId, reservationId: held.reservationId, paymentId: result.paymentId }))) {
+    // The hold ran out in the seconds it took Grow to answer (it should not): when this link is paid, the credit is taken again or she is told.
+    await moneyAlert('memberships:hold', 'a membership credit hold could not be tied to its Grow link', { paymentId: result.paymentId, tenantId: c.tenantId }, { severity: 'warning', key: String(result.paymentId) });
   }
   return NextResponse.json({ success: true, paymentId: result.paymentId, url: result.url });
 }

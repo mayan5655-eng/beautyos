@@ -28,7 +28,9 @@ const money = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('he-IL')}`;
 
 // loyalty: { reward, stampsUsed } when the loyalty card's reward is applied to this visit, else null. It travels WITH the charge, so the
 // server consumes the reward when the link is paid (lib/grow/service.ts); onPaid is no longer what keeps the reward from being reused.
-export default function GrowChargePanel({ amount, description, client, appointmentId, loyalty = null, pc, pcTint, toast, onPaid }) {
+// membership: { membershipId, service } when a client membership credit took a treatment off this amount (app/MembershipTill.jsx). It
+// travels WITH the charge: the server holds the credit while the link is payable and uses it when Grow says paid, however late.
+export default function GrowChargePanel({ amount, description, client, appointmentId, loyalty = null, membership = null, pc, pcTint, toast, onPaid }) {
   const [ready, setReady] = useState(false);
   const [mock, setMock] = useState(false);
   const [qr, setQr] = useState('');
@@ -76,7 +78,7 @@ export default function GrowChargePanel({ amount, description, client, appointme
       const r = await fetch('/api/grow/charge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, description, clientName: client?.name || '', phone: client?.phone || '', clientId: client?.id ?? null, appointmentId: appointmentId ?? null, method, loyalty: loyalty || null }),
+        body: JSON.stringify({ amount, description, clientName: client?.name || '', phone: client?.phone || '', clientId: client?.id ?? null, appointmentId: appointmentId ?? null, method, loyalty: loyalty || null, membership: membership || null }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { toast?.(j?.error || 'לא הצלחנו לפתוח דף תשלום', 'error'); return; }
