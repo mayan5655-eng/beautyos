@@ -1033,7 +1033,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           <div style={{ ...section, marginTop: 14, marginBottom: 22, textAlign: "center" }}>
             {person && <p style={{ ...T_BODY, fontWeight: 600, color: ink, margin: "0 0 4px" }}>{person}</p>}
             <p style={{ ...T_META, color: faint, margin: 0 }}>
-              {!mounted ? "\u00A0" : todayHours ? tr("היום") + " " + String(todayHours.open).padStart(2, "0") + ":00–" + String(todayHours.close).padStart(2, "0") + ":00" : tr("סגור היום")}
+              {!mounted ? "\u00A0" : todayHours ? <>{tr("היום")} <bdi dir="ltr" data-testid="today-hours">{String(todayHours.open).padStart(2, "0") + ":00–" + String(todayHours.close).padStart(2, "0") + ":00"}</bdi></> : tr("סגור היום")}
               {addr ? " · " + addr : ""}
             </p>
           </div>

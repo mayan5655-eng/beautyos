@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { supabase } from "./supabase";
@@ -81,9 +81,30 @@ export default function ResultsManager({ tenantId, services }) {
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
 
+  // The storage path of a photo this screen uploaded (…/object/public/<bucket>/<path>), or "" for any other URL: only our own files
+  // under this business's results folder are ever removed.
+  const ownPath = (url) => {
+    const m = String(url || "").match(new RegExp(`/object/public/${PUBLIC_BUCKET}/(.+)$`));
+    const p = m ? decodeURIComponent(m[1].split("?")[0]) : "";
+    return tenantId && p.startsWith(`${tenantId}/results/`) ? p : "";
+  };
+  // Best-effort: a file that stays behind is the old behaviour, never an error she has to deal with.
+  const dropFiles = async (urls) => {
+    const paths = [...new Set(urls.map(ownPath).filter(Boolean))];
+    if (paths.length) { try { await supabase.storage.from(PUBLIC_BUCKET).remove(paths); } catch { /* left in place */ } }
+  };
+  // Photos uploaded in THIS draft and not saved yet: removed if she cancels, or replaced before saving.
+  const unsaved = useRef(new Set());
+
   // A different photo is a different consent question: the confirmation was
   // for the photos she was looking at when she ticked it.
-  const setPhoto = (side, url) => set({ [side === "before" ? "beforeUrl" : "afterUrl"]: url, consentConfirmed: false, published: false });
+  const setPhoto = (side, url) => {
+    const prev = draft ? (side === "before" ? draft.beforeUrl : draft.afterUrl) : "";
+    // A photo replaced before it was ever saved goes now; one already on a saved result goes when the new one is saved.
+    if (prev && unsaved.current.has(prev)) { unsaved.current.delete(prev); dropFiles([prev]); }
+    unsaved.current.add(url);
+    set({ [side === "before" ? "beforeUrl" : "afterUrl"]: url, consentConfirmed: false, published: false });
+  };
 
   const upload = async (side, file) => {
     if (!file) return;
@@ -95,7 +116,8 @@ export default function ResultsManager({ tenantId, services }) {
       const blob = await resizeImage(file, IMAGE_PRESETS.gallery);
       const why = notUploadable(blob);
       if (why) { setMsg(why); return; }
-      const path = `${tenantId}/results/${side}_${Date.now()}.jpg`;
+      // A random name: the folder (her tenant id) is public, a timestamp could be guessed.
+      const path = `${tenantId}/results/${side}_${crypto.randomUUID()}.jpg`;
       const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg", cacheControl: "31536000" });
       if (error) { setMsg(tr("לא הצלחנו להעלות את התמונה. נסי שוב בעוד רגע.")); return; }
       const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
@@ -135,6 +157,13 @@ export default function ResultsManager({ tenantId, services }) {
         ? supabase.from("treatment_results").update(payload).eq("id", draft.id)
         : supabase.from("treatment_results").insert({ ...payload, tenant_id: tenantId });
       const { error } = await q;
+      if (!error) {
+        const before = draft.id ? (rows || []).find((x) => x.id === draft.id) : null;
+        const kept = [payload.before_url, payload.after_url];
+        const stale = [...(before ? [before.before_url, before.after_url] : []), ...unsaved.current].filter((u) => u && !kept.includes(u));
+        unsaved.current = new Set();
+        dropFiles(stale);
+      }
       if (error) { setMsg(/client_id|42703|PGRST204/i.test(`${error.code} ${error.message}`) ? tr("אי אפשר עדיין לשייך תמונה ללקוחה: חסר עדכון במסד הנתונים (kalmea-sql-client-pages.txt). אפשר לשמור בלי לבחור לקוחה.") : resultWriteErrorHe(error)); return; }
       setDraft(null);
       await load();
@@ -156,6 +185,7 @@ export default function ResultsManager({ tenantId, services }) {
     setBusy(r.id);
     try {
       const { error } = await supabase.from("treatment_results").delete().eq("id", r.id);
+      if (!error) dropFiles([r.before_url, r.after_url]); // the photos go with the result and its consent record
       if (error) { const why = resultWriteErrorHe(error); setMsg(why === SAVE_FAILED_HE ? tr("המחיקה נכשלה. התוצאה עדיין שמורה, נסי שוב בעוד רגע.") : why); }
       await load();
     } finally { setBusy(""); }
@@ -207,7 +237,7 @@ export default function ResultsManager({ tenantId, services }) {
                 style={{ background: "none", border: "none", color: "var(--pc-deep)", fontSize: "var(--t-xs)", fontWeight: 600, fontFamily: "inherit", textDecoration: "underline", opacity: (!r.published && !consentComplete(fromRow(r))) ? 0.4 : 1, cursor: (!r.published && !consentComplete(fromRow(r))) ? "not-allowed" : "pointer" }}>
                 {r.published ? tr("הסרה מהדף") : tr("פרסום")}
               </button>
-              <button disabled={!!busy} onClick={() => { setMsg(""); setDraft(fromRow(r)); }}
+              <button disabled={!!busy} onClick={() => { dropFiles([...unsaved.current]); unsaved.current = new Set(); setMsg(""); setDraft(fromRow(r)); }}
                 style={{ background: "none", border: "none", color: "var(--ink-2)", fontSize: "var(--t-xs)", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>{tr("עריכה")}</button>
               <button disabled={!!busy} onClick={() => remove(r)} aria-label={tr("מחיקה")}
                 style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-lg)", cursor: "pointer", padding: "0 4px" }}>×</button>
@@ -284,7 +314,7 @@ export default function ResultsManager({ tenantId, services }) {
               style={{ flex: 1, minWidth: 120, background: "var(--surface)", color: "var(--pc-deep)", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", padding: "9px 14px", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
               {tr("שמירה כטיוטה")}
             </button>
-            <button disabled={!!busy} onClick={() => { setDraft(null); setMsg(""); }}
+            <button disabled={!!busy} onClick={() => { dropFiles([...unsaved.current]); unsaved.current = new Set(); setDraft(null); setMsg(""); }}
               style={{ background: "none", border: "none", color: "var(--ink-3)", fontSize: "var(--t-sm)", cursor: "pointer", fontFamily: "inherit" }}>{tr("ביטול")}</button>
           </div>
           {blockers.length > 0 && <p style={hint}>{tr("כדי לפרסם חסר:")} {blockers.join(", ")}.</p>}
@@ -292,7 +322,7 @@ export default function ResultsManager({ tenantId, services }) {
       )}
 
       {!draft && !loadError && (
-        <button onClick={() => { setMsg(""); setDraft(blank()); }}
+        <button onClick={() => { dropFiles([...unsaved.current]); unsaved.current = new Set(); setMsg(""); setDraft(blank()); }}
           style={{ display: "block", width: "100%", border: "1.5px dashed var(--line-2)", borderRadius: "var(--r-sm)", padding: 12, textAlign: "center", cursor: "pointer", fontSize: "var(--t-sm)", fontWeight: 600, color: "var(--pc-deep)", background: "var(--surface-2)", fontFamily: "inherit" }}>
           {tr("+ הוספת תוצאה")}
         </button>

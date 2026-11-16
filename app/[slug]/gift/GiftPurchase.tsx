@@ -90,7 +90,8 @@ export default function GiftPurchase({ tenantId, slug, brand, options, validityM
         ) : (
           <div data-testid="gift-offline" style={{ marginTop: 16, textAlign: 'center' }}>
             <p className="pub-p" style={{ fontSize: 'var(--t-md)' }}>{tr("כרגע אפשר לקנות שובר מתנה ישירות בעסק. כתבי לי ונסגור את זה יחד.")}</p>
-            {contact && <a className="pub-pill" href={`${contact}?text=${encodeURIComponent('היי, אשמח לקנות שובר מתנה 🎁')}`} target="_blank" rel="noreferrer" style={{ marginTop: 14 }}>{tr("כתבי לי בוואטסאפ")}</a>}
+            {/* What she picked goes into the message (round-2 audit 2026-11-16): the business should not have to ask again. */}
+            {contact && <a className="pub-pill" data-testid="gift-offline-wa" href={`${contact}?text=${encodeURIComponent(chosen ? `היי, אשמח לקנות שובר מתנה: ${chosen.kind === 'service' ? `${chosen.label} (${money(chosen.amount)})` : money(chosen.amount)} 🎁` : 'היי, אשמח לקנות שובר מתנה 🎁')}`} target="_blank" rel="noreferrer" style={{ marginTop: 14 }}>{tr("כתבי לי בוואטסאפ")}</a>}
           </div>
         )}
         {note && <p style={{ margin: '16px 0 0', fontSize: 'var(--t-md)', lineHeight: 1.6, color: 'var(--ink-2)', textAlign: 'center' }}>{note}</p>}

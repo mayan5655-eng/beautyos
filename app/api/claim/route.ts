@@ -15,6 +15,7 @@ import { bufferLookup, businessBufferDefault } from "@/lib/serviceBuffer";
 import { sendBookingNotifications } from "@/lib/bookingNotify";
 import { startMinute, fmtTime } from "@/lib/apptTime";
 import { publicAccent } from "@/lib/branding";
+import { langOfSettings } from "@/lib/i18n/core";
 import { runWaitlistWin } from "@/lib/waitlistRuntime";
 import { publicContactFor } from "@/lib/publicContact";
 import { claimGate, NEEDS_BOOKING_HE, TRY_AGAIN_HE } from "@/lib/claimGuard";
@@ -71,7 +72,8 @@ async function loadOffer(supabase: ReturnType<typeof admin>, token: string) {
 
   // Her booking link and WhatsApp, for a slot that was taken or ran out (lib/publicContact.ts): only after the token matched an offer.
   const contact = await publicContactFor(supabase, offer.tenant_id, settings);
-  return { offer, businessName: settings?.business_name || "העסק", primaryColor: publicAccent(settings), contact };
+  // The language of her public pages (branding.language), so the claim page speaks it too.
+  return { offer, businessName: settings?.business_name || "העסק", primaryColor: publicAccent(settings), contact, language: langOfSettings(settings) };
 }
 
 export async function GET(request: NextRequest) {
@@ -82,8 +84,9 @@ export async function GET(request: NextRequest) {
   const loaded = await loadOffer(supabase, token);
   if (!loaded) return NextResponse.json({ state: "invalid" });
 
-  const { offer, businessName, primaryColor, contact } = loaded;
+  const { offer, businessName, primaryColor, contact, language } = loaded;
   return NextResponse.json({
+    language,
     state: stateOf(offer),
     service: offer.service,
     slotDate: offer.slot_date,

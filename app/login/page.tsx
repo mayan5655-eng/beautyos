@@ -39,7 +39,7 @@ const textLinkStyle: React.CSSProperties = {
 }
 function noticeStyle(kind: 'error' | 'ok'): React.CSSProperties {
   return {
-    color: kind === 'error' ? '#B25B52' : '#2E7D50',
+    color: kind === 'error' ? '#9D4A42' : '#2E7D50', // 5.33:1 on the pink wash (was #B25B52, 4.13:1)
     background: kind === 'error' ? '#F9EFEE' : '#EEF5F0',
     border: `1px solid ${kind === 'error' ? '#EBD5D2' : '#D4E7DB'}`,
     padding: 11, borderRadius:"var(--r-sm)", marginBottom: 16, fontSize:"var(--t-md)", textAlign: 'center',
@@ -200,9 +200,9 @@ export default function LoginPage() {
           border: `1px solid ${ACCENT_LINE}`,
         }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <p style={{ margin: 0, color: MUTED, fontSize:"var(--t-xs)", letterSpacing: '2.5px', fontWeight: 600 }}>
+            <h1 style={{ margin: 0, color: MUTED, fontSize:"var(--t-xs)", letterSpacing: '2.5px', fontWeight: 600 }}>
               {mode === 'login' ? 'כניסה לחשבון' : 'איפוס סיסמה'}
-            </p>
+            </h1>
             {/* Hairline rule with the actual flower mark, echoing the logo's
                 own flower now that there is one to echo. */}
             <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
@@ -218,6 +218,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
               placeholder="אימייל"
+              aria-label="אימייל"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -229,6 +230,7 @@ export default function LoginPage() {
                 type="password"
                 autoComplete="current-password"
                 placeholder="סיסמה"
+                aria-label="סיסמה"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -236,7 +238,7 @@ export default function LoginPage() {
               />
             )}
 
-            {error && <div style={noticeStyle('error')}>{error}</div>}
+            {error && <div role="alert" style={noticeStyle('error')}>{error}</div>}
             {needsConfirm && email && (
               <div style={{ textAlign: 'center' }}>
                 <button
