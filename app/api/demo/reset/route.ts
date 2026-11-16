@@ -1,6 +1,7 @@
 // app/api/demo/reset/route.ts
 //
-// Nightly: wipe and re-seed both demo tenants back to their canonical fake
+// Hourly (2026-11-16 audit, was nightly: the demo session is shared, so whatever a visitor typed or uploaded stayed in front of
+// every later prospect until 02:00): wipe and re-seed both demo tenants back to their canonical fake
 // state (lib/demoSeed.ts's resetDemoTenant). Same shape as every other cron
 // route (isAuthorizedCron/cronUnauthorized, service-role client, logged in
 // full, GET allowed for a by-hand check).

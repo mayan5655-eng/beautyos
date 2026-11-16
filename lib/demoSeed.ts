@@ -22,6 +22,7 @@ import { buildDemoWeek, clientDetails, fullName, type WeekService } from './demo
 
 type Db = {
   from: (table: string) => any;
+  storage?: { from: (bucket: string) => any };
 };
 
 const FIRST_NAMES = [
@@ -90,6 +91,41 @@ async function deleteDemoRows(db: Db, tenantId: string) {
   await db.from('appointments').delete().eq('tenant_id', tenantId);
   await db.from('clients').delete().eq('tenant_id', tenantId);
   await db.from('service_prices').delete().eq('tenant_id', tenantId);
+  // Before/after results a visitor added (2026-11-16 audit: the reset left them, and their photos, up for every later visitor).
+  await db.from('treatment_results').delete().eq('tenant_id', tenantId);
+  await wipeDemoFiles(db, tenantId);
+}
+
+// Every file under the demo tenant's folder in both buckets: the demo session is shared and public, so anything a visitor
+// uploaded (a logo, a before/after photo, a client photo) must not outlive the next reset. Best-effort: a listing or removal
+// that fails leaves the files for the next run, it never fails the reset.
+const DEMO_BUCKETS = ['community-images', 'client-images'];
+async function listFiles(bucket: any, prefix: string, depth = 0): Promise<string[]> {
+  if (depth > 4) return [];
+  const { data } = await bucket.list(prefix, { limit: 1000 });
+  const out: string[] = [];
+  for (const e of (data || []) as Array<{ id: string | null; name: string }>) {
+    const path = `${prefix}/${e.name}`;
+    if (e.id) out.push(path); else out.push(...await listFiles(bucket, path, depth + 1));
+  }
+  return out;
+}
+export async function wipeDemoFiles(db: Db, tenantId: string): Promise<number> {
+  if (!db.storage || !Object.values(DEMO_TENANT_IDS).includes(tenantId)) return 0; // never anyone else's folder
+  let removed = 0;
+  for (const name of DEMO_BUCKETS) {
+    try {
+      const bucket = db.storage.from(name);
+      const paths = await listFiles(bucket, tenantId);
+      for (let i = 0; i < paths.length; i += 100) {
+        const { error } = await bucket.remove(paths.slice(i, i + 100));
+        if (!error) removed += Math.min(100, paths.length - i);
+      }
+    } catch (e) {
+      console.error(`[demoSeed] files in ${name} not removed:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return removed;
 }
 
 /**

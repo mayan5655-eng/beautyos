@@ -126,6 +126,13 @@ const csvCell = (v: unknown): string => {
   if (typeof v !== 'number' && !/^\+?\d[\d\s-]*$/.test(t) && /^[=+\-@|\t\r\n]/.test(t)) t = "'" + t
   return `"${t.replace(/"/g, '""')}"`
 }
+/** A plain table as a CSV Excel opens in Hebrew (BOM, CRLF): one header row from every key seen, then a row each. */
+export function rowsToCsv(rows: Array<Record<string, unknown>>): string {
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))]
+  const out = [cols.map(csvCell).join(','), ...rows.map((r) => cols.map((c) => csvCell(r[c])).join(','))]
+  return '\uFEFF' + out.join('\r\n') + '\r\n'
+}
+
 const SECTION_TITLES_HE: Record<string, string> = {
   appointments: 'תורים', payments: 'תשלומים', forms: 'טפסים', skin_scans: 'סריקות עור', photos: 'תמונות', packages: 'חבילות', reviews: 'ביקורות',
   automatic_reminders: 'תזכורות אוטומטיות', leads: 'פניות', leads_by_phone: 'פניות לפי טלפון', slot_offers: 'הצעות לתורים שהתפנו', whatsapp_messages: 'הודעות וואטסאפ',

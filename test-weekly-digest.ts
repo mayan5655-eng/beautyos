@@ -207,16 +207,16 @@ ok('never on Shabbat, even by hand', () => {
   assert.equal(digestCronSlot(new Date('2026-11-07T19:00:00Z'), { retry: true }).run, true, 'Saturday night after 20:00, by hand');
 });
 
-ok('Sunday is yom tov: held, then sent at 20:00 on the night it ends', () => {
+ok('Sunday is yom tov: held, then sent on the night it ends, once it is out (lib/shabbat.js restEndsAt)', () => {
   assert.deepEqual(at('2026-11-08T15:00:00Z', ['2026-11-08']), { run: false, reason: 'yomtov' });
-  assert.equal(at('2026-11-08T17:00:00Z', ['2026-11-08']).run, false, '19:00 in winter is still yom tov');
-  assert.equal(at('2026-11-08T18:00:00Z', ['2026-11-08']).run, true, '20:00 in winter');
-  assert.equal(at('2027-06-06T17:00:00Z', ['2027-06-06']).run, true, '20:00 in summer');
-  assert.equal(at('2027-06-06T18:00:00Z', ['2027-06-06']).run, false, '21:00 in summer: already went');
+  assert.equal(at('2026-11-08T17:00:00Z', ['2026-11-08']).run, true, 'winter: out 17:30, the 19:00 run');
+  assert.equal(at('2026-11-08T18:00:00Z', ['2026-11-08']).run, false, '20:00 in winter: already went');
+  assert.equal(at('2027-06-06T17:00:00Z', ['2027-06-06']).run, false, '20:00 in summer: still yom tov (out 20:29)');
+  assert.equal(at('2027-06-06T18:00:00Z', ['2027-06-06']).run, true, '21:00 in summer');
   // Two days of yom tov, Sunday and Monday: Monday night.
   const two = ['2026-11-08', '2026-11-09'];
-  assert.equal(at('2026-11-08T18:00:00Z', two).run, false);
-  assert.equal(at('2026-11-09T18:00:00Z', two).run, true);
+  assert.equal(at('2026-11-08T17:00:00Z', two).run, false);
+  assert.equal(at('2026-11-09T17:00:00Z', two).run, true);
 });
 
 ok('Sunday is an eve: the early entry runs, the afternoon one does not', () => {

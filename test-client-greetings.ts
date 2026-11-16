@@ -180,7 +180,9 @@ const plan = (o: Record<string, unknown>) => planGreetings({ today: TODAY, from:
   const il = (iso: string) => new Date(iso);
   assert.equal(sendWindow(NOW, { isYomTov }).ok, true, 'Tuesday 11:00');
   assert.equal(sendWindow(il('2026-10-31T10:00:00Z'), { isYomTov }).reason, 'shabbat', 'Saturday noon');
-  assert.equal(sendWindow(il('2026-10-31T18:30:00Z'), { isYomTov }).ok, true, 'Saturday night 20:30');
+  assert.equal(sendWindow(il('2026-10-31T17:30:00Z'), { isYomTov }).ok, true, 'Saturday night 19:30 (winter: the run after Shabbat is out)');
+  assert.equal(sendWindow(il('2027-07-17T17:30:00Z'), { isYomTov }).reason, 'shabbat', 'high summer 20:30: still Shabbat');
+  assert.equal(sendWindow(il('2027-07-17T18:05:00Z'), { isYomTov }).ok, true, 'high summer 21:05: the night run');
   assert.equal(sendWindow(il('2026-10-27T01:00:00Z'), { isYomTov }).reason, 'night', '03:00');
   assert.equal(sendWindow(il('2026-10-27T19:30:00Z'), { isYomTov }).reason, 'night', '21:30');
   assert.equal(sendWindow(il('2027-04-22T09:00:00Z'), { isYomTov }).reason, 'holiday', 'first day of Pesach');

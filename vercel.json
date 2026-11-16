@@ -53,7 +53,7 @@
     },
     {
       "path": "/api/demo/reset",
-      "schedule": "0 2 * * *"
+      "schedule": "37 * * * *"
     },
     {
       "path": "/api/facebook/ad-spend",

@@ -1,11 +1,12 @@
 // test-shabbat.ts
 //
-// Proves lib/shabbat.js and the Saturday-night wiring: nothing goes to clients on Saturday before 20:00 Israel time, exactly one
-// of the two Saturday-night cron entries (17:00 and 18:00 UTC) runs in summer AND in winter, Friday is unchanged, and the owner's
+// Proves lib/shabbat.js and the Saturday-night wiring: nothing goes to clients on Saturday before Shabbat is out (sunset in Tel Aviv
+// + 45 minutes, since the 2026-11-16 audit: a fixed 20:00 went out during Shabbat in summer), exactly one
+// of the two Saturday-night cron entries (17:00 and 18:00 UTC) runs in summer AND in winter, the first one after it is out, Friday is unchanged, and the owner's
 // evening summary now goes out Saturday night. Plain node, a fixed clock everywhere.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { israelClock, isShabbatHold, clientCronSlot } from './lib/shabbat.js';
+import { israelClock, isShabbatHold, clientCronSlot, sunsetOn, restEndsAt } from './lib/shabbat.js';
 import { isQuietEvening } from './lib/eveningSummary.js';
 
 const at = (iso: string) => new Date(iso);
@@ -24,15 +25,22 @@ assert.equal(daily('2026-10-23T14:00:00Z').run, true, 'Friday: unchanged, goes o
 assert.equal(daily('2026-10-25T14:00:00Z').run, true, 'Sunday');
 assert.equal(daily('2026-10-22T14:00:00Z').run, true, 'Thursday');
 
-// The Saturday-night entries "0 17,18 * * 6": exactly one runs, in both seasons.
+// When Shabbat is out: sunset in Tel Aviv (checked against published times, to the minute) + 45 minutes.
+const il = (d: Date) => d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' });
+assert.equal(il(sunsetOn('2026-06-20')), '19:49', 'Tel Aviv sunset, June');
+assert.equal(il(sunsetOn('2026-12-19')), '16:39', 'Tel Aviv sunset, December');
+assert.equal(il(restEndsAt(at('2027-07-17T12:00:00Z'))), '20:32', 'high summer: out at 20:32, after the old fixed 20:00');
+
+// The Saturday-night entries "0 17,18 * * 6": exactly one runs, the first one after Shabbat is out.
 const satNight = (date: string) => [17, 18].map((h) => clientCronSlot(at(`${date}T${h}:00:00Z`)).run);
-assert.deepEqual(satNight('2026-10-24'), [true, false], 'summer: the 17Z run (20:00) goes, the 18Z run (21:00) is skipped');
-assert.deepEqual(satNight('2026-10-31'), [false, true], 'winter: the 17Z run (19:00) is held, the 18Z run (20:00) goes');
-assert.deepEqual(satNight('2027-01-16'), [false, true], 'deep winter too');
-assert.deepEqual(satNight('2027-07-17'), [true, false], 'deep summer too');
+assert.deepEqual(satNight('2026-10-24'), [true, false], 'end of summer time: out 18:44, the 17Z run (20:00) goes');
+assert.deepEqual(satNight('2026-10-31'), [true, false], 'winter: out 17:37, the 17Z run (19:00) goes');
+assert.deepEqual(satNight('2027-01-16'), [true, false], 'deep winter too');
+assert.deepEqual(satNight('2027-07-17'), [false, true], 'high summer: 20:00 is still Shabbat, the 18Z run (21:00) goes');
+assert.equal(clientCronSlot(at('2027-07-17T17:00:00Z')).reason, 'shabbat', 'never during Shabbat, whatever the season');
 assert.equal(clientCronSlot(at('2026-10-24T18:00:00Z')).reason, 'saturday-night-done');
-// Vercel jitter: a run a few minutes late is still in the 20:00 hour.
-assert.equal(clientCronSlot(at('2026-10-31T18:07:00Z')).run, true, 'a late run still counts');
+// Vercel jitter: a run a few minutes late is still its own slot.
+assert.equal(clientCronSlot(at('2026-10-31T17:07:00Z')).run, true, 'a late run still counts');
 
 // A manual retry (?only=) after 21:00 Saturday is allowed (it has its own dedupe), but never during Shabbat.
 assert.equal(clientCronSlot(at('2026-10-24T19:00:00Z'), { retry: true }).run, true, 'retry Saturday 22:00');
@@ -44,8 +52,9 @@ assert.equal(isShabbatHold(at('2026-10-23T14:00:00Z')), false, 'Friday afternoon
 
 // The owner's evening summary: daily at 17Z plus "0 18 * * 6". Friday stays quiet; Saturday sends exactly once.
 assert.equal(isQuietEvening(at('2026-10-23T17:00:00Z')), true, 'Friday evening: quiet');
-assert.deepEqual([17, 18].map((h) => !isQuietEvening(at(`2026-10-24T${h}:00:00Z`))), [true, false], 'Saturday summer: once, 20:00');
-assert.deepEqual([17, 18].map((h) => !isQuietEvening(at(`2026-10-31T${h}:00:00Z`))), [false, true], 'Saturday winter: once, 20:00');
+assert.deepEqual([17, 18].map((h) => !isQuietEvening(at(`2026-10-24T${h}:00:00Z`))), [true, false], 'Saturday, end of summer time: once, 20:00');
+assert.deepEqual([17, 18].map((h) => !isQuietEvening(at(`2026-10-31T${h}:00:00Z`))), [true, false], 'Saturday winter: once, 19:00');
+assert.deepEqual([17, 18].map((h) => !isQuietEvening(at(`2027-07-17T${h}:00:00Z`))), [false, true], 'Saturday high summer: once, 21:00');
 assert.equal(isQuietEvening(at('2026-10-25T17:00:00Z')), false, 'Sunday evening: sends');
 
 // Wiring: the crons exist and the client routes ask the slot before sending.
@@ -70,12 +79,12 @@ for (const p of ['app/api/send-reminders/route.js', 'app/api/send-smart-reminder
   const { reminderCronSlot } = await import('./lib/shabbat.js');
   const run = (iso: string, yt: string[] = [], retry = false) => reminderCronSlot(at(iso), { retry, isYomTov: (d: string) => yt.includes(d) }).run;
   assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2026-12-04T${h}:00:00Z`)), [true, false, false, false], 'winter Friday: only the early run (before Shabbat)');
-  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2026-12-05T${h}:00:00Z`)), [false, false, false, true], 'winter Saturday: only 20:00 Israel');
-  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2027-06-05T${h}:00:00Z`)), [false, false, true, false], 'summer Saturday: only 20:00 Israel');
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2026-12-05T${h}:00:00Z`)), [false, false, true, false], 'winter Saturday: only the 19:00 run, once Shabbat is out');
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2027-06-05T${h}:00:00Z`)), [false, false, false, true], 'summer Saturday: only the 21:00 run (out at 20:28)');
   assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2026-12-08T${h}:00:00Z`)), [false, true, false, false], 'an ordinary Tuesday: the regular run only');
   const pesach = ['2027-04-22'];
   assert.deepEqual(['10', '14'].map((h) => run(`2027-04-21T${h}:00:00Z`, pesach)), [true, false], 'erev Pesach: early, before the holiday comes in');
-  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2027-04-22T${h}:00:00Z`, pesach)), [false, false, true, false], 'Pesach: held to 20:00 Israel');
+  assert.deepEqual(['10', '14', '17', '18'].map((h) => run(`2027-04-22T${h}:00:00Z`, pesach)), [false, false, true, false], 'Pesach: held until it is out (19:59), the 20:00 run');
   const rh = ['2027-10-02', '2027-10-03'];
   assert.equal(run('2027-10-02T17:00:00Z', rh), false, 'Rosh Hashana day 1 night: tomorrow is still yom tov, held');
   assert.equal(run('2027-10-03T17:00:00Z', rh), true, 'day 2 night: the rest days end, it runs');

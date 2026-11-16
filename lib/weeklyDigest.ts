@@ -21,7 +21,7 @@ import { dayHoursFrom } from './businessHours.ts';
 import { startMinute, endMinute } from './apptTime.ts';
 import { resolveLunch } from './lunchBreak.js';
 import { parseDb } from './dbTime.js';
-import { israelClock, israelDayKey, EVE_LATEST_HOUR, SATURDAY_NIGHT_HOUR } from './shabbat.js';
+import { israelClock, israelDayKey, EVE_LATEST_HOUR, SATURDAY_NIGHT_HOUR, isRestOver, isNightRun } from './shabbat.js';
 
 // ── Israeli days ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -365,7 +365,7 @@ export function buildDigest(i: DigestInput): Digest | null {
 // lib/shabbat.js). vercel.json has three entries for /api/send-weekly-report and this picks the one that runs:
 //   early    10:00 UTC Sunday (12:00/13:00 Israel)       when Sunday is an EVE (yom tov starts that evening)
 //   regular  15:00 UTC Sunday (17:00/18:00 Israel)       an ordinary Sunday
-//   night    17:00 and 18:00 UTC Sunday to Tuesday       when Sunday itself is yom tov: the one landing in Israel's 20:00 hour,
+//   night    17:00 and 18:00 UTC Sunday to Tuesday       when Sunday itself is yom tov: the first one after it is out (isNightRun),
 //                                                        on the night the rest days end
 // Every other entry skips. The route also skips a tenant who already got this week's digest, so no slot can send twice.
 
@@ -376,7 +376,7 @@ export function digestCronSlot(now: Date, { isYomTov = () => false, retry = fals
   const today = israelDayKey(now);
   const rest = (k: string) => weekdayOfKey(k) === 6 || isYomTov(k);
   const ok: DigestSlot = { run: true, reason: 'ok' };
-  if (rest(today) && hour < SATURDAY_NIGHT_HOUR) return { run: false, reason: 'yomtov' };
+  if (rest(today) && !isRestOver(now)) return { run: false, reason: 'yomtov' };
   if (retry) return rest(today) && rest(addDays(today, 1)) ? { run: false, reason: 'yomtov' } : ok;
   if (weekday < 0 || weekday > 2) return { run: false, reason: 'other-slot' };
   if (weekday === 0 && !rest(today)) {
@@ -387,5 +387,5 @@ export function digestCronSlot(now: Date, { isYomTov = () => false, retry = fals
   const sunday = addDays(today, -weekday);
   for (let k = sunday; k <= today; k = addDays(k, 1)) if (!rest(k)) return { run: false, reason: 'other-slot' };
   if (rest(addDays(today, 1))) return { run: false, reason: 'yomtov' };
-  return hour === SATURDAY_NIGHT_HOUR ? ok : { run: false, reason: 'saturday-night-done' };
+  return isNightRun(now) ? ok : { run: false, reason: 'saturday-night-done' };
 }

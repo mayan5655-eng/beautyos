@@ -11,19 +11,19 @@
 //   * Never less than MIN_LEAD_MS before the visit: a reminder an hour before is noise, and the hourly run could be late.
 
 import { isQuietHours, israelLocalToUtcMs, israelDayAndMinute } from './policy.ts';
-import { israelClock, israelDayKey, SATURDAY_NIGHT_HOUR, EVE_LATEST_HOUR } from '../shabbat.js';
+import { israelClock, israelDayKey, isRestOver, EVE_LATEST_HOUR } from '../shabbat.js';
 
 export const MIN_LEAD_MS = 2 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
 
 export type YomTov = (day: string) => boolean;
 
-/** Shabbat / yom tov (until 20:00, and all of it when the next day is a rest day too) and their eves from 15:00. */
+/** Shabbat / yom tov (until it is out, lib/shabbat.js restEndsAt, and all of it when the next day is a rest day too) and their eves from 15:00. */
 export function restHold(now: Date, isYomTov: YomTov = () => false): boolean {
   const { weekday, hour } = israelClock(now);
   const restToday = weekday === 6 || isYomTov(israelDayKey(now));
   const restTomorrow = weekday === 5 || isYomTov(israelDayKey(now, 1));
-  if (restToday && (hour < SATURDAY_NIGHT_HOUR || restTomorrow)) return true;
+  if (restToday && (!isRestOver(now) || restTomorrow)) return true;
   if (!restToday && restTomorrow && hour >= EVE_LATEST_HOUR) return true;
   return false;
 }

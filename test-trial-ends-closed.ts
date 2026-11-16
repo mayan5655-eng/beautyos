@@ -25,7 +25,10 @@ const screen = read('./app/PlanBlockedScreen.jsx');
 assert.ok(/BillingCard/.test(screen), 'a closed business can still pay (billing stays reachable)');
 assert.ok(/supportWhatsAppUrl\(\)/.test(screen), 'and can reach us on WhatsApp');
 assert.ok(/\{cta\}/.test(screen), 'the upgrade-button slot is there');
-assert.ok(!/appointments|clients=/.test(screen), 'the screen takes no calendar or client data at all');
+// It still takes no calendar or client data. Since 2026-11-16 it can hand her a FILE of her own data (/api/business/export, named by
+// table), which never puts a row on this screen.
+assert.ok(!/appointments=|clients=|from\("appointments|from\("clients/.test(screen), 'the screen takes no calendar or client data at all');
+assert.ok(screen.includes('/api/business/export'), 'her data goes out as a download only');
 
 // ── her public page: closed to NEW bookings, server-side, before the form ──
 const slug = read('./app/[slug]/page.tsx');

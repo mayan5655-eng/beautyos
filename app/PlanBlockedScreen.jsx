@@ -49,6 +49,23 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
   const { title, body } = blockedNoticeHe(plan?.status, plan?.trialEndsAt);
   // The automatic re-check on return / every 30 seconds is the effect below; the button runs `recheck` on demand.
   const [checking, setChecking] = useState(false);
+  // Her own data, while the system is closed (2026-11-16 audit): /api/business/export, one CSV per table.
+  const [exporting, setExporting] = useState("");
+  const download = async (table) => {
+    if (exporting) return;
+    setExporting(table);
+    try {
+      const res = await fetch("/api/business/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ table }) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); toast?.(d.error || tr("ההורדה לא הצליחה. נסי שוב בעוד רגע.")); return; }
+      const blob = await res.blob();
+      const name = (res.headers.get("Content-Disposition") || "").match(/filename="([^"]+)"/)?.[1] || `kalmea-${table}.csv`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    } catch {
+      toast?.(tr("ההורדה לא הצליחה. נסי שוב בעוד רגע."));
+    } finally { setExporting(""); }
+  };
   const checkNow = async () => {
     if (!recheck || checking) return;
     setChecking(true);
@@ -185,6 +202,21 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
 
         {/* Pay-to-continue when billing is on. Renders nothing at all when it is off. */}
         <BillingCard pc="var(--brand-accent)" pcTint="var(--brand-tint)" toast={toast} isDemo={isDemo} />
+
+        {!isDemo && (
+          <section data-testid="plan-blocked-export" style={{ background: "var(--brand-surface, #FFFFFF)", border: "1px solid var(--line)", borderRadius: "var(--r-lg)", padding: "18px 20px", textAlign: "center" }}>
+            <p style={{ margin: "0 0 4px", fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)" }}>{tr("הנתונים שלך נשארים שלך")}</p>
+            <p style={{ margin: "0 0 12px", fontSize: "var(--t-sm)", lineHeight: 1.6, color: "var(--ink-3)" }}>{tr("אפשר להוריד אותם בכל רגע, כקובץ שנפתח באקסל.")}</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              {[["clients", tr("לקוחות")], ["appointments", tr("תורים")], ["receipts", tr("תשלומים")]].map(([t, label]) => (
+                <button key={t} type="button" data-testid={`export-${t}`} onClick={() => download(t)} disabled={!!exporting}
+                  style={{ background: "none", border: "1px solid var(--line-2)", borderRadius: "var(--r-sm)", color: "var(--ink-2)", fontSize: "var(--t-sm)", fontWeight: 600, padding: "10px 16px", minHeight: 44, cursor: exporting ? "wait" : "pointer", fontFamily: "inherit" }}>
+                  {exporting === t ? tr("מורידה…") : label}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {recheck && (
           <button

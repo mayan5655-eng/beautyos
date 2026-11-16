@@ -383,6 +383,14 @@ export const RATE_POLICIES = {
     ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
     tenantMessage: (m: string) => `ביקשת הרבה קבצים בזמן קצר. אפשר לנסות שוב ${m}.`,
   },
+  // Before/after photos (app/api/results/photo): a signed preview per draft photo, a move when consent is complete, a removal when
+  // one is replaced. A busy evening of adding results is a few dozen calls; the limits only stop a loop.
+  'results-photo': {
+    perIp: { limit: 150, windowMs: 10 * MINUTE },
+    perTenant: { limit: 150, windowMs: 10 * MINUTE },
+    ipMessage: (m: string) => `נשלחו יותר מדי בקשות מהמכשיר הזה. אפשר לנסות שוב ${m}.`,
+    tenantMessage: (m: string) => `נשלחו יותר מדי בקשות. אפשר לנסות שוב ${m}.`,
+  },
   // The client's personal results page. The owner's side is a session-bound API; the open beacon is public (a client's phone,
   // often behind a carrier's shared address), so its per-IP cap is generous - it only bumps a counter.
   'client-page': {

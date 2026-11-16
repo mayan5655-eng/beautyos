@@ -4,7 +4,7 @@ import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { supabase } from "./supabase";
 import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, notUploadable } from "@/lib/imageResize";
-import { PUBLIC_BUCKET } from "@/lib/clientImages";
+import { PUBLIC_BUCKET, PRIVATE_BUCKET } from "@/lib/clientImages";
 import { consentComplete, publishBlockers, resultWriteErrorHe } from "@/lib/results";
 import { STUCK_HE, SAVE_FAILED_HE } from "@/lib/errorCopy";
 import { tr, trv, uiDir } from "@/lib/i18n/tr";
@@ -21,7 +21,34 @@ import { tr, trv, uiDir } from "@/lib/i18n/tr";
 // The rule "no publishing without consent" is enforced by the database; the
 // form mirrors it (lib/results.consentComplete) so the button can say what is
 // missing instead of failing.
+//
+// Where the photos live (2026-11-16 audit): a new photo goes to the PRIVATE bucket first and is stored as a bare path
+// ("<tenant>/results/…"), shown here through a short-lived signed link. It moves to the public bucket only when the result is
+// saved with its consent record complete (that is when her page or the client's own page may show it). Before that, a client's
+// face is never at a public address. Results saved before this keep their public URLs. Showing, moving and removing go through
+// /api/results/photo: the storage policies do not let the browser read back or delete these objects.
 // ============================================================
+
+const isPrivateRef = (v) => !!v && !/^https?:\/\//i.test(String(v));
+const photoApi = async (action, paths, extra = {}) => {
+  try {
+    const res = await fetch("/api/results/photo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, paths, ...extra }) });
+    return await res.json();
+  } catch { return { success: false }; }
+};
+
+// A result photo: a public URL as is, a private path through a signed link.
+function ResultImg({ src, style }) {
+  const [url, setUrl] = useState(isPrivateRef(src) ? "" : src);
+  useEffect(() => {
+    if (!isPrivateRef(src)) { setUrl(src); return; }
+    let alive = true;
+    setUrl("");
+    photoApi("sign", [src]).then((d) => { if (alive && d?.urls?.[src]) setUrl(d.urls[src]); });
+    return () => { alive = false; };
+  }, [src]);
+  return url ? <img src={url} alt="" style={style} /> : <span style={{ ...style, display: "block", background: "var(--line)" }} />;
+}
 
 const today = () => {
   const d = new Date();
@@ -81,17 +108,27 @@ export default function ResultsManager({ tenantId, services }) {
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
 
-  // The storage path of a photo this screen uploaded (…/object/public/<bucket>/<path>), or "" for any other URL: only our own files
-  // under this business's results folder are ever removed.
+  // The storage path of a photo this screen uploaded (…/object/public/<bucket>/<path>, or a private bare path), or "" for any
+  // other value: only our own files under this business's results folder are ever removed.
   const ownPath = (url) => {
     const m = String(url || "").match(new RegExp(`/object/public/${PUBLIC_BUCKET}/(.+)$`));
-    const p = m ? decodeURIComponent(m[1].split("?")[0]) : "";
+    const p = isPrivateRef(url) ? String(url) : m ? decodeURIComponent(m[1].split("?")[0]) : "";
     return tenantId && p.startsWith(`${tenantId}/results/`) ? p : "";
   };
   // Best-effort: a file that stays behind is the old behaviour, never an error she has to deal with.
   const dropFiles = async (urls) => {
-    const paths = [...new Set(urls.map(ownPath).filter(Boolean))];
-    if (paths.length) { try { await supabase.storage.from(PUBLIC_BUCKET).remove(paths); } catch { /* left in place */ } }
+    const own = urls.filter((u) => ownPath(u));
+    for (const [bucket, list] of [["private", own.filter(isPrivateRef)], ["public", own.filter((u) => !isPrivateRef(u))]]) {
+      const paths = [...new Set(list.map(ownPath))];
+      if (paths.length) await photoApi("remove", paths, { bucket });
+    }
+  };
+  // Consent is complete: a private photo moves to the public bucket (same name), and the private copy goes. Returns the public
+  // URL, the value unchanged when it was already public, or "" when the move failed (the result is then not saved).
+  const toPublic = async (v) => {
+    if (!isPrivateRef(v)) return v;
+    const d = await photoApi("publish", [v]);
+    return (d?.success && d.urls?.[v]) || "";
   };
   // Photos uploaded in THIS draft and not saved yet: removed if she cancels, or replaced before saving.
   const unsaved = useRef(new Set());
@@ -116,12 +153,11 @@ export default function ResultsManager({ tenantId, services }) {
       const blob = await resizeImage(file, IMAGE_PRESETS.gallery);
       const why = notUploadable(blob);
       if (why) { setMsg(why); return; }
-      // A random name: the folder (her tenant id) is public, a timestamp could be guessed.
+      // A random name, and the PRIVATE bucket until her consent record is complete (see the header).
       const path = `${tenantId}/results/${side}_${crypto.randomUUID()}.jpg`;
-      const { error } = await supabase.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg", cacheControl: "31536000" });
+      const { error } = await supabase.storage.from(PRIVATE_BUCKET).upload(path, blob, { contentType: blob.type || "image/jpeg" });
       if (error) { setMsg(tr("לא הצלחנו להעלות את התמונה. נסי שוב בעוד רגע.")); return; }
-      const url = supabase.storage.from(PUBLIC_BUCKET).getPublicUrl(path)?.data?.publicUrl || "";
-      if (url) setPhoto(side, url);
+      setPhoto(side, path);
     } finally { setBusy(""); }
   };
 
@@ -137,11 +173,23 @@ export default function ResultsManager({ tenantId, services }) {
     if (!String(draft.afterUrl).trim()) { setMsg(tr("צריך לפחות תמונת אחרי")); return; }
     if (publish && publishBlockers(draft).length) { setMsg("חסר: " + publishBlockers(draft).join(", ")); return; }
     const sessions = parseInt(draft.sessions, 10);
+    let beforeUrl = draft.beforeUrl.trim(), afterUrl = draft.afterUrl.trim();
+    if (consentComplete(draft) && (isPrivateRef(beforeUrl) || isPrivateRef(afterUrl))) {
+      setBusy("save");
+      const [b, a] = await Promise.all([beforeUrl ? toPublic(beforeUrl) : "", toPublic(afterUrl)]);
+      setBusy("");
+      if ((beforeUrl && !b) || !a) { setMsg(tr("לא הצלחנו להכין את התמונות לפרסום. נסי שוב בעוד רגע.")); return; }
+      // The photos moved: the draft now points at the public copies, and the private ones are already gone.
+      for (const v of [beforeUrl, afterUrl]) unsaved.current.delete(v);
+      for (const v of [b, a]) if (v) unsaved.current.add(v);
+      beforeUrl = b; afterUrl = a;
+      set({ beforeUrl: b, afterUrl: a });
+    }
     const payload = {
       service_id: draft.serviceId || null,
       service_name: draft.serviceName.trim(),
-      before_url: draft.beforeUrl.trim() || null,
-      after_url: draft.afterUrl.trim(),
+      before_url: beforeUrl || null,
+      after_url: afterUrl,
       caption: draft.caption.trim().slice(0, 140),
       sessions: Number.isInteger(sessions) && sessions > 0 && sessions < 100 ? sessions : null,
       consent_name: draft.consentName.trim(),
@@ -196,7 +244,7 @@ export default function ResultsManager({ tenantId, services }) {
   const photoBox = (side, url, label) => (
     <label style={{ flex: 1, textAlign: "center", cursor: "pointer", fontSize: "var(--t-xs)", color: "var(--ink-3)" }}>
       {url
-        ? <img src={url} alt="" style={{ width: "100%", aspectRatio: "3 / 4", objectFit: "cover", borderRadius: "var(--r-xs)", display: "block", marginBottom: 4 }} />
+        ? <ResultImg src={url} style={{ width: "100%", aspectRatio: "3 / 4", objectFit: "cover", borderRadius: "var(--r-xs)", display: "block", marginBottom: 4 }} />
         : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", aspectRatio: "3 / 4", border: "1.5px dashed var(--line-2)", borderRadius: "var(--r-xs)", marginBottom: 4, color: "var(--pc-deep)", fontWeight: 600 }}>
             {busy === "up:" + side ? <Spinner inline label={tr("מעלה")} /> : "+"}
           </span>}
@@ -222,8 +270,8 @@ export default function ResultsManager({ tenantId, services }) {
           {rows.map((r) => (
             <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", border: "1px solid var(--line)", borderRadius: "var(--r-sm)", background: "var(--surface-2)" }}>
               <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                {r.before_url && <img src={r.before_url} alt="" style={{ width: 40, height: 52, objectFit: "cover", borderRadius: "var(--r-xs)" }} />}
-                <img src={r.after_url} alt="" style={{ width: 40, height: 52, objectFit: "cover", borderRadius: "var(--r-xs)" }} />
+                {r.before_url && <ResultImg src={r.before_url} style={{ width: 40, height: 52, objectFit: "cover", borderRadius: "var(--r-xs)" }} />}
+                <ResultImg src={r.after_url} style={{ width: 40, height: 52, objectFit: "cover", borderRadius: "var(--r-xs)" }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: "var(--t-md)", color: "var(--ink)", fontWeight: 600, margin: 0 }}>{r.service_name || tr("ללא טיפול")}</p>
