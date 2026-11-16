@@ -11,6 +11,7 @@ import { isDemoTenantId } from '@/lib/demoTenants';
 import { APP_URL } from '@/lib/appUrl';
 import { signCardSession } from '@/lib/billing/session';
 import { priceOf } from '@/lib/billing/service';
+import { isFounder, FOUNDER_BILLING_HE } from '@/lib/founder';
 import { billingConsentTextHe, billingAnnualConsentTextHe, BILLING_CONSENT_VERSION } from '@/lib/billing/consent';
 import { annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { admin, billing, caller, callerIsOwner, NOT_OWNER_HE, tableMissing } from '../_shared';
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
     db.from('settings').select('business_name, therapist_name, business_phone, automations').eq('tenant_id', c.tenantId).maybeSingle(),
     db.from('billing_subscriptions').select('price').eq('tenant_id', c.tenantId).maybeSingle(),
   ]);
+  // A founder is never charged: priceOf would read her 0 as "no price" and charge the launch price (lib/founder.ts).
+  if (isFounder(tenant)) return NextResponse.json({ success: false, code: 'founder', error: FOUNDER_BILLING_HE }, { status: 409 });
   const price = sub?.price ? Number(sub.price) : priceOf(tenant || null);
   // A yearly subscriber (NEXT_PUBLIC_ANNUAL_PLAN) agrees to the yearly words with her card; read on its own so a missing column
   // (migration not run) leaves the monthly words, as before.

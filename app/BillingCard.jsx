@@ -19,6 +19,7 @@ import { priceHe } from '@/lib/pricing';
 import { isFinalRefusal, requestVerdict, requestStateHe, LOST_ANSWER_HE } from '@/lib/upgradesStore';
 import { purchaseIntent, settleIntent, requestStatus } from './UpgradesStore';
 import { tr, trv } from "@/lib/i18n/tr";
+import { FOUNDER_BILLING_HE } from "@/lib/founder";
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -64,6 +65,16 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
         <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>{tr("המנוי שלך")}</p>
         <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7, marginBottom: 10 }}>{tr("לא הצלחנו לטעון את פרטי המנוי.")}</p>
         <button type="button" onClick={load} style={{ background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-sm)', padding: '10px 14px', color: 'var(--ink)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 44 }}>{tr("לנסות שוב")}</button>
+      </div>
+    );
+  }
+
+  // A founder (lib/founder.ts): free for life, nothing to pay or buy.
+  if (s.founder) {
+    return (
+      <div data-testid="billing-card-founder" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '14px 16px', marginBottom: 12 }}>
+        <p style={{ fontSize: 'var(--t-md)', fontWeight: 700, color: 'var(--ink)', marginBottom: 6 }}>{tr("המנוי שלך")}</p>
+        <p style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.7 }}>{tr(FOUNDER_BILLING_HE)}</p>
       </div>
     );
   }

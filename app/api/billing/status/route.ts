@@ -11,6 +11,7 @@
 //                            before add_referrals_annual_2026-11-08.sql). Absent while the flag is off, so the card is as before.
 import { NextResponse } from 'next/server';
 import { priceOf, graceEndsAt, nextRetryAt, INVITE_DAYS } from '@/lib/billing/service';
+import { isFounder } from '@/lib/founder';
 import { admin, billing, caller, callerIsOwner, tableMissing } from '../_shared';
 import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { addonUsageFor } from '@/lib/addonUsage';
@@ -39,6 +40,8 @@ export async function GET() {
   // for her own tenant only (c.tenantId comes from her session).
   const t = await admin().from('tenants').select('plan_status, trial_ends_at, plan_price, created_at').eq('id', c.tenantId).maybeSingle();
   if (t.data) out.plan = { status: String(t.data.plan_status || 'active'), trialEndsAt: (t.data.trial_ends_at as string | null) ?? null, price: priceOf(t.data) };
+  // A founder (lib/founder.ts) is free for life: no price, no card, no packs. The card shows one line and nothing to buy.
+  if (isFounder(t.data)) return NextResponse.json({ ...out, founder: true, plan: { ...out.plan, price: 0 } });
 
   // Read with the service role for her own tenant, like the writes: under the session the select policy can hide her row (the same mismatch
   // made the Grow card show a connected business as "not connected", fixed in b7b3e81). SUB_COLS never includes the token reference.
