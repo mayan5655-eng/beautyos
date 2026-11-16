@@ -123,6 +123,41 @@ export function classify(event: Event, minutesUntil: number | null, windowHours:
   return minutesUntil < windowHours * 60 ? 'late' : 'timely';
 }
 
+// ── the law on an online booking (2026-11-16 audit) ──────────────────────────
+//
+// A booking made on her booking page is a distance sale (Consumer Protection Law, 1981, section 14ג). The client may cancel it within
+// 14 days of booking, as long as she cancels at least two days that are not rest days before the appointment, and the business may
+// keep at most 5% of the price or 100 shekels, whichever is lower. Kalmea keeps NOTHING in that case (zero is under the cap, and it is
+// one rule she can explain): such a cancellation counts as timely whatever her own window says, and a deposit goes back in money, never
+// as credit. Her own window and fees still apply to everything else: later cancellations, no-shows, bookings she made herself.
+
+export const DISTANCE_SALE_DAYS = 14;
+export const DISTANCE_SALE_REST_FREE_DAYS = 2;
+/** The most a business may keep on such a cancellation: shown in the terms, kept here so the number has one home. */
+export const distanceSaleFeeCap = (price: number) => Math.min(100, Math.round(Number(price || 0) * 5) / 100);
+
+const ilDay = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+const dayMs = (k: string) => Date.parse(k + 'T00:00:00Z');
+
+/**
+ * Is this cancellation the client's legal right on a distance sale? `bookedAt` is when she agreed at booking (consented_at),
+ * `apptDay` the appointment's 'YYYY-MM-DD'. Days strictly between the cancel day and the appointment day are counted, without
+ * Saturdays and `isRestDay` (yom tov). Anything unknown answers false: the business's own policy then decides, as before.
+ */
+export function distanceSaleCancel(o: { bookedAt: string | null | undefined; cancelledAt: Date; apptDay: string | null | undefined; isRestDay?: (day: string) => boolean }): boolean {
+  const booked = o.bookedAt ? new Date(o.bookedAt) : null;
+  if (!booked || Number.isNaN(booked.getTime()) || !/^\d{4}-\d{2}-\d{2}$/.test(String(o.apptDay || ''))) return false;
+  if (o.cancelledAt.getTime() - booked.getTime() > DISTANCE_SALE_DAYS * 86_400_000) return false;
+  const rest = o.isRestDay || (() => false);
+  const from = dayMs(ilDay(o.cancelledAt)), to = dayMs(String(o.apptDay));
+  let free = 0;
+  for (let t = from + 86_400_000; t < to; t += 86_400_000) {
+    const k = new Date(t).toISOString().slice(0, 10);
+    if (new Date(t).getUTCDay() !== 6 && !rest(k)) free++;
+  }
+  return free >= DISTANCE_SALE_REST_FREE_DAYS;
+}
+
 // ── consent snapshot ─────────────────────────────────────────────────────────
 
 /** What the client agreed to at booking, frozen. Stored per appointment (appointment_policy_consents). */

@@ -1579,6 +1579,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                     <span style={{ fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
                       <b>{tr("מדיניות ביטולים")}</b><br />
                       <span data-testid="grow-policy-text" style={{ whiteSpace: "pre-line" }}>{growPolicy.text}</span><br />
+                      {/* The law on an online booking, whatever her own text says (lib/cancellationPolicy.ts distanceSaleCancel). */}
+                      <span data-testid="grow-policy-law">{tr("בנוסף, לפי חוק הגנת הצרכן: אפשר לבטל בלי עלות תוך 14 יום מקביעת התור, אם הביטול נעשה לפחות שני ימי עבודה לפני התור.")}</span><br />
                       {PAY_TERMS_BEFORE_HE}{tr("מדיניות הביטולים ול")}<a href={PAYMENT_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: pcText, fontWeight: 700, textDecoration: "underline" }}>{PAY_TERMS_LINK_HE}</a>{PAY_TERMS_AFTER_HE}
                     </span>
                   </label>

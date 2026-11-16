@@ -252,6 +252,10 @@ export default function TermsPage() {
             של חברת Grow, והקבלה מונפקת על ידי העסק. השירות (הטיפול) ניתן על ידי
             העסק במועד התור שנקבע ובמקום העסק. ביטול וזיכוי: לפי מדיניות הביטולים
             של העסק שמוצגת לפני התשלום, ולפי חוק הגנת הצרכן, התשמ&quot;א-1981.
+            תור שנקבע אונליין אפשר לבטל תוך 14 יום מהקביעה, אם הביטול נעשה לפחות
+            שני ימי עבודה לפני מועד התור, ודמי הביטול במקרה כזה לא יעלו על 5% מהמחיר
+            או 100 ₪, הנמוך מביניהם. טיפ שנרשם בתשלום שייך לעסק ונכלל במסמך
+            התשלום שלו, והדיווח עליו לרשויות המס הוא באחריות העסק.
             שאלות על תשלום או על טיפול יש להפנות לעסק, ואפשר לפנות גם אלינו.
           </He>
           <En>
@@ -261,8 +265,13 @@ export default function TermsPage() {
             the business. The service (the treatment) is given by the business at
             the booked time and at its premises. Cancellations and refunds follow the
             business&apos;s cancellation policy shown before payment, and the Consumer
-            Protection Law, 5741-1981. Questions about a payment or a treatment go to
-            the business, and you may also contact us.
+            Protection Law, 5741-1981. An appointment booked online may be cancelled
+            within 14 days of booking, if the cancellation is made at least two working
+            days before the appointment; the cancellation fee in that case is no more
+            than 5% of the price or ILS 100, whichever is lower. A tip added to a payment
+            belongs to the business and is included in its payment document; reporting
+            it to the tax authorities is the business&apos;s responsibility. Questions about
+            a payment or a treatment go to the business, and you may also contact us.
           </En>
         </Section>
 

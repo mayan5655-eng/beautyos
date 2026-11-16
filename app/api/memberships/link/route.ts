@@ -10,7 +10,7 @@
 // notice to the business owner when the client cancels.
 import { NextResponse } from 'next/server';
 import { clientMembershipsEnabled } from '@/lib/membershipFlag';
-import { BUSINESS_CLOSED_HE, consentTextHe, startCardPage, clientCancel, creditsOf, clientCancelFrom, israelDay, planLineHe, dayHe } from '@/lib/memberships';
+import { BUSINESS_CLOSED_HE, consentTextHe, startCardPage, clientCancel, creditsOf, clientCancelFrom, israelDay, planLineHe, dayHe, commitMonths } from '@/lib/memberships';
 import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { admin } from '../../grow/_shared';
 import { membershipDeps, readyFor, membershipLinkUrl } from '../_deps';
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       businessName,
       accent: String((st as { primary_color?: unknown } | null)?.primary_color || ''),
       clientFirstName: String(m.client_name || '').trim().split(/\s+/)[0] || '',
-      plan: { name: m.plan.name, line: planLineHe(m.plan), price: m.plan.price, credits: m.plan.credits, rollover: m.plan.rollover, minMonths: m.plan.min_months, services: m.plan.services },
+      plan: { name: m.plan.name, line: planLineHe(m.plan), price: m.plan.price, credits: m.plan.credits, rollover: m.plan.rollover, minMonths: commitMonths(m.plan.min_months), services: m.plan.services },
       status: m.status,
       // The words to tick: the frozen ones once she agreed, otherwise the ones computed from the plan as it was when she was enrolled.
       consentText: m.consent_text || consentTextHe(m.plan, businessName),

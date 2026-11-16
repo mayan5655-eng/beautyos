@@ -19,9 +19,9 @@ ok('the cost total starts at the real sum, never at 0', () => {
 
 ok('the listed ranges add up to the figure on the page', () => {
   const rows = [...page.matchAll(/low: (\d+), high: (\d+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
-  assert.equal(rows.length, 6);
-  assert.equal(rows.reduce((s, r) => s + r[0], 0), 3831);
-  assert.equal(rows.reduce((s, r) => s + r[1], 0), 10068);
+  assert.equal(rows.length, 5); // no receptionist row since 2026-11-16 (owner decision)
+  assert.equal(rows.reduce((s, r) => s + r[0], 0), 2331);
+  assert.equal(rows.reduce((s, r) => s + r[1], 0), 6068);
 });
 
 ok('Kalmea price is shown: launch price 349 only (owner 2026-11-16: no struck regular price), no end date, no limited spots', () => {

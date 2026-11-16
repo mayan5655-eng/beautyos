@@ -13,7 +13,8 @@
 //
 // Money never passes through Kalmea; card numbers never touch it. Only Grow's token references are stored.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { classify, feeQuestionHe, snapshotOf, DEPOSIT_HOLD_MINUTES } from '../cancellationPolicy.ts';
+import { classify, distanceSaleCancel, feeQuestionHe, snapshotOf, DEPOSIT_HOLD_MINUTES } from '../cancellationPolicy.ts';
+import { isYomTov } from '../greetings/calendar.ts';
 import type { CancelPolicy, ConsentSnapshot, Event, Verdict } from '../cancellationPolicy.ts';
 import { minutesUntilSlot } from '../bookingPolicy.ts';
 import { createCharge } from './service.ts';
@@ -432,6 +433,10 @@ export async function detect(d: Deps, i: { tenantId: string; appointmentId: stri
   let verdict: Verdict = classify(i.event, minutes, snap.window_hours);
   // A deposit is her client's money: when SHE cancels, it goes back whatever the window says.
   if (snap.mode === 'deposit' && i.event === 'cancel' && i.actor === 'owner') verdict = 'timely';
+  // The client's legal right on an online booking (lib/cancellationPolicy.ts distanceSaleCancel): no fee, and money back, not credit.
+  const lawful = i.event === 'cancel' && snap.via !== 'owner'
+    && distanceSaleCancel({ bookedAt: consent.consented_at, cancelledAt: clock(d), apptDay: appt.date, isRestDay: isYomTov });
+  if (lawful) verdict = 'timely';
 
   const base = { tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: appt.client_id, client_name: appt.name, service: appt.service };
 
@@ -452,14 +457,14 @@ export async function detect(d: Deps, i: { tenantId: string; appointmentId: stri
     const item = await d.repo.insertFeeIfAbsent({ ...base, kind: verdict === 'no_show' ? 'no_show' : 'late_cancel', amount, status: 'retained' });
     return item ? { status: 'retained', item } : { status: 'exists' };
   }
-  return returnDeposit(d, i.tenantId, consent, dep, base, amount);
+  return returnDeposit(d, i.tenantId, consent, dep, base, amount, lawful);
 }
 
-async function returnDeposit(d: Deps, tenantId: string, consent: ConsentRow, dep: PaymentRow, base: Omit<FeeItem, 'id' | 'created_at' | 'grow_payment_id' | 'receipt_id' | 'error' | 'kind' | 'amount' | 'status'>, amount: number): Promise<DetectResult> {
+async function returnDeposit(d: Deps, tenantId: string, consent: ConsentRow, dep: PaymentRow, base: Omit<FeeItem, 'id' | 'created_at' | 'grow_payment_id' | 'receipt_id' | 'error' | 'kind' | 'amount' | 'status'>, amount: number, moneyBack = false): Promise<DetectResult> {
   const item = await d.repo.insertFeeIfAbsent({ ...base, kind: 'deposit_return', amount, status: 'refund_failed' });
   if (!item) return { status: 'exists' };
 
-  if (consent.snapshot.timely_cancel === 'credit' && base.client_id) {
+  if (consent.snapshot.timely_cancel === 'credit' && base.client_id && !moneyBack) {
     await d.repo.addCredit({ tenant_id: tenantId, client_id: base.client_id, amount, appointment_id: base.appointment_id, source: 'deposit_timely_cancel' });
     const done = await d.repo.transitionFee(tenantId, item.id, ['refund_failed'], { status: 'credited', grow_payment_id: dep.id });
     return { status: 'credited', item: done || item };

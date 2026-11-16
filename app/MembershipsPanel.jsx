@@ -116,7 +116,7 @@ export default function MembershipsPanel({ services = [], pc = 'var(--pc)', pcTi
               <div style={{ flex: 1 }}><label style={label} htmlFor="mp-price">מחיר לחודש (₪)</label><input id="mp-price" style={input} type="number" inputMode="decimal" min={1} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
               <div style={{ flex: 1 }}><label style={label} htmlFor="mp-credits">טיפולים בחודש</label><input id="mp-credits" style={input} type="number" inputMode="numeric" min={1} max={31} value={form.credits} onChange={(e) => setForm({ ...form, credits: e.target.value })} /></div>
             </div>
-            <div><label style={label} htmlFor="mp-min">התחייבות מינימלית (חודשים, 0 = בלי)</label><input id="mp-min" style={input} type="number" inputMode="numeric" min={0} max={24} value={form.min_months} onChange={(e) => setForm({ ...form, min_months: e.target.value })} /></div>
+            <div><label style={label} htmlFor="mp-min">התחייבות מינימלית (חודשים, 0 = בלי)</label><input id="mp-min" style={input} type="number" inputMode="numeric" min={0} max={12} value={form.min_months} onChange={(e) => setForm({ ...form, min_months: e.target.value })} /></div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, cursor: 'pointer', color: 'var(--ink)', fontSize: 'var(--t-sm)' }}>
               <input type="checkbox" checked={!!form.rollover} onChange={(e) => setForm({ ...form, rollover: e.target.checked })} style={{ width: 20, height: 20 }} />
               <span>טיפול שלא נוצל עובר לחודש הבא (לחודש אחד בלבד)</span>

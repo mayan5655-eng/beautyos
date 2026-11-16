@@ -18,6 +18,7 @@ import { clientMembershipsEnabled } from '@/lib/membershipFlag';
 import {
   sanitizePlan, createEnrollment, ownerAction, redeemCredit, creditsOf, dashboardOf, israelDay, planLineHe, consentTextHe, clientCancelFrom,
   STATUS_HE, LIVE_STATUSES,
+  commitMonths,
 } from '@/lib/memberships';
 import type { Membership, MembershipDeps, Period, Redemption } from '@/lib/memberships';
 import { requestWaLink } from '@/lib/grow/paymentRequest';
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
       const biz = waiting ? await d.repo.businessName(c.tenantId) : '';
       return NextResponse.json({
         success: true, available: true,
-        plans: plans.map((p) => ({ id: p.id, name: p.name, price: p.price, credits: p.credits, rollover: p.rollover, min_months: p.min_months, services: p.services, line: planLineHe(p) })),
+        plans: plans.map((p) => ({ id: p.id, name: p.name, price: p.price, credits: p.credits, rollover: p.rollover, min_months: commitMonths(p.min_months), services: p.services, line: planLineHe(p) })),
         membership: shown ? { ...memberView(shown, mine.periods, mine.reds, today), link: waiting ? membershipLinkUrl(shown.link_id) : null, consentPreview: waiting ? consentTextHe(shown.plan, biz) : null } : null,
       });
     }

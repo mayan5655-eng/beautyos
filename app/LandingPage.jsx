@@ -27,12 +27,12 @@ import MetaPixel from "./MetaPixel";
 import Testimonials from "./landing/Testimonials";
 import { landingClaims } from "@/lib/landingClaims";
 
+// No receptionist row (2026-11-16 audit, owner decision): most cosmeticians work alone, so it inflated the "saving".
 const COST_ROWS = [
   { label: "מערכת לניהול תורים", low: 99, high: 379 },
   { label: "הנהלת חשבונות / חשבוניות", low: 32, high: 89 },
   { label: "עיצוב גרפי", low: 300, high: 900 },
   { label: "ניהול רשתות חברתיות", low: 1500, high: 3500 },
-  { label: "מזכירה / פקידת קבלה", low: 1500, high: 4000 },
   { label: "יועצת עסקית", low: 400, high: 1200 },
 ];
 const TOTAL_LOW = COST_ROWS.reduce((s, r) => s + r.low, 0);

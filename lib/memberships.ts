@@ -37,7 +37,8 @@ import { growText } from './grow/payload.ts';
 
 // ── constants ────────────────────────────────────────────────────────────────
 
-export const MEMBERSHIP_CONSENT_VERSION = 'membership-v1';
+// v2 (2026-11-16): the commitment is at most 12 months and the text says she may still ask the business to end it early.
+export const MEMBERSHIP_CONSENT_VERSION = 'membership-v2';
 /** Days after the FIRST failure of a period on which it is tried again (the same rhythm as her own Kalmea subscription). */
 export const RETRY_OFFSETS_DAYS = [1, 3, 5] as const;
 /** The first attempt plus the three retries: after that the membership is paused and she is told. */
@@ -48,7 +49,12 @@ export const STALE_CHARGING_MS = 60 * 60 * 1000;
 export const MEMBERSHIP_REF_PREFIX = 'mbr-';
 export const membershipRef = (membershipId: string) => `${MEMBERSHIP_REF_PREFIX}${membershipId}`;
 export const isMembershipRef = (ref: unknown) => String(ref || '').startsWith(MEMBERSHIP_REF_PREFIX) || /^mbr[0-9a-f]{32}$/i.test(String(ref || ''));
-export const PLAN_LIMITS = { nameMax: 60, priceMax: 20000, creditsMax: 31, minMonthsMax: 24, servicesMax: 20 } as const;
+// minMonthsMax was 24 (2026-11-16 audit): a membership is a continuing transaction under the Consumer Protection Law and a two-year
+// lock invites a complaint. 12 at most; plans saved with more are read as 12 (commitMonths), nothing is rewritten in the database.
+export const PLAN_LIMITS = { nameMax: 60, priceMax: 20000, creditsMax: 31, minMonthsMax: 12, servicesMax: 20 } as const;
+
+/** A plan's minimum commitment as it applies: whole months, 0 to PLAN_LIMITS.minMonthsMax. */
+export const commitMonths = (v: unknown): number => Math.min(PLAN_LIMITS.minMonthsMax, Math.max(0, Math.floor(Number(v)) || 0));
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -253,7 +259,7 @@ export function sanitizePlan(raw: unknown): { ok: true; plan: PlanFields } | { o
   return { ok: true, plan: { name, price, credits, rollover: r.rollover === true || r.rollover === 'true' || r.rollover === 1, min_months: minRaw, services } };
 }
 
-export const snapshotOf = (p: PlanFields): PlanSnapshot => ({ name: p.name, price: round2(Number(p.price)), credits: Number(p.credits), rollover: !!p.rollover, min_months: Number(p.min_months) || 0, services: [...(p.services || [])] });
+export const snapshotOf = (p: PlanFields): PlanSnapshot => ({ name: p.name, price: round2(Number(p.price)), credits: Number(p.credits), rollover: !!p.rollover, min_months: commitMonths(p.min_months), services: [...(p.services || [])] });
 
 const treatmentsHe = (n: number) => (n === 1 ? 'טיפול אחד' : `${n} טיפולים`);
 const monthsHe = (n: number) => (n === 1 ? 'חודש אחד' : `${n} חודשים`);
@@ -271,8 +277,9 @@ export function consentTextHe(p: PlanSnapshot, businessName: string): string {
   const rollover = p.rollover
     ? 'טיפול שלא ניצלתי עובר לחודש הבא בלבד.'
     : 'טיפול שלא ניצלתי באותו חודש לא עובר לחודש הבא.';
-  const term = p.min_months > 0
-    ? `ההתחייבות היא ל-${monthsHe(p.min_months)} לפחות, ואחריהם אפשר לבטל בכל רגע מהקישור הזה.`
+  const min = commitMonths(p.min_months);
+  const term = min > 0
+    ? `ההתחייבות היא ל-${monthsHe(min)} לפחות, ואחריהם אפשר לבטל בכל רגע מהקישור הזה. גם לפני כן אפשר לפנות לעסק ולבקש לסיים את המנוי, לפי חוק הגנת הצרכן.`
     : 'אפשר לבטל בכל רגע מהקישור הזה.';
   return `אני מאשרת הצטרפות למנוי "${p.name}" אצל ${biz}: ${treatmentsHe(p.credits)} בחודש${services}, בחיוב של ₪${round2(p.price)} בכל חודש בכרטיס האשראי שאשמור עכשיו, דרך חברת הסליקה Grow. החיוב הראשון יתבצע מיד עם שמירת הכרטיס, והבאים בכל חודש באותו תאריך, עד שהמנוי יבוטל. ${rollover} ${term} אחרי ביטול המנוי ממשיך עד סוף החודש ששולם. אני מאשרת לשמור את פרטי האשראי שלי עבור החיובים האלה.`;
 }
@@ -801,7 +808,7 @@ export const paidMonths = (periods: Period[], membershipId: string) => periods.f
  * cancel now; otherwise the day of the last committed charge, for display only ("אפשר לבטל אחרי החיוב של ...").
  */
 export function clientCancelFrom(m: Membership, periods: Period[]): string | null {
-  const min = Number(m.plan.min_months) || 0;
+  const min = commitMonths(m.plan.min_months);
   if (min <= 0) return null;
   if (paidMonths(periods, m.id) >= min) return null;
   if (!m.started_on) return null; // no card saved yet: nothing binds her
