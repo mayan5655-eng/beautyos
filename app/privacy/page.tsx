@@ -9,6 +9,7 @@ import type { CSSProperties, ReactNode } from "react";
 import PublicFooterLinks from "../PublicFooterLinks";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
 import KalmeaLegalFooter from "../KalmeaLegalFooter";
+import AdConsentReset from "./AdConsentReset";
 
 // Legal pages are Kalmea documents, not a tenant's: brand tier, never --pc-*.
 import { ACCENT, DEEP, SURFACE, MUTED, ACCENT_LINE, DEEP_SHADOW, BRAND_WASH_SOFT } from '@/lib/brand';
@@ -129,12 +130,14 @@ export default function PrivacyPage() {
               אתר השיווק של קלמיה (עמוד הבית ועמוד ההרשמה בלבד, לא דפי ההזמנה של העסקים) משתמש ב-Meta Pixel
               כדי למדוד אילו מודעות מביאות הרשמות. לא נשלחים למטא שם, טלפון, אימייל או כל פרט אישי אחר,
               ודפי ההזמנה, התשלום והטפסים של העסקים ושל הלקוחות שלהם לא נמדדים בכלל.
+              הפיקסל נטען רק אחרי אישור בהודעה שבתחתית העמוד, ואפשר לחזור בך בכל רגע: <AdConsentReset />
             </He>
             <En>
               The Kalmea marketing site (the home page and the signup page only, not the businesses&apos; booking
               pages) uses Meta Pixel to measure which ads bring signups. No name, phone, email or other personal
               details are sent to Meta, and the businesses&apos; booking, payment and form pages, and their clients,
-              are never measured.
+              are never measured. The pixel loads only after you accept the notice at the bottom of the page, and you can
+              withdraw that at any time with the link above.
             </En>
           </Section>
         )}

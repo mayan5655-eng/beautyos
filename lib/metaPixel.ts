@@ -52,7 +52,27 @@ export function ensureFbq(id: string | null, w: PixelWindow | undefined = typeof
   return w.fbq;
 }
 
-/** PageView, for the landing and signup pages only (app/MetaPixel.tsx). */
+// Consent (2026-11-16): the pixel sets Meta's _fbp cookie, so nothing from Meta loads, and no event is queued, until the
+// visitor taps "אישור" on the bar app/MetaPixel.tsx shows. The choice lives in this browser only (localStorage); "no" is
+// remembered too, so the bar does not nag. /privacy has a button that clears it (app/privacy/AdConsentReset.tsx).
+export const AD_CONSENT_KEY = 'kl_ad_consent';
+export type AdConsent = 'yes' | 'no' | null;
+
+export function readAdConsent(): AdConsent {
+  try {
+    const v = localStorage.getItem(AD_CONSENT_KEY);
+    return v === 'yes' || v === 'no' ? v : null;
+  } catch { return null; }
+}
+
+export function saveAdConsent(v: AdConsent): void {
+  try {
+    if (v) localStorage.setItem(AD_CONSENT_KEY, v);
+    else localStorage.removeItem(AD_CONSENT_KEY);
+  } catch { /* blocked storage: the choice lasts for this page only */ }
+}
+
+/** PageView, for the landing and signup pages only (app/MetaPixel.tsx), and only after consent. */
 export function trackPageView(id: string | null = metaPixelId(), w?: PixelWindow): boolean {
   try {
     const fbq = ensureFbq(id, w);
@@ -66,6 +86,7 @@ export function trackPageView(id: string | null = metaPixelId(), w?: PixelWindow
 let registered = false;
 export function trackCompleteRegistration(id: string | null = metaPixelId(), w?: PixelWindow): boolean {
   if (registered) return false;
+  if (readAdConsent() !== 'yes') return false;
   try {
     const fbq = ensureFbq(id, w);
     if (!fbq) return false;
