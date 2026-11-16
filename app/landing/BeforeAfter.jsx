@@ -19,6 +19,7 @@ const PATHS = {
   card: "M3 6h18v12H3zM3 10h18M7 15h4",
   doc: "M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 16h5",
   move: "M4 6h12v13H4zM4 10h12M18 9l3 3-3 3M14 12h7",
+  gift: "M4 11h16v10H4zM3 7h18v4H3zM12 7v14M12 7c-1.5-3-5-3-5-1s3.5 1 5 1zM12 7c1.5-3 5-3 5-1s-3.5 1-5 1",
 };
 
 const Glyph = ({ name }) => (

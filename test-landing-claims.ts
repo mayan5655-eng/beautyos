@@ -10,15 +10,15 @@ const LIVE_CARD = { GROW_UI_ENABLED: 'true', GROW_MODE: 'live', GROW_ENV: 'produ
 const LIVE_WALLET = { GROW_UI_ENABLED: 'true', GROW_MODE: 'live', GROW_ENV: 'production', GROW_API_KEY: 'k', GROW_WALLET_PAGE_CODE: 'w' };
 
 ok('nothing set: no deposit claim', () => {
-  assert.deepEqual(landingClaims({}), { deposits: false, depositBit: false });
+  assert.deepEqual(landingClaims({}), { deposits: false, depositBit: false, receipts: false });
 });
 
 ok('Grow switched off: no deposit claim even with everything configured', () => {
-  assert.deepEqual(landingClaims({ ...LIVE_WALLET, GROW_UI_ENABLED: 'false' }), { deposits: false, depositBit: false });
+  assert.deepEqual(landingClaims({ ...LIVE_WALLET, GROW_UI_ENABLED: 'false' }), { deposits: false, depositBit: false, receipts: false });
 });
 
 ok('Grow on for a chosen few (allow-list): not a claim for every business', () => {
-  assert.deepEqual(landingClaims({ ...LIVE_WALLET, GROW_ALLOWED_TENANTS: 'a,b' }), { deposits: false, depositBit: false });
+  assert.deepEqual(landingClaims({ ...LIVE_WALLET, GROW_ALLOWED_TENANTS: 'a,b' }), { deposits: false, depositBit: false, receipts: false });
 });
 
 ok('Grow on in mock mode: no real deposit, no claim', () => {
@@ -28,9 +28,9 @@ ok('Grow on in mock mode: no real deposit, no claim', () => {
 ok('live mode against the Grow sandbox (GROW_ENV unset or sandbox): no real money, no claim', () => {
   const noEnv: Record<string, string | undefined> = { ...LIVE_WALLET };
   delete noEnv.GROW_ENV;
-  assert.deepEqual(landingClaims(noEnv), { deposits: false, depositBit: false });
-  assert.deepEqual(landingClaims({ ...LIVE_WALLET, GROW_ENV: 'sandbox' }), { deposits: false, depositBit: false });
-  assert.deepEqual(landingClaims({ ...LIVE_CARD, GROW_ENV: 'sandbox' }), { deposits: false, depositBit: false });
+  assert.deepEqual(landingClaims(noEnv), { deposits: false, depositBit: false, receipts: false });
+  assert.deepEqual(landingClaims({ ...LIVE_WALLET, GROW_ENV: 'sandbox' }), { deposits: false, depositBit: false, receipts: false });
+  assert.deepEqual(landingClaims({ ...LIVE_CARD, GROW_ENV: 'sandbox' }), { deposits: false, depositBit: false, receipts: false });
   assert.equal(landingClaims({ ...LIVE_CARD, GROW_ENV: ' Production ' }).deposits, true, 'read the same way as lib/grow/config.ts');
 });
 
@@ -39,11 +39,11 @@ ok('Grow on, live, but no payment page configured: no claim', () => {
 });
 
 ok('live with the card page: deposits, card only (no Bit)', () => {
-  assert.deepEqual(landingClaims(LIVE_CARD), { deposits: true, depositBit: false });
+  assert.deepEqual(landingClaims(LIVE_CARD), { deposits: true, depositBit: false, receipts: false });
 });
 
 ok('live with the wallet page only: deposits open on the wallet, so Bit is true', () => {
-  assert.deepEqual(landingClaims(LIVE_WALLET), { deposits: true, depositBit: true });
+  assert.deepEqual(landingClaims(LIVE_WALLET), { deposits: true, depositBit: true, receipts: false });
 });
 
 ok('testimonials: empty now, so the slot renders nothing', () => {
@@ -58,6 +58,12 @@ ok('testimonials: only complete entries are shown, trimmed', () => {
     { quote: 'בלי שם', name: '  ', role: '' },
   ]);
   assert.deepEqual(list, [{ quote: 'מילים שלה', name: 'רונית', role: 'קוסמטיקאית' }]);
+});
+
+ok('Morning receipts: a claim only once Morning runs against production (2026-11-16)', () => {
+  assert.equal(landingClaims({ MORNING_ENV: 'production' }).receipts, true);
+  assert.equal(landingClaims({ MORNING_ENV: 'sandbox' }).receipts, false);
+  assert.equal(landingClaims({}).receipts, false);
 });
 
 console.log(`${n} passed`);

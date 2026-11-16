@@ -17,15 +17,18 @@
 import { growUiEnabled, growMode } from './grow/adapter.ts';
 import { growPlatformStatus } from './grow/config.ts';
 import { depositsOnWallet } from './grow/wallet.ts';
+import { morningConfig } from './legalReceipts/morning.js';
 
 type Env = Record<string, string | undefined>;
 
-export type LandingClaims = { deposits: boolean; depositBit: boolean };
+//   receipts       legal receipts / tax documents through her own Morning account (lib/legalReceipts). Only once Morning runs
+//                  against production (MORNING_ENV=production); in the sandbox no real document is issued, so it is not a claim.
+export type LandingClaims = { deposits: boolean; depositBit: boolean; receipts: boolean };
 
 export function landingClaims(env: Env = process.env): LandingClaims {
   // tenantId null: true only when Grow is on with no allow-list, i.e. for every business, not a chosen few.
   // Production only: live mode against Grow's sandbox (GROW_ENV unset or 'sandbox') takes no real money, so it is not a claim.
   // Same reading as lib/grow/config.ts growPlatformStatus.
   const deposits = growUiEnabled(env, null) && growMode(env) === 'live' && growPlatformStatus(env).env === 'production' && growPlatformStatus(env).configured;
-  return { deposits, depositBit: deposits && depositsOnWallet(env) };
+  return { deposits, depositBit: deposits && depositsOnWallet(env), receipts: morningConfig(env).environment === 'production' };
 }

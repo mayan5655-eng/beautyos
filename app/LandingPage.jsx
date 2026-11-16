@@ -122,6 +122,26 @@ const FAQ = [
   },
 ];
 
+// The comparison list (section 5d): only what every business has today.
+const COMPARE_EXTRAS = [
+  "פוסטים ורילס בעזרת AI, בצבעים ובסגנון של העסק שלך",
+  "הודעת חזרה מוכנה ללקוחה שלא הגיעה מזמן",
+  "הצעה ללקוחות מתאימות כשמתפנה תור",
+  "הצהרת בריאות דיגיטלית ותזכורת לבדיקת רגישות",
+  "שוברי מתנה מעוצבים בצבעים שלך, עם קוד שנבדק בקופה",
+  // On by default for every cosmetics business (lib/featureFlags.ts skinScanVisible).
+  "סריקת עור עם דוח אישי ללקוחה, שמביאה אלייך פניות (לקוסמטיקאיות)",
+  "יועצת עסקית שמראה לך מה קורה בעסק",
+  "נבנתה על ידי קוסמטיקאית, רק לקוסמטיקאיות ולמניקוריסטיות",
+];
+// Behind a deployment switch (lib/landingClaims.ts): only while it is really on for every business.
+function compareExtras(claims) {
+  const out = [...COMPARE_EXTRAS];
+  if (claims.deposits) out.splice(3, 0, claims.depositBit ? "מקדמה בכרטיס או בביט כבר בקביעת התור" : "מקדמה בכרטיס כבר בקביעת התור");
+  if (claims.receipts) out.splice(4, 0, "מסמכי מס רשמיים מחשבון מורנינג שלך, ישר מהקופה");
+  return out;
+}
+
 const DEMOS = [
   { field: "cosmetics", title: "קוסמטיקה", href: "/demo/cosmetics" },
   { field: "nails", title: "ציפורניים", href: "/demo/nails" },
@@ -275,6 +295,8 @@ export default function LandingPage({ signedIn = false }) {
             </p>
             {/* Owner's decision 2026-11-16: the launch price only, no struck "regular" price beside it and no end date. */}
             <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר השקה</p>
+            {/* True in both of Kalmea's tax modes (lib/kalmeaBusiness.ts): exempt adds no VAT, licensed would include it in the price. */}
+            <p data-testid="price-final" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>זה המחיר הסופי. אין תוספת מע״מ ואין עלויות נסתרות.</p>
             {/* True: Kalmea charges only the subscription. Card clearing fees, once she connects Grow, go to Grow (lib/growPricing.ts). */}
             <p data-testid="price-no-cut" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Kalmea לא לוקחת אחוזים מהמכירות שלך</p>
             {/* The yearly plan, only with NEXT_PUBLIC_ANNUAL_PLAN=1 (its price is pending the owner's confirmation, lib/pricing.ts). */}
@@ -284,6 +306,25 @@ export default function LandingPage({ signedIn = false }) {
               שניים או שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, והמחיר כבר חוזר.
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ── 5d. HONEST COMPARISON (2026-11-16) ───────────────────────────────
+          No competitor is named. The range is what booking-only systems publish for their plans (checked 2026-11-16:
+          roughly 99-170 ILS a month before VAT); every item on the Kalmea side is live for every business. Nothing here
+          says the reminders send themselves: they are ready for her to send (the hero and "a real day" say so). */}
+      <section className="lp-sec" data-testid="landing-compare">
+        <div className="lp-wrap is-narrow">
+          <Reveal as="h2" className="serif lp-h2">למה לא סתם מערכת תורים?</Reveal>
+          <Reveal delay={60} className="lp-lead"><p>מערכת תורים רגילה עולה בדרך כלל 100 עד 170 ₪ לחודש, לפני מע״מ, ונותנת יומן ותזכורות. Kalmea נותנת גם את זה, ועוד:</p></Reveal>
+          <ul className="lp-compare" style={{ listStyle: "none", padding: 0, margin: "18px auto 0", maxWidth: 460, display: "grid", gap: 10 }}>
+            {compareExtras(claims).map((t) => (
+              <li key={t} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6 }}>
+                <span aria-hidden="true" style={{ color: "var(--brand-accent)", fontWeight: 700 }}>✓</span><span>{t}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="lp-fine" style={{ marginTop: 14 }}>בלי אחוזים מהמכירות שלך, והמחיר סופי. הטווח לפי מחירונים פומביים של מערכות תורים בישראל, נובמבר 2026.</p>
         </div>
       </section>
 
