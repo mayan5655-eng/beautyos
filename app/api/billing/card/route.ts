@@ -11,7 +11,7 @@ import { isDemoTenantId } from '@/lib/demoTenants';
 import { APP_URL } from '@/lib/appUrl';
 import { signCardSession } from '@/lib/billing/session';
 import { priceOf } from '@/lib/billing/service';
-import { isFounder, FOUNDER_BILLING_HE } from '@/lib/founder';
+import { isFounder, founderConsentTextHe, FOUNDER_CONSENT_VERSION } from '@/lib/founder';
 import { billingConsentTextHe, billingAnnualConsentTextHe, BILLING_CONSENT_VERSION } from '@/lib/billing/consent';
 import { annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { admin, billing, caller, callerIsOwner, NOT_OWNER_HE, tableMissing } from '../_shared';
@@ -40,13 +40,13 @@ export async function POST(request: Request) {
     db.from('settings').select('business_name, therapist_name, business_phone, automations').eq('tenant_id', c.tenantId).maybeSingle(),
     db.from('billing_subscriptions').select('price').eq('tenant_id', c.tenantId).maybeSingle(),
   ]);
-  // A founder is never charged: priceOf would read her 0 as "no price" and charge the launch price (lib/founder.ts).
-  if (isFounder(tenant)) return NextResponse.json({ success: false, code: 'founder', error: FOUNDER_BILLING_HE }, { status: 409 });
-  const price = sub?.price ? Number(sub.price) : priceOf(tenant || null);
+  // A founder (lib/founder.ts) saves a card for add-ons only: her consent says so, and the plan is never charged (lib/billing/service).
+  const founder = isFounder(tenant);
+  const price = founder ? 0 : sub?.price ? Number(sub.price) : priceOf(tenant || null);
   // A yearly subscriber (NEXT_PUBLIC_ANNUAL_PLAN) agrees to the yearly words with her card; read on its own so a missing column
   // (migration not run) leaves the monthly words, as before.
   let yearly = false;
-  if (annualPlanEnabled() && sub) {
+  if (annualPlanEnabled() && sub && !founder) {
     const ap = await db.from('billing_subscriptions').select('billing_period, pending_period').eq('tenant_id', c.tenantId).maybeSingle();
     yearly = !ap.error && (ap.data?.pending_period ? ap.data.pending_period === 'annual' : ap.data?.billing_period === 'annual');
   }
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   // What she agreed to, stored before the card page opens.
   const { data: { user } } = await c.session.auth.getUser();
   const consent = await db.from('billing_card_consents').insert({
-    tenant_id: c.tenantId, user_id: user?.id || null, consent_text: yearly ? billingAnnualConsentTextHe(annualPriceOf(price), '') : billingConsentTextHe(price), consent_version: BILLING_CONSENT_VERSION, price: yearly ? annualPriceOf(price) : price,
+    tenant_id: c.tenantId, user_id: user?.id || null, consent_text: founder ? founderConsentTextHe() : yearly ? billingAnnualConsentTextHe(annualPriceOf(price), '') : billingConsentTextHe(price), consent_version: founder ? FOUNDER_CONSENT_VERSION : BILLING_CONSENT_VERSION, price: yearly ? annualPriceOf(price) : price,
   });
   if (consent.error && !tableMissing(consent.error)) {
     console.error('[billing] consent not stored:', consent.error.message);

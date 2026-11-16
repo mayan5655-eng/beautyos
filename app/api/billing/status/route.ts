@@ -40,8 +40,9 @@ export async function GET() {
   // for her own tenant only (c.tenantId comes from her session).
   const t = await admin().from('tenants').select('plan_status, trial_ends_at, plan_price, created_at').eq('id', c.tenantId).maybeSingle();
   if (t.data) out.plan = { status: String(t.data.plan_status || 'active'), trialEndsAt: (t.data.trial_ends_at as string | null) ?? null, price: priceOf(t.data) };
-  // A founder (lib/founder.ts) is free for life: no price, no card, no packs. The card shows one line and nothing to buy.
-  if (isFounder(t.data)) return NextResponse.json({ ...out, founder: true, plan: { ...out.plan, price: 0 } });
+  // A founder (lib/founder.ts): free plan for life, but she may save a card and buy add-ons. No price, no yearly switch.
+  const founder = isFounder(t.data);
+  if (founder) out.plan.price = 0;
 
   // Read with the service role for her own tenant, like the writes: under the session the select policy can hide her row (the same mismatch
   // made the Grow card show a connected business as "not connected", fixed in b7b3e81). SUB_COLS never includes the token reference.
@@ -62,7 +63,7 @@ export async function GET() {
 
   // The yearly plan, read on its own so a missing column (migration not run) never hides the rest of the billing card.
   let annual: Record<string, unknown> | null = null;
-  if (annualPlanEnabled()) {
+  if (annualPlanEnabled() && !founder) {
     const monthly = Number(out.plan.price);
     annual = { ready: false, monthly, yearly: annualPriceOf(monthly), billingPeriod: 'monthly', pendingPeriod: null };
     if (s.data) {
@@ -86,7 +87,7 @@ export async function GET() {
   // Packs are purchasable only once billing_payments.request_id exists (fail closed): before that, no add-ons list at all.
   if (addonPacksEnabled() && await addonRequestIdReady(admin())) {
     const addons = await addonUsageFor(c.tenantId);
-    return NextResponse.json(forMember({ ...out, addons, ...(annual ? { annual } : {}) }, owner));
+    return NextResponse.json(forMember({ ...out, founder, addons, ...(annual ? { annual } : {}) }, owner));
   }
-  return NextResponse.json(forMember(annual ? { ...out, annual } : out, owner));
+  return NextResponse.json(forMember(annual ? { ...out, founder, annual } : { ...out, founder }, owner));
 }

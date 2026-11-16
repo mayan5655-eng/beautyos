@@ -142,6 +142,17 @@ await ok('a confirmed charge credits the pack for this month, at the configured 
   assert.deepEqual(s.addons, [{ tenant_id: T, pack: 'reels', units: 10, usd_allowance: 1.5, price: 29, period_month: '2026-10-01', payment_id: 'p1' }]);
 });
 
+await ok('a founder (free plan, lib/founder.ts) buys a pack like anyone else: one charge, at the pack price', async () => {
+  const s = shop();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const founderRepo: any = { ...s.d.repo, getTenant: async () => ({ id: T, name: 'מייסדת', plan_status: 'active', plan_price: 0 }), getSub: async () => ({ id: 'sub1', tenant_id: T, price: 0, status: 'active', token_ref: 'tok_1', card_last4: '4242' }) };
+  const r = await buyAddon({ ...s.d, repo: founderRepo }, T, ADDON_PACKS.reels, { requestId: 'req-founder-01' });
+  assert.equal(r.ok, true);
+  assert.equal(s.charges.length, 1);
+  assert.equal(s.charges[0].amount, 29, 'the pack price, never the plan');
+  assert.equal(s.payments[0].kind, 'addon');
+});
+
 await ok('no saved card: nothing is charged and nothing is credited', async () => {
   const s = shop({ card: false });
   const r = await buyAddon(s.d, T, ADDON_PACKS.posts, { requestId: 'req-test-0001' });

@@ -4,7 +4,7 @@
 // can charge it.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { isFounder, FOUNDER_PRICE, FOUNDER_LABEL_HE } from './lib/founder.ts';
+import { isFounder, FOUNDER_PRICE, FOUNDER_LABEL_HE, founderConsentTextHe, FOUNDER_CONSENT_VERSION } from './lib/founder.ts';
 import { planState } from './lib/planState.ts';
 import { priceOf } from './lib/billing/service.ts';
 
@@ -50,12 +50,35 @@ ok('admin panel: the button, the confirm question, and the price column says מ�
   assert.match(read('app/dashboard/admin/subscribers/SubscribersClient.tsx'), /r\.planPrice === 0 \? ` · \$\{FOUNDER_LABEL_HE\}`/);
 });
 
-ok('billing: no card for a founder, and the status route says founder before anything else', () => {
+ok('founder consent: add-ons only, no monthly charge, its own version', () => {
+  const t = founderConsentTextHe();
+  assert.match(t, /תוספות שאבחר בעצמי/);
+  assert.match(t, /על המנוי עצמו אין חיוב/);
+  assert.ok(!/בכל חודש/.test(t), 'never promises a monthly charge');
+  assert.notEqual(FOUNDER_CONSENT_VERSION, 'billing-card-v3');
+});
+
+ok('billing routes: a founder may save a card (for add-ons), with her own consent; no plan price and no yearly switch', () => {
   const card = read('app/api/billing/card/route.ts');
-  assert.ok(card.indexOf('if (isFounder(tenant))') > 0 && card.indexOf('if (isFounder(tenant))') < card.indexOf("from('billing_card_consents').insert"), 'refused before any consent or card page');
+  assert.match(card, /const price = founder \? 0 :/);
+  assert.match(card, /consent_text: founder \? founderConsentTextHe\(\)/);
+  assert.match(card, /consent_version: founder \? FOUNDER_CONSENT_VERSION/);
   const st = read('app/api/billing/status/route.ts');
-  assert.ok(st.indexOf('if (isFounder(t.data))') > 0 && st.indexOf('if (isFounder(t.data))') < st.indexOf("from('billing_subscriptions')"));
-  assert.match(read('app/BillingCard.jsx'), /if \(s\.founder\) \{/);
+  assert.match(st, /if \(founder\) out\.plan\.price = 0;/);
+  assert.match(st, /if \(annualPlanEnabled\(\) && !founder\) \{/);
+  assert.match(read('app/api/billing/upgrades/route.ts'), /if \(annualOn && !isFounder\(t\?\.data\)\) \{/);
+  const svc = read('lib/billing/service.ts');
+  assert.match(svc, /if \(isFounder\(tenant\)\) return 'skipped';/, 'attempt() refuses a plan charge');
+  assert.match(svc, /if \(isFounder\(tenant\)\) \{ sum\.skipped\+\+; continue; \}/, 'the daily run skips her');
+});
+
+ok('billing card: the founder line, her consent, no price line, no cancel', () => {
+  const b = read('app/BillingCard.jsx');
+  assert.match(b, /if \(founder\) line = FOUNDER_BILLING_HE;/);
+  assert.match(b, /\{!founder && <p/);
+  assert.match(b, /founder \? founderConsentTextHe\(\) :/);
+  assert.match(b, /\{!isDemo && !founder && s\.owner !== false && sub/);
+  assert.ok(!/if \(s\.founder\) \{/.test(b), 'no longer a dead end: the add-on packs below stay');
 });
 
 console.log(`\n${n} checks passed`);

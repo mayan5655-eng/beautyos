@@ -25,6 +25,7 @@ import { checkIpLimit, checkTenantLimit } from '@/lib/rateLimit';
 import { addonPacksEnabled, annualPlanEnabled, annualPriceOf } from '@/lib/pricing';
 import { referralsEnabled } from '@/lib/referral';
 import { priceOf } from '@/lib/billing/service';
+import { isFounder } from '@/lib/founder';
 import { addonRequestIdReady } from '@/lib/billing/requestIdReady';
 import { supabaseBillingRepo } from '@/lib/billing/repo';
 
@@ -101,12 +102,11 @@ export async function GET(request: Request) {
     out.packs = await addonUsageFor(tenantId);
   }
 
-  if (annualOn) {
+  // A founder (lib/founder.ts) has no plan price, so no yearly switch: add-on packs only.
+  const t = annualOn ? await db.from('tenants').select('plan_status, plan_price, created_at').eq('id', tenantId).maybeSingle() : null;
+  if (annualOn && !isFounder(t?.data)) {
     let monthly = Number(sub?.price);
-    if (!sub) {
-      const t = await db.from('tenants').select('plan_price, created_at').eq('id', tenantId).maybeSingle();
-      monthly = priceOf(t.data || null);
-    }
+    if (!sub) monthly = priceOf(t?.data || null);
     let annual: Record<string, unknown> = { ready: false, monthly, yearly: annualPriceOf(monthly), billingPeriod: 'monthly', pendingPeriod: null };
     const ap = await db.from('billing_subscriptions').select('billing_period, pending_period').eq('tenant_id', tenantId).maybeSingle();
     if (!ap.error) annual = { ...annual, ready: true, billingPeriod: ap.data?.billing_period === 'annual' ? 'annual' : 'monthly', pendingPeriod: ap.data?.pending_period ?? null };
