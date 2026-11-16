@@ -31,7 +31,7 @@ type TenantRow = {
   trial_ends_at: string | null; plan_price: number | string | null; signup_source: string | null; owner_id: string | null; slug: string | null
 }
 type SettingsRow = { tenant_id: string; business_name: string | null; therapist_name: string | null; business_phone: string | null; wa: string | null }
-type AccountRow = { email: string | null; lastSignInAt: string | null; fullName: string | null }
+type AccountRow = { email: string | null; lastSignInAt: string | null; fullName: string | null; signupPhone: string | null }
 type MetricsRow = { id: string; last_activity_at: string | null; setup_score: number | null; setup_total: number | null; appointment_count: number | null; whatsapp_sent_30d?: number | null }
 type ContactRow = { tenant_id: string; status: string; note: string | null; follow_up_on: string | null; contacted_at: string | null; updated_at: string | null }
 
@@ -60,7 +60,7 @@ async function readAccounts(db: Db): Promise<Map<string, AccountRow>> {
     const users = data?.users || []
     for (const u of users) {
       const meta = (u.user_metadata || {}) as Record<string, unknown>
-      out.set(u.id, { email: u.email ?? null, lastSignInAt: u.last_sign_in_at ?? null, fullName: text(meta.full_name) })
+      out.set(u.id, { email: u.email ?? null, lastSignInAt: u.last_sign_in_at ?? null, fullName: text(meta.full_name), signupPhone: text(meta.phone_e164) })
     }
     if (users.length < 1000) break
   }
@@ -127,7 +127,8 @@ export async function readSubscriberRows(db: Db, excludeTenantIds: string[], now
     const businessName = text(s?.business_name) || text(t.name) || 'ללא שם'
     const segment = segmentOf({ ...t, billing_status: billing }, now)
     const plan = planState(t, now)
-    const phone = s?.business_phone ?? null
+    // Her business phone; else the WhatsApp number on her page; else the mobile she verified at signup. One of them is usually set.
+    const phone = text(s?.business_phone) || text(s?.wa) || acc?.signupPhone || null
     const email = cleanEmail(acc?.email)
     const eligible = contactEligible({ id: t.id, name: businessName }, null)
     const slug = (t.slug || '').trim()
