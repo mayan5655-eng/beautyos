@@ -133,3 +133,39 @@ export function planState(
     tone,
   }
 }
+
+// ── Her clients' grace period after the trial ends (2026-11-12) ─────────────
+// When the trial ends without payment her dashboard closes, but her PUBLIC booking page keeps taking bookings for a few
+// more days, so a client who found her today is not turned away and a campaign wave does not lock her out of her own
+// clients on the same morning. Only a trial that ran out gets it: a paused account, or one stopped by hand long after its
+// trial, gets none. The appointments booked in that time wait in her calendar for when she renews.
+// NEXT_PUBLIC_BOOKING_GRACE_DAYS: 0 turns it off; missing or malformed = 7; capped at 14. Read on the server (the booking
+// routes) and in the browser (her closed screen says until when), so it is a NEXT_PUBLIC_ variable.
+
+export const PUBLIC_GRACE_DAYS_DEFAULT = 7
+export const PUBLIC_GRACE_DAYS_MAX = 14
+
+export function publicGraceDays(raw: string | undefined | null = process.env.NEXT_PUBLIC_BOOKING_GRACE_DAYS): number {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return PUBLIC_GRACE_DAYS_DEFAULT
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return PUBLIC_GRACE_DAYS_DEFAULT
+  return Math.min(PUBLIC_GRACE_DAYS_MAX, Math.max(0, Math.round(n)))
+}
+
+/** When her public page stops taking new bookings, or null when there is no grace for her (not expired, paused, no end date, grace off). */
+export function publicGraceEndsAt(state: Pick<PlanState, 'status' | 'trialEndsAt'>, graceDays: number = publicGraceDays()): Date | null {
+  if (state.status !== 'expired' || !state.trialEndsAt || !(graceDays > 0)) return null
+  return new Date(state.trialEndsAt.getTime() + graceDays * MS_PER_DAY)
+}
+
+/** Is her plan closed but her public booking page still open (inside the grace period)? */
+export function inPublicGrace(state: Pick<PlanState, 'status' | 'trialEndsAt'>, now: Date = new Date(), graceDays: number = publicGraceDays()): boolean {
+  const end = publicGraceEndsAt(state, graceDays)
+  return end !== null && now.getTime() < end.getTime()
+}
+
+/** Is her PUBLIC page closed to new bookings? Blocked and past any grace. Fails open like planState itself. */
+export function publicBookingClosedFor(row: TenantPlanRow | null | undefined, now: Date = new Date(), graceDays: number = publicGraceDays()): boolean {
+  const s = planState(row, now)
+  return s.isBlocked && !inPublicGrace(s, now, graceDays)
+}

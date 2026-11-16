@@ -4,7 +4,7 @@
 // plan status, dates and the signup source label. Nothing here knows about a client, an appointment, a receipt, a lead or
 // a message, and the rows it accepts have no such field (test-owner-control.ts pins that).
 
-import { planState } from './planState.ts'
+import { planState, publicGraceEndsAt, publicGraceDays } from './planState.ts'
 import type { PlanStatus } from './planState.ts'
 import { isDemoTenantId } from './demoTenants.ts'
 
@@ -111,6 +111,23 @@ export function trialsEndingSoon(rows: OwnerTenant[], now: Date, days = 7): Endi
     out.push({ id: r.id, name: (r.name || '').trim() || 'ללא שם', trial_ends_at: p.trialEndsAt.toISOString(), daysLeft: Math.max(0, Math.ceil((end - n) / MS_DAY)) })
   }
   return out.sort((a, b) => Date.parse(a.trial_ends_at) - Date.parse(b.trial_ends_at))
+}
+
+/**
+ * Trials that already ended, whose public booking page is still open in its grace period (lib/planState publicGraceDays):
+ * the businesses to call first, since their dashboard is closed but clients are still booking. Soonest to close first.
+ */
+export type GraceTrial = { id: string; name: string; grace_ends_at: string; daysLeft: number }
+export function trialsInGrace(rows: OwnerTenant[], now: Date, graceDays: number = publicGraceDays()): GraceTrial[] {
+  const n = now.getTime()
+  const out: GraceTrial[] = []
+  for (const r of rows) {
+    const p = planState(r, now)
+    const end = publicGraceEndsAt(p, graceDays)
+    if (!end || end.getTime() <= n) continue
+    out.push({ id: r.id, name: (r.name || '').trim() || 'ללא שם', grace_ends_at: end.toISOString(), daysLeft: Math.max(1, Math.ceil((end.getTime() - n) / MS_DAY)) })
+  }
+  return out.sort((a, b) => Date.parse(a.grace_ends_at) - Date.parse(b.grace_ends_at))
 }
 
 export function planStatusCounts(rows: OwnerTenant[], now: Date): Record<PlanStatus, number> {

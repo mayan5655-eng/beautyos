@@ -41,6 +41,7 @@ import { isDemoTenantId } from '../demoTenants.ts';
 import { LAUNCH_PRICE_CUTOFF_ISO } from '../ownerControl.ts';
 import { periodMonth } from '../addonQuota.ts';
 import { moneyAlert } from '../moneyAlert.js';
+import { isFounder, FOUNDER_PRICE } from '../founder.ts';
 
 /** From lib/pricing.ts, the one place prices live. */
 export const REGULAR_PRICE: number = PLAN_PRICES.regular;
@@ -245,6 +246,8 @@ export class OpenAttemptLookupError extends Error {
 }
 
 async function attempt(d: Deps, sub: Subscription, tenant: TenantRow | null, periodStart: Date, now: Date): Promise<Outcome> {
+  // A founder's plan is free for life (lib/founder.ts): never a plan charge, whoever calls.
+  if (isFounder(tenant)) return 'skipped';
   const flags = billingFlags(d);
   const periodKey = iso(periodStart).slice(0, 10);
   if (await d.repo.hasSucceeded(sub.id, periodKey)) return 'skipped';
@@ -581,6 +584,19 @@ export async function saveCard(d: Deps, tenantId: string, card: { tokenRef: stri
   let sub = await d.repo.getSub(tenantId);
   const cardFields = { token_ref: card.tokenRef, card_last4: card.last4 || null, card_brand: card.brand || null };
 
+  // A founder (lib/founder.ts) saves a card for add-ons only: price 0, active, and nothing charged now or later for the plan.
+  if (isFounder(tenant)) {
+    if (!sub) {
+      sub = await d.repo.insertSub({
+        tenant_id: tenantId, price: FOUNDER_PRICE, status: 'active', next_charge_at: iso(addMonths(now, 1)),
+        ...cardFields, failed_attempts: 0, past_due_since: null, last_attempt_at: null, canceled_at: null, ends_at: null,
+      });
+      return { subscription: (await d.repo.getSub(tenantId)) as Subscription || sub, charged: null };
+    }
+    await d.repo.updateSub(sub.id, { ...cardFields, status: 'active', failed_attempts: 0, past_due_since: null, canceled_at: null, ends_at: null });
+    return { subscription: { ...sub, ...cardFields, status: 'active', failed_attempts: 0, past_due_since: null, canceled_at: null, ends_at: null }, charged: null };
+  }
+
   if (!sub) {
     const trialEnd = tenant?.plan_status === 'trial' && tenant.trial_ends_at && ms(tenant.trial_ends_at) > now.getTime() ? iso(new Date(tenant.trial_ends_at)) : null;
     const blocked = tenant?.plan_status === 'expired';
@@ -656,6 +672,8 @@ export async function runDue(d: Deps, opts: { budgetMs?: number } = {}): Promise
     try {
       const tenant = await d.repo.getTenant(sub.tenant_id);
       if (!tenant) { sum.skipped++; continue; }
+      // A founder (lib/founder.ts): her card is for add-ons only. No renewal, no retry, no block, whatever the subscription row says.
+      if (isFounder(tenant)) { sum.skipped++; continue; }
 
       if (sub.status === 'canceled') {
         if (sub.ends_at && ms(sub.ends_at) <= now.getTime() && (tenant.plan_status === 'active' || tenant.plan_status === 'trial')) { await blockTenant(d, sub.tenant_id); sum.blocked++; }

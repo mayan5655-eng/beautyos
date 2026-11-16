@@ -11,6 +11,7 @@
 import { useMemo, useState } from 'react'
 import { planState, type PlanStatus } from '@/lib/planState'
 import { daysHe } from '@/lib/planCopy'
+import { isFounder, FOUNDER_PRICE, FOUNDER_LABEL_HE } from '@/lib/founder'
 import { ConfirmDialog } from '../../MiniToast'
 import type { InstanceState } from '@/lib/greenApi/health'
 import ChromeFlowerBg from '../../ChromeFlowerBg'
@@ -43,7 +44,7 @@ export interface AdminTenantRow {
   first_steps?: number | null
 }
 
-type Action = 'extend' | 'activate' | 'pause'
+type Action = 'extend' | 'activate' | 'pause' | 'founder'
 
 const STATUS_HE: Record<PlanStatus, string> = {
   trial: 'בהתנסות',
@@ -77,6 +78,7 @@ function fmtDate(value: string | null): string {
 
 function fmtPrice(value: number | string | null): string {
   if (value === null || value === undefined || value === '') return '—'
+  if (Number(value) === FOUNDER_PRICE) return FOUNDER_LABEL_HE
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) ? `₪${n.toLocaleString('he-IL')}` : '—'
 }
@@ -169,11 +171,13 @@ export default function AdminClient({
         ? `להאריך את ההתנסות של ${label} ב-${daysHe(days || 0)}?`
         : action === 'activate'
           ? `להעביר את ${label} למצב פעיל?`
+          : action === 'founder'
+          ? `לסמן את ${label} כמייסדת? המנוי יהיה פעיל וחינם לכל החיים, בלי חיוב.`
           : `להעביר את ${label} להשהיה? המערכת שלו תיסגר עד להפעלה מחדש.`
 
     // Pausing her own business would close her own dashboard.
     // Worth one extra beat, but not worth forbidding: she may want to test it.
-    const own = tenantId === ownTenantId && action !== 'activate'
+    const own = tenantId === ownTenantId && action !== 'activate' && action !== 'founder'
 
     setPending({ tenantId, action, days, question, own })
   }
@@ -490,6 +494,18 @@ export default function AdminClient({
                             cursor: busy || plan.rawStatus === 'paused' ? 'not-allowed' : 'pointer',
                           }}
                         >השהיה</button>
+                        <button
+                          disabled={busy || isFounder(tenant)}
+                          onClick={() => run(tenant.id, 'founder')}
+                          data-testid="admin-founder"
+                          title="מנוי פעיל וחינם לכל החיים"
+                          style={{
+                            ...btn,
+                            color: '#8A4B45', borderColor: '#F1D3CE', background: '#FBEDE9',
+                            opacity: isFounder(tenant) ? 0.45 : 1,
+                            cursor: busy || isFounder(tenant) ? 'not-allowed' : 'pointer',
+                          }}
+                        >{isFounder(tenant) ? FOUNDER_LABEL_HE : 'מייסדת'}</button>
                       </div>
                     </td>
                   </tr>
@@ -505,6 +521,7 @@ export default function AdminClient({
         את העסק למצב התנסות. הפעלה משאירה את תאריכי ההתנסות כפי שהם, כתיעוד.
         השהיה סוגרת את המערכת לעסק עד להפעלה מחדש. שום נתון לא נפגע, תזכורות לתורים
         שכבר נקבעו ממשיכות לצאת, ודף ההזמנות הציבורי לא מקבל תורים חדשים בינתיים.
+        מייסדת מקבלת מנוי פעיל וחינם לכל החיים: היא לא נסגרת אף פעם ולא מחויבת. השהיה או הארכה מבטלות את זה.
       </p>
 
       <ConfirmDialog
@@ -512,7 +529,7 @@ export default function AdminClient({
         title={pending?.question || ''}
         message={pending?.own ? 'שימי לב: זה העסק שלך. הפעולה תשפיע על החשבון שאת עובדת בו עכשיו.' : undefined}
         confirmText="אישור"
-        danger={pending?.action !== 'activate'}
+        danger={pending?.action !== 'activate' && pending?.action !== 'founder'}
         busy={!!busyId}
         onConfirm={doRun}
         onCancel={() => setPending(null)}

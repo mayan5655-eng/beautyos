@@ -31,6 +31,7 @@ import { reminderCronSlot, slotMessageHe } from "../../../lib/shabbat.js";
 import { isYomTov } from "../../../lib/greetings/calendar.ts";
 import { autoConfig, tenantOptedIn } from "../../../lib/waCloud/autoConfig.ts";
 import { autoMigrationReady } from "../../../lib/waCloud/auto.ts";
+import { APP_URL } from "../../../lib/appUrl";
 
 // 300 s is the platform ceiling. The run stops STARTING tenants at 200 s and no
 // tenant may take longer than 60 s, so it always ends by 260 s on its own terms
@@ -96,7 +97,8 @@ export async function POST(request) {
       db: supabase,
       send,
       tomorrow,
-      baseUrl: process.env.NEXT_PUBLIC_APP_URL || "https://beautyos-theta.vercel.app",
+      // One resolver (lib/appUrl.ts) for every link a client is sent; set NEXT_PUBLIC_APP_URL=https://kalmea.app in production.
+      baseUrl: APP_URL,
       deps: { startMinute, isPersonal, confirmLinks, isDemoTenantId, isMissingColumnError, autoHandles: autoReady ? (_t, s) => tenantOptedIn(s) : null },
       only,
     });

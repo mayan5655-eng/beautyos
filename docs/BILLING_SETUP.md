@@ -10,6 +10,8 @@ Status: **built in mock mode, no real provider.** Nothing can charge a real card
 | `BILLING_UI_ENABLED` | `true` shows the billing screen and enables the signed-in billing routes and the cron. **Default off**: everything answers {success:false, hidden:true} or does nothing. |
 | `BILLING_MODE` | `mock` (default): no network; a test card page on our own origin (`/api/billing/mock-card`) with "valid card", "card refused when charged" and "card page failed" buttons, and sample invoices. `live`: placeholder, "not configured" until a provider is wired. Mock is **refused on the Vercel production deployment**. |
 | `CRON_SECRET` | Already used by the other crons. The daily run `/api/billing/charge-due` (05:00 UTC) needs it. |
+| `NEXT_PUBLIC_PLAN_PAY_URL` | (2026-11-12) A payment page for the plan that does not need Grow billing: an https link she creates herself (Bit / PayBox / Morning / Meshulam payment page). Set = a "לתשלום המנוי" button on the closed screen and in the last-week banner; she then marks the business paid by hand in /dashboard/admin, and the closed screen reopens by itself. Unset = no button. Needs a redeploy (NEXT_PUBLIC_). |
+| `NEXT_PUBLIC_BOOKING_GRACE_DAYS` | (2026-11-12) Days her PUBLIC booking page keeps taking bookings after the trial ends (her dashboard closes on the day). Default 7, 0 = off, max 14. A paused account gets none. The owner trials screen lists who is inside it. |
 
 ## How it builds on the trial (nothing replaced)
 

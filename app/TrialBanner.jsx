@@ -30,8 +30,12 @@ import {
   trialUrgentTitleHe,
   trialUrgentBodyHe,
   blockedNoticeHe,
+  planPayCtaHe,
   CTA_WHATSAPP_HE,
 } from "@/lib/planCopy";
+import { publicGraceDays } from "@/lib/planState";
+import { planPayUrl } from "@/lib/planPay";
+import { PLAN_PRICES } from "@/lib/pricing";
 
 // `cta` (optional) is a button node from BillingNotices: "add a card" or "pay and continue". The WhatsApp button below stays as the fallback.
 export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow, cta = null }) {
@@ -86,7 +90,7 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
     body = notice.body;
   } else {
     title = trialUrgentTitleHe(days);
-    body = trialUrgentBodyHe(plan.trialEndsAt);
+    body = trialUrgentBodyHe(plan.trialEndsAt, publicGraceDays());
   }
 
   return (
@@ -133,6 +137,19 @@ export default function TrialBanner({ plan, pc, pcDeep, pcTint, pcGrad, pcShadow
       </div>
 
       {trv(cta)}
+
+      {/* Her own payment page for the plan (NEXT_PUBLIC_PLAN_PAY_URL, lib/planPay.ts), last week of the trial only, only when set. */}
+      {!blocked && planPayUrl() && (
+        <a
+          href={planPayUrl()}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="trial-banner-pay"
+          style={{ background: "transparent", border: `1px solid ${pc}`, color: pcDeep, fontSize: "var(--t-sm)", fontWeight: 600, padding: "10px 18px", minHeight: 44, display: "inline-flex", alignItems: "center", borderRadius: "var(--r-sm)", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}
+        >
+          {planPayCtaHe(Number(plan.planPrice) > 0 ? Number(plan.planPrice) : PLAN_PRICES.launch)}
+        </a>
+      )}
 
       {/* No number configured means no WhatsApp route. The banner still says
           what is wrong; it just stops offering a link that goes nowhere. */}

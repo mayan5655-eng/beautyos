@@ -378,4 +378,22 @@ await ok('the daily run has a time budget: past it no new business is started, t
   assert.equal(w.payments.filter((p) => p.status === 'succeeded' && p.kind === 'subscription').length, 2, 'each business charged exactly once');
 });
 
+// ── a founder (lib/founder.ts): free plan for life, card for add-ons only ────
+await ok('founder: saving a card charges nothing, the subscription is price 0, and a year of daily runs never charges or blocks her', async () => {
+  const w = world('2026-11-16T08:00:00Z');
+  w.addTenant(T, { plan_status: 'active', plan_price: 0 });
+  const r = await saveCard(w.deps(), T, OK());
+  assert.equal(r.charged, null); assert.equal(r.subscription.price, 0); assert.equal(r.subscription.status, 'active'); assert.equal(r.subscription.card_last4, '4242');
+  for (let i = 0; i < 400; i++) { w.plus(1); await runDue(w.deps()); }
+  assert.equal(w.payments.length, 0, 'not one plan charge');
+  assert.equal(w.tenants.get(T)!.plan_status, 'active');
+  // Even a subscription row left in a past_due or cancelled state from before she became a founder never blocks or charges her.
+  w.subs.get(r.subscription.id)!.status = 'past_due'; (w.subs.get(r.subscription.id) as Record<string, unknown>).past_due_since = '2026-01-01T00:00:00Z';
+  w.plus(30); await runDue(w.deps());
+  assert.equal(w.payments.length, 0); assert.equal(w.tenants.get(T)!.plan_status, 'active');
+  // Updating the card later: still nothing charged, and the row is clean and active again.
+  const again = await saveCard(w.deps(), T, OK());
+  assert.equal(again.charged, null); assert.equal(again.subscription.status, 'active'); assert.equal(w.payments.length, 0);
+});
+
 console.log(`billing: ${n} ok`);

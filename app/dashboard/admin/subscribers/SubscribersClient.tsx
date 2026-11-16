@@ -21,6 +21,7 @@ import type { SubscriberRow, Filter, Segment, ContactStatus } from '@/lib/subscr
 import { dateHe } from '@/lib/ownerControl'
 import { buildDigest } from '@/lib/subscriberDigest'
 import { daysHe } from '@/lib/planCopy'
+import { FOUNDER_LABEL_HE } from '@/lib/founder'
 import { FEEDBACK_QUESTIONS, NOT_YET, faceFor } from '@/lib/feedbackBanner'
 import type { FeedbackRow } from '@/lib/feedbackBanner'
 
@@ -330,7 +331,8 @@ function SubscriberCard({ row: r, now, notesAvailable, answer, onSaved }: {
             {' · '}{r.trialDaysLeft === 0 ? 'הניסיון נגמר היום' : `נותרו ${daysHe(r.trialDaysLeft)} לניסיון`}
           </span>
         )}
-        {r.segment === 'paying' && r.planPrice !== null && ` · ₪${r.planPrice.toLocaleString('he-IL')} לחודש`}
+        {/* A paying business at price 0 is a founder (lib/founder.ts), free for life. */}
+        {r.segment === 'paying' && r.planPrice !== null && (r.planPrice === 0 ? ` · ${FOUNDER_LABEL_HE}` : ` · ₪${r.planPrice.toLocaleString('he-IL')} לחודש`)}
         <span style={{ color: quiet ? rose : ink2 }}>{' · '}{activity ? `פעילה ${activity}` : 'פעילות לא ידועה'}</span>
       </p>
 

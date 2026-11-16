@@ -184,7 +184,7 @@ for (const file of [...walk('app'), ...walk('lib')]) {
   const lines = read(file).split('\n');
   lines.forEach((line, i) => {
     if (!/from\(\s*["']appointments["']\s*\)\s*\.insert\(/.test(line)) return;
-    const tag = `${file}:${i + 1}: ${line.trim()}`;
+    const tag = `${file.split("\\").join("/")}:${i + 1}: ${line.trim()}`;
     if (EXEMPT.some((re) => re.test(tag))) return;
     const ctx = lines.slice(Math.max(0, i - 25), i + 1).join('\n');
     ok(/writeWithApptBuffer\(/.test(ctx) && /\(r(ow)?\) => [a-z]+\.from\(\s*["']appointments["']\s*\)\.insert\(r(ow)?\)/.test(line), `goes through writeWithApptBuffer: ${tag}`);

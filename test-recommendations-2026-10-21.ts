@@ -75,9 +75,9 @@ await ok('reminders go to the manual queue when GreenAPI says the session is not
 // ── ו: a blocked business takes no new public bookings ───────────────────────
 await ok('the public booking route refuses a blocked business, like the waitlist', () => {
   const b = rd('app/api/book-appointment/route.js');
-  assert.match(b, /if \(await tenantIsBlocked\(supabase, activeTenantId\)\) \{/);
+  assert.match(b, /if \(await tenantPublicClosed\(supabase, activeTenantId\)\) \{/);
   assert.match(b, /code: "business_paused"/);
-  assert.ok(b.indexOf('tenantIsBlocked(supabase, activeTenantId)') < b.indexOf('.insert('), 'refused before anything is written');
+  assert.ok(b.indexOf('tenantPublicClosed(supabase, activeTenantId)') < b.indexOf('.insert('), 'refused before anything is written');
 });
 
 // ── ח: the weekly report's week is 7 days ─────────────────────────────────────

@@ -26,14 +26,18 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "./supabase";
-import { planState } from "@/lib/planState";
+import { planState, publicGraceEndsAt } from "@/lib/planState";
+import { planPayUrl } from "@/lib/planPay";
+import { PLAN_PRICES } from "@/lib/pricing";
 import BrandImage from "@/app/BrandImage";
 import { ICON_FLOWER } from "@/lib/brand";
 import { supportWhatsAppUrl, KALMEA_SUPPORT_WHATSAPP_DISPLAY } from "@/lib/support";
 import { tr, trv, uiDir } from "@/lib/i18n/tr";
 import {
   blockedNoticeHe,
-  BLOCKED_CLIENTS_NOTE_HE,
+  blockedClientsNoteHe,
+  planPayCtaHe,
+  PLAN_PAY_HINT_HE,
   PRICE_LINE_HE,
   CTA_WHATSAPP_HE,
   CTA_RENEW_HINT_HE,
@@ -56,6 +60,11 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
   const wa = supportWhatsAppUrl();
   // A paused account is an arrangement, not a sale: no price pitch there.
   const showPrice = plan?.status === "expired";
+  // Her own payment page for the plan (NEXT_PUBLIC_PLAN_PAY_URL, lib/planPay.ts), only for an ended trial and only when set.
+  const payUrl = showPrice ? planPayUrl() : null;
+  const price = Number(plan?.planPrice) > 0 ? Number(plan.planPrice) : PLAN_PRICES.launch;
+  // Her public page stays open a few more days after the trial (lib/planState publicGraceDays): say until when.
+  const clientsNote = blockedClientsNoteHe(plan ? publicGraceEndsAt(plan) : null);
 
   // She paid (BillingCard, or we activated her by hand after a WhatsApp chat): open the system by itself, no refresh needed.
   // Checked when she comes back to the tab (the card page opens in another one) and every 30 seconds while it is open.
@@ -126,10 +135,23 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
           {showPrice && (
             <p data-testid="plan-blocked-price" style={{ margin: "0 0 10px", fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)" }}>{PRICE_LINE_HE}</p>
           )}
-          <p style={{ margin: "0 0 20px", fontSize: "var(--t-sm)", lineHeight: 1.65, color: "var(--ink-3)" }}>{BLOCKED_CLIENTS_NOTE_HE}</p>
+          <p style={{ margin: "0 0 20px", fontSize: "var(--t-sm)", lineHeight: 1.65, color: "var(--ink-3)" }}>{clientsNote}</p>
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
             {trv(cta)}
+            {payUrl ? (
+              <a
+                href={payUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="primary-btn"
+                data-testid="plan-blocked-pay"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 48, background: "var(--brand-accent)", color: "var(--brand-contrast, #FFFFFF)", fontSize: "var(--t-md)", fontWeight: 600, borderRadius: "var(--r-sm)", textDecoration: "none" }}
+              >
+                {planPayCtaHe(price)}
+              </a>
+            ) : null}
+            {payUrl ? <p style={{ margin: 0, fontSize: "var(--t-sm)", lineHeight: 1.6, color: "var(--ink-3)" }}>{PLAN_PAY_HINT_HE}</p> : null}
             {wa ? (
               <a
                 href={wa}
@@ -142,8 +164,10 @@ export default function PlanBlockedScreen({ plan, businessName = "", isDemo = fa
                   alignItems: "center",
                   justifyContent: "center",
                   minHeight: 48,
-                  background: "var(--brand-accent)",
-                  color: "var(--brand-contrast, #FFFFFF)",
+                  // Second to the pay button when there is one, the main way out when there is not.
+                  background: payUrl ? "transparent" : "var(--brand-accent)",
+                  border: payUrl ? "1px solid var(--brand-accent)" : "none",
+                  color: payUrl ? "var(--brand-accent)" : "var(--brand-contrast, #FFFFFF)",
                   fontSize: "var(--t-md)",
                   fontWeight: 600,
                   borderRadius: "var(--r-sm)",

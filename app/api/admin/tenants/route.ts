@@ -19,9 +19,11 @@
 
 import { NextResponse } from 'next/server'
 import { requirePlatformAdmin, createAdminClient } from '@/lib/adminGuard'
+import { FOUNDER_PRICE } from '@/lib/founder'
 
 /** Actions the panel may perform. Anything else is rejected. */
-const ACTIONS = ['extend', 'activate', 'pause'] as const
+// founder: free for life (lib/founder.ts): active, and an agreed price of 0.
+const ACTIONS = ['extend', 'activate', 'pause', 'founder'] as const
 type Action = (typeof ACTIONS)[number]
 
 /** Bounds on a trial extension, so a typo cannot grant a decade. */
@@ -74,13 +76,16 @@ export async function POST(request: Request) {
   }
 
   // 4. Build the patch.
-  let patch: Record<string, string | null> = {}
+  let patch: Record<string, string | number | null> = {}
 
   if (action === 'activate') {
     // Trial dates are deliberately LEFT INTACT. They are a record of what
     // happened, and tenant_effective_status only applies the elapsed-trial rule
     // while plan_status = 'trial', so a stale trial_ends_at is inert here.
     patch = { plan_status: 'active' }
+  } else if (action === 'founder') {
+    // Free for life: never closes (active), and price 0 so no billing path can charge her (lib/founder.ts).
+    patch = { plan_status: 'active', plan_price: FOUNDER_PRICE }
   } else if (action === 'pause') {
     patch = { plan_status: 'paused' }
   } else {

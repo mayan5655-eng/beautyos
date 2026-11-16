@@ -11,7 +11,7 @@
 // up front instead of after her client filled in the whole form.
 
 import { createClient } from '@supabase/supabase-js'
-import { tenantIsBlocked } from './tenantActive.ts'
+import { tenantPublicClosed } from './tenantActive.ts'
 
 export async function publicBookingClosed(tenantId: string | null | undefined): Promise<boolean> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -19,7 +19,7 @@ export async function publicBookingClosed(tenantId: string | null | undefined): 
   if (!url || !key || !tenantId) return false
   try {
     const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
-    return await tenantIsBlocked(admin, tenantId)
+    return await tenantPublicClosed(admin, tenantId)
   } catch {
     return false
   }

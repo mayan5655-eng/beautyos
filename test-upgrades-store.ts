@@ -19,7 +19,7 @@ import { callerIsOwner } from './lib/billing/owner.ts';
 
 let n = 0;
 const ok = async (name: string, fn: () => void | Promise<void>) => { await fn(); n++; console.log('ok -', name); };
-const read = (f: string) => readFileSync(f, 'utf8');
+const read = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
 const ON = { NEXT_PUBLIC_ADDON_PACKS: '1', NEXT_PUBLIC_ANNUAL_PLAN: '1', NEXT_PUBLIC_REFERRALS: '1' };
 const OFF = {};
 
@@ -448,7 +448,7 @@ await ok('security: replacing the card, cancelling, and the billing details are 
   assert.equal((st.match(/forMember\(/g) || []).length, 2, 'both answers with data go through it');
   const card = read('app/BillingCard.jsx');
   assert.match(card, /s\.owner === false && <p data-testid="billing-member"/);
-  assert.match(card, /!isDemo && s\.owner !== false && sub && sub\.status !== 'canceled'/, 'no cancel button for a member');
+  assert.match(card, /!isDemo && (?:!founder && )?s\.owner !== false && sub && sub\.status !== 'canceled'/, 'no cancel button for a member (nor for a founder, lib/founder.ts)');
 });
 
 

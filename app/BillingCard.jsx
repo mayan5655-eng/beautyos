@@ -19,6 +19,7 @@ import { priceHe } from '@/lib/pricing';
 import { isFinalRefusal, requestVerdict, requestStateHe, LOST_ANSWER_HE } from '@/lib/upgradesStore';
 import { purchaseIntent, settleIntent, requestStatus } from './UpgradesStore';
 import { tr, trv } from "@/lib/i18n/tr";
+import { FOUNDER_BILLING_HE, founderConsentTextHe } from "@/lib/founder";
 
 const money = (n) => `₪${Math.round(Number(n) * 100) / 100}`;
 const day = (iso) => (iso ? trialEndDateHe(new Date(iso)) : '');
@@ -159,8 +160,11 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
     const an = s.annual || null;
     const yearly = an?.billingPeriod === 'annual';
     const nextPeriod = an?.pendingPeriod || an?.billingPeriod || 'monthly';
+    // A founder (lib/founder.ts): free plan for life; the card here is only for add-on packs she chooses.
+    const founder = s.founder === true;
     let line;
-    if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז המערכת נסגרת עד לחידוש. כל הנתונים נשמרים.`;
+    if (founder) line = FOUNDER_BILLING_HE;
+    else if (sub?.status === 'canceled') line = `המנוי בוטל. את ממשיכה לעבוד עד ${day(sub.ends_at)}, ואז המערכת נסגרת עד לחידוש. כל הנתונים נשמרים.`;
     else if (sub?.status === 'past_due') line = `החיוב האחרון נכשל. כדי להמשיך לעבוד בלי הפסקה, עדכני כרטיס${sub.graceEndsAt ? ` עד ${day(sub.graceEndsAt)}` : ''}. ננסה שוב אוטומטית בימים הקרובים.`;
     else if (status === 'paused') line = 'החשבון מושהה בהסדר איתנו, והמערכת סגורה בינתיים. כדי לחדש אותו, כתבי לנו בוואטסאפ ונחזיר אותו לפעילות.';
     else if (status === 'expired') line = s.configured ? 'המערכת סגורה עד לחידוש המנוי. הוספת כרטיס וחיוב יפתחו אותה מיד, עם כל הנתונים כמו שהיו.' : 'המערכת סגורה עד לחידוש המנוי. כל הנתונים נשמרים.';
@@ -170,15 +174,15 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
 
     body = (
       <>
-        <p style={{ fontSize: 'var(--t-lg)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{yearly ? money(an.yearly) : money(s.plan.price)} <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink-2)' }}>{yearly ? tr("לשנה") : tr("לחודש")}</span></p>
-        <p data-testid="billing-line" style={{ ...text, marginBottom: 10 }}>{line}</p>
+        {!founder && <p style={{ fontSize: 'var(--t-lg)', fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>{yearly ? money(an.yearly) : money(s.plan.price)} <span style={{ fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--ink-2)' }}>{yearly ? tr("לשנה") : tr("לחודש")}</span></p>}
+        <p data-testid={founder ? "billing-line-founder" : "billing-line"} style={{ ...text, marginBottom: 10 }}>{line}</p>
 
         {hasCard && <p style={{ ...text, marginBottom: 8 }}>{tr("כרטיס שמור:")} <b dir="ltr">•••• {sub.card_last4}</b></p>}
         {/* Paused is an arrangement with us: a saved card does not reopen it (lib/billing/service.ts), so no card form (2026-11-02 audit). */}
         {!isDemo && s.configured && status !== 'paused' && (
           <label data-testid="billing-consent" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 10, fontSize: 'var(--t-sm)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
             <input type="checkbox" checked={consentOk} onChange={(e) => setConsentOk(e.target.checked)} style={{ accentColor: pc, width: 20, height: 20, marginTop: 2, flexShrink: 0 }} />
-            <span>{(nextPeriod === 'annual' ? billingAnnualConsentTextHe(an.yearly, '') : billingConsentTextHe(s.plan.price)).replace(BILLING_TERMS_SENTENCE_HE, '')}{tr("קראתי ואני מסכימה ל")}<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>{tr("תנאי השימוש")}</a> {tr("של קלמיה.")}</span>
+            <span>{(founder ? founderConsentTextHe() : nextPeriod === 'annual' ? billingAnnualConsentTextHe(an.yearly, '') : billingConsentTextHe(s.plan.price)).replace(BILLING_TERMS_SENTENCE_HE, '')}{tr("קראתי ואני מסכימה ל")}<a href={KALMEA_TERMS_HREF} target="_blank" rel="noreferrer" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>{tr("תנאי השימוש")}</a> {tr("של קלמיה.")}</span>
           </label>
         )}
         {!isDemo && s.configured && status !== 'paused' && sub?.status !== 'canceled' && (
@@ -293,7 +297,8 @@ export default function BillingCard({ pc, pcTint, toast, isDemo }) {
           </div>
         )}
 
-        {!isDemo && s.owner !== false && sub && sub.status !== 'canceled' && (
+        {/* No plan to cancel for a founder. */}
+        {!isDemo && !founder && s.owner !== false && sub && sub.status !== 'canceled' && (
           <div style={{ marginTop: 14 }}>
             {!confirmCancel ? (
               <button type="button" style={ghost} onClick={() => setConfirmCancel(true)}>{tr("ביטול המנוי")}</button>
