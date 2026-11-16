@@ -19,6 +19,9 @@ import { runWaitlistWin } from "@/lib/waitlistRuntime";
 import { publicContactFor } from "@/lib/publicContact";
 import { claimGate, NEEDS_BOOKING_HE, TRY_AGAIN_HE } from "@/lib/claimGuard";
 import { publicBookingPolicy } from "../grow/_claimPolicy";
+import { resolveScope, claimSlotOk, SLOT_GONE_HE } from "@/lib/teamGuard";
+import { isMissingColumnError } from "@/lib/pgError";
+import type { Staff } from "@/lib/team";
 
 // PR #39 security review: the claim books CONFIRMED in one tap, so a service the public booking page would book only with her
 // cancellation policy or a deposit (lib/claimGuard.ts, the booking route's own predicate) is refused here (claimGate), whoever
@@ -101,6 +104,8 @@ export async function POST(request: NextRequest) {
 
   const supabase = admin();
   const nowIso = new Date().toISOString();
+  // The team calendar (lib/teamGuard.ts): the person this slot is booked with. null = the owner (the column default).
+  let claimStaff: Staff | null = null;
 
   // A link lives 4 hours but a slot does not wait: once its start has passed it cannot be claimed (2026-10-20 audit: a 14:00 slot
   // offered at 11:30 was still bookable at 14:40).
@@ -120,6 +125,28 @@ export async function POST(request: NextRequest) {
       if (sm !== null && minutesUntilIsrael(String(pre.offer.slot_date), Number(sm)) <= 0) {
         await supabase.from("slot_offers").update({ status: "expired" }).eq("token", token).eq("status", "sent");
         return NextResponse.json({ state: "expired" });
+      }
+    }
+    // The team calendar (Vercel Security Review, PR #67). An offer of a staff member's freed slot carries her (slot_offers.staff_id)
+    // and is booked with HER or not at all: she must still be of this business, active, doing the treatment, working then and free.
+    // It is never turned into an owner booking. With the team on, an owner offer is checked against the owner's own hours and
+    // calendar the same way. Flag off and one practitioner: nothing here runs beyond one read, and the claim is what it was.
+    if (pre.offer.status === "sent") {
+      let so = await supabase.from("slot_offers").select("staff_id, duration").eq("token", token).maybeSingle();
+      if (so.error && isMissingColumnError(so.error)) so = await supabase.from("slot_offers").select("duration").eq("token", token).maybeSingle();
+      if (so.error || !so.data) return NextResponse.json({ state: "error", message: TRY_AGAIN_HE }, { status: 503 });
+      const offerStaffId = (so.data as { staff_id?: unknown }).staff_id ? String((so.data as { staff_id?: unknown }).staff_id) : null;
+      const scope = await resolveScope(supabase, String(pre.offer.tenant_id), offerStaffId, pre.offer.service || null);
+      const gone = async () => {
+        await supabase.from("slot_offers").update({ status: "cancelled" }).eq("token", token).eq("status", "sent");
+        return NextResponse.json({ state: "taken", message: SLOT_GONE_HE });
+      };
+      if (scope.kind === "refuse") return gone();
+      if (scope.kind === "staff") {
+        const sm = startMinute({ start_minute: pre.offer.slot_start_minute, hour: pre.offer.slot_hour });
+        const dur = Number((so.data as { duration?: unknown }).duration) > 0 ? Number((so.data as { duration?: unknown }).duration) : 60;
+        if (sm === null || !(await claimSlotOk(supabase, String(pre.offer.tenant_id), scope.staff, { date: String(pre.offer.slot_date), start: sm, duration: dur, service: pre.offer.service || null }))) return gone();
+        claimStaff = scope.staff;
       }
     }
   }
@@ -210,6 +237,8 @@ export async function POST(request: NextRequest) {
     client_phone: claimed.phone,
     price: claimPrice,
     buffer_minutes: claimBuffer,
+    // Her, as checked above; the owner is NULL (staffIdForWrite), the column default.
+    staff_id: claimStaff && !claimStaff.is_owner ? claimStaff.id : null,
   });
 
   if (!booked.ok) {
