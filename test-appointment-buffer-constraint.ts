@@ -170,7 +170,7 @@ ok(app.includes('if (code === "23505" || code === "23P01") {'), 'in-app writers:
 // Every insert into appointments in app/ and lib/ goes through writeWithApptBuffer. Allowed exceptions, each with a
 // reason: the personal-event restore (re-inserts the rows just deleted, exactly as they were read) and the demo seed
 // (lib/demoSeed.ts, the demo tenant's sample diary, not a booking: null buffer = 0, which is what it was checked with).
-const EXEMPT = [/insert\(existing\)/, /^lib\/demoSeed\.ts:/];
+const EXEMPT = [/insert\(existing\)/, /^lib[\\/]demoSeed\.ts:/]; // either separator: Windows lists lib\demoSeed.ts
 function walk(dir: string, out: string[] = []): string[] {
   for (const f of readdirSync(dir)) {
     const p = join(dir, f);

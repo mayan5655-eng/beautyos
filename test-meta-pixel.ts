@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { metaPixelId, ensureFbq, trackPageView, trackCompleteRegistration, _resetMetaPixelForTests, META_PIXEL_PATHS, META_PIXEL_SCRIPT_SRC } from './lib/metaPixel.ts';
+import { metaPixelId, ensureFbq, trackPageView, trackCompleteRegistration, _resetMetaPixelForTests, readAdConsent, saveAdConsent, AD_CONSENT_KEY, META_PIXEL_PATHS, META_PIXEL_SCRIPT_SRC } from './lib/metaPixel.ts';
 import { buildCsp, securityHeaders } from './lib/securityHeaders.ts';
 
 let n = 0;
@@ -48,7 +48,7 @@ ok('the script: next/script afterInteractive, fbevents.js, rendered only with an
   const c = code('app/MetaPixel.tsx');
   assert.equal(META_PIXEL_SCRIPT_SRC, 'https://connect.facebook.net/en_US/fbevents.js');
   assert.ok(c.includes("from 'next/script'") && c.includes('strategy="afterInteractive"') && c.includes('src={META_PIXEL_SCRIPT_SRC}'));
-  assert.ok(/if \(!id \|\| !load\) return null;/.test(c), 'env empty: no script rendered');
+  assert.ok(/if \(!id\) return null;/.test(c) && /if \(!showBar && !load\) return null;/.test(c), 'env empty, or no consent: no script rendered');
   assert.ok(c.includes('NO_TRACK_KEY') && /if \(!id \|\| ownBrowser\(\)\) return;/.test(c), 'the owner\'s own marked browser is not counted (same switch as PublicAnalytics)');
   assert.ok(c.includes("/[?&]no-track=1(&|$)/.test(q)) localStorage.setItem(NO_TRACK_KEY, '1')"), '?no-track=1 is honoured on the page itself, /signup included');
   assert.ok(!c.includes('<noscript'));
@@ -76,8 +76,29 @@ ok('only the landing and the signup page mount it; never the layout, the app or 
   }
 });
 
+// A tiny localStorage for the consent helpers (node has none).
+const store = new Map<string, string>();
+(globalThis as any).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, String(v)), removeItem: (k: string) => store.delete(k) };
+
+ok('consent: nothing until "yes"; "no" and a reset are remembered', () => {
+  store.clear();
+  assert.equal(AD_CONSENT_KEY, 'kl_ad_consent');
+  assert.equal(readAdConsent(), null);
+  _resetMetaPixelForTests();
+  assert.equal(trackCompleteRegistration(ID, {} as any), false, 'no consent: CompleteRegistration is never queued');
+  saveAdConsent('no'); assert.equal(readAdConsent(), 'no');
+  assert.equal(trackCompleteRegistration(ID, {} as any), false, 'declined: still nothing');
+  saveAdConsent(null); assert.equal(readAdConsent(), null);
+  store.set(AD_CONSENT_KEY, 'garbage'); assert.equal(readAdConsent(), null, 'anything else counts as not asked');
+  const c = code('app/MetaPixel.tsx');
+  assert.ok(/if \(consent !== 'yes'\) return;\s*trackPageView\(id\);/.test(c), 'PageView (and the script) only after "yes"');
+  assert.ok(c.includes('אישור') && c.includes('לא תודה') && c.includes('href="/privacy"'), 'the bar: accept, decline, details');
+  assert.ok(fs.readFileSync('app/privacy/page.tsx', 'utf8').includes('<AdConsentReset />'), 'privacy offers a way to withdraw');
+});
+
 ok('PageView and CompleteRegistration: no parameters, no advanced matching, autoConfig off', () => {
   _resetMetaPixelForTests();
+  saveAdConsent('yes');
   const w: any = {};
   assert.equal(trackPageView(null, w), false, 'no id: nothing, no fbq created');
   assert.equal(w.fbq, undefined);
