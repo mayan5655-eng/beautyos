@@ -62,3 +62,13 @@ ok('landing: no receptionist in the cost table', () => {
 });
 
 console.log(`audit four: ${n} ok`);
+
+// The privacy policy gaps (2026-11-16 audit): where the data is, how long it is kept, and who to complain to.
+{
+  const p = (fs.readFileSync('app/privacy/page.tsx', { encoding: 'utf8', raw: true } as never) as unknown as string).replace(/\r\n/g, '\n');
+  assert.ok(p.includes('id="abroad"') && p.includes('בסינגפור') && p.includes('התשס&quot;א-2001'), 'transfer abroad');
+  assert.ok(p.includes('שום דבר לא נמחק') && p.includes('נשמרות 7 שנים'), 'retention as it really works');
+  assert.ok(p.includes('לרשות להגנת הפרטיות במשרד המשפטים') && p.includes('Privacy Protection Authority'), 'the regulator');
+  assert.ok(p.includes('עודכן לאחרונה: נובמבר 2026'));
+  console.log('ok - privacy policy: abroad, retention, regulator');
+}

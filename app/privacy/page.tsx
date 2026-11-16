@@ -174,17 +174,52 @@ export default function PrivacyPage() {
           </En>
         </Section>
 
-        <Section heHeading="כמה זמן נשמר המידע" enHeading="Data Retention">
+        {/* 2026-11-16 audit: where the data physically is. The database is AWS ap-southeast-1 (Singapore), the functions run in Vercel
+            sin1; the AI, image, error-monitoring and Meta services are run from abroad, mostly the United States. */}
+        <Section id="abroad" heHeading="העברת מידע מחוץ לישראל" enHeading="Transfer of Data Outside Israel">
           <He>
-            המידע נשמר כל עוד החשבון שלך פעיל, כדי שההיסטוריה העסקית שלך תישאר
-            זמינה לך. עם סגירת חשבון, המידע נמחק תוך 30 יום, למעט רשומות שאנו
-            מחויבים לשמור על פי דין (למשל תיעוד חשבונאי).
+            המידע במערכת נשמר ומעובד בשרתים מחוץ לישראל: בסיס הנתונים והשרתים
+            שמריצים את המערכת נמצאים בסינגפור, וחלק מספקי המשנה שלמעלה (עיבוד AI,
+            יצירת תמונות, ניטור שגיאות ו-Meta) פועלים משרתים בחו&quot;ל, בעיקר
+            בארצות הברית. אנו בוחרים ספקים שמחויבים לאבטחת המידע ולשימוש בו רק לצורך
+            השירות שהם נותנים לנו, ומעבירים לכל אחד רק את מה שדרוש לתפקידו. השימוש
+            במערכת כולל הסכמה להעברה הזו, בהתאם לתקנות הגנת הפרטיות (העברת מידע אל
+            מאגרי מידע שמחוץ לגבולות המדינה), התשס&quot;א-2001.
           </He>
           <En>
-            Data is kept while your account is active, so your business history
-            remains available to you. When an account is closed, data is deleted
-            within 30 days, except records we are legally required to keep (e.g.
-            accounting records).
+            Data in the system is stored and processed on servers outside Israel: the
+            database and the servers that run the system are in Singapore, and some of
+            the sub-processors above (AI processing, image generation, error monitoring
+            and Meta) operate from servers abroad, mainly in the United States. We
+            choose providers that are committed to securing the data and to using it
+            only for the service they give us, and each receives only what its role
+            requires. Using the system includes consent to this transfer, under the
+            Privacy Protection (Transfer of Data to Databases Abroad) Regulations, 2001.
+          </En>
+        </Section>
+
+        <Section heHeading="כמה זמן נשמר המידע" enHeading="Data Retention">
+          <He>
+            המידע נשמר כל עוד החשבון שלך קיים, כדי שההיסטוריה העסקית שלך תישאר
+            זמינה לך. כשתקופת הניסיון מסתיימת בלי תשלום או כשהמנוי מושהה, המערכת
+            נסגרת אבל שום דבר לא נמחק: הכול חוזר כשממשיכים, ואפשר להוריד את הנתונים
+            גם בזמן שהמערכת סגורה. מחיקת חשבון נעשית לפי בקשה (ראי &quot;מחיקת מידע&quot;
+            למטה) ומבוצעת תוך 30 יום. עותקי גיבוי נמחקים במחזור הגיבוי הרגיל, תוך
+            שבועות ספורים. רשומות שאנו מחויבים לשמור על פי דין, כמו תיעוד התשלומים
+            שלך לקלמיה, נשמרות 7 שנים. מסמכי מס רשמיים שהעסק מפיק דרך Morning נשמרים
+            גם בחשבון ה-Morning של העסק, ונשארים שם גם אם החשבון בקלמיה נמחק.
+          </He>
+          <En>
+            Data is kept while your account exists, so your business history remains
+            available to you. When a trial ends without payment or a plan is paused,
+            the system closes but nothing is deleted: everything returns when you
+            continue, and you can download your data while it is closed. Account
+            deletion is done on request (see &quot;Data Deletion&quot; below) and is completed
+            within 30 days. Backup copies are deleted in the normal backup cycle,
+            within a few weeks. Records we must keep by law, such as your payments to
+            Kalmea, are kept for 7 years. Official tax documents a business issues through
+            Morning are also kept in that business&apos;s own Morning account, and stay there
+            even if the Kalmea account is deleted.
           </En>
         </Section>
 
@@ -219,11 +254,16 @@ export default function PrivacyPage() {
         <Section heHeading="זכויות המשתמש" enHeading="User Rights">
           <He>
             יש לך זכות לגשת למידע שלך, לתקנו, או לבקש את מחיקתו, בהתאם לחוק הגנת
-            הפרטיות. לפניות: <Email /> או בוואטסאפ <SupportWhatsApp />
+            הפרטיות, התשמ&quot;א-1981. לפניות: <Email /> או בוואטסאפ <SupportWhatsApp />.
+            אם לא קיבלת מענה, או שנראה לך שהמידע שלך לא טופל כדין, אפשר להגיש תלונה
+            לרשות להגנת הפרטיות במשרד המשפטים.
           </He>
           <En>
             You have the right to access, correct, or request deletion of your data,
-            in accordance with applicable privacy law. Contact: <Email />
+            under the Privacy Protection Law, 5741-1981. Contact: <Email />. If you did
+            not get an answer, or you believe your data was not handled lawfully, you
+            may file a complaint with the Privacy Protection Authority at Israel&apos;s
+            Ministry of Justice.
           </En>
         </Section>
 
@@ -234,7 +274,7 @@ export default function PrivacyPage() {
         </Section>
 
         <footer style={footerStyle}>
-          עודכן לאחרונה: אוקטובר 2026 / Last updated: October 2026
+          עודכן לאחרונה: נובמבר 2026 / Last updated: November 2026
         </footer>
         <PublicFooterLinks style={{ padding: "6px 0 0" }} />
         <KalmeaLegalFooter style={{ marginTop: 8 }} />
