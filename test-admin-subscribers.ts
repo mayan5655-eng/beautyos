@@ -155,4 +155,11 @@ ok('the admin page and the owner hub link to the screen', () => {
   assert.match(rd('app/dashboard/owner/page.tsx'), /'\/dashboard\/admin\/subscribers'/);
 });
 
+ok('contact phone falls back: business phone, then her page WhatsApp number, then the mobile verified at signup', () => {
+  const data = strip(rd('lib/subscribersData.ts'));
+  assert.match(data, /const phone = text\(s\?\.business_phone\) \|\| text\(s\?\.wa\) \|\| acc\?\.signupPhone \|\| null/);
+  assert.match(data, /signupPhone: text\(meta\.phone_e164\)/);
+});
+
 console.log(`${n} passed`);
+

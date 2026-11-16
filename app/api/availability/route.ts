@@ -35,6 +35,11 @@
 // loads (get_public_services). The column list below is the enforcement; there is no
 // select('*') here and there must never be one.
 //
+// The team calendar (NEXT_PUBLIC_TEAM_CALENDAR, lib/team.ts), and only for a business with two or more ACTIVE staff, adds one
+// field: `team` = { staff: [{ id, name, color, services, hours }], busy: { [staffId]: [{ date, start, end }] } }. The same merged
+// intervals, split per person, and the first names, colours, treatments and hours she chose to show. Nobody inactive, nothing
+// else. With the flag off, or one person, or before add_team_calendar_2026-11-12.sql, the answer is byte for byte what it was.
+//
 // Cancelled appointments are filtered out server-side: a cancelled slot is free
 // again, matching lib/apptTime, the in-app calendar and the appointments_no_overlap
 // constraint.
@@ -53,6 +58,9 @@ import { resolveLunch, lunchBusy } from '@/lib/lunchBreak';
 import { bufferLookup, businessBufferDefault } from '@/lib/serviceBuffer';
 import { isMissingColumnError, missingColumnName } from '@/lib/pgError';
 import { publicBusyRanges } from '@/lib/busyIntervals';
+import { teamCalendarEnabled } from '@/lib/teamFlag';
+import { readTeamSafe } from '@/lib/teamRepo';
+import { teamOn, publicTeam, staffBusyRanges, type Staff } from '@/lib/team';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -123,14 +131,24 @@ export async function GET(request: Request) {
       .neq('confirmation_status', 'cancelled')
       .order('date', { ascending: true })
       .limit(2000);
-    let serverCols = [...SERVER_ONLY_FIELDS];
+    // The team calendar (lib/team.ts): only with the flag on AND two or more active staff. Otherwise this route answers exactly as
+    // it always did, and staff_id is not even asked for. A failed staff read is "one practitioner" (readTeamSafe), never an error.
+    let team: Staff[] = [];
+    if (teamCalendarEnabled()) {
+      const t = await readTeamSafe(supabase, tenantId);
+      if (t.available && teamOn(t.staff)) team = t.staff;
+    }
+    const optional = team.length ? [...SERVER_ONLY_OPTIONAL, 'staff_id'] : SERVER_ONLY_OPTIONAL;
+    let serverCols = team.length ? [...SERVER_ONLY_FIELDS, 'staff_id'] : [...SERVER_ONLY_FIELDS];
     let { data, error } = await readAppts(`${SAFE_FIELDS}, ${serverCols.join(', ')}`);
-    for (let i = 0; i < SERVER_ONLY_OPTIONAL.length && error && isMissingColumnError(error); i++) {
+    for (let i = 0; i < optional.length && error && isMissingColumnError(error); i++) {
       const col = missingColumnName(error);
-      if (col && !(SERVER_ONLY_OPTIONAL.includes(col) && serverCols.includes(col))) break;
-      serverCols = col ? serverCols.filter((c) => c !== col) : serverCols.filter((c) => !SERVER_ONLY_OPTIONAL.includes(c));
+      if (col && !(optional.includes(col) && serverCols.includes(col))) break;
+      serverCols = col ? serverCols.filter((c) => c !== col) : serverCols.filter((c) => !optional.includes(c));
       ({ data, error } = await readAppts(`${SAFE_FIELDS}, ${serverCols.join(', ')}`));
     }
+    // Without the column there is no telling whose appointment is whose: one practitioner, as before.
+    if (!serverCols.includes('staff_id')) team = [];
 
     if (error) {
       console.error('[availability] read failed:', error.message);
@@ -172,7 +190,26 @@ export async function GET(request: Request) {
     type Row = { date?: unknown; start_minute?: number | null; hour?: number | null; duration?: number | string | null; service?: unknown; kind?: unknown; buffer_minutes?: unknown };
     const busy = publicBusyRanges((data || []) as unknown as Row[], bufferOf, lunch);
 
-    return Response.json({ success: true, busy, defaultBuffer: bufferDefault });
+    if (!team.length) return Response.json({ success: true, busy, defaultBuffer: bufferDefault });
+
+    // Two or more people: the same merged intervals, per person (her own appointments; the owner's break is the owner's), plus who
+    // they are as the page shows them (lib/team.ts publicTeam: name, colour, treatments, hours; nobody inactive). `busy` stays the
+    // whole business, so an older page in a client's open tab keeps working.
+    let hoursRow: Record<string, unknown> | null = null;
+    try {
+      const { data: hr } = await supabase.from('settings').select('business_hours, working_hours_start, working_hours_end, working_days').eq('tenant_id', tenantId).maybeSingle();
+      hoursRow = (hr as Record<string, unknown> | null) || null;
+    } catch { /* dayHoursFrom's own defaults; the booking route checks her real hours again */ }
+    type StaffRow = Row & { staff_id?: unknown };
+    return Response.json({
+      success: true,
+      busy,
+      defaultBuffer: bufferDefault,
+      team: {
+        staff: publicTeam(team, hoursRow as never),
+        busy: staffBusyRanges((data || []) as unknown as StaffRow[], team, bufferOf, lunch),
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[availability] threw:', message);

@@ -50,7 +50,7 @@ function buildClientMessage(report, businessName) {
 }
 
 // Build the owner's lead-notification message
-function buildOwnerMessage(report, clientName, clientPhone, queued = false) {
+function buildOwnerMessage(report, clientName, clientPhone, queued = false, sent = true) {
   const lines = [];
   lines.push(`🔥 ליד חדש מסורק העור!`);
   lines.push("");
@@ -62,9 +62,12 @@ function buildOwnerMessage(report, clientName, clientPhone, queued = false) {
   lines.push("");
   // Says "she got it" only when it was actually sent. A queued report (manual mode, or the central number could not deliver it)
   // is waiting for HER to send from "הודעות מוכנות לשליחה", and the note must say so, or the client never receives it.
+  // Neither sent nor queued (the send failed outright): say so, never "she got it".
   lines.push(queued
     ? `הדוח המלא מחכה לשליחה ממך ב"הודעות מוכנות לשליחה". כדאי לשלוח אותו עכשיו וליצור קשר! 💗`
-    : `היא קיבלה את הדוח המלא לוואטסאפ. זה זמן מצוין ליצור קשר! 💗`);
+    : sent
+      ? `היא קיבלה את הדוח המלא לוואטסאפ. זה זמן מצוין ליצור קשר! 💗`
+      : `לא הצלחנו לשלוח לה את הדוח לוואטסאפ. כדאי ליצור איתה קשר ישירות 💗`);
   return lines.join("\n");
 }
 
@@ -132,7 +135,7 @@ export async function POST(request) {
     //    Scheduled via after(), not awaited: unlike the client report above,
     //    nothing in the response depends on this, so it must not be able to
     //    add its latency (or a failure) to what the visitor is waiting on.
-    const ownerMsg = buildOwnerMessage(report, clientName, clientPhone, !!clientResult?.queued);
+    const ownerMsg = buildOwnerMessage(report, clientName, clientPhone, !!clientResult?.queued, !!clientResult?.ok);
     after(() =>
       notifyOwner({ tenantId, kind: "skin_hot_lead", title: "ליד חם מסורק העור", body: ownerMsg, settingsRow }).catch((e) => {
         console.error("[skin-scan/send] owner notify failed:", e?.message || String(e));

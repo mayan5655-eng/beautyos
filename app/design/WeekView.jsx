@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Spinner from '../Spinner';
 import DomPreview from './DomPreview';
+import FacebookGroups from './FacebookGroups';
 import { getTemplate } from '@/lib/design/templates';
 import { fillTemplate } from '@/lib/design/mapBranding';
 import { suggestPosts } from '@/lib/design/suggestions';
@@ -37,6 +38,7 @@ export default function WeekView({ settings, appointments, services, designs, re
   const [shootBusy, setShootBusy] = useState(false);
   const [groups, setGroups] = useState(null);
   const [groupsBusy, setGroupsBusy] = useState(false);
+  const [saveGroupName, setSaveGroupName] = useState('');
   const [error, setError] = useState('');
 
   const loadShoot = async () => {
@@ -120,10 +122,15 @@ export default function WeekView({ settings, appointments, services, designs, re
                     <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-2)', lineHeight: 1.4 }}>{g.reasoning}</p>
                   </div>
                   <a href={`https://www.facebook.com/search/groups/?q=${encodeURIComponent(g.name)}`} target="_blank" rel="noreferrer" style={{ ...btn, minHeight: 32, padding: '4px 10px', fontSize: 'var(--t-xs)', textDecoration: 'none', flexShrink: 0 }}>לחיפוש</a>
+                  {!readOnly && <button type="button" onClick={() => setSaveGroupName(g.name)} data-testid="fb-group-suggest-save" aria-label={`שמירת ${g.name} לקבוצות שלי`} style={{ ...btn, minHeight: 32, padding: '4px 10px', fontSize: 'var(--t-xs)', flexShrink: 0 }}><Icon name="plus" size={12} /></button>}
                 </div>
               ))}
             </div>
           )}
+          {/* Her saved groups (hidden until add_facebook_groups SQL runs); "+" on a suggestion opens the add form with its name. */}
+          <div style={{ marginTop: 12 }}>
+            <FacebookGroups mode="manage" toast={toast} readOnly={readOnly} suggestName={saveGroupName} onSuggestUsed={() => setSaveGroupName('')} />
+          </div>
         </div>
       </div>}
       {showAi && error && <p style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', marginBottom: 12 }}>{error}</p>}

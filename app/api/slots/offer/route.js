@@ -19,6 +19,9 @@ import { canMarket, MARKETING_FOOTER } from "../../../../lib/marketingConsent.js
 import { toMinutes, fmtTime, startMinute as apptStart, overlaps } from "../../../../lib/apptTime";
 import { readAllRows } from "../../../../lib/pagedRead.js";
 import { phoneKey } from "../../../../lib/waitlistMatch.js";
+// The team calendar: a staff member's freed slot is offered as hers (slot_offers.staff_id), never as the owner's (lib/teamGuard.ts).
+import { resolveScope, SLOT_GONE_HE } from "../../../../lib/teamGuard";
+import { isMissingColumnError } from "../../../../lib/pgError";
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -63,6 +66,15 @@ export async function POST(request) {
     if (!slotDate || slotStartMinute === null) {
       return Response.json({ success: false, error: "פרטי תור חסרים" }, { status: 400 });
     }
+    // Whose slot (the team calendar): only one of HER active staff, checked here against her own business; nothing = the owner.
+    const staffId = body.staffId == null || body.staffId === "" ? null : String(body.staffId);
+    if (staffId) {
+      const scope = await resolveScope(admin, tenantId, staffId, service || null);
+      if (scope.kind !== "staff") return Response.json({ success: false, error: SLOT_GONE_HE }, { status: 409 });
+    }
+    // An offer row for that person; before the migration a staff slot is not offered at all (never as the owner's).
+    const staffField = staffId ? { staff_id: staffId } : {};
+    const staffColumnMissing = (e) => !!staffId && isMissingColumnError(e);
 
     // A slot that has already passed - or is about to - cannot be filled.
     // Deleting an old appointment for bookkeeping must never send an offer, and
@@ -315,9 +327,11 @@ export async function POST(request) {
             phone: cand.phone,
             status: "sent",
             expires_at: expiresAt,
+            ...staffField,
           })
           .select("token")
           .single();
+        if (staffColumnMissing(insErr)) return Response.json({ success: true, skipped: true, reason: "staff_offer_needs_migration", sent: 0 });
         if (insErr || !offer?.token) continue;
         prepared.push({ name: cand.name, phone: cand.phone, claimUrl: `${origin}/claim/${offer.token}` });
       }
@@ -352,9 +366,11 @@ export async function POST(request) {
           phone: cand.phone,
           status: "sent",
           expires_at: expiresAt,
+          ...staffField,
         })
         .select("token")
         .single();
+      if (staffColumnMissing(insErr)) return Response.json({ success: true, skipped: true, reason: "staff_offer_needs_migration", sent, failed });
       if (insErr || !offer?.token) { failed++; continue; }
 
       const claimUrl = `${origin}/claim/${offer.token}`;

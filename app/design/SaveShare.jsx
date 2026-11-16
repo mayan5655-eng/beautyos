@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../Icon';
 import Sheet from '../Sheet';
+import FacebookGroups from './FacebookGroups';
 import { downloadBlob } from './exportPng';
 import { canShareFile, inAppBrowser, isIos, isTouchDevice, plainMime, shareFileName, shareOutcome } from '@/lib/design/sharePost';
 
@@ -73,6 +74,8 @@ export default function SaveShare({ open, onClose, blob, kind = 'image', ext = '
     try { await onPosted(); logShare(kind, 'posted', shareable, source); onClose?.(); } catch (e) { setPosted('ask'); setNote(String(e?.message || 'לא הצלחנו לסמן, נסי שוב')); }
   };
 
+  const [groupDownloaded, setGroupDownloaded] = useState(false);
+  useEffect(() => { if (!open) setGroupDownloaded(false); }, [open]);
   const [copied, setCopied] = useState(false);
   useEffect(() => { if (!open) setCopied(false); }, [open]);
   const copyCaption = () => {
@@ -148,6 +151,10 @@ export default function SaveShare({ open, onClose, blob, kind = 'image', ext = '
             <button type="button" onClick={() => setPosted('')} style={{ background: 'none', border: 'none', color: 'var(--ink-3)', fontSize: 'var(--t-sm)', cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 }}>עוד לא</button>
           </div>
         )}
+
+        {/* "הקבוצות שלי": open each Facebook group with the text copied; hidden until add_facebook_groups SQL runs. */}
+        <FacebookGroups mode="share" caption={caption} phone={phone} toast={toast}
+          onOpenGroup={() => { if (!phone && !groupDownloaded && blob) { downloadBlob(blob, downloadName || shareFileName(kind, ext)); logShare(kind, 'download', shareable, source); setGroupDownloaded(true); } }} />
 
         {note && <p role="alert" style={{ fontSize: 'var(--t-sm)', color: 'var(--danger)', margin: 0, lineHeight: 1.6 }}>{note}</p>}
 
