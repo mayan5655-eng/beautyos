@@ -11,7 +11,7 @@
 // whole reason this module exists:
 //
 //   name="ניסיון "               phone="0542845655"     created in the app
-//   name="Sigal Hakak Ben-Yacov"  phone="972526666306"   imported
+//   name="Dana Levi Ben-Ami"  phone="972527778899"   imported
 //   name="מעין"                   phone=null
 //   name="drgtdr0505889775"       phone=""
 //
@@ -38,7 +38,7 @@ const no = (l, c) => { if (!c) passed++; else { failed++; OUT(`  FAIL  ${l} (exp
 const group = (n) => OUT(`\n── ${n} ${'─'.repeat(Math.max(0, 56 - n.length))}`);
 
 // The real rows.
-const IMPORTED = { name: 'Sigal Hakak Ben-Yacov', phone: '972526666306' };
+const IMPORTED = { name: 'Dana Levi Ben-Ami', phone: '972527778899' };
 const MANUAL   = { name: 'ניסיון ',               phone: '0542845655' };
 const NOPHONE  = { name: 'מעין',                  phone: null };
 const EMPTY    = { name: 'drgtdr0505889775',      phone: '' };
@@ -52,35 +52,35 @@ OUT('='.repeat(64));
 group('digit normalisation');
 {
   eq('strips separators', digitsOnly('054-284-5655'), '0542845655');
-  eq('strips +', digitsOnly('+972-52-666-6306'), '972526666306');
-  eq('strips spaces and parens', digitsOnly('(052) 666 6306'), '0526666306');
+  eq('strips +', digitsOnly('+972-52-777-8899'), '972527778899');
+  eq('strips spaces and parens', digitsOnly('(052) 777 8899'), '0527778899');
   eq('null', digitsOnly(null), '');
   eq('no digits at all', digitsOnly('דנה כהן'), '');
 
-  eq('972 stripped', nationalDigits('972526666306'), '526666306');
+  eq('972 stripped', nationalDigits('972527778899'), '527778899');
   eq('leading 0 stripped', nationalDigits('0542845655'), '542845655');
-  eq('+972 stripped', nationalDigits('+972 52-666-6306'), '526666306');
-  eq('already national', nationalDigits('526666306'), '526666306');
+  eq('+972 stripped', nationalDigits('+972 52-777-8899'), '527778899');
+  eq('already national', nationalDigits('527778899'), '527778899');
   eq('the two formats reduce to the SAME thing',
-    nationalDigits('0526666306'), nationalDigits('972526666306'));
+    nationalDigits('0527778899'), nationalDigits('972527778899'));
   eq('empty in, empty out', nationalDigits(''), '');
 }
 
 // ── 2. THE BUG: finding an imported lead by its local number ───────────────
 group('imported lead, searched the way she would type it');
 {
-  ok('0526666306 finds the E.164 row', lead(IMPORTED, '0526666306'));
-  ok('052-666-6306 with dashes', lead(IMPORTED, '052-666-6306'));
-  ok('+972 form', lead(IMPORTED, '+972526666306'));
-  ok('as stored, verbatim', lead(IMPORTED, '972526666306'));
+  ok('0527778899 finds the E.164 row', lead(IMPORTED, '0527778899'));
+  ok('052-777-8899 with dashes', lead(IMPORTED, '052-777-8899'));
+  ok('+972 form', lead(IMPORTED, '+972527778899'));
+  ok('as stored, verbatim', lead(IMPORTED, '972527778899'));
   ok('052 prefix', lead(IMPORTED, '052'));
-  ok('6666306 — last digits off a caller ID', lead(IMPORTED, '6666306'));
-  ok('526666306 national form', lead(IMPORTED, '526666306'));
+  ok('7778899 — last digits off a caller ID', lead(IMPORTED, '7778899'));
+  ok('527778899 national form', lead(IMPORTED, '527778899'));
 
   // This is precisely what was broken before.
   const oldMatcher = (r, q) => !!(r.phone && r.phone.includes(q));
-  no('the OLD matcher could not find it by 0526666306', oldMatcher(IMPORTED, '0526666306'));
-  ok('the new one can', lead(IMPORTED, '0526666306'));
+  no('the OLD matcher could not find it by 0527778899', oldMatcher(IMPORTED, '0527778899'));
+  ok('the new one can', lead(IMPORTED, '0527778899'));
 }
 
 group('manual lead still works, and the two do not collide');
@@ -89,35 +89,35 @@ group('manual lead still works, and the two do not collide');
   ok('054 prefix', lead(MANUAL, '054'));
   ok('972542845655 finds it too', lead(MANUAL, '972542845655'));
   no('052 must NOT match the 054 lead', lead(MANUAL, '052'));
-  no('the imported number must not match the manual lead', lead(MANUAL, '0526666306'));
+  no('the imported number must not match the manual lead', lead(MANUAL, '0527778899'));
   no('the manual number must not match the imported lead', lead(IMPORTED, '0542845655'));
 }
 
 // ── 3. case ────────────────────────────────────────────────────────────────
 group('case-insensitive names');
 {
-  ok('lowercase finds a Latin name', lead(IMPORTED, 'sigal'));
-  ok('uppercase', lead(IMPORTED, 'SIGAL'));
-  ok('mixed', lead(IMPORTED, 'SiGaL'));
-  ok('a later word', lead(IMPORTED, 'yacov'));
-  ok('hyphenated part', lead(IMPORTED, 'ben-yacov'));
+  ok('lowercase finds a Latin name', lead(IMPORTED, 'dana'));
+  ok('uppercase', lead(IMPORTED, 'DANA'));
+  ok('mixed', lead(IMPORTED, 'DaNa'));
+  ok('a later word', lead(IMPORTED, 'ami'));
+  ok('hyphenated part', lead(IMPORTED, 'ben-ami'));
   ok('Hebrew still works', lead(MANUAL, 'ניסיון'));
   ok('Hebrew with trailing space in the STORED value', lead(MANUAL, 'ניסי'));
 
   const oldName = (r, q) => !!(r.name && r.name.includes(q));
-  no('the OLD matcher missed "sigal"', oldName(IMPORTED, 'sigal'));
-  ok('the new one finds it', lead(IMPORTED, 'sigal'));
+  no('the OLD matcher missed "dana"', oldName(IMPORTED, 'dana'));
+  ok('the new one finds it', lead(IMPORTED, 'dana'));
 }
 
 // ── 4. multi-term ──────────────────────────────────────────────────────────
 group('all terms must match');
 {
-  ok('two words, in order', lead(IMPORTED, 'sigal hakak'));
-  ok('two words, OUT of order', lead(IMPORTED, 'hakak sigal'));
-  ok('name term + phone term together', lead(IMPORTED, 'sigal 052'));
-  no('one good term, one bad', lead(IMPORTED, 'sigal cohen'));
-  no('right name, wrong number', lead(IMPORTED, 'sigal 054'));
-  ok('extra whitespace is ignored', lead(IMPORTED, '   sigal    hakak   '));
+  ok('two words, in order', lead(IMPORTED, 'dana levi'));
+  ok('two words, OUT of order', lead(IMPORTED, 'levi dana'));
+  ok('name term + phone term together', lead(IMPORTED, 'dana 052'));
+  no('one good term, one bad', lead(IMPORTED, 'dana cohen'));
+  no('right name, wrong number', lead(IMPORTED, 'dana 054'));
+  ok('extra whitespace is ignored', lead(IMPORTED, '   dana    levi   '));
 }
 
 // ── 5. empty and missing ───────────────────────────────────────────────────
@@ -166,7 +166,7 @@ group('filtering a mixed list');
 {
   const rows = [IMPORTED, MANUAL, NOPHONE, EMPTY];
   const find = (q) => rows.filter((r) => lead(r, q)).map((r) => r.name);
-  eq('052 finds only the imported one', find('052'), ['Sigal Hakak Ben-Yacov']);
+  eq('052 finds only the imported one', find('052'), ['Dana Levi Ben-Ami']);
   eq('054 finds only the manual one', find('054'), ['ניסיון ']);
   eq('empty query returns all', find('').length, 4);
   eq('a term nobody matches returns none', find('zzzz'), []);

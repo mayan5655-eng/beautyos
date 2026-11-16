@@ -33,7 +33,7 @@ export default function TermsPage() {
         </header>
 
         <Section heHeading="כללי" enHeading="General">
-          <He>השימוש ב-קלמיה כפוף לתנאים אלה. השימוש בשירות מהווה הסכמה להם.</He>
+          <He>השימוש בקלמיה כפוף לתנאים אלה. השימוש בשירות מהווה הסכמה להם.</He>
           <En>
             Use of Kalmea is subject to these terms. Using the Service constitutes
             agreement to them.
@@ -42,7 +42,7 @@ export default function TermsPage() {
 
         <Section heHeading="השימוש בשירות" enHeading="Use of Service">
           <He>
-            השירות מיועד לניהול עסק קוסמטי. אתה אחראי לנכונות המידע שאתה מזין ולשימוש
+            השירות מיועד לניהול עסק קוסמטי. את אחראית לנכונות המידע שאת מזינה ולשימוש
             חוקי בשירות, כולל קבלת הסכמת לקוחותיך להעלאת תמונות ומידע.
           </He>
           <En>
@@ -97,7 +97,7 @@ export default function TermsPage() {
           <He>
             השירות ניתן &quot;כפי שהוא&quot;. ככל שהדין מתיר, קלמיה ו/או מי מטעמה
             לא יהיו אחראים לנזק ישיר ו/או עקיף שייגרם כתוצאה משימוש בשירות או
-            מהסתמכות עליו. אתה אחראי לגיבוי ולציות לחוקי המס והפרטיות החלים על עסקך.
+            מהסתמכות עליו. את אחראית לגיבוי ולציות לחוקי המס והפרטיות החלים על עסקך.
           </He>
           <En>
             The Service is provided &quot;as is&quot;. To the extent permitted by law,
@@ -109,7 +109,7 @@ export default function TermsPage() {
         </Section>
 
         <Section heHeading="קניין רוחני" enHeading="Intellectual Property">
-          <He>כל הזכויות בשירות שמורות לנו. המידע שאתה מזין נשאר בבעלותך.</He>
+          <He>כל הזכויות בשירות שמורות לנו. המידע שאת מזינה נשאר בבעלותך.</He>
           <En>
             All rights in the Service are reserved to us. The data you enter remains
             yours.

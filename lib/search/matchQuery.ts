@@ -12,14 +12,14 @@
 // she typed, so the leads table now holds both side by side:
 //
 //   phone = "0542845655"      created in the app
-//   phone = "972526666306"    imported
+//   phone = "972527778899"    imported
 //
-// Typing 052 found the first and none of the imported ones. Typing 0526666306 -
+// Typing 052 found the first and none of the imported ones. Typing 0527778899 -
 // the number as she would read it off her own phone - found nothing at all. She
 // could not look up a lead by the only identifier she actually knows.
 //
-// CASE. `includes` is case-sensitive, so "sigal" did not match
-// "Sigal Hakak Ben-Yacov". Irrelevant for Hebrew, which has no case, and
+// CASE. `includes` is case-sensitive, so "dana" did not match
+// "Dana Levi Ben-Ami". Irrelevant for Hebrew, which has no case, and
 // exactly wrong for the Latin names her imported file is full of. Note the
 // app's own global top-bar search already lowercases correctly - the two
 // screen-level searches were the inconsistent ones.
@@ -29,11 +29,11 @@
 // only, with a leading 972 or a leading 0 removed - and then compared as a
 // SUBSTRING, not a prefix or a suffix:
 //
-//   stored 972526666306 -> 526666306
+//   stored 972527778899 -> 527778899
 //   stored 0542845655   -> 542845655
 //   query  052          -> 52          matches the first, not the second
-//   query  0526666306   -> 526666306   matches
-//   query  6666306      -> 6666306     matches (a middle chunk is still useful)
+//   query  0527778899   -> 527778899   matches
+//   query  7778899      -> 7778899     matches (a middle chunk is still useful)
 //
 // Substring rather than suffix because she types partial numbers from either
 // end: the first three digits she remembers, or the last four off a caller ID.
@@ -96,8 +96,8 @@ export interface MatchFields {
  * True when EVERY whitespace-separated term in the query matches at least one
  * field.
  *
- * All-terms-must-match is what makes "sigal ben" find "Sigal Hakak Ben-Yacov"
- * while "sigal cohen" does not - typing more should narrow the list, which a
+ * All-terms-must-match is what makes "dana ben" find "Dana Levi Ben-Ami"
+ * while "dana cohen" does not - typing more should narrow the list, which a
  * single `includes` over the whole query cannot do (it would need the words
  * adjacent and in order).
  *

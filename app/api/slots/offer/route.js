@@ -288,7 +288,9 @@ export async function POST(request) {
     const origin =
       request.headers.get("origin") ||
       (request.headers.get("host") ? `https://${request.headers.get("host")}` : "");
-    const expiresAt = new Date(Date.now() + OFFER_TTL_HOURS * 3600 * 1000).toISOString();
+    // Never later than 30 minutes before the slot (competitor audit 2026-11-16): a link tapped at 13:58 for a 14:00 slot
+    // used to confirm a booking nobody could make. leadMinutes is the Israel wall-clock distance to the slot, read above.
+    const expiresAt = new Date(Date.now() + Math.min(OFFER_TTL_HOURS * 60, Math.max(0, leadMinutes - 30)) * 60000).toISOString();
     const hh = fmtTime(slotStartMinute);
     const [yy, mm, dd] = slotDate.split("-");
     const niceDate = dd && mm ? `${dd}/${mm}` : slotDate;

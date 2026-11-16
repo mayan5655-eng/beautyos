@@ -29,7 +29,10 @@ import { tenantFlags } from './featureFlags.ts';
 import { sanitizeDesign, type VoucherDesign } from './giftVoucherDesign.ts';
 
 export const GV_FLAG = 'gift_vouchers';
-export const DEFAULT_VALIDITY_MONTHS = 12;
+// Five years: Israeli consumer rules do not let a gift voucher expire sooner (competitor audit 2026-11-16). Shorter
+// settings saved before this are read as five years from now on; vouchers already issued keep the date printed on them.
+export const DEFAULT_VALIDITY_MONTHS = 60;
+export const MIN_VALIDITY_MONTHS = 60;
 export const MAX_AMOUNT = 5000;
 export const MIN_AMOUNT = 20;
 export const MAX_NOTE = 200;
@@ -104,7 +107,7 @@ export function voucherConfig(settings: SettingsLike, tenantId?: string | null, 
     online: raw.online !== false,
     amounts: clean,
     services,
-    validityMonths: clampInt(raw.validity_months, 1, 60, DEFAULT_VALIDITY_MONTHS),
+    validityMonths: clampInt(raw.validity_months, MIN_VALIDITY_MONTHS, 120, DEFAULT_VALIDITY_MONTHS),
     note: cleanText(raw.note, MAX_NOTE),
     design: sanitizeDesign(raw.design, tenantId ?? (settings as { tenant_id?: string } | null | undefined)?.tenant_id ?? null, storageHost),
   };

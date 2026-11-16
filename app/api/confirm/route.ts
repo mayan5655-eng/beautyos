@@ -222,14 +222,20 @@ export async function POST(request: NextRequest) {
     // exist the update is retried without them, as the app's own cancel does.
     const patch: Record<string, unknown> = { confirmation_status: newStatus };
     if (newStatus === 'cancelled') { patch.cancelled_at = new Date().toISOString(); patch.cancelled_by = 'client'; }
-    let { error } = await supabase.from('appointments').update(patch).eq('id', appointmentId);
+    // Only from the status this request read (competitor audit 2026-11-16): if she cancelled in the app meanwhile, the
+    // client's late "confirm" must not bring the appointment back.
+    const fromRead = (q: any) => (appt.confirmation_status == null ? q.is('confirmation_status', null) : q.eq('confirmation_status', appt.confirmation_status)); // eslint-disable-line @typescript-eslint/no-explicit-any
+    let { data: changed, error } = await fromRead(supabase.from('appointments').update(patch).eq('id', appointmentId)).select('id');
     if (error && /cancelled_at|cancelled_by|schema cache|does not exist/i.test(String(error.message || ''))) {
-      ({ error } = await supabase.from('appointments').update({ confirmation_status: newStatus }).eq('id', appointmentId));
+      ({ data: changed, error } = await fromRead(supabase.from('appointments').update({ confirmation_status: newStatus }).eq('id', appointmentId)).select('id'));
     }
 
     if (error) {
       console.error('confirm: update failed', error.message);
       return NextResponse.json({ error: 'לא הצלחנו לעדכן את התור' }, { status: 500 });
+    }
+    if (!changed || changed.length === 0) {
+      return NextResponse.json({ success: false, businessName: brand.businessName || '', ...contact, error: tr('התור עודכן בינתיים על ידי העסק. לפרטים אפשר לפנות לעסק ישירות.') }, { status: 409 });
     }
 
     // Tell her, the way a person would: who, which slot, that it is free again,

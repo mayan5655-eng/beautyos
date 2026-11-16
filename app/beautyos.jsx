@@ -3114,7 +3114,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   // Search on both screens goes through lib/search/matchQuery. The old
   // `phone?.includes(q)` could not find an imported lead at all: the importer
-  // stores E.164 (972526666306) and the app stores what she typed
+  // stores E.164 (972527778899) and the app stores what she typed
   // (0542845655), so typing the number off her own phone matched nothing. It
   // was also case-sensitive, which broke every Latin name in her import.
   const filteredLeads = useMemo(() => leads.filter(l=>{
@@ -12168,7 +12168,7 @@ ${MARKETING_FOOTER}`)}`;
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:16}}>{inGroup.length} {tr("פניות בסטטוס ·")} {withPhone} {tr("עם טלפון")}{noPhone>0?tr(" · {0} ללא טלפון (ידולגו)", [noPhone]):""}</p>
 
             {bulkStep==="compose"&&(<>
- <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder={bulkLeadIds?<Spinner inline label={tr("כתבי כאן את ההודעה שתישלח לפניות שנבחרו")}/>:tr("כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה...")} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"11px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:personalised?8:16}}/>
+ <textarea value={bulkMessage} onChange={e=>setBulkMessage(e.target.value)} rows={5} placeholder={bulkLeadIds?tr("כתבי כאן את ההודעה שתישלח לפניות שנבחרו"):tr("כתבי כאן את ההודעה שתישלח לכל הפניות בסטטוס זה...")} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"11px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:pcTint,resize:"vertical",boxSizing:"border-box",marginBottom:personalised?8:16}}/>
               {personalised&&(
  <div style={{marginBottom:16}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:4}}>{previewNote}</p>

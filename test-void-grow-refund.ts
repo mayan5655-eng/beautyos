@@ -259,4 +259,28 @@ await ok('the till: a lost or unreadable refund answer says "check Grow first", 
   assert.doesNotMatch(page, /if \(!growRefund \|\| growRefund\.hidden \|\| !growRefund\.message\)/);
 });
 
+// Competitor audit 2026-11-16: a refunded gift-voucher sale used to leave the voucher redeemable.
+await ok('a gift voucher bought with the payment: voided once the money is back; a partly used one blocks the full refund', async () => {
+  const w = world({ payment: { amount: 1 } });
+  const voided: string[] = [];
+  w.repo.voucherPartlyUsed = async () => false;
+  w.repo.voidVoucher = async (_t, id) => { voided.push(id); };
+  let f = stubFetch(() => GROW_OK);
+  try {
+    const r = await refundVoidedGrowReceipt(w.deps(), { tenantId: T1, receiptId: R1 });
+    assert.equal(r.status, 'refunded');
+    assert.deepEqual(voided, ['pay-1'], 'the voucher stops working');
+  } finally { f.restore(); }
+  const u = world({ payment: { amount: 1 } });
+  u.repo.voucherPartlyUsed = async () => true;
+  f = stubFetch(() => GROW_OK);
+  try {
+    const r = await refundVoidedGrowReceipt(u.deps(), { tenantId: T1, receiptId: R1 });
+    assert.equal(r.status, 'failed'); assert.equal(r.reason, 'voucher_used');
+    assert.equal(f.calls.length, 0, 'Grow is never asked for the full price of a half-spent voucher');
+  } finally { f.restore(); }
+  const route = readFileSync('app/api/grow/refund/route.ts', 'utf8');
+  assert.ok(route.includes('voucherPartlyUsed(await voucherOfPayment(') && route.includes('await voidVoucherOfPayment(db, c.tenantId'), 'the refund button does the same');
+});
+
 console.log(`\npassed ${n} failed 0`);

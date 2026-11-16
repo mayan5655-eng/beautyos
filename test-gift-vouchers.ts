@@ -43,10 +43,10 @@ await ok('ON by default for every business; only an explicit false switches it o
   assert.equal(giftVouchersVisible({ automations: { feature_flags: { gift_vouchers: true } }, feature_flags: { gift_vouchers: false } }), false, 'the column, when present, wins');
   assert.equal(giftVouchersVisible(on()), true);
 });
-await ok('zero configuration: ₪200/₪300/₪500, 12 months, online selling on, the elegant design', () => {
+await ok('zero configuration: ₪200/₪300/₪500, 60 months (five years), online selling on, the elegant design', () => {
   const c = voucherConfig({});
   assert.deepEqual(c.amounts, [200, 300, 500]);
-  assert.equal(c.validityMonths, 12);
+  assert.equal(c.validityMonths, 60);
   assert.equal(c.enabled, true);
   assert.equal(c.design.template, 'elegant');
   assert.equal(c.design.color, null, 'her brand colour');
@@ -59,14 +59,15 @@ await ok('the platform flag lives under feature_flags, which the settings save n
 await ok('config: defaults, clamps and junk', () => {
   const d = voucherConfig({ automations: { gift_vouchers: {} } });
   assert.deepEqual(d.amounts, [200, 300, 500]);
-  assert.equal(d.validityMonths, 12);
+  assert.equal(d.validityMonths, 60);
   const c = voucherConfig({ automations: { gift_vouchers: { enabled: true, amounts: [300, '200', 5, 99999, 300, 'x'], validity_months: 999, note: '  שלום \n  לך  ', services: ['a', 'a', ''] } } });
   assert.deepEqual(c.amounts, [200, 300]);
-  assert.equal(c.validityMonths, 12);
+  assert.equal(c.validityMonths, 60);
+  assert.equal(voucherConfig({ automations: { gift_vouchers: { validity_months: 12 } } }).validityMonths, 60, 'an old shorter setting is read as five years');
   assert.equal(c.note, 'שלום לך');
   assert.deepEqual(c.services, ['a']);
   const stored = voucherStored(c);
-  assert.deepEqual({ ...stored, design: undefined }, { enabled: true, online: true, amounts: [200, 300], services: ['a'], validity_months: 12, note: 'שלום לך', design: undefined });
+  assert.deepEqual({ ...stored, design: undefined }, { enabled: true, online: true, amounts: [200, 300], services: ['a'], validity_months: 60, note: 'שלום לך', design: undefined });
   assert.equal(stored.design.template, 'elegant');
 });
 await ok('options are priced from her settings and price list, never from the browser', () => {

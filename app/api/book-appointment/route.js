@@ -42,6 +42,7 @@ async function readSameDayAppointments(supabase, tenantId, date) {
 
 import { sendBookingNotifications } from "../../../lib/bookingNotify";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
+import { readAllRows } from "../../../lib/pagedRead";
 import { checkIpLimit, checkTenantLimit, checkPhoneLimit, maskPhone } from "../../../lib/rateLimit";
 import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
@@ -128,6 +129,8 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    const phoneLocal = "0" + phoneCheck.e164.slice(3);
 
     // Per PHONE NUMBER, a few attempts an hour: the number is validated above, so this key cannot be varied by typos.
     const phoneLimited = checkPhoneLimit(phoneCheck.e164, "book-appointment-hourly", logBlock(tenantId));
@@ -217,10 +220,9 @@ export async function POST(request) {
       // (add_appointment_kind.sql) and buffer_minutes (add_service_buffer_2026-11-05.sql) are dropped one at a time, only
       // the one the database names, when their migration has not run, so a missing column can never switch the clash check off.
       readSameDayAppointments(supabase, activeTenantId, date),
-      supabase
-        .from("clients")
-        .select("id, phone")
-        .eq("tenant_id", activeTenantId),
+      // Every client, paged: a plain select stops at 1,000 rows without saying so, and a returning client past that row got
+      // a second card (competitor audit 2026-11-16). On a failed read `existing` is null and the booking still goes through.
+      readAllRows(supabase, "clients", { columns: "id, phone", filter: (q) => q.eq("tenant_id", activeTenantId) }),
       // Per-service buffers (service_prices.buffer_minutes, add_service_buffer_2026-11-05.sql). Before that migration
       // this read errors and every service falls back to the business default (0 unless she set one).
       supabase
@@ -513,7 +515,9 @@ export async function POST(request) {
     const { data: appt, error } = await writeWithApptBuffer({
         tenant_id: activeTenantId,
         name: name,
-        client_phone: phone,
+        // The validated number in local shape (05X...), never the raw typing: "+972 052..." or "521234567" stored raw sent
+        // every confirmation and reminder to a dead number (competitor audit 2026-11-16).
+        client_phone: phoneLocal,
         // The link that was missing. Null only if the lookup and the create
         // both failed, which leaves exactly today's behaviour.
         client_id: clientId,
@@ -610,7 +614,7 @@ export async function POST(request) {
         tenantId: activeTenantId,
         appointmentId: appt.id,
         name,
-        phone,
+        phone: phoneLocal,
         service,
         date,
         startMinute: newStart,
@@ -628,7 +632,7 @@ export async function POST(request) {
     if (policy && policyDeps) {
       try {
         const r = await recordConsentAndStart(policyDeps, {
-          tenantId: activeTenantId, appointmentId: String(appt.id), clientId: clientId ? String(clientId) : null, clientName: name, phone,
+          tenantId: activeTenantId, appointmentId: String(appt.id), clientId: clientId ? String(clientId) : null, clientName: name, phone: phoneLocal,
           servicePrice: svcPrice, serviceName: service, policy, returnUrl: `${APP_URL}/book?t=${activeTenantId}`, cardConsentText: CARD_CONSENT_TEXT_HE,
         });
         policyStep = r.step;

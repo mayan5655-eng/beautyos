@@ -27,7 +27,7 @@ export const GV_ON_TEXT = {
   noGrow: 'השוברים פועלים אצלך: את מוכרת ומממשת בקופה. כאן אפשר לשנות סכומים, טיפולים, תוקף ועיצוב, אם רוצים.',
 };
 
-const VALIDITY = [3, 6, 12, 24, 36];
+const VALIDITY = [60, 84, 120]; // five years at least (lib/giftVouchers.ts MIN_VALIDITY_MONTHS)
 const HOST = storageHostOf(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 export default function GiftVoucherSettings({ automations, services, pc, pcTint, onChange, tenantId, brandPrimary, businessName, logoUrl, toast }) {

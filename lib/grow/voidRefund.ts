@@ -19,6 +19,7 @@
 //     cancellation policy's job, exactly as in /api/grow/refund.
 //   * The outcome is recorded: on the payment (status 'refunded', refund_ref, refunded_at) and as a line appended to the receipt's note.
 import type { GrowOps } from './ops.ts';
+import { voucherOfPayment, voucherPartlyUsed, voidVoucherOfPayment } from './voucherRefund.ts';
 
 /** Written on the payment while its refund is with Grow. The same value as app/api/grow/refund/route.ts REFUND_CLAIM. */
 export const VOID_REFUND_CLAIM = 'refund_in_progress';
@@ -50,6 +51,10 @@ export type VoidRefundRepo = {
   markRefunded(tenantId: string, paymentId: string, refundRef: string, at: string): Promise<void>;
   /** Appends one line to the receipt's note, never replacing what it said. */
   appendReceiptNote(tenantId: string, receiptId: string, line: string): Promise<string | null>;
+  /** A gift voucher bought with this payment that was already partly redeemed (lib/grow/voucherRefund.ts). Optional: absent = none. */
+  voucherPartlyUsed?(tenantId: string, paymentId: string): Promise<boolean>;
+  /** Voids the gift voucher bought with this payment, once the money is back. */
+  voidVoucher?(tenantId: string, paymentId: string, at: string): Promise<void>;
 };
 
 export type VoidRefundDeps = {
@@ -120,6 +125,8 @@ export async function refundVoidedGrowReceipt(d: VoidRefundDeps, i: { tenantId: 
   if (!d.userId) return fail('no_account', 'Grow לא מחוברת בחשבון', {}, p);
   if (!p.transaction_id || !p.transaction_token) return fail('no_transaction', 'חסרים פרטי העסקה של Grow', {}, p);
 
+  if (d.repo.voucherPartlyUsed && (await d.repo.voucherPartlyUsed(tenantId, p.id))) return fail('voucher_used', 'השובר שנקנה בתשלום הזה כבר מומש בחלקו, את ההחזר המתאים עושים בלוח הבקרה של Grow', {}, p);
+
   const prior = p.error ?? null; // read before the claim writes over it
   const claimed = await d.repo.claim(tenantId, p.id);
   if (claimed === 'busy') {
@@ -148,6 +155,7 @@ export async function refundVoidedGrowReceipt(d: VoidRefundDeps, i: { tenantId: 
 
   const at = now().toISOString();
   await d.repo.markRefunded(tenantId, p.id, r.refundId, at);
+  if (d.repo.voidVoucher) await d.repo.voidVoucher(tenantId, p.id, at).catch(() => {});
   const note = await d.repo.appendReceiptNote(tenantId, receiptId, `₪${fmt(amount)} הוחזרו ללקוחה דרך Grow ב-${at.slice(0, 10)}`).catch(() => null);
   return { status: 'refunded', refunded: true, reason: 'refunded', amount, refundId: r.refundId, message: VOID_REFUND_HE.done(amount), note };
 }
@@ -183,6 +191,12 @@ export function supabaseVoidRefundRepo(db: any): VoidRefundRepo {
       if (u.error) u = await where(db.from('grow_payments').update({ status: 'refunded', error: null, updated_at: at }));
       if (u.error) u = await where(db.from('grow_payments').update({ error: 'refunded', updated_at: at }));
       if (u.error) console.error('[grow] void refund: could not mark payment refunded', paymentId, u.error.message);
+    },
+    async voucherPartlyUsed(tenantId, paymentId) {
+      return voucherPartlyUsed(await voucherOfPayment(db, tenantId, paymentId));
+    },
+    async voidVoucher(tenantId, paymentId, at) {
+      await voidVoucherOfPayment(db, tenantId, paymentId, at);
     },
     async appendReceiptNote(tenantId, receiptId, line) {
       const { data: rc } = await db.from('receipts').select('note').eq('id', receiptId).eq('tenant_id', tenantId).maybeSingle();

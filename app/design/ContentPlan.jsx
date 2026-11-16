@@ -107,7 +107,7 @@ export default function ContentPlan({ settings, readOnly, toast, onCreate }) {
       await api('/api/content/plan', 'POST', { action: 'generate' });
       await load();
       toast?.('התוכנית לשבוע מוכנה. עברי עליה ואשרי');
-    } catch (e) { setError(e.message); } finally { setBusy(''); }
+    } catch (e) { setError(e?.message && /[\u0590-\u05FF]/.test(e.message) ? e.message : 'לא הצלחנו להשלים את זה. בדקי שיש חיבור לאינטרנט ונסי שוב.'); } finally { setBusy(''); }
   };
   const patchItem = (id, upd) => setState((s) => ({ ...s, plan: s.plan && { ...s.plan, items: s.plan.items.map((i) => (i.id === id ? { ...i, ...upd } : i)) } }));
   const openNew = (day) => {

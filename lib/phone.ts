@@ -20,7 +20,7 @@
 // door, accepting "abc" costs a booking nobody can confirm. At the send path,
 // refusing an unusual-but-real number costs a client her reminder - and the
 // stored data includes imported rows in several shapes ("0542845655" typed in
-// the app, "972526666306" from an export) plus the occasional tourist with a
+// the app, "972527778899" from an export) plus the occasional tourist with a
 // non-Israeli number that GreenAPI can genuinely deliver to.
 //
 // So: strict about what we accept, lenient about what we send. Applying the
@@ -109,6 +109,10 @@ export function toWhatsAppNumber(raw: string | null | undefined): string | null 
   let out = digits;
   if (out.startsWith('00')) out = out.slice(2);
   if (out.startsWith('0')) out = '972' + out.slice(1);
+  // The two shapes the booking form accepts as Israeli but this used to send abroad (competitor audit 2026-11-16):
+  // "+972 052-..." keeps the trunk 0 (-> 9720...), and "52-123-4567" typed without the 0 is 9 digits starting with 5.
+  else if (out.startsWith('5') && out.length === 9) out = '972' + out;
+  if (out.startsWith('9720')) out = '972' + out.slice(4);
 
   if (out.length < 7 || out.length > 15) return null;
   return out;

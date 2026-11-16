@@ -16,6 +16,7 @@ import { resolveGrow } from '@/lib/grow/adapter';
 import { createLiveOps } from '@/lib/grow/ops';
 import { admin, caller, DEMO_NOTE } from '../_shared';
 import { membershipRefunded } from '../../memberships/_deps';
+import { voucherOfPayment, voucherPartlyUsed, voidVoucherOfPayment, VOUCHER_USED_HE } from '@/lib/grow/voucherRefund';
 
 export const maxDuration = 30;
 
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
   // The transaction id and token come from Grow's own callback, stored when the payment was recorded (transaction_token: add_grow_wallet.sql).
   const tx = p.transaction_id && p.transaction_token ? { transactionId: String(p.transaction_id), transactionToken: String(p.transaction_token) } : null;
   if (!tx) return NextResponse.json({ success: false, error: 'את התשלום הזה אי אפשר להחזיר מכאן. אפשר להחזיר אותו בלוח הבקרה של Grow.' }, { status: 409 });
+
+  // A gift voucher bought with this payment and already partly used: a full refund would pay back what was spent.
+  if (voucherPartlyUsed(await voucherOfPayment(db, c.tenantId, String(p.id)))) return NextResponse.json({ success: false, error: VOUCHER_USED_HE }, { status: 409 });
 
   // Claim it first: only the request that moves the row from "paid, not being refunded" to "being refunded" may call Grow.
   const claimedAt = new Date().toISOString();
@@ -86,6 +90,8 @@ export async function POST(request: Request) {
   }
   // A client membership's month charged through this payment: its unused credits go with the money (lib/memberships.ts onPaymentRefunded).
   await membershipRefunded(c.tenantId, String(p.id));
+  // A gift voucher bought with it stops working: the buyer has the money back.
+  await voidVoucherOfPayment(db, c.tenantId, String(p.id), now);
   console.log('[grow] refunded payment', p.id, 'tenant', c.tenantId);
   return NextResponse.json({ success: true, refundId: r.refundId, markedRefunded: !upd.error });
 }

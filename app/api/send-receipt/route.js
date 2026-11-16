@@ -16,6 +16,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "../../../lib/supabase/server";
 import { requireActiveTenant } from "../../../lib/planGuard";
 import { sendWhatsApp } from "../../../lib/whatsapp";
+import { toWhatsAppNumber } from "../../../lib/phone";
 import { greet, lines, hebrewDate } from "../../../lib/messages.js";
 import { docNameHe, PAYMENT_NOTICE_HE } from "../../../lib/legalReceipts/policy.js";
 
@@ -47,16 +48,47 @@ export async function POST(request) {
     const guard = await requireActiveTenant(session);
     if (!guard.ok) return guard.response;
 
-    const { client_name, client_phone, amount, payment_method, date, tip, payments_text, receipt_id } =
-      await request.json().catch(() => ({}));
+    const body = await request.json().catch(() => ({}));
+    const { receipt_id } = body;
 
-    // Only send when there is a phone number.
+    // EVERYTHING in the message comes from a real payment of THIS business, never from the request (competitor
+    // audit 2026-11-16). The route used to send whatever name, amount and "payment method" text it was given, to any
+    // number, from the central WhatsApp number, with no cap: a free trial could turn it into a phishing sender and get
+    // the shared number banned for every business. Now it needs her receipt, and the phone must be that client's.
+    if (!receipt_id || typeof receipt_id !== "string") {
+      return Response.json({ success: false, error: "לא מצאנו את התשלום הזה" }, { status: 400 });
+    }
+    const { data: receipt } = await supabase
+      .from("receipts")
+      .select("*")
+      .eq("id", receipt_id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (!receipt) {
+      return Response.json({ success: false, error: "לא מצאנו את התשלום הזה" }, { status: 404 });
+    }
+    let clientRowPhone = null;
+    if (receipt.client_id) {
+      const { data: cl } = await supabase.from("clients").select("phone").eq("id", receipt.client_id).eq("tenant_id", tenantId).maybeSingle();
+      clientRowPhone = cl?.phone || null;
+    }
+    const known = [clientRowPhone, receipt.client_phone].map((x) => toWhatsAppNumber(x)).filter(Boolean);
+    const asked = toWhatsAppNumber(body.client_phone);
+    const client_phone = asked && known.includes(asked) ? body.client_phone : (clientRowPhone || receipt.client_phone || null);
     if (!client_phone) {
       return Response.json(
         { success: false, error: "אין ללקוחה מספר טלפון" },
         { status: 400 }
       );
     }
+    const client_name = String(receipt.client_name || "").slice(0, 60);
+    const amount = Number(receipt.amount) || 0;
+    const payment_method = String(receipt.payment_method || "").slice(0, 40);
+    const tip = Number(receipt.tip) || 0;
+    const payments_text = String(body.payments_text || "").replace(/https?:\/\/\S+|www\.\S+/gi, "").slice(0, 120);
+    const date = receipt.created_at
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(receipt.created_at))
+      : null;
 
     // A receipt is a utility message - the same class as a booking confirmation
     // and a reminder - and goes out from the platform number like they do
@@ -79,7 +111,7 @@ export async function POST(request) {
     // the provider's PDF. Read from the database by the receipt id, never from the request:
     // the request could name any link.
     let legal = null;
-    if (receipt_id) {
+    {
       const { data: rec } = await supabase
         .from("receipts")
         .select("legal_status, legal_doc_type, legal_doc_number, legal_doc_url")

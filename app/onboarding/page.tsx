@@ -384,7 +384,8 @@ export default function OnboardingPage() {
     } catch (e: unknown) {
       const err = e as { message?: string };
       console.error("[Onboarding save error]", err);
-      setError(err.message || "שגיאה בשמירה. נסי שוב.");
+      // Only our own Hebrew messages reach her; a browser's "Failed to fetch" / "Load failed" is English (competitor audit 2026-11-16).
+      setError(err.message && /[\u0590-\u05FF]/.test(err.message) ? err.message : "לא הצלחנו לשמור. בדקי שיש חיבור לאינטרנט ונסי שוב.");
       setSaving(false);
     }
   };

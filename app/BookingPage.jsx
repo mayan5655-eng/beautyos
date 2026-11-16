@@ -996,7 +996,8 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             <div style={{ ...section }}>
               <div style={{ ...cardBox, textAlign: "center" }}>
                 <p style={{ fontSize:"var(--t-lg)", fontWeight: 600, color: deep, marginBottom: 8 }}>
-                  {tr("ההזמנות המקוונות ייפתחו כאן בקרוב")}
+                  {/* "בקרוב" only while there are no services yet; a fully booked page says so (competitor audit 2026-11-16). */}
+                  {hasServices ? tr("כרגע אין תורים פנויים להזמנה אונליין") : tr("ההזמנות המקוונות ייפתחו כאן בקרוב")}
                 </p>
                 <p style={{ fontSize:"var(--t-md)", color: "var(--ink-2, #6B6275)", lineHeight: 1.8, marginBottom: wa ? 18 : 0 }}>
                   {(!hasServices ? tr("רשימת הטיפולים עדיין בהכנה.") : tr("אין כרגע ימים פנויים לקביעת תור אונליין.")) + " " +
