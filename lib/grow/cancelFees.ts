@@ -193,9 +193,14 @@ export async function recordConsentAndStart(
     hold_expires_at: holds ? new Date(nowD.getTime() + DEPOSIT_HOLD_MINUTES * 60000).toISOString() : null, snapshot,
   });
 
+  // A held deposit whose page could not open stays 'awaiting_deposit' (round-2 audit 2026-11-16): the booking was saved as PENDING with no
+  // confirmation sent, and 'step_failed' was a state nothing ever left, so the slot stayed blocked forever and the client believed she was
+  // booked. Kept on hold, the client can press "pay" again (freshDepositLink reads this status), and the hold-release cron frees the slot
+  // when the 30 minutes run out, exactly like an unpaid deposit. Everything else (saved card, nothing held) is step_failed as before.
   const fail = async (kind: BookingStep['kind'], error: string): Promise<{ consent: ConsentRow; step: BookingStep }> => {
-    await d.repo.updateConsent(consent.id, { status: 'step_failed' });
-    consent = { ...consent, status: 'step_failed' };
+    const status: ConsentRow['status'] = holds ? 'awaiting_deposit' : 'step_failed';
+    await d.repo.updateConsent(consent.id, { status });
+    consent = { ...consent, status };
     return { consent, step: { kind, url: null, error } };
   };
   if (!account || !account.enabled) return fail(snapshot.mode, 'not connected');

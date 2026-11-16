@@ -100,6 +100,8 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [tenantId, setTenantId] = useState<string | null>(null);
+  // "עוד לא פתחתי תיק": past the tax step without a type (nothing saved). Not part of the draft: after a reload she answers again.
+  const [taxLater, setTaxLater] = useState(false);
   // The import chooser is rendered here, in this step, rather than waiting for
   // the save round-trip and a redirect. Tapping the button must feel instant.
   const [showChooser, setShowChooser] = useState(false);
@@ -245,7 +247,7 @@ export default function OnboardingPage() {
     // a facial cosmetician (businessFieldsOf falls back to cosmetics), so this step needs one pick.
     // Her business type decides whether Morning can issue a legal receipt at all (no type = no receipt, silently). Required for
     // every new business since 2026-10-23 (owner's decision): no skip past this step without it.
-    if (step === 2 && !data.business_tax_status) {
+    if (step === 2 && !data.business_tax_status && !taxLater) {
       setError("בחרי סוג עסק (פטור, מורשה או חברה). זה קובע איך יחושב סיכום ההכנסות שלך.");
       return;
     }
@@ -280,7 +282,7 @@ export default function OnboardingPage() {
       return;
     }
     // A draft saved before the step became required can land her past step 2 without a type: send her back to it.
-    if (!data.business_tax_status) {
+    if (!data.business_tax_status && !taxLater) {
       setStep(2);
       setError("עוד שלב קטן: בחרי סוג עסק (פטור, מורשה או חברה). זה קובע איך יחושב סיכום ההכנסות שלך.");
       return;
@@ -394,6 +396,17 @@ export default function OnboardingPage() {
     return (
       <div style={containerStyle}>
         <p style={{ fontSize:"var(--t-md)", color: "var(--ink-3)", fontFamily: "'Heebo','Assistant',sans-serif" }}><Spinner inline label="רגע, טוענת" /></p>
+      </div>
+    );
+  }
+
+  if (!tenantId) {
+    return (
+      <div dir="rtl" style={containerStyle}>
+        <div data-testid="onboarding-load-failed" style={{ maxWidth: 420, margin: "0 auto", textAlign: "center", padding: "0 16px" }}>
+          <p role="alert" style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6, marginBottom: 16 }}>{error || "משהו נתקע אצלנו בטעינה. נסי לרענן את הדף."}</p>
+          <button type="button" onClick={() => window.location.reload()} style={{ minHeight: 48, padding: "0 28px", borderRadius: 999, border: "none", background: "var(--k-green, #1F3A30)", color: "var(--k-cream, #FBF8F1)", fontWeight: 700, fontSize: "var(--t-md)", fontFamily: "inherit", cursor: "pointer" }}>נסי שוב</button>
+        </div>
       </div>
     );
   }
@@ -512,13 +525,18 @@ export default function OnboardingPage() {
                   {[{ k: "exempt", l: "עוסק פטור" }, { k: "licensed", l: "עוסק מורשה" }, { k: "company", l: "חברה בע\"מ" }].map((o) => {
                     const on = (data.business_tax_status || "") === o.k;
                     return (
-                      <button key={o.k} type="button" aria-pressed={on} onClick={() => { setData({ ...data, business_tax_status: o.k }); setError(""); }}
+                      <button key={o.k} type="button" aria-pressed={on} onClick={() => { setData({ ...data, business_tax_status: o.k }); setTaxLater(false); setError(""); }}
                         style={{ flex: 1, padding: "11px 6px", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: on ? `1.5px solid ${pc}` : "1px solid var(--line)", background: on ? "var(--pc-tint)" : "var(--surface)", color: "var(--ink)" }}>
                         {o.l}
                       </button>
                     );
                   })}
                 </div>
+                <button type="button" data-testid="tax-later" aria-pressed={taxLater} onClick={() => { setData({ ...data, business_tax_status: "" }); setTaxLater(true); setError(""); }}
+                  style={{ width: "100%", marginTop: 8, padding: "10px 6px", minHeight: 44, borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", border: taxLater ? `1.5px solid ${pc}` : "1px dashed var(--line)", background: taxLater ? "var(--brand-cream, #FBF8F1)" : "transparent", color: "var(--ink)" }}>
+                  עוד לא פתחתי תיק / לא בטוחה
+                </button>
+                {taxLater && <p data-testid="tax-later-note" style={{ fontSize: "var(--t-xs)", color: "var(--ink-2)", lineHeight: 1.5, marginTop: 6 }}>אין בעיה, אפשר להמשיך. כשתפתחי תיק, בוחרים את סוג העסק בהגדרות, ועד אז הקופה רושמת אישורי תשלום בלבד.</p>}
                 <p style={{ fontSize: "var(--t-xs)", color: "var(--ink-3)", lineHeight: 1.5, marginTop: 6 }}>
                   זה קובע איך יחושב סיכום ההכנסות, ואיזה מסמך יופק אם תחברי בהמשך תוכנת קבלות. בחרי את מה שרשום אצלך במע״מ. לא בטוחה? אפשר לשנות בכל רגע בהגדרות.
                 </p>
@@ -704,7 +722,7 @@ export default function OnboardingPage() {
 
           {step < STEP_NAMES.length ? (
             <>
-              {!(step === 1 && !data.business_name.trim()) && !(step === 4 && data.business_fields.length === 0) && !(step === 2 && !data.business_tax_status) && (
+              {!(step === 1 && !data.business_name.trim()) && !(step === 4 && data.business_fields.length === 0) && !(step === 2 && !data.business_tax_status && !taxLater) && (
                 <button onClick={next} className="ob-btn-secondary" style={{ ...btnSecondaryStyle, marginRight: "auto", color: "var(--ink-3)" }}>
                   דלגי
                 </button>

@@ -391,6 +391,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const [growReturn, setGrowReturn] = useState(null);
   // After booking: the appointment to pay for, and the press on "pay by card" (/api/grow/booking-pay opens Grow's page).
   const [bookedId, setBookedId] = useState(null);
+  const [manageUrl, setManageUrl] = useState("");
   const [payBusy, setPayBusy] = useState(false);
   const [payErr, setPayErr] = useState("");
   const payNow = async () => {
@@ -781,6 +782,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
       setPolicyStep(result.policyStep || null);
       setPolicyStepAt(Date.now());
       setBookedId(result.appointmentId || null);
+      setManageUrl(typeof result.manageUrl === "string" && result.manageUrl.startsWith("http") ? result.manageUrl : "");
       setBookedWith(result.staff && typeof result.staff.name === "string" ? result.staff.name : "");
       setStep(4);
     } catch (err) {
@@ -1616,6 +1618,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("שם")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{name}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize:"var(--t-md)", color: muted }}>{tr("טלפון")}</span><span style={{ fontSize:"var(--t-md)", fontWeight: 600, color: ink }}>{phone}</span></div>
                 </div>
+                {/* Her own way back to this appointment: the same page her reminder opens (see / move / cancel). */}
+                {manageUrl && (
+                  <div data-testid="manage-link" style={{ marginBottom: 18 }}>
+                    <a href={manageUrl} className="bk-btn" style={{ display: "block", textDecoration: "none", textAlign: "center", padding: "12px 0", minHeight: 48, boxSizing: "border-box", background: "var(--brand-surface, #FDFBF9)", color: ink, border: `1px solid ${pc}`, borderRadius: "var(--r-md)", fontWeight: 700, fontSize: "var(--t-md)" }}>{tr("לשינוי או ביטול התור")}</a>
+                    <p style={{ ...T_META, color: faint, marginTop: 6 }}>{tr("כדאי לשמור את הקישור או לצלם את המסך.")}</p>
+                  </div>
+                )}
                 {/* The form she asked for before this treatment, and a first-timer's patch test (lib/intakeGate.ts). Only for a gated service. */}
                 {intakeInfo && (intakeInfo.formFromBusiness || intakeInfo.patchTest) && (
                   <div data-testid="intake-step" style={{ background: cream, borderRadius: "var(--r-card)", padding: "16px 18px", border: `1px solid ${pc}`, textAlign: "start", marginBottom: 18, lineHeight: 1.7 }}>
@@ -1648,10 +1657,13 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                 )}
                 {policyStep && !policyStep.url && (
                   <div data-testid="grow-step-error" style={{ background: cream, borderRadius: "var(--r-card)", padding: "14px 18px", border: `1px solid ${hair}`, textAlign: "start", marginBottom: 18, lineHeight: 1.7, fontSize: "var(--t-md)", color: ink }}>
-                    {tr("התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח.")} {brand?.businessName || tr("העסק")} {tr("תיצור איתך קשר להשלמת")} {policyStep.kind === "deposit" ? tr("המקדמה") : tr("שמירת הכרטיס")}.
-                    {policyStep.kind === "saved_card" && bookedId && (
+                    {/* A deposit is NOT booked yet: the slot is held for 30 minutes and released if it is not paid (lib/grow/cancelFees.ts). */}
+                    {policyStep.kind === "deposit"
+                      ? tr("התור שמור עבורך ל-30 דקות, אבל דף התשלום לא נפתח. אפשר לנסות שוב כאן. בלי מקדמה התור משתחרר בסוף הזמן.")
+                      : <>{tr("התור נקבע, אבל לא הצלחנו לפתוח עכשיו את הדף המאובטח.")} {brand?.businessName || tr("העסק")} {tr("תיצור איתך קשר להשלמת")} {tr("שמירת הכרטיס")}.</>}
+                    {bookedId && (
                       <>
-                        <button type="button" className="bk-btn" data-testid="card-retry" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", marginTop: 10, padding: "12px 0", minHeight: 48, background: "var(--brand-surface, #FDFBF9)", color: ink, border: `1px solid ${pc}`, borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? tr("פותחת את הדף המאובטח…") : tr("לנסות שוב לשמור את הכרטיס")}</button>
+                        <button type="button" className="bk-btn" data-testid="card-retry" disabled={payBusy} onClick={payDeposit} style={{ display: "block", width: "100%", marginTop: 10, padding: "12px 0", minHeight: 48, background: "var(--brand-surface, #FDFBF9)", color: ink, border: `1px solid ${pc}`, borderRadius: "var(--r-md)", fontWeight: 700, fontFamily: "inherit", fontSize: "var(--t-md)", cursor: "pointer" }}>{payBusy ? tr("פותחת את הדף המאובטח…") : policyStep.kind === "deposit" ? tr("לנסות שוב לפתוח את התשלום") : tr("לנסות שוב לשמור את הכרטיס")}</button>
                         {payErr && <p role="alert" style={{ fontSize: "var(--t-sm)", color: ink, marginTop: 8 }}>{payErr}</p>}
                       </>
                     )}

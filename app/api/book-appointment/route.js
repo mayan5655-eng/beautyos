@@ -52,6 +52,7 @@ import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
 import { suppressionHash } from "../../../lib/clientData";
 import { APP_URL } from "../../../lib/appUrl";
+import { confirmLinks } from "../../../lib/confirmToken";
 import { tenantPublicClosed } from "../../../lib/tenantActive";
 import { growUiEnabled } from "../../../lib/grow/adapter";
 import { activePolicy, recordConsentAndStart, releaseExpiredHolds } from "../../../lib/grow/cancelFees";
@@ -726,6 +727,10 @@ export async function POST(request) {
       success: true,
       appointmentId: appt.id,
       policyStep,
+      // Her own link to see, move or cancel this appointment (the page her reminder opens; signed, dies 3 days after the visit). Only
+      // for a booking that stands: a held deposit gets it once paid, with the confirmation. This response goes to the browser that
+      // just booked, which already knows every detail on that page.
+      manageUrl: heldForDeposit ? null : confirmLinks(APP_URL, String(appt.id), { date }).cancelUrl,
       intake: intakeOut,
       // What she asked for up front, so the confirmation screen can say how to pay it.
       deposit: rules.depositAmount > 0 ? { amount: rules.depositAmount, note: rules.depositNote } : null,

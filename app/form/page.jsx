@@ -116,13 +116,21 @@ export default function FormPage() {
 
   const formTemplate = formData ? templateFor(formData.form_type) : null;
 
-  const startDraw = (e) => {
-    setDrawing(true);
+  // The finger's position in the canvas's OWN pixels: the canvas is 460x130 but drawn at the card's width (narrower on a phone).
+  const canvasPoint = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = (e.touches?.[0]?.clientX ?? e.clientX) - rect.left;
-    const y = (e.touches?.[0]?.clientY ?? e.clientY) - rect.top;
-    lastPos.current = {x, y};
+    const sx = rect.width ? canvas.width / rect.width : 1;
+    const sy = rect.height ? canvas.height / rect.height : 1;
+    return {
+      x: ((e.touches?.[0]?.clientX ?? e.clientX) - rect.left) * sx,
+      y: ((e.touches?.[0]?.clientY ?? e.clientY) - rect.top) * sy,
+    };
+  };
+
+  const startDraw = (e) => {
+    setDrawing(true);
+    lastPos.current = canvasPoint(e);
   };
 
   const draw = (e) => {
@@ -130,14 +138,12 @@ export default function FormPage() {
     e.preventDefault();
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.touches?.[0]?.clientX ?? e.clientX) - rect.left;
-    const y = (e.touches?.[0]?.clientY ?? e.clientY) - rect.top;
+    const { x, y } = canvasPoint(e);
     ctx.beginPath();
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
     ctx.lineTo(x, y);
-    ctx.strokeStyle = "var(--ink, #1F3A30)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#1F3A30"; // a canvas takes a colour, not a CSS variable
+    ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
     ctx.stroke();
     lastPos.current = {x, y};
@@ -391,8 +397,8 @@ export default function FormPage() {
             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={()=>setDrawing(false)}
             onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={()=>setDrawing(false)}
             style={{width:"100%",height:130,border:"1.5px solid var(--pc-soft)",borderRadius:"var(--r-sm)",background:"var(--brand-cream, #FBF8F1)",cursor:"crosshair",touchAction:"none",display:"block"}}/>
-          <button onClick={clearSignature}
-            style={{marginTop:8,background:"none",border:"none",fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
+          <button type="button" onClick={clearSignature}
+            style={{marginTop:4,minHeight:44,padding:"0 4px",background:"none",border:"none",fontSize:"var(--t-sm)",color:"var(--brand-muted, #7D8D87)",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
             {t("signatureClear")}
           </button>
         </div>
