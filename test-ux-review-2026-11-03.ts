@@ -93,8 +93,9 @@ await ok('7, 8: booking page back buttons, scroll, a taken slot, and the address
   assert.match(b, /\}, \[step\]\);/);
   assert.match(b, /result\.code === "slot_taken"[\s\S]{0,300}setSelectedStart\(null\);[\s\S]{0,200}setStep\(2\);[\s\S]{0,120}refetchAvailability\(\);/);
   assert.match(b, /data-testid="slot-taken"/);
-  // 3 for one practitioner, plus 1 for the team calendar's per-staff check (lib/team.ts pickStaff, test-team-calendar.ts).
-  assert.equal((src('./app/api/book-appointment/route.js').match(/code: "slot_taken"/g) || []).length, 4);
+  // 3 for one practitioner, 1 for the team calendar's per-staff check (lib/team.ts pickStaff, test-team-calendar.ts), and 1 for
+  // yom tov (lib/holidayClosure.ts): every one sends her back to the times on the page.
+  assert.equal((src('./app/api/book-appointment/route.js').match(/code: "slot_taken"/g) || []).length, 5);
   assert.match(b, /https:\/\/waze\.com\/ul\?q=\$\{encodeURIComponent\(addr\)\}&navigate=yes/);
   assert.match(b, /\{addr && \(\s*<div data-testid="booking-address"/);
 });

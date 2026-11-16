@@ -24,7 +24,8 @@ import { PLAN_PRICES, ANNUAL_MONTHS_PAID, annualPriceOf, priceHe } from './prici
  * The intro price line. Owner's words (2026-10-21): "מחיר היכרות 349 לזמן מוגבל, לא לציין תאריך". So: always
  * "מחיר היכרות 349 ₪ לזמן מוגבל", never a date. Numbers come from lib/pricing.ts only.
  */
-export const PRICE_LINE_HE = `מחיר היכרות ${priceHe(PLAN_PRICES.launch)} לזמן מוגבל, במקום ${priceHe(PLAN_PRICES.regular)} לחודש.`
+// Owner's decision 2026-11-16: the launch price alone, no "instead of" a regular price nobody was charged.
+export const PRICE_LINE_HE = `מחיר השקה ${priceHe(PLAN_PRICES.launch)} לחודש.`
 
 /** Hebrew needs a real dual form: "יומיים", not "2 ימים". */
 export function daysHe(n: number): string {

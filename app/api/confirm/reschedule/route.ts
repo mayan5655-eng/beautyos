@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
     }
     const hours = staffScope ? staffHoursSettings(staffScope, settings) : settings;
     const lunch = !staffScope || staffScope.is_owner ? resolveLunch(settings.branding) : null;
-    const q = { hours, rules, duration, buffer, lunch, busyByDate };
+    const q = { hours, rules, duration, buffer, lunch, busyByDate, branding: settings.branding ?? null };
 
     if (body.peek === true) {
       const days = rescheduleDays({ ...q, skip: oldStart != null ? { date: oldDate, start: oldStart } : null });

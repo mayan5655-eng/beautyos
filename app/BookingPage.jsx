@@ -25,6 +25,7 @@ async function anonRpc(name, args) {
   }
 }
 import { dayHoursFrom, isOpenOn, normalizeBusinessHours } from "@/lib/businessHours";
+import { closedForHoliday } from "@/lib/holidayClosure";
 import { fetchPublicSettings, resolveBranding, defaultHowIWork, defaultHeroHeadline, defaultAboutText, defaultHeroBenefits, defaultValueProps } from "@/lib/branding";
 import { defaultImageUrl, serviceImage, defaultHeroKey, defaultAboutKey } from "@/lib/defaultImages";
 import { cleanPublicResults, groupResults, groupKeyForService, resultsForService } from "@/lib/results";
@@ -648,7 +649,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   const askWho = teamForSvc.length >= 2;
   const pickedStaff = askWho && staffPick !== ANY_STAFF ? teamForSvc.find((x) => x.id === staffPick) || null : null;
   const teamPool = !team ? null : pickedStaff ? [pickedStaff] : teamForSvc;
-  const dayWindow = (d) => (teamPool ? teamDayWindow(teamPool, d.getDay()) : dayHoursFrom(settings, d.getDay()));
+  // Yom tov is closed to self-booking unless she opens on chag (lib/holidayClosure.ts); the server refuses it too.
+  const dayWindow = (d) => (closedForHoliday(settings?.branding, formatDate(d)) ? null
+    : teamPool ? teamDayWindow(teamPool, d.getDay()) : dayHoursFrom(settings, d.getDay()));
   const freeAt = (ds, m) => (teamPool
     ? teamPool.some((x) => publicSlotFree(x, team.busy[x.id], ds, m, svcDuration, svcBuffer))
     : !busyOn(ds).some(([bs, be]) => overlaps(m, m + svcDuration + svcBuffer, bs, be)));

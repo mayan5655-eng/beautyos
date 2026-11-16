@@ -103,7 +103,7 @@ const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false 
 const LapsedClientsModal = dynamic(() => import("./LapsedClientsModal"), { ssr: false });
 // Loaded after the home screen is up: it pulls the template catalogue for today's post suggestion.
 const MarketingToday = dynamic(() => import("./MarketingToday"), { ssr: false });
-import { canMarket, marketingStatus, withMarketingFooter, consentFields, optOutFields, MARKETING_FOOTER } from "@/lib/marketingConsent";
+import { canMarket, marketingStatus, withMarketingFooter, withAdLabel, consentFields, optOutFields, MARKETING_FOOTER } from "@/lib/marketingConsent";
 import { DEFAULT_LEAD_SOURCES, resolveLeadSources, sourceLabelHe } from "@/lib/leadSources";
 import { buildSourceReport } from "@/lib/sourceReport";
 const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: false });
@@ -601,7 +601,8 @@ function waMsg(phone, msg) {
   if (!phone) return null;
   const clean = phone.replace(/\D/g,"");
   const intl = clean.startsWith("0") ? "972" + clean.slice(1) : clean;
-  return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
+  // A promotional message opens with "פרסומת" (lib/marketingConsent.js withAdLabel); anything else is unchanged.
+  return `https://wa.me/${intl}?text=${encodeURIComponent(withAdLabel(msg))}`;
 }
 // The browser has no signing secret and must never be given one, so the signed
 // links are minted by /api/confirm/link, which checks the session and that the
@@ -8797,11 +8798,11 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
         // the letter D and left dashes and spaces in the number, and every
         // wa.me link built from a phone stored as "050-123 4567" was dead.
         const waDigits=(raw)=>{let d=String(raw||"").replace(/\D/g,"");if(d.startsWith("972"))return d;if(d.startsWith("0"))return "972"+d.slice(1);if(d.length===9)return "972"+d;return d;};
-        const waHref=(c)=>`https://wa.me/${waDigits(c.phone)}?text=${encodeURIComponent(`שלום${c.name?` ${c.name}`:""}! ✦
+        const waHref=(c)=>`https://wa.me/${waDigits(c.phone)}?text=${encodeURIComponent(withAdLabel(`שלום${c.name?` ${c.name}`:""}! ✦
 ${composeSend.messageTemplate}
 ${c.claimUrl}
 
-${MARKETING_FOOTER}`)}`;
+${MARKETING_FOOTER}`))}`;
         const doneCount=composeSend.candidates.filter(c=>composeDone[c.phone]).length;
         return (
  <Sheet open onClose={()=>setComposeSend(null)} width={440} zIndex={4000} title={trv(composeSend.title)}>
@@ -13986,7 +13987,7 @@ ${MARKETING_FOOTER}`)}`;
  <div className="glass-card" style={{padding:"14px 16px",marginBottom:14}} data-testid="account-deletion">
  <p style={{fontSize:"var(--t-md)",fontWeight:700,color:"var(--ink)",marginBottom:4}}>{tr("הנתונים שלך הם שלך")}</p>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.65,marginBottom:10}}>{tr("אם החלטת לעצור, אפשר לבקש שנמחק את החשבון וכל מה שבו. אנחנו מטפלים בזה ידנית, ובדרך כלל תוך כמה ימים, ונחזור אלייך לאשר.")}</p>
- <a href={"mailto:maayanfacebook1992@gmail.com?subject="+encodeURIComponent("בקשת מחיקת חשבון קלמיה")+"&body="+encodeURIComponent("היי, אני רוצה למחוק את החשבון שלי בקלמיה ואת כל המידע בו.")} style={{display:"inline-block",fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"8px 14px",textDecoration:"none"}}>{tr("לבקש מחיקת חשבון")}</a>
+ <a href={"mailto:kalmea.app@gmail.com?subject="+encodeURIComponent("בקשת מחיקת חשבון קלמיה")+"&body="+encodeURIComponent("היי, אני רוצה למחוק את החשבון שלי בקלמיה ואת כל המידע בו.")} style={{display:"inline-block",fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep,border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",padding:"8px 14px",textDecoration:"none"}}>{tr("לבקש מחיקת חשבון")}</a>
  </div>
  )}
               {/* The answers here feed only the WhatsApp bot, which is connected by hand per business; without it this editor promised a bot she cannot
@@ -14100,6 +14101,10 @@ ${MARKETING_FOOTER}`)}`;
  <select aria-label={tr("הודעה מראש לפחות")} value={notice} onChange={e=>setRule({min_notice_hours:Number(e.target.value)})} style={sel}>{[[0,"בלי הגבלה"],[1,"שעה"],[2,"שעתיים"],[4,"4 שעות"],[12,"12 שעות"],[24,"יום"],[48,"יומיים"],[72,"3 ימים"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>{tr("עד כמה זמן קדימה")}</span>
  <select aria-label={tr("עד כמה זמן קדימה")} value={ahead} onChange={e=>setRule({max_days_ahead:Number(e.target.value)})} style={sel}>{[[7,"שבוע"],[14,"שבועיים"],[21,"3 שבועות"],[30,"30 יום"],[45,"45 יום"],[60,"60 יום"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+ {/* Yom tov is closed to self-booking unless she ticks this (lib/holidayClosure.ts). */}
+ <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)",minHeight:40}}><span>{tr("לקבל הזמנות בדף גם בחגים")}</span>
+ <input type="checkbox" data-testid="open-on-holidays" checked={r.open_on_holidays===true} onChange={e=>setRule({open_on_holidays:e.target.checked})} style={{width:18,height:18,accentColor:pc}}/></label>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"-4px 0 0"}}>{tr("כשזה כבוי, ראש השנה, יום כיפור, החג הראשון והאחרון של סוכות ופסח ושבועות סגורים להזמנה בדף. את עדיין יכולה לקבוע בהם תור ידנית ביומן.")}</p>
  <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:"var(--t-sm)",color:"var(--ink-2)"}}><span>{tr("זמן הפסקה אחרי כל טיפול")}</span>
  <select aria-label={tr("זמן הפסקה אחרי כל טיפול")} data-testid="business-buffer" value={businessBufferDefault(b)} onChange={e=>setRule({buffer_minutes:Number(e.target.value)})} style={sel}>{(BUFFER_OPTIONS.includes(businessBufferDefault(b))?BUFFER_OPTIONS:[...BUFFER_OPTIONS,businessBufferDefault(b)]).map(v=><option key={v} value={v}>{v===0?tr("בלי"):tr("{0} דקות", [v])}</option>)}</select></label>
  <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"-4px 0 0"}}>{tr("הזמן הזה נשאר פנוי אחרי כל תור, גם בדף וגם ביומן שלך. אפשר לקבוע זמן אחר לשירות מסוים ברשימת השירותים.")}</p>

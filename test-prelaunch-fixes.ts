@@ -32,13 +32,13 @@ ok('demo, terms and privacy have Hebrew descriptions', () => {
   assert.match(rd('app/privacy/page.tsx'), /title: "מדיניות פרטיות · Kalmea"/);
 });
 
-ok('terms state the regular price and the free month, in Hebrew with the English line after it', () => {
+ok('terms state the launch price and the free month, in Hebrew with the English line after it', () => {
   const t = rd('app/terms/page.tsx');
-  const i = t.indexOf('המחיר הרגיל הוא {priceHe(PLAN_PRICES.regular)} לחודש. החודש הראשון חינם, בלי כרטיס אשראי.');
+  const i = t.indexOf('מחיר ההשקה הוא {priceHe(PLAN_PRICES.launch)} לחודש. החודש הראשון חינם, בלי כרטיס אשראי.');
   assert.ok(i > 0);
-  const en = t.indexOf('The regular price is NIS {PLAN_PRICES.regular} per month', i);
+  const en = t.indexOf('The launch price is NIS {PLAN_PRICES.launch} per month', i);
   assert.ok(en > i);
-  assert.ok(t.indexOf('Introductory Price') > en, 'the clause sits before the introductory-price clause');
+  assert.ok(t.indexOf('Price Changes') > en, 'the clause sits before the price-change clause (was "Introductory Price" until 2026-11-16)');
 });
 
 ok('payments export button is Hebrew', () => {

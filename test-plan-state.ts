@@ -32,10 +32,10 @@ for (const t of [notice.body, blockedNoticeHe('paused').body, WRITE_BLOCKED_TOAS
   assert.ok(!/(צפייה בלבד|קריאה בלבד|לצפות|ממשיכה לראות|להמשיך לראות)/.test(t), `no read-only promise: ${t}`);
 }
 assert.match(BLOCKED_CLIENTS_NOTE_HE, /תזכורות/, 'booked clients keep their reminders'); assert.match(BLOCKED_CLIENTS_NOTE_HE, /לא מקבל תורים חדשים/, 'the booking page takes no new bookings');
-// The price: intro 349 "for a limited time", no date (owner 2026-10-21), against 499, in the urgent warning (it used to quote 499 only).
-assert.ok(PRICE_LINE_HE.startsWith('מחיר היכרות 349 ₪ לזמן מוגבל'), PRICE_LINE_HE);
+// The price: launch 349 only, no date, no "instead of 499" (owner 2026-11-16), in the urgent warning.
+assert.equal(PRICE_LINE_HE, 'מחיר השקה 349 ₪ לחודש.');
 assert.ok(!/\d\d\.\d\d\.\d{4}/.test(PRICE_LINE_HE), 'no date on the intro price');
-assert.ok(TRIAL_URGENT_BODY_HE.includes(PRICE_LINE_HE) && /499 ₪/.test(PRICE_LINE_HE), 'the urgent body quotes 349 and 499');
+assert.ok(TRIAL_URGENT_BODY_HE.includes(PRICE_LINE_HE) && !/499/.test(PRICE_LINE_HE), 'the urgent body quotes 349 only');
 assert.ok(/נסגרת/.test(TRIAL_URGENT_BODY_HE), 'the warning says the system closes at the end');
 // Her client's view of a closed booking page says nothing about billing.
 for (const t of [BOOKING_CLOSED_TITLE_HE, BOOKING_CLOSED_BODY_HE]) assert.ok(!/(מנוי|תשלום|קלמיה|Kalmea|התנסות)/.test(t), 'no billing word on her public page');

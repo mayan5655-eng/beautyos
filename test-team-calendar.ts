@@ -382,7 +382,8 @@ await ok('single staff: the route takes the old path, the page asks nothing, the
   const page = read('app/BookingPage.jsx');
   assert.match(page, /if \(staff\.length < 2\) return null;/, 'a team of one is no team on the page');
   assert.match(page, /const freeAt = \(ds, m\) => \(teamPool\n    \? .*\n    : !busyOn\(ds\)\.some\(\(\[bs, be\]\) => overlaps\(m, m \+ svcDuration \+ svcBuffer, bs, be\)\)\);/, 'the old test without a team');
-  assert.match(page, /const dayWindow = \(d\) => \(teamPool \? teamDayWindow\(teamPool, d\.getDay\(\)\) : dayHoursFrom\(settings, d\.getDay\(\)\)\);/);
+  // Yom tov first (lib/holidayClosure.ts, test-spam-label-holidays.ts), then the team's or the business's hours.
+  assert.match(page, /const dayWindow = \(d\) => \(closedForHoliday\(settings\?\.branding, formatDate\(d\)\) \? null\s*: teamPool \? teamDayWindow\(teamPool, d\.getDay\(\)\) : dayHoursFrom\(settings, d\.getDay\(\)\)\);/);
   // With one person the per-person busy list is exactly the business busy list.
   const rows = [appt({}), appt({ start_minute: 720 })];
   assert.deepEqual(staffBusyRanges(rows, [owner, noa], () => 5)[OWNER], publicBusyRanges(rows, () => 5));
@@ -663,7 +664,7 @@ await ok('reschedule: the route resolves her within the tenant, refuses someone 
   assert.match(route, /const scope = await resolveScope\(db, tenantId, who\.staffId, String\(appt\.service \|\| ''\) \|\| null\);\n    if \(scope\.kind === 'refuse'\) return refuse\(/);
   assert.match(route, /const busyRows = staffScope \? mineOnly\(\(rows \|\| \[\]\) as Appt\[\], staffScope\) : \(\(rows \|\| \[\]\) as Appt\[\]\);/);
   assert.match(route, /const hours = staffScope \? staffHoursSettings\(staffScope, settings\) : settings;/);
-  assert.match(route, /const q = \{ hours, rules, duration, buffer, lunch, busyByDate \};/);
+  assert.match(route, /const q = \{ hours, rules, duration, buffer, lunch, busyByDate, branding: settings\.branding \?\? null \};/); // branding: the yom tov rule
   // one q for the list and the write
   assert.match(route, /const days = rescheduleDays\(\{ \.\.\.q, skip:/);
   assert.match(route, /const problem = moveSlotProblem\(\{ \.\.\.q, date, start: newStart \}\);/);

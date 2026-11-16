@@ -18,6 +18,7 @@
 
 import { dayHoursFrom, type HoursSettings } from './businessHours.ts';
 import { slotsBetween, overlaps } from './apptTime.ts';
+import { closedForHoliday } from './holidayClosure.ts';
 import { isTooSoonForSelfBooking, isTooFarAhead, wallClockNow, type BookingRules } from './bookingPolicy.ts';
 
 /** How many times one appointment can be moved from the client's link. Her own moves in the app are not counted. */
@@ -52,6 +53,8 @@ export type SlotRules = Pick<BookingRules, 'minLeadMinutes' | 'maxDaysAhead'>;
 
 export type SlotQuery = {
   hours: HoursSettings | null | undefined;
+  /** Her settings.branding, for the yom tov rule (lib/holidayClosure.ts). */
+  branding?: unknown;
   rules: SlotRules;
   /** the treatment's own length and the buffer after it */
   duration: number;
@@ -72,6 +75,8 @@ export function moveSlotProblem(q: SlotQuery & { date: string; start: number }):
   if (Number.isNaN(asDate.getTime()) || asDate.toISOString().slice(0, 10) !== q.date) return 'bad';
   if (isTooSoonForSelfBooking(q.date, q.start, now, q.rules.minLeadMinutes)) return 'too_soon';
   if (isTooFarAhead(q.date, q.rules.maxDaysAhead, now)) return 'too_far';
+  // Yom tov, unless she opens on chag (lib/holidayClosure.ts). Without q.branding the day is judged as before.
+  if (q.branding !== undefined && closedForHoliday(q.branding, q.date)) return 'closed';
   const dh = dayHoursFrom(q.hours, new Date(q.date + 'T12:00:00Z').getUTCDay());
   if (!dh) return 'closed';
   const duration = Number(q.duration) > 0 ? Number(q.duration) : 60;

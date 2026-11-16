@@ -278,7 +278,7 @@ or user token); do the reviewer account yourself.
 | Display name | `Kalmea` |
 | App icon (1024 x 1024) | upload `public/icons/icon-1024.png` from the repo |
 | App domains | `kalmea.app` |
-| Contact email | `maayanfacebook1992@gmail.com` (the address the privacy policy lists; it must be a monitored inbox) |
+| Contact email | `kalmea.app@gmail.com` (the address the privacy policy lists; it must be a monitored inbox) |
 | Privacy Policy URL | `https://kalmea.app/privacy` |
 | Terms of Service URL | `https://kalmea.app/terms` |
 | User data deletion | choose **Data deletion request URL**, paste `https://kalmea.app/api/facebook/data-deletion` |

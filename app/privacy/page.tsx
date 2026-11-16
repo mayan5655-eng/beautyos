@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   description: "מדיניות הפרטיות של קלמיה: איזה מידע נשמר, למה, ואיך הוא מוגן.",
 };
 
-const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
+const CONTACT_EMAIL = "kalmea.app@gmail.com";
 
 export default function PrivacyPage() {
   return (

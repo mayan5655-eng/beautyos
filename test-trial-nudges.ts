@@ -52,8 +52,8 @@ assert.equal(c10zero.action, 'copy_link', 'an empty calendar has nothing to char
 assert.ok(!/ו\d/.test(c10.body + c23.body), 'no digit glued to a Hebrew conjunction ("ו3 לקוחות")');
 assert.ok(c23.title.includes('תקופת ההתנסות') && !/לי ונסגור/.test(c23.body) && c23.body.includes('כתבי לנו'), 'one voice with its button ("נו"), one name for the trial');
 assert.ok(c1.actionLabel.includes('הקישור לקביעת תור') && c10zero.actionLabel === c1.actionLabel, 'one name for the booking link');
-assert.ok(c23.body.includes('14 תורים') && c23.body.includes('לקוחה אחת') && c23.body.includes('499'));
-assert.ok(!c1.body.includes('499') && !c10.body.includes('499'), 'the price appears only on day 23');
+assert.ok(c23.body.includes('14 תורים') && c23.body.includes('לקוחה אחת') && c23.body.includes('349') && !c23.body.includes('499'));
+assert.ok(!c1.body.includes('349') && !c10.body.includes('349'), 'the price appears only on day 23');
 assert.equal(nudgeStorageKey('t1', 'day10'), 'kalmea_nudge_t1_day10');
 assert.notEqual(nudgeStorageKey('t1', 'day1'), nudgeStorageKey('t2', 'day1'));
 

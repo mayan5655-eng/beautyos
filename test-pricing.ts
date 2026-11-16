@@ -11,8 +11,9 @@ import { nudgeCopy } from './lib/trialNudges.ts';
 assert.equal(REGULAR_PRICE, PLAN_PRICES.regular);
 
 // the copy carries the configured price
-assert.ok(TRIAL_URGENT_BODY_HE.includes(priceHe(PLAN_PRICES.regular)));
-assert.ok(nudgeCopy('day23', { appointments: 3, clients: 2 }).body.includes(priceHe(PLAN_PRICES.regular)));
+// Owner 2026-11-16: the copy quotes the launch price only.
+assert.ok(TRIAL_URGENT_BODY_HE.includes(priceHe(PLAN_PRICES.launch)) && !TRIAL_URGENT_BODY_HE.includes(priceHe(PLAN_PRICES.regular)));
+assert.ok(nudgeCopy('day23', { appointments: 3, clients: 2 }).body.includes(priceHe(PLAN_PRICES.launch)));
 assert.equal(upgradeCtaHe(349), 'הצטרפות למנוי, 349 ₪ לחודש');
 assert.equal(payToContinueHe(499), 'תשלום וחזרה לעבודה, 499 ₪ לחודש');
 assert.equal(priceHe(349.5), '349.5 ₪');

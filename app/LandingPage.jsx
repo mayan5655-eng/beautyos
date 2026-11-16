@@ -271,14 +271,14 @@ export default function LandingPage({ signedIn = false }) {
           <div style={{ textAlign: "center", marginTop: 34 }}>
             <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", fontWeight: 600, marginBottom: 6 }}>ו-Kalmea</p>
             <p className="serif" style={{ fontSize: "var(--t-hero)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>
-              {priceHe(PLAN_PRICES.regular)} <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
+              {priceHe(PLAN_PRICES.launch)} <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
             </p>
-            {/* No end date and no automatic expiry: the launch price stays on the page until the owner removes it by hand. */}
-            <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר היכרות {priceHe(PLAN_PRICES.launch)} לזמן מוגבל</p>
+            {/* Owner's decision 2026-11-16: the launch price only, no struck "regular" price beside it and no end date. */}
+            <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר השקה</p>
             {/* True: Kalmea charges only the subscription. Card clearing fees, once she connects Grow, go to Grow (lib/growPricing.ts). */}
             <p data-testid="price-no-cut" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Kalmea לא לוקחת אחוזים מהמכירות שלך</p>
             {/* The yearly plan, only with NEXT_PUBLIC_ANNUAL_PLAN=1 (its price is pending the owner's confirmation, lib/pricing.ts). */}
-            {annualPlanEnabled() && <p data-testid="price-annual" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{annualOfferHe(PLAN_PRICES.regular)}</p>}
+            {annualPlanEnabled() && <p data-testid="price-annual" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{annualOfferHe(PLAN_PRICES.launch)}</p>}
             <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--brand-accent)" }}>החודש הראשון עלינו, בלי כרטיס אשראי.</p>
             <p data-testid="price-payback" style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6, margin: "14px auto 0", maxWidth: 380, padding: "10px 14px", borderRadius: "var(--r-md)", background: "var(--brand-cream)", border: "1px solid var(--line)" }}>
               שניים או שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, והמחיר כבר חוזר.

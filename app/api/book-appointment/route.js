@@ -46,6 +46,7 @@ async function readSameDayAppointments(supabase, tenantId, date, withStaff = fal
 import { sendBookingNotifications } from "../../../lib/bookingNotify";
 import { normalizeIsraeliMobile, PHONE_ERROR_HE } from "../../../lib/phone";
 import { readAllRows } from "../../../lib/pagedRead";
+import { closedForHoliday, HOLIDAY_CLOSED_HE } from "../../../lib/holidayClosure";
 import { checkIpLimit, checkTenantLimit, checkPhoneLimit, maskPhone } from "../../../lib/rateLimit";
 import { raiseOpsAlert } from "../../../lib/opsAlert";
 import { consentFields } from "../../../lib/marketingConsent.js";
@@ -382,6 +383,11 @@ export async function POST(request) {
     if (settingsErr) {
       console.error("[book-appointment] settings read failed:", settingsErr.message);
       return Response.json({ success: false, error: "משהו נתקע אצלנו, אפשר לנסות שוב בעוד רגע?" }, { status: 503 });
+    }
+
+    // Yom tov is closed to self-booking unless she opens on chag (lib/holidayClosure.ts), for one person or a team.
+    if (closedForHoliday(settingsRow?.branding, String(date))) {
+      return Response.json({ success: false, code: "slot_taken", error: HOLIDAY_CLOSED_HE }, { status: 409 });
     }
 
     if (!teamMode) {

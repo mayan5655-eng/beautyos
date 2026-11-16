@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description: "תנאי השימוש של קלמיה: מה את מקבלת, מה באחריותך, והמחיר.",
 };
 
-const CONTACT_EMAIL = "maayanfacebook1992@gmail.com";
+const CONTACT_EMAIL = "kalmea.app@gmail.com";
 
 export default function TermsPage() {
   return (
@@ -118,21 +118,21 @@ export default function TermsPage() {
 
         <Section heHeading="מחיר וחודש ראשון" enHeading="Price and First Month">
           <He>
-            המחיר הרגיל הוא {priceHe(PLAN_PRICES.regular)} לחודש. החודש הראשון חינם, בלי כרטיס אשראי.
+            מחיר ההשקה הוא {priceHe(PLAN_PRICES.launch)} לחודש. החודש הראשון חינם, בלי כרטיס אשראי.
           </He>
           <En>
-            The regular price is NIS {PLAN_PRICES.regular} per month. The first month is free, with
+            The launch price is NIS {PLAN_PRICES.launch} per month. The first month is free, with
             no credit card.
           </En>
         </Section>
 
-        <Section heHeading="מחיר היכרות" enHeading="Introductory Price">
+        <Section heHeading="שינוי מחיר" enHeading="Price Changes">
           <He>
-            מחיר ההיכרות הוא {priceHe(PLAN_PRICES.launch)} לחודש, לזמן מוגבל. מחיר ההיכרות עשוי להשתנות בעתיד, ובמקרה
+            מחיר ההשקה עשוי להשתנות בעתיד, ובמקרה
             כזה תישלח הודעה מראש למנויות הקיימות.
           </He>
           <En>
-            The introductory price is NIS {PLAN_PRICES.launch} per month, for a limited time. It may change
+            The launch price may change
             in the future, in which case existing subscribers will be given
             advance notice.
           </En>
@@ -142,12 +142,11 @@ export default function TermsPage() {
         {annualPlanEnabled() && (
           <Section heHeading="תשלום שנתי" enHeading="Annual Plan">
             <He>
-              אפשר לבחור תשלום שנתי: חיוב אחד של {priceHe(annualPriceOf(PLAN_PRICES.regular))} לשנה ({priceHe(annualPriceOf(PLAN_PRICES.launch))} במחיר ההיכרות), במקום {ANNUAL_MONTHS_PAID} חודשים.
+              אפשר לבחור תשלום שנתי: חיוב אחד של {priceHe(annualPriceOf(PLAN_PRICES.launch))} לשנה, במקום {ANNUAL_MONTHS_PAID} חודשים.
               המעבר נכנס לתוקף בחידוש הבא של המנוי, בלי חיוב כפול. ביטול באמצע שנה ששולמה משאיר את המנוי פעיל עד סוף אותה שנה.
             </He>
             <En>
-              You may choose to pay yearly: one charge of NIS {annualPriceOf(PLAN_PRICES.regular)} per year (NIS {annualPriceOf(PLAN_PRICES.launch)} at the
-              introductory price), the price of {ANNUAL_MONTHS_PAID} months. The switch takes effect at your next renewal, never as a double charge.
+              You may choose to pay yearly: one charge of NIS {annualPriceOf(PLAN_PRICES.launch)} per year, the price of {ANNUAL_MONTHS_PAID} months. The switch takes effect at your next renewal, never as a double charge.
               Cancelling during a paid year keeps the subscription active until the end of that year.
             </En>
           </Section>

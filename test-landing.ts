@@ -24,24 +24,23 @@ ok('the listed ranges add up to the figure on the page', () => {
   assert.equal(rows.reduce((s, r) => s + r[1], 0), 10068);
 });
 
-ok('Kalmea price is shown: launch price 349 with no end date, regular price 499, no promise of limited spots', () => {
+ok('Kalmea price is shown: launch price 349 only (owner 2026-11-16: no struck regular price), no end date, no limited spots', () => {
   // The numbers live in lib/pricing.ts (test-pricing.ts); the page reads them from there.
   assert.equal(PLAN_PRICES.regular, 499);
   assert.equal(PLAN_PRICES.launch, 349);
-  assert.match(page, /\{priceHe\(PLAN_PRICES\.regular\)\} <span/);
-  // Owner, 2026-10-21: an introductory price "for a limited time", with no date shown.
-  assert.match(page, /מחיר היכרות \{priceHe\(PLAN_PRICES\.launch\)\} לזמן מוגבל/);
+  assert.match(page, /\{priceHe\(PLAN_PRICES\.launch\)\} <span/);
+  assert.ok(page.includes('>מחיר השקה</p>'));
+  assert.doesNotMatch(page, /priceHe\(PLAN_PRICES\.regular\)/, 'no regular price beside it');
   assert.doesNotMatch(page, /20\.10\.2026|LAUNCH_PRICE_CUTOFF_ISO|Date\.now\(\)\s*<=/, 'the launch price has no end date and no automatic expiry');
   assert.doesNotMatch(page, /לכל החיים/, 'the page must not say "for life"');
   assert.doesNotMatch(page, /לחברות הראשונות/);
-  // "לזמן מוגבל" is the owner's wording for the intro price (2026-10-21); limited spots or quantities stay banned.
   assert.doesNotMatch(page, /מקומות|מספר מוגבל|כמות מוגבלת|עד שיגמר|רק ל-\d+ /);
 });
 
-ok('the terms page matches the landing: launch price 349, regular 499, no end date', () => {
+ok('the terms page matches the landing: launch price 349 only, no end date', () => {
   const terms = readFileSync('app/terms/page.tsx', 'utf8');
   assert.match(terms, /\{priceHe\(PLAN_PRICES\.launch\)\} לחודש/);
-  assert.match(terms, /\{priceHe\(PLAN_PRICES\.regular\)\} לחודש/);
+  assert.doesNotMatch(terms, /PLAN_PRICES\.regular/);
   assert.doesNotMatch(terms, /20\.10\.2026/);
   assert.doesNotMatch(terms, /לכל החיים/);
 });
