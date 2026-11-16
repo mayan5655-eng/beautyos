@@ -94,6 +94,8 @@ const OWNER_FILES = [
       // lib modules that only build words for her screens (wrapped with --mode=lib)
       'app/GoogleKitCard.jsx',
       'app/AcademyNavEntry.jsx',
+      'app/TeamSettings.jsx',
+      'app/TeamReport.jsx',
       'lib/myDay.js',
       'lib/closingList.js',
     ];

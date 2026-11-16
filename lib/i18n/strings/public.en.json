@@ -493,5 +493,9 @@
  "✦ טוען": "✦ Loading",
  "🎁 שובר מתנה": "🎁 Gift voucher",
  "💳 אפשר לשלם אצלנו בכרטיס אשראי. אחרי קביעת התור יופיע כאן כפתור לתשלום בדף מאובטח.": "💳 You can pay us by credit card. After you book, a button to pay on a secure page will appear here.",
- "💳 לתשלום ₪{0} בכרטיס אשראי": "💳 Pay ₪{0} by credit card"
+ "💳 לתשלום ₪{0} בכרטיס אשראי": "💳 Pay ₪{0} by credit card",
+ "המטפלת שבחרת לא זמינה לטיפול הזה, אפשר לבחור שוב?": "The person you chose is not available for this treatment. Could you choose again?",
+ "לא משנה לי": "No preference",
+ "עם": "With",
+ "עם מי?": "With whom?"
 }
