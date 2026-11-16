@@ -9,9 +9,11 @@ import { readFileSync } from 'node:fs';
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
 
 const ob = rd('app/onboarding/page.tsx');
-assert.ok(/if \(step === 2 && !data\.business_tax_status\) \{\s*setError\(/.test(ob), '"הבא" on step 2 stops without a business type');
-assert.ok(/!\(step === 2 && !data\.business_tax_status\)/.test(ob), 'no "דלגי" on step 2 until a type is chosen');
-assert.ok(/if \(!data\.business_tax_status\) \{\s*setStep\(2\)/.test(ob), 'finish() sends an old draft back to step 2');
+// Owner, 2026-11-16 (round-2 audit): still required, unless she says she has not opened a file yet ("עוד לא פתחתי תיק", nothing saved).
+assert.ok(/if \(step === 2 && !data\.business_tax_status && !taxLater\) \{\s*setError\(/.test(ob), '"הבא" on step 2 stops without a business type or an explicit "not yet"');
+assert.ok(ob.includes('data-testid="tax-later"') && ob.includes('setTaxLater(true)'), 'the "not yet" answer is a deliberate tap');
+assert.ok(/!\(step === 2 && !data\.business_tax_status && !taxLater\)/.test(ob), 'no "דלגי" on step 2 until she answers');
+assert.ok(/if \(!data\.business_tax_status && !taxLater\) \{\s*setStep\(2\)/.test(ob), 'finish() sends an old draft back to step 2');
 assert.ok(!/אפשר לדלג ולבחור אחר כך/.test(ob), 'the old "you can skip" hint is gone');
 assert.ok(/business_tax_status: data\.business_tax_status/.test(ob), 'the choice is still saved');
 
