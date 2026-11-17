@@ -92,6 +92,13 @@ ok('the page carries no long dashes or arrows, and says who it is for in the her
   assert.match(page, /photo-manicure\.jpg/);
 });
 
+ok('owner, 2026-11-17: the hero shows her own explainer reel, with sound, and the file is there', () => {
+  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
+  assert.match(page, /const HERO_VIDEO = true;/);
+  assert.match(hero, /<DemoVideo mp4="\/media\/landing-founder\.mp4" poster="\/media\/landing-founder\.jpg"[^>]*\bsound\b/);
+  assert.ok(existsSync('public/media/landing-founder.mp4') && existsSync('public/media/landing-founder.jpg'));
+});
+
 ok('owner, 2026-10-30: nothing AI-made on the page, every screen is a real one, nothing claims more than the product does', () => {
   assert.doesNotMatch(page, /\/defaults\//, 'the /defaults/ pictures are AI-generated');
   assert.doesNotMatch(page, /presenter|PRESENTER|דמות AI/);
