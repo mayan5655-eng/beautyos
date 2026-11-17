@@ -36,7 +36,8 @@ export default function DemoVideo({ mp4, webm, poster, label, width = 260, sound
         overflow: "hidden",
       }}
     >
-      <div ref={boxRef} style={{ aspectRatio: "9 / 16", background: "var(--brand-cream, #F0EADE)", borderRadius: 26, overflow: "hidden" }}>
+      {/* The poster is also the box background once near: some browsers leave a preload="none" video blank until play. */}
+      <div ref={boxRef} style={{ aspectRatio: "9 / 16", background: near && poster ? `var(--brand-cream, #F0EADE) url(${poster}) center / cover no-repeat` : "var(--brand-cream, #F0EADE)", borderRadius: 26, overflow: "hidden" }}>
         {near && (
           <video
             controls
