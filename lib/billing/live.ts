@@ -1,7 +1,7 @@
 // lib/billing/live.ts
 //
-// SERVER ONLY. The real provider for Kalmea's own subscription: Kalmea's own Grow account (lib/billing/growBilling.ts), configured ONLY by
-// the GROW_BILLING_* variables. With any of them missing every call answers "not configured", so BILLING_MODE=live can never charge anyone
+// SERVER ONLY. The real provider for Kalmea's own subscription: Kalmea's own Grow account (lib/billing/growBilling.ts), configured by
+// the GROW_BILLING_* variables (or, with GROW_BILLING_SHARE_PLATFORM_KEYS=1, the platform token keys). With any of them missing every call answers "not configured", so BILLING_MODE=live can never charge anyone
 // by accident, only show an honest message. Secrets live in environment variables read here; never in the database, never in the browser.
 //
 // Keep BILLING_MODE=mock until Grow confirms that a Grow Light account may use the token APIs (docs/BILLING_SETUP.md).

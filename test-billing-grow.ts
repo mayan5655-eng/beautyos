@@ -26,7 +26,8 @@ await ok('the billing account reads only GROW_BILLING_*; the platform keys never
   assert.equal(growBillingCreds({ GROW_BILLING_USER_ID: 'k', GROW_BILLING_API_KEY: 'K', GROW_BILLING_PAGE_CODE: 'P', GROW_BILLING_ENV: 'production' }).creds!.apiBase, GROW_BILLING_PRODUCTION_BASE);
   assert.equal(growBillingCreds({ GROW_BILLING_USER_ID: 'k', GROW_BILLING_API_KEY: 'K', GROW_BILLING_PAGE_CODE: 'P', GROW_BILLING_API_BASE: 'http://x' }).creds, null);
   const g = src('lib/billing/growBilling.ts');
-  assert.ok(!/['"]GROW_(API_KEY|PAGE_CODE|TOKEN_)/.test(g), 'no platform variable is read in the billing provider');
+  assert.ok(!/['"]GROW_(API_KEY|PAGE_CODE)['"]/.test(g), 'the platform clearing keys are never read in the billing provider');
+  assert.equal(growBillingCreds({ ...platformOnly, GROW_BILLING_SHARE_PLATFORM_KEYS: 'yes' }).creds, null, 'only the exact opt-in 1 shares keys');
   for (const f of ['lib/grow/config.ts', 'lib/grow/tokenFlow.ts', 'lib/grow/adapter.ts']) assert.ok(!src(f).includes('GROW_BILLING_'), `${f} never reads the billing keys`);
 });
 
@@ -35,6 +36,26 @@ await ok('BILLING_MODE stays mock by default; live is configured only with the b
   assert.equal(resolveBilling({ BILLING_MODE: 'live' }).configured, false);
   assert.equal(resolveBilling({ BILLING_MODE: 'live', GROW_BILLING_USER_ID: 'k', GROW_BILLING_API_KEY: 'K', GROW_BILLING_PAGE_CODE: 'P' }).configured, true);
   assert.equal(resolveBilling({ VERCEL_ENV: 'production' }).configured, false);
+});
+
+await ok('with GROW_BILLING_SHARE_PLATFORM_KEYS=1 the billing account falls back to the platform token keys (sandbox / production)', () => {
+  const plat = { GROW_API_KEY: 'CLEAR', GROW_PAGE_CODE: 'CLEAR', GROW_TOKEN_API_KEY: 'PRODKEY', GROW_TOKEN_PAGE_CODE: 'PRODPAGE', GROW_TOKEN_USER_ID_TEST: 'testuser', GROW_TOKEN_API_KEY_TEST: 'TESTKEY', GROW_TOKEN_PAGE_CODE_TEST: 'TESTPAGE' };
+  const sb = growBillingCreds({ ...plat, GROW_BILLING_SHARE_PLATFORM_KEYS: '1', GROW_BILLING_ENV: 'sandbox' }).creds!;
+  assert.deepEqual([sb.apiKey, sb.pageCode, sb.userId, sb.userIdOverride, sb.env], ['TESTKEY', 'TESTPAGE', 'testuser', 'testuser', 'sandbox']);
+  assert.notEqual(sb.apiBase, GROW_BILLING_PRODUCTION_BASE);
+  // production: key and page from the production token pair; the business id stays GROW_BILLING_USER_ID (never the _TEST one)
+  const noUser = growBillingCreds({ ...plat, GROW_BILLING_SHARE_PLATFORM_KEYS: '1', GROW_BILLING_ENV: 'production' });
+  assert.equal(noUser.creds, null); assert.deepEqual(noUser.missing, ['GROW_BILLING_USER_ID']);
+  const pr = growBillingCreds({ ...plat, GROW_BILLING_SHARE_PLATFORM_KEYS: '1', GROW_BILLING_ENV: 'production', GROW_BILLING_USER_ID: 'beauty' }).creds!;
+  assert.deepEqual([pr.apiKey, pr.pageCode, pr.userId, pr.env, pr.apiBase], ['PRODKEY', 'PRODPAGE', 'beauty', 'production', GROW_BILLING_PRODUCTION_BASE]);
+  // an explicit GROW_BILLING_* value always wins over the shared one
+  const own = growBillingCreds({ ...plat, GROW_BILLING_SHARE_PLATFORM_KEYS: '1', GROW_BILLING_USER_ID: 'k', GROW_BILLING_API_KEY: 'OWN', GROW_BILLING_PAGE_CODE: 'OWNP' }).creds!;
+  assert.deepEqual([own.apiKey, own.pageCode, own.userId], ['OWN', 'OWNP', 'k']);
+  // sandbox never borrows the production pair, production never the _TEST pair
+  assert.equal(growBillingCreds({ GROW_TOKEN_API_KEY: 'PRODKEY', GROW_TOKEN_PAGE_CODE: 'PRODPAGE', GROW_BILLING_USER_ID: 'k', GROW_BILLING_SHARE_PLATFORM_KEYS: '1' }).creds, null);
+  assert.equal(growBillingCreds({ GROW_TOKEN_API_KEY_TEST: 'T', GROW_TOKEN_PAGE_CODE_TEST: 'T', GROW_BILLING_USER_ID: 'k', GROW_BILLING_SHARE_PLATFORM_KEYS: '1', GROW_BILLING_ENV: 'production' }).creds, null);
+  assert.equal(resolveBilling({ BILLING_MODE: 'live', ...plat, GROW_BILLING_SHARE_PLATFORM_KEYS: '1' }).configured, true);
+  assert.equal(resolveBilling({ BILLING_MODE: 'live', ...plat }).configured, false, 'without the opt-in, nothing changes');
 });
 
 // ── the Grow adapters, against fake token ops ────────────────────────────────

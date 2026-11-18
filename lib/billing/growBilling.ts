@@ -9,8 +9,13 @@
 //   GROW_BILLING_ENV         'production' | anything else (= sandbox)
 //   GROW_BILLING_API_BASE    optional; defaults to Grow's documented sandbox / production bases
 //
-// None of the platform variables (GROW_API_KEY, GROW_TOKEN_*, GROW_PAGE_CODE...) is ever read here, and this file is never read by the
-// platform code: two accounts, two sets of keys.
+// Shared keys (owner decision 2026-11-18): Kalmea and her clinic are currently the SAME osek patur, and Grow confirmed (2026-11-09) that
+// Kalmea's subscriptions may be charged through her existing Grow account, the one already connected to the platform. So, ONLY when the
+// non-secret opt-in GROW_BILLING_SHARE_PLATFORM_KEYS=1 is set, a missing GROW_BILLING_* value falls back to the platform token keys:
+//   sandbox:     GROW_TOKEN_API_KEY_TEST, GROW_TOKEN_PAGE_CODE_TEST, GROW_TOKEN_USER_ID_TEST
+//   production:  GROW_TOKEN_API_KEY, GROW_TOKEN_PAGE_CODE (the business id stays GROW_BILLING_USER_ID)
+// An explicit GROW_BILLING_* value always wins. Without the opt-in no platform variable is read here and behaviour is exactly as before;
+// the platform code never reads GROW_BILLING_*. Receipts then carry the name of that Grow account (ביוטי פלייס).
 //
 // The calls are the token calls already checked against Grow's sandbox for the client flow (lib/grow/ops.ts createLiveOps): save a card
 // on Grow's hosted page (chargeType 3, saveCardToken 1, no charge), charge it with createTransactionWithToken and a numeric
@@ -35,9 +40,15 @@ export type GrowBillingCreds = TokenCreds & { userId: string };
 
 /** The billing account's credentials, or null with the missing names (for the operator's logs). */
 export function growBillingCreds(env: Env): { creds: GrowBillingCreds | null; missing: string[] } {
-  const t = (k: string) => String(env[k] || '').trim();
+  const raw = (k: string) => String(env[k] || '').trim();
+  const production = raw('GROW_BILLING_ENV').toLowerCase() === 'production';
+  // Opt-in only (see the header): a missing GROW_BILLING_* value is taken from the platform's token keys of the same environment.
+  const share = raw('GROW_BILLING_SHARE_PLATFORM_KEYS') === '1';
+  const fallback: Record<string, string> = !share ? {} : production
+    ? { GROW_BILLING_API_KEY: 'GROW_TOKEN_API_KEY', GROW_BILLING_PAGE_CODE: 'GROW_TOKEN_PAGE_CODE' }
+    : { GROW_BILLING_API_KEY: 'GROW_TOKEN_API_KEY_TEST', GROW_BILLING_PAGE_CODE: 'GROW_TOKEN_PAGE_CODE_TEST', GROW_BILLING_USER_ID: 'GROW_TOKEN_USER_ID_TEST' };
+  const t = (k: string) => raw(k) || (fallback[k] ? raw(fallback[k]) : '');
   const missing = ['GROW_BILLING_USER_ID', 'GROW_BILLING_API_KEY', 'GROW_BILLING_PAGE_CODE'].filter((k) => !t(k));
-  const production = t('GROW_BILLING_ENV').toLowerCase() === 'production';
   const apiBase = (t('GROW_BILLING_API_BASE') || (production ? GROW_BILLING_PRODUCTION_BASE : GROW_BILLING_SANDBOX_BASE)).replace(/\/+$/, '');
   if (!/^https:\/\//i.test(apiBase)) missing.push('GROW_BILLING_API_BASE (https)');
   if (missing.length) return { creds: null, missing };

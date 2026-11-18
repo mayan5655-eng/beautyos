@@ -82,6 +82,13 @@ const FAKE_ENV = {
   // Card-and-Bit wallet inside in-app browsers (lib/grow/wallet.ts inAppLimitFor): off, whatever the deployment builds with.
   GROW_INAPP_WALLET: '',
   NEXT_PUBLIC_SUPPORT_WHATSAPP: '',
+  // The app's own address (lib/appUrl.ts): the fallback, whatever the deployment builds with. A branch preview's alias
+  // (…-mayan5655-4213s-projects…) has digit runs that the "no phone number in this message" checks read as a phone (2026-11-18).
+  NEXT_PUBLIC_APP_URL: '',
+  // Kalmea's own subscription billing (lib/billing/*): mock and off, whatever the deployment builds with. Tests set what they need.
+  BILLING_MODE: '',
+  BILLING_UI_ENABLED: '',
+  GROW_BILLING_SHARE_PLATFORM_KEYS: '',
   SENTRY_AUTH_TOKEN: '',
   NEXT_PUBLIC_SENTRY_DSN: '',
   // Phone verification SMS (lib/phoneVerify/sms.ts): off, no provider, no credentials. A test that needs mock sets it itself.

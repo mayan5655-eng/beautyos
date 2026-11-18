@@ -72,7 +72,30 @@ Kalmea charges cosmeticians through Kalmea's **own, separate** Grow account (Gro
 | `GROW_BILLING_ENV` | `production`, otherwise sandbox |
 | `GROW_BILLING_API_BASE` | optional; defaults to `https://sandbox.meshulam.co.il/...` or `https://secure.meshulam.co.il/api/light/server/1.0` |
 
-None of the platform variables (`GROW_API_KEY`, `GROW_PAGE_CODE`, `GROW_TOKEN_*`) is read by billing, and the platform code never reads `GROW_BILLING_*` (a test pins both).
+None of the platform variables (`GROW_API_KEY`, `GROW_PAGE_CODE`, `GROW_TOKEN_*`) is read by billing, and the platform code never reads `GROW_BILLING_*` (a test pins both),
+**except** with the opt-in below.
+
+**Shared keys (owner decision 2026-11-18).** Kalmea and her clinic are currently the same osek patur, and Grow (Adir, 2026-11-09) confirmed that Kalmea's
+subscriptions may run on her existing Grow account (ביוטי פלייס), the one already connected to the platform. Receipts then carry that name.
+`GROW_BILLING_SHARE_PLATFORM_KEYS=1` (exactly `1`, not secret) makes a missing `GROW_BILLING_*` value fall back to the platform token keys:
+
+| `GROW_BILLING_ENV` | API key | page code | business id |
+|---|---|---|---|
+| sandbox (anything but `production`) | `GROW_TOKEN_API_KEY_TEST` | `GROW_TOKEN_PAGE_CODE_TEST` | `GROW_TOKEN_USER_ID_TEST` |
+| `production` | `GROW_TOKEN_API_KEY` | `GROW_TOKEN_PAGE_CODE` | `GROW_BILLING_USER_ID` (never a `_TEST` value) |
+
+An explicit `GROW_BILLING_*` value always wins. Without the opt-in nothing changes.
+
+**Sandbox proof (2026-11-18, branch feat/billing-share-grow-keys).** `scripts/smoke/billing-grow-sandbox.mjs` on the branch preview with
+`GROW_BILLING_SHARE_PLATFORM_KEYS=1`, `GROW_BILLING_ENV=sandbox`, `BILLING_MODE=live`, `BILLING_UI_ENABLED=true` and the branch's own
+`NEXT_PUBLIC_APP_URL`: a new smoke business on hold -> consent tick -> Grow's sandbox token page -> test card 4580… -> Grow called `grow-notify` ->
+token stored sealed -> first charge 349 succeeded (sandbox transaction 571742) -> business active, next charge in a month, history "₪349 · שולם ·
+הקבלה בדרך". Grow's token-charge answer carried **no receipt number or link** (question 3 below is still open). The smoke never calls the cron: a
+preview shares the production database, and `runDue()` would walk every subscription in it.
+
+**Region: Grow refuses Singapore.** From `sin1` (vercel.json since 2026-11-16) both `sandbox.meshulam.co.il` and `secure.meshulam.co.il` answer
+HTTP 403 with an HTML page to any server call; from `iad1` the same sandbox flow passes. Every Grow call made by a function in `sin1` fails
+("could not reach Grow"), billing and the clients' payments alike, until Grow allows that egress or the Grow routes run elsewhere.
 
 **Flow.** Settings > "המנוי שלי בקלמיה": a required tick (`lib/billing/consent.ts`, with her price) -> the server stores the exact words, version and time
 (`billing_card_consents`) -> Grow's hosted card page, save only (no charge) -> Grow posts the token to `/api/billing/grow-notify?s=<signed session>`
