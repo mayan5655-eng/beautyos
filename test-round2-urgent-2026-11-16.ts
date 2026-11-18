@@ -43,7 +43,7 @@ await ok('onboarding: no form without a business to save into; a beginner can pa
 
 await ok('functions run next to the database (Singapore)', () => {
   const v = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
-  assert.deepEqual(v.regions, ['iad1']);
+  assert.deepEqual(v.regions, ['sin1']);
   assert.ok(Array.isArray(v.crons) && v.crons.length > 0, 'the crons are kept');
 });
 

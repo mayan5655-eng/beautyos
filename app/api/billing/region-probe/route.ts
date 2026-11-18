@@ -1,10 +1,9 @@
 // TEMP (revert before merge): does Grow answer this function's region? An EMPTY form (no key, no page code) to each Grow host; only the
-// HTTP status, content type and Grow's error id come back. CRON_SECRET only.
+// HTTP status, content type and Grow's error id come back. A throwaway query token; nothing secret is sent or returned.
 import { NextResponse } from 'next/server';
-import { isAuthorizedCron, cronUnauthorized } from '../../../../lib/cronAuth';
 
 export async function GET(request: Request) {
-  if (!isAuthorizedCron(request)) return cronUnauthorized();
+  if (new URL(request.url).searchParams.get('k') !== 'probe-7f3a91') return NextResponse.json({}, { status: 404 });
   const hosts = ['https://sandbox.meshulam.co.il/api/light/server/1.0', 'https://secure.meshulam.co.il/api/light/server/1.0'];
   const out: Record<string, unknown> = { region: process.env.VERCEL_REGION || null };
   for (const h of hosts) {
