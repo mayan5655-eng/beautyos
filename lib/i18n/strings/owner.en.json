@@ -3230,5 +3230,13 @@
  "{0} פניות": "{0} inquiries",
  "{0} פניות חדשות": "{0} new inquiries",
  "פנייה חדשה אחת": "One new inquiry",
- "הלקוחות, הפניות וההודעות שלך": "Your clients, inquiries and messages"
+ "הלקוחות, הפניות וההודעות שלך": "Your clients, inquiries and messages",
+ "אחר כך": "Later",
+ "החודש החינמי שלך מסתיים בעוד {0} ימים": "Your free month ends in {0} days",
+ "החודש החינמי שלך מסתיים היום": "Your free month ends today",
+ "החודש החינמי שלך מסתיים מחר": "Your free month ends tomorrow",
+ "החיוב החודשי לא עבר": "The monthly charge didn't go through",
+ "המנוי שלך בקלמיה": "Your Kalmea subscription",
+ "כדי להמשיך לעבוד בלי הפסקה, אפשר לעדכן כאן את הכרטיס. כל מה שיצרת נשאר שלך.": "To keep working without a break, you can update your card here. Everything you created stays yours.",
+ "כדי שהיומן, הלקוחות והתזכורות ימשיכו לעבוד בלי הפסקה, אפשר להוסיף כרטיס כבר עכשיו. החיוב הראשון יהיה רק כשהחודש החינמי נגמר.": "So your calendar, clients and reminders keep working without a break, you can add a card now. The first charge comes only when the free month ends."
 }

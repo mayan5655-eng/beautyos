@@ -36,7 +36,7 @@ for (const f of files) {
 const notices = fs.readFileSync('app/BillingNotices.jsx', 'utf8');
 assert.ok(/const upgrade = upgradeOn && canPay/.test(notices), 'upgrade needs the flag AND a billing screen that can take a card');
 assert.equal((notices.match(/data-testid="upgrade-cta"/g) || []).length, 1);
-assert.ok(/onClick=\{onOpenBilling\}\s*\n\s*data-testid="upgrade-cta"/.test(notices), 'the quiet button opens the billing screen');
+assert.ok(/onClick=\{openPay\}\s*\r?\n\s*data-testid="upgrade-cta"/.test(notices), 'the quiet button opens the billing pop-up (2026-11-18)');
 
 // the annual plan: 10 monthly prices, confirmed by the owner 2026-11-09, and its copy reads the constant
 assert.equal(ANNUAL_PLAN_PRICES.regular, PLAN_PRICES.regular * 10);
