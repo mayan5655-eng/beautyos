@@ -41,7 +41,8 @@ today's. It is a small amount, but it is money, so it needs her approval.
 7. **Vercel env vars**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and any other key
    that names the project. Good moment to move to the new publishable / secret keys: the legacy anon / service_role keys are
    deprecated by the end of 2026 (https://supabase.com/docs/guides/api/api-keys).
-8. **Functions region**: `vercel.json` `regions` from `sin1` to `fra1` (the rule "functions next to the database" still holds).
+8. **Functions region**: `vercel.json` `regions` to `fra1` (the rule "functions next to the database" still holds). Since 2026-11-18 the
+   functions are on `iad1`, because Grow answers HTTP 403 to `sin1`: prove from a `fra1` preview that Grow answers before switching.
 9. **Deploy, then check**: login, the booking page, a booking on the demo, a reminder dry run, photos load, the cron heartbeat.
 10. **Keep the old project paused, not deleted**, for two weeks: the way back is to put the old env vars back.
 

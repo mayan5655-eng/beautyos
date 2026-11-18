@@ -95,7 +95,8 @@ preview shares the production database, and `runDue()` would walk every subscrip
 
 **Region: Grow refuses Singapore.** From `sin1` (vercel.json since 2026-11-16) both `sandbox.meshulam.co.il` and `secure.meshulam.co.il` answer
 HTTP 403 with an HTML page to any server call; from `iad1` the same sandbox flow passes. Every Grow call made by a function in `sin1` fails
-("could not reach Grow"), billing and the clients' payments alike, until Grow allows that egress or the Grow routes run elsewhere.
+("could not reach Grow"), billing and the clients' payments alike. **Fixed 2026-11-18: vercel.json is back on `iad1`.** Before moving the
+functions to any other region, check that Grow answers from there (a real server call, not a test).
 
 **Flow.** Settings > "המנוי שלי בקלמיה": a required tick (`lib/billing/consent.ts`, with her price) -> the server stores the exact words, version and time
 (`billing_card_consents`) -> Grow's hosted card page, save only (no charge) -> Grow posts the token to `/api/billing/grow-notify?s=<signed session>`

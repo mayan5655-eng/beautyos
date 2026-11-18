@@ -175,11 +175,11 @@ export default function PrivacyPage() {
         </Section>
 
         {/* 2026-11-16 audit: where the data physically is. The database is AWS ap-southeast-1 (Singapore), the functions run in Vercel
-            sin1; the AI, image, error-monitoring and Meta services are run from abroad, mostly the United States. */}
+            iad1 (US East; sin1 until 2026-11-18, which Grow refuses); the AI, image, error-monitoring and Meta services are run from abroad, mostly the United States. */}
         <Section id="abroad" heHeading="העברת מידע מחוץ לישראל" enHeading="Transfer of Data Outside Israel">
           <He>
-            המידע במערכת נשמר ומעובד בשרתים מחוץ לישראל: בסיס הנתונים והשרתים
-            שמריצים את המערכת נמצאים בסינגפור, וחלק מספקי המשנה שלמעלה (עיבוד AI,
+            המידע במערכת נשמר ומעובד בשרתים מחוץ לישראל:
+            בסיס הנתונים נמצא בסינגפור, השרתים שמריצים את המערכת נמצאים בארצות הברית, וחלק מספקי המשנה שלמעלה (עיבוד AI,
             יצירת תמונות, ניטור שגיאות ו-Meta) פועלים משרתים בחו&quot;ל, בעיקר
             בארצות הברית. אנו בוחרים ספקים שמחויבים לאבטחת המידע ולשימוש בו רק לצורך
             השירות שהם נותנים לנו, ומעבירים לכל אחד רק את מה שדרוש לתפקידו. השימוש
@@ -188,7 +188,8 @@ export default function PrivacyPage() {
           </He>
           <En>
             Data in the system is stored and processed on servers outside Israel: the
-            database and the servers that run the system are in Singapore, and some of
+            database is in Singapore, the servers that run the system are in the United
+            States, and some of
             the sub-processors above (AI processing, image generation, error monitoring
             and Meta) operate from servers abroad, mainly in the United States. We
             choose providers that are committed to securing the data and to using it

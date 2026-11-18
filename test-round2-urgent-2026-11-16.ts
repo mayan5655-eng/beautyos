@@ -41,9 +41,10 @@ await ok('onboarding: no form without a business to save into; a beginner can pa
   assert.ok(p.includes('...(data.business_tax_status ? { business_tax_status:'), 'nothing is saved for "not yet"');
 });
 
-await ok('functions run next to the database (Singapore)', () => {
+// 2026-11-18: back to iad1. From sin1 Grow (sandbox and secure.meshulam.co.il) answers HTTP 403 to every server call (docs/BILLING_SETUP.md).
+await ok('functions run in iad1, where Grow answers (not sin1, which Grow refuses)', () => {
   const v = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
-  assert.deepEqual(v.regions, ['sin1']);
+  assert.deepEqual(v.regions, ['iad1']);
   assert.ok(Array.isArray(v.crons) && v.crons.length > 0, 'the crons are kept');
 });
 
