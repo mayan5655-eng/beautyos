@@ -21,6 +21,7 @@
 // So: this resolves the tenant on the server, emits her metadata, and hands the
 // tenant id to the client component that does the rest.
 
+import { reviewerName } from '@/lib/personName';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
@@ -174,7 +175,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 const loadReviews = cache(async (tenantId: string) => {
   try {
     const { data, error } = await timed('reviews', publicClient().rpc('get_public_reviews', { p_tenant_id: tenantId }));
-    return error || !Array.isArray(data) ? null : data;
+    // First name and an initial BEFORE it reaches the page (2026-11-18 audit: the full name rode in the page data even when the card
+    // showed the short one). The database function does the same once public_reviews_first_name_2026-11-18.sql has run.
+    return error || !Array.isArray(data) ? null : data.map((r: { client_name?: string | null }) => ({ ...r, client_name: reviewerName(r.client_name) }));
   } catch {
     return null;
   }

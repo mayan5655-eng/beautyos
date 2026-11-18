@@ -65,3 +65,7 @@ ok('Google: a "nails" field with facials on the menu is not a nail salon', () =>
 });
 
 console.log(`round 3 client: ${n} ok`);
+
+// The business page's own data never carries the full name either (it rode in the page payload).
+assert.ok(raw('app/[slug]/page.tsx').includes('data.map((r: { client_name?: string | null }) => ({ ...r, client_name: reviewerName(r.client_name) }))'));
+console.log('ok - business page data: reviewer names shortened on the server');
