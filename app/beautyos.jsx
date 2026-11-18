@@ -9388,7 +9388,7 @@ ${MARKETING_FOOTER}`))}`;
               property of the account, not of a screen, so it stays put and does
               not replay its entrance animation on every tab change. Renders
               nothing at all for an active tenant. */}
- <BillingNotices plan={planInfo} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow} isDemo={isDemoTenantId(settings?.tenant_id)} onOpenBilling={()=>{setSettingsGroup("business");openSettings();}}/>
+ <BillingNotices plan={planInfo} toast={toast} pc={pc} pcDeep={pcDeep} pcTint={pcTint} pcGrad={pcGrad} pcShadow={pcShadow} isDemo={isDemoTenantId(settings?.tenant_id)} onOpenBilling={()=>{setSettingsGroup("business");openSettings();}}/>
  {((deferred.history==="loading"&&histSlow)||deferred.history==="error"||deferred.leads==="error")&&(
  <div role="status" data-testid="history-strip" style={{maxWidth:1180,margin:"0 auto 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",background:"var(--surface-2)",border:"1px solid var(--line)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>
  {(deferred.history==="error"||deferred.leads==="error")

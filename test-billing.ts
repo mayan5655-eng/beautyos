@@ -351,6 +351,17 @@ await ok('the UI: the card sits in settings, the banner invites a card from 5 da
   assert.ok(/supportWhatsAppUrl\(\)/.test(banner) && /CTA_WHATSAPP_HE/.test(banner), 'the WhatsApp renewal CTA is still there');
 });
 
+await ok('the payment pop-up: the billing card over the dashboard, by itself once a day near the end or after a failed charge, never for a founder', () => {
+  const notices = read('app/BillingNotices.jsx');
+  assert.ok(/data-testid="billing-popup"/.test(notices) && /<BillingCard /.test(notices), 'the pop-up carries the billing card itself');
+  assert.ok(/const autoPopup = !!\(\(invite \|\| pastDue\) && !s\?\.founder\)/.test(notices), 'opens by itself only in the invite window or past due, never for a founder');
+  assert.ok(/if \(!autoPopup \|\| popupSeenToday\(\)\) return;/.test(notices) && /markPopupSeen\(\)/.test(notices), 'once a day at most');
+  assert.ok(/try \{ return window\.localStorage/.test(notices) && /catch \{ \/\* private window/.test(notices), 'storage failures never break it');
+  assert.ok(!/onClick=\{onOpenBilling\}/.test(notices) && /onClick=\{openPay\}/.test(notices), 'every button opens the pop-up');
+  assert.ok(/אחר כך/.test(notices), 'she can put it off');
+  assert.ok(/<BillingNotices plan=\{planInfo\} toast=\{toast\}/.test(read('app/beautyos.jsx')), 'the pop-up can show toasts');
+});
+
 await ok('a subscription charge asks for a RECEIPT with no VAT (exempt dealer); the amount charged is the amount on the document', async () => {
   const w = world('2026-11-01T08:00:00Z');
   w.addTenant(T, { trial_ends_at: '2026-11-10T08:00:00Z', plan_price: 349 });
