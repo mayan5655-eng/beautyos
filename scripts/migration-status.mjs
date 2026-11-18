@@ -95,7 +95,18 @@ function declaredStatus(sql) {
 }
 
 const db = createClient(URL, KEY, { auth: { persistSession: false } });
-const { data, error } = await db.rpc('schema_objects');
+// The API returns at most 1000 rows per call and does not say it stopped (2026-11-18: the schema has more than that, so every
+// object past row 1000 looked missing and most files came out PARTIAL). Read it in pages, in a fixed order, until a short page.
+async function allSchemaObjects() {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.rpc('schema_objects').order('kind').order('name').range(from, from + 999);
+    if (error) return { data: null, error };
+    out.push(...(data || []));
+    if (!data || data.length < 1000) return { data: out, error: null };
+  }
+}
+const { data, error } = await allSchemaObjects();
 
 if (error) {
   console.error('schema_objects() failed:', error.message);
