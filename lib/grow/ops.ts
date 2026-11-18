@@ -111,8 +111,13 @@ async function post(creds: TokenCreds, path: string, fields: [string, string][])
     // A bounded wait: a hung Grow call used to hold the function until Vercel killed it, with nothing recorded. A timeout lands in the
     // catch below as { ok: false, json: null }, which callers already treat as "outcome unknown" (looked up before any retry).
     const res = await fetch(`${creds.apiBase}/${path}`, { method: 'POST', body: form, signal: AbortSignal.timeout(20_000) });
-    return { ok: res.ok, json: await res.json().catch(() => null) };
-  } catch {
+    const json = await res.json().catch(() => null);
+    // "could not reach Grow" used to say nothing about why: the status and host go to the log (never a field of the request).
+    if (!res.ok && json === null) console.warn(`[grow] ${path} answered HTTP ${res.status} without JSON (${new URL(creds.apiBase).host})`);
+    return { ok: res.ok, json };
+  } catch (e) {
+    const err = e as Error & { cause?: { code?: string; message?: string } };
+    console.warn(`[grow] ${path} failed before an answer (${new URL(creds.apiBase).host}): ${err?.name} ${err?.message}${err?.cause ? ` / ${err.cause.code || ''} ${err.cause.message || ''}` : ''}`);
     return { ok: false, json: null };
   }
 }

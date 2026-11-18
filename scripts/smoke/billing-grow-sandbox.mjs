@@ -73,10 +73,12 @@ const openBilling = async () => {
 const phone = '05000' + String(Math.floor(10000 + Math.random() * 89999));
 
 try {
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' });
+  // A remote deployment hydrates later than a local server: typing before that is wiped (2026-11-18).
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1500);
   await page.fill('input[type=email]', email); await page.fill('input[type=password]', PASSWORD); await page.click('button[type=submit]');
   await page.waitForURL((u) => u.pathname.startsWith('/onboarding'), { timeout: 60000 });
-  await page.fill('input[placeholder="למשל: סטודיו רונית"]', 'קליניקת מנוי (בדיקה)');
+  // A 13-digit number in the name marks it as a test run: no "new signup" alert reaches the operator (lib/ownerContact.ts looksLikeTestName).
+  await page.fill('input[placeholder="למשל: סטודיו רונית"]', `בדיקת מנוי ${Date.now()}`);
   await page.fill('input[placeholder="השם שלך"]', 'בודקת מנוי');
   await page.click('button:has-text("הבא")'); await page.waitForTimeout(400);
   await page.fill('input[placeholder="0501234567"]', phone);
@@ -84,7 +86,7 @@ try {
   for (let i = 0; i < 2; i++) { await page.click('button:has-text("הבא")'); await page.waitForTimeout(400); }
   await page.click('button:has-text("קוסמטיקה וטיפוח פנים")'); await page.waitForTimeout(600);
   await page.click('button:has-text("הבא")'); await page.waitForTimeout(500);
-  await page.click('button:has-text("לא עכשיו")');
+  await page.locator('button:has-text("לא עכשיו"), button:has-text("סיום ופתיחת היומן")').first().click();
   await page.waitForSelector('button[aria-label="יומן"]', { timeout: 90000 });
   await page.waitForTimeout(1500); await skipTour();
   log('onboarded');
@@ -97,7 +99,9 @@ try {
   await db.from('tenants').update({ plan_status: 'expired', trial_ends_at: new Date(Date.now() - 86400000).toISOString(), plan_price: 349 }).eq('id', tenantId);
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(3000); await skipTour();
   const cta = visible('[data-testid="billing-cta"]');
-  if (await cta.count()) await cta.click(); else await openBilling();
+  // The on-hold screen carries the billing card itself; otherwise the banner or settings lead to it.
+  await page.locator('[data-testid="billing-card"], button[aria-label="הגדרות"]').filter({ visible: true }).first().waitFor({ timeout: 30000 }).catch(() => {});
+  if (!(await page.locator('[data-testid="billing-card"]').filter({ visible: true }).count())) { if (await cta.count()) await cta.click(); else await openBilling(); }
   await page.locator('[data-testid="billing-card"]').waitFor({ timeout: 20000 });
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${out}/1-billing-screen.png` }).catch(() => {});
