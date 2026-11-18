@@ -77,6 +77,12 @@ export default function RescheduleFlow({ id, token, via, peek, businessName, wha
             </div>
           </div>
         )}
+        {typeof done.manageUrl === 'string' && done.manageUrl.startsWith('http') && (
+          <p data-testid="reschedule-manage" style={{ marginTop: 18 }}>
+            <a href={done.manageUrl} style={{ color: 'var(--pc-deep, var(--ink))', fontWeight: 700, textDecoration: 'underline' }}>{tr("לשינוי או ביטול התור")}</a>
+            <span style={{ display: 'block', fontSize: 'var(--t-sm)', color: 'var(--ink-3)', marginTop: 4 }}>{tr("כדאי לשמור את הקישור הזה, הוא מתאים למועד החדש")}</span>
+          </p>
+        )}
         <p style={{ fontSize: 'var(--t-md)', color: 'var(--ink-3)', marginTop: 20 }}>{tr("תוכלי לסגור את החלון")}</p>
       </div>
     );

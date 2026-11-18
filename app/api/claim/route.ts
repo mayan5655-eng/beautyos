@@ -255,6 +255,10 @@ export async function POST(request: NextRequest) {
     // was previously returned as a generic error with no trace: the exact
     // silent shape that hid a mismatched table for days.
     console.error("[claim] booking insert FAILED:", JSON.stringify("error" in booked ? booked.error : booked));
+    // No appointment was made, so the offer is not hers yet (2026-11-18 audit): left 'claimed', a reload said "התור שלך!" with nothing
+    // booked, and the unique index kept everyone else out. Back to 'sent', so "נסי שוב" really tries again.
+    await supabase.from("slot_offers").update({ status: "sent" }).eq("token", token).eq("status", "claimed")
+      .then(({ error }) => { if (error) console.warn("[claim] could not reopen the offer:", error.message); }, () => {});
     return NextResponse.json({ state: "error" }, { status: 500 });
   }
 

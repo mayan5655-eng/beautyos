@@ -155,7 +155,7 @@ for (const res of [{ ok: false, demoBlocked: true }, { ok: false, error: 'x' }])
 // Shabbat and night: not sent, she is told who is waiting.
 for (const when of ['2026-10-24T09:00:00Z', '2026-10-26T19:30:00Z']) {
   const h = harness(world()); const r = await offerFreedSlot({ ...h.args, now: new Date(when), appt: { ...appt, date: '2026-10-28' } });
-  assert.equal(r.status, 'quiet_hours'); assert.equal(h.sent.length, 0); assert.equal(h.notes.length, 1); assert.match(h.notes[0].body, /בשבת ובלילה/);
+  assert.equal(r.status, 'quiet_hours'); assert.equal(h.sent.length, 0); assert.equal(h.notes.length, 1); assert.match(h.notes[0].body, /בשבת, בחג ובלילה/);
 }
 
 // The daily cap: counted from the log of the last 24 hours.
@@ -220,3 +220,14 @@ assert.equal(classifySend({ ok: true }), 'sent'); assert.equal(classifySend({ qu
 }
 
 console.log('smart waitlist: ok');
+
+// 2026-11-18 audit: an eve from 15:00 and yom tov are quiet too, not only Saturday.
+{
+  const yt = (d: string) => d === '2027-04-22';
+  assert.equal(offerQuietReason(new Date('2026-12-04T15:30:00Z')), 'shabbat', 'winter Friday 17:30: Shabbat has come in');
+  assert.equal(offerQuietReason(new Date('2026-12-04T09:00:00Z')), null, 'Friday 11:00: still fine');
+  assert.equal(offerQuietReason(new Date('2027-04-22T08:00:00Z'), { isYomTov: yt }), 'yomtov', 'Pesach day');
+  assert.equal(offerQuietReason(new Date('2027-04-21T13:30:00Z'), { isYomTov: yt }), 'yomtov', 'erev Pesach 16:30');
+  assert.equal(offerQuietReason(new Date('2027-04-21T09:00:00Z'), { isYomTov: yt }), null, 'erev Pesach morning');
+  console.log('ok - quiet on eves and yom tov');
+}

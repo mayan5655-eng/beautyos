@@ -16,6 +16,7 @@ import { voucherConfig } from '@/lib/giftVouchers';
 import { storageHostOf } from '@/lib/giftVoucherDesign';
 import { PublicPage, BusinessHeader, LineIcon } from '@/app/PublicChrome';
 import { ICON_HEART } from '@/lib/brand';
+import { ogVersion } from '@/lib/og/tenantOg';
 import { LangProvider, DocumentLang } from '@/lib/i18n/react';
 import { trFor } from '@/lib/i18n/publicTr';
 
@@ -41,8 +42,20 @@ async function tenantOf(slug: string): Promise<{ id: string; name: string } | nu
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const slug = decodeSlug((await params).slug);
   const t = await tenantOf(slug).catch(() => null);
-  const title = t?.name ? `שובר מתנה · ${t.name}` : 'שובר מתנה';
-  return { title, description: 'שובר מתנה לטיפול או בסכום לבחירתך', robots: { index: false, follow: true }, alternates: { canonical: `/${slug}/gift` } };
+  // Her business name from her branding, as the page body shows it (2026-11-18 audit: tenants.name can be a leftover such as "ניסיון"),
+  // and a share preview of HER business: a gift link sent on WhatsApp showed the Kalmea pitch and kalmea.app.
+  let brand: ReturnType<typeof resolveBranding> | null = null;
+  if (t) { try { const { data } = await admin().from('settings').select('*').eq('tenant_id', t.id).maybeSingle(); if (data) brand = resolveBranding(data); } catch { /* the tenant name then */ } }
+  const name = String(brand?.businessName || t?.name || '').trim();
+  const title = name ? `שובר מתנה · ${name}` : 'שובר מתנה';
+  const description = name ? `שובר מתנה לטיפול אצל ${name}, או בסכום לבחירתך` : 'שובר מתנה לטיפול או בסכום לבחירתך';
+  const url = `${APP_URL}/${encodeURIComponent(slug)}/gift`;
+  const image = brand ? `${APP_URL}/og/${encodeURIComponent(slug)}?v=${ogVersion(brand, name)}` : undefined;
+  return {
+    metadataBase: new URL(APP_URL), title, description, robots: { index: false, follow: true }, alternates: { canonical: `/${slug}/gift` },
+    openGraph: { type: 'website', locale: 'he_IL', url, title, description, siteName: name || undefined, ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title }] } : {}) },
+    twitter: { card: 'summary_large_image', title, description, ...(image ? { images: [image] } : {}) },
+  };
 }
 
 export default async function GiftShopPage({ params }: Props) {

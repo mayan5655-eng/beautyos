@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { parseDb } from "@/lib/dbTime";
-import { displayName } from "@/lib/personName";
+import { displayName, reviewerName } from "@/lib/personName";
 import Icon from "./Icon";
 import Spinner from "./Spinner";
 import { logoSrc } from "@/lib/logoSrc";
@@ -887,7 +887,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   // testimonials vanish the day this ships - but the moment one real review
   // exists, the typed ones stop being shown. A page cannot claim both.
   const reviews = (dbReviews && dbReviews.length)
-    ? dbReviews.map((r) => ({ name: r.client_name, rating: r.rating, text: r.body }))
+    ? dbReviews.map((r) => ({ name: reviewerName(r.client_name), rating: r.rating, text: r.body }))
     : (brand?.reviews || []);
   // Whether the number above the stars is standing on anything. Three reviews
   // averaging 5.0 should not wear the same clothes as sixty.
@@ -904,7 +904,10 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
   ].filter(Boolean);
 
   // Client-facing announcements: newest first, cap to keep the mini-site tight.
-  const recentPosts = (posts || []).slice(0, 5);
+  // Only what she posted in the last 30 days (2026-11-18 audit: a July "מבצע" for a treatment she no longer has, and a test post, were
+  // still the first thing a client saw). Older posts stay on her community page; nothing is deleted.
+  const POST_MAX_AGE_MS = 30 * 86_400_000;
+  const recentPosts = (posts || []).filter((p) => { const t = Date.parse(p?.created_at || ""); return Number.isFinite(t) && Date.now() - t <= POST_MAX_AGE_MS; }).slice(0, 5);
   const postTypeLabel = (t) => (t === "offer" ? tr("מבצע") : t === "tip" ? tr("טיפ") : tr("עדכון"));
   // Offers lean on the brand color; tips a soft sage; updates a quiet neutral.
   const postTypeColor = (t) => (t === "offer" ? pc : t === "tip" ? "var(--success, #46B37B)" : faint);
@@ -1293,7 +1296,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {(socials.length > 0 || wa) && (
             <div style={{ ...section }}>
               <div>
-                {/* "Follow us" only when there is something to follow; WhatsApp alone is a way to write. */}{eyebrow(socials.length > 0 ? "עקבו אחרינו" : "כתבי לנו")}
+                {/* "Follow us" only when there is something to follow; WhatsApp alone is a way to write. */}{eyebrow(socials.length > 0 ? tr("עקבי אחריי") : tr("כתבי לנו"))}
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>{tr("וואטסאפ")}</a>}
                   {socials.map((s) => (
@@ -1490,7 +1493,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                         const taken = slotTaken(h);
                         const isSel = selectedStart === h;
                         return (
-                          <button key={h} disabled={taken} onClick={() => { setSelectedStart(h); setSlotTakenMsg(""); }}
+                          <button key={h} disabled={taken} aria-pressed={isSel} onClick={() => { setSelectedStart(h); setSlotTakenMsg(""); }}
                             className="bk-btn"
                             style={{ padding: "12px 0", borderRadius:"var(--r-sm)", fontSize:"var(--t-md)", fontWeight: 600, background: taken ? "var(--brand-cream, #FBF8F1)" : isSel ? pc : "var(--brand-surface, #FDFBF9)", color: taken ? faint : isSel ? "var(--pc-contrast, #FFFFFF)" : ink, textDecoration: taken ? "line-through" : "none", boxShadow: taken ? "none" : "var(--shadow-sm)", border: isSel ? "none" : `1px solid ${hair}` }}>
                             {fmtTime(h)}

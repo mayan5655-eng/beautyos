@@ -18,6 +18,7 @@
 // behalf, and anyone could walk ids to post against a business at will.
 
 import { createClient } from "@supabase/supabase-js";
+import { reviewerName } from "../../../lib/personName.js";
 import { langOfSettings } from "@/lib/i18n/core";
 import { verifyReview } from "../../../lib/reviewToken";
 import { checkIpLimit } from "../../../lib/rateLimit";
@@ -144,9 +145,9 @@ export async function POST(request) {
     tenant_id: appt.tenant_id,
     appointment_id: appt.id,
     client_id: appt.client_id || null,
-    // The name she gave when she booked, frozen here on purpose: what the page
-    // shows must not change later because a client row was edited.
-    client_name: appt.name || "",
+    // The name she gave when she booked, frozen here on purpose (what the page shows must not change later because a client row was
+    // edited), and only as the page promises: first name and an initial (lib/personName.js reviewerName).
+    client_name: reviewerName(appt.name || ""),
     rating,
     body: text,
   });

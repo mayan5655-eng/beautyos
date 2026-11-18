@@ -4,7 +4,7 @@
 // Israeli accessibility regulations require a named coordinator ("נציג/ת נגישות") and a way to reach them. Kalmea's line is WhatsApp-only (lib/support.ts),
 // so the page shows that instead of `phone`, which is kept only as the local form of the same number.
 export const ACCESSIBILITY_COORDINATOR = {
-  name: 'מעין בבאי',
+  name: 'מעיין בבאי',
   phone: '050-7321978',
   email: 'kalmea.app@gmail.com',
 } as const;

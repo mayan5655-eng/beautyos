@@ -28,7 +28,7 @@ import GiftVoucherLink from "./GiftVoucherLink";
 import { accentStyle } from "@/lib/theme";
 import { resolveBranding } from "@/lib/branding";
 import { logoSrc } from "@/lib/logoSrc";
-import { displayName } from "@/lib/personName";
+import { displayName, reviewerName } from "@/lib/personName";
 import { normalizeBusinessHours } from "@/lib/businessHours";
 import { useTr } from "@/lib/i18n/useTr";
 import { useLang } from "@/lib/i18n/react";
@@ -592,7 +592,7 @@ export default function PublicLandingPage({
                 <figure key={i} className="lp-card" style={{ margin: 0 }}>
                   <Stars value={Number(r.rating)} />
                   {r.body && <blockquote style={{ margin: "6px 0 0", fontSize: "var(--t-md, 16px)", lineHeight: 1.7, color: ink }}>{r.body}</blockquote>}
-                  {r.client_name && <figcaption style={{ marginTop: 6, fontSize: "var(--t-sm, 15px)", fontWeight: 700, color: ink2 }}>{displayName(r.client_name) || r.client_name}</figcaption>}
+                  {reviewerName(r.client_name) && <figcaption style={{ marginTop: 6, fontSize: "var(--t-sm, 15px)", fontWeight: 700, color: ink2 }}>{reviewerName(r.client_name)}</figcaption>}
                 </figure>
               ))}
             </div>

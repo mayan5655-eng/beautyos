@@ -150,7 +150,9 @@ await ok('every reminder copy and the booking confirmation carry the move link',
   for (const f of ['lib/reminders/dailyReminders.js', 'app/api/send-reminder-manual/route.js']) {
     const s = read(f);
     assert.match(s, /rescheduleUrl: moveLink/, f);
-    assert.match(s, /moveLine\(moveLink, brandJson\),\n\s*`אם צריך לבטל, אפשר כאן: \$\{cancelLink\}`/, f);
+    // The daily reminder leaves both links out inside her cancellation window (2026-11-18 audit): there they would only refuse.
+    if (f.includes('dailyReminders')) assert.match(s, /lateForLinks \? null : moveLine\(moveLink, brandJson\),\n\s*lateForLinks \? .*: `אם צריך לבטל, אפשר כאן: \$\{cancelLink\}`/, f);
+    else assert.match(s, /moveLine\(moveLink, brandJson\),\n\s*`אם צריך לבטל, אפשר כאן: \$\{cancelLink\}`/, f);
   }
   const app = read('app/beautyos.jsx');
   assert.equal((app.match(/msgMoveLine\(links\.rescheduleUrl, /g) || []).length, 2, 'both in-app reminder copies');

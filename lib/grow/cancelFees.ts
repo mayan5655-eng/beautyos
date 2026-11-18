@@ -673,8 +673,19 @@ export async function onDepositPaid(d: Deps, i: { tenantId: string; appointmentI
     return { outcome: 'none' };
   }
 
-  await d.repo.confirmAppointment(i.tenantId, i.appointmentId);
+  const confirmed = await d.repo.confirmAppointment(i.tenantId, i.appointmentId);
   await d.repo.updateConsent(consent.id, { status: 'deposit_paid', hold_expires_at: null });
+  if (!confirmed) {
+    // Paid for a booking that is no longer there (2026-11-18 audit): she cancelled it during the hold, or the hold was being released
+    // at that moment, while the client's payment page was still open. No "you're booked" message, and the money goes back.
+    const dep = await d.repo.getPayment(i.tenantId, i.paymentId);
+    const appt = await d.repo.getAppointment(i.tenantId, i.appointmentId);
+    if (!dep) return { outcome: 'none' };
+    const item = await d.repo.insertFeeIfAbsent({ tenant_id: i.tenantId, appointment_id: i.appointmentId, client_id: consent.client_id, client_name: consent.client_name, service: appt?.service ?? null, kind: 'deposit_return', amount: round2(Number(dep.amount)), status: 'refund_failed' });
+    if (!item) return { outcome: 'none' };
+    const res = await doRefund(d, i.tenantId, item, dep);
+    return { outcome: res.status === 'refunded' ? 'refunded' : 'refund_failed', appointmentId: i.appointmentId };
+  }
   return { outcome: 'confirmed', appointmentId: i.appointmentId };
 }
 

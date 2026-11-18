@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { verifyConfirm } from '@/lib/confirmToken';
+import { verifyConfirm, confirmLinks } from '@/lib/confirmToken';
+import { APP_URL } from '@/lib/appUrl';
 import { publicAccent } from '@/lib/branding';
 import { resolveBookingRules, clientLinkRefusal, wallClockNow } from '@/lib/bookingPolicy';
 import { hebrewDate } from '@/lib/messages.js';
@@ -243,6 +244,9 @@ export async function POST(request: NextRequest) {
       appointment: { service: summary.service, date: dateLabel(date, lang), time: fmtTime(newStart) },
       invite: { date, startMinute: newStart, duration, title: `${summary.service || tr('תור')} · ${brand.businessName || tr('תור')}` },
       movesLeft: Math.max(0, maxMoves - used - 1),
+      // Fresh links for the NEW date (2026-11-18 audit): the ones she has were dated by the old appointment and die three days after
+      // it, long before a later new date, and nothing new was sent. The success screen shows this one, like the booking page does.
+      manageUrl: confirmLinks(APP_URL, String(id), { date }).cancelUrl,
     });
   } catch (err) {
     console.error('reschedule: unexpected error', err);

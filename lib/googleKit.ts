@@ -80,11 +80,15 @@ export function explicitFields(raw: unknown): FieldKey[] {
   return Array.isArray(raw) ? (raw.filter(isFieldKey) as FieldKey[]) : [];
 }
 
-/** True when everything she does is nails: by her chosen fields, or, with none chosen, by every named treatment. */
+/**
+ * True when everything she does is nails: her chosen fields say nails only AND her treatments do not say otherwise (2026-11-18 audit:
+ * a clinic whose field was left on "nails" but who lists facials and hair removal was told to Google as a NailSalon), or, with no
+ * field chosen, every named treatment is nails.
+ */
 export function isNailsOnly(fieldsRaw: unknown, serviceNames: string[] = []): boolean {
   const fields = explicitFields(fieldsRaw);
-  if (fields.length) return fields.length === 1 && fields[0] === 'nails';
   const names = serviceNames.map((s) => String(s || '').trim()).filter(Boolean);
+  if (fields.length) return fields.length === 1 && fields[0] === 'nails' && names.every((n) => NAIL_RE.test(n));
   return names.length > 0 && names.every((n) => NAIL_RE.test(n));
 }
 
