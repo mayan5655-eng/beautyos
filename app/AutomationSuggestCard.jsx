@@ -13,7 +13,9 @@ export default function AutomationSuggestCard({ settings, services, onEnable, on
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   // Automatic sending off (today): the card says the message is prepared for her to send, never that it goes out by itself.
   const { autoSend } = useDeployFlags();
-  const items = automationSuggestions(settings, { services, origin, autoSend });
+  // UX pass 2026-11-18: ONE question at a time. Two stacked "להפעיל?" cards on Today read as homework; the second one
+  // shows up by itself once she answers the first (enable or "לא עכשיו" both remove it from the list).
+  const items = automationSuggestions(settings, { services, origin, autoSend }).slice(0, 1);
   if (!items.length) return null;
   const btn = { minHeight: 44, padding: "0 16px", borderRadius: "var(--r-sm)", fontSize: "var(--t-sm)", fontWeight: 700, fontFamily: "inherit", cursor: "pointer" };
   return (

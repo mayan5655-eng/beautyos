@@ -714,6 +714,7 @@ body:has(.sheet-backdrop) [role="dialog"][aria-label="פתיחה בדפדפן ש
 .lp-cta-note { font-size: var(--t-sm); font-weight: 600; color: var(--ink-2); margin: 6px 0 0; }
 .lp-quiet { display: inline-block; font-size: var(--t-md); font-weight: 600; color: var(--brand-accent); text-underline-offset: 3px; padding: 8px; }
 .lp-hero-visual { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 210px; margin-bottom: 18px; order: 3; }
+.lp-hero-visual.is-video { display: block; height: auto; margin-bottom: 4px; }
 .lp-hero-photo { position: relative; overflow: hidden; border-radius: 16px; }
 .lp-hero-phone { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); width: 104px; border: 4px solid #1B1F1D; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 16px 30px -14px rgba(31, 58, 48, .55); }
 .lp-shot-img { display: block; width: 100%; height: auto; }
@@ -778,6 +779,7 @@ body:has(.sheet-backdrop) [role="dialog"][aria-label="פתיחה בדפדפן ש
   .lp-hero-cta { align-items: flex-start; text-align: right; }
   .lp-hero-cta .kl-press:first-child { width: auto; }
   .lp-hero-visual { height: 460px; margin-bottom: 0; }
+  .lp-hero-visual.is-video { height: auto; }
   .lp-hero-phone { width: 170px; bottom: -22px; border-width: 6px; border-radius: 26px; }
   .lp-sec { padding: 76px 20px; }
   .lp-ba-head { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }

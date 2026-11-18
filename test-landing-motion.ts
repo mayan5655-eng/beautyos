@@ -44,8 +44,12 @@ ok('the video adds nothing to first load: no poster or source until near, preloa
   assert.match(video, /\bmuted\b/);
   assert.match(video, /playsInline/);
   assert.match(video, /\bcontrols\b/);
-  assert.doesNotMatch(video, /\bautoPlay\b/);
-  assert.match(video, /\{near && \(/);
+  // Owner, 2026-11-17: before play only a plain poster <img> + play button; the <video> mounts on that tap and
+  // starts then (autoPlay inside the started branch only), so nothing plays or downloads by itself.
+  assert.match(video, /\{near && !started && \(/);
+  assert.match(video, /\{near && started && \(\s*<video[\s\S]*?autoPlay/);
+  assert.equal((video.match(/\bautoPlay\b/g) || []).length, 1);
+  assert.match(video, /onClick=\{\(\) => setStarted\(true\)\}/);
   assert.match(video, /rootMargin/);
   assert.match(video, /aspectRatio: "9 \/ 16"/);
 });

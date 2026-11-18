@@ -9201,7 +9201,8 @@ ${MARKETING_FOOTER}`))}`;
      instead of its width. */}
  <BrandImage src={LOGO_COMPACT} alt="Kalmea" width={116} height={34} style={{width:"auto",height:34,display:"block"}}/>
  </div>
-          {newLeadsCount>0&&viewAllowsTab(settings,"leads")&&<span onClick={()=>setActiveTab("leads")} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)"}}>{newLeadsCount}</span>}
+          {/* UX pass 2026-11-18: was a bare number nobody could read ("4" what?). Now a real button that says what it is. */}
+          {newLeadsCount>0&&viewAllowsTab(settings,"leads")&&<button type="button" data-testid="header-leads-badge" onClick={()=>setActiveTab("leads")} aria-label={newLeadsCount===1?tr("פנייה חדשה אחת"):tr("{0} פניות חדשות",[newLeadsCount])} style={{background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 10px",border:"none",borderRadius:"var(--r-lg)",cursor:"pointer",boxShadow:"var(--shadow-accent)",fontFamily:"inherit",whiteSpace:"nowrap"}}>{newLeadsCount===1?tr("פנייה חדשה"):tr("{0} פניות",[newLeadsCount])}</button>}
           {tomorrowCancelled>0&&!tillOnly&&<span className="desktop-only" style={{background:"var(--danger)",color:"var(--surface)",fontSize:"var(--t-sm)",fontWeight:700,padding:"3px 8px",borderRadius:"var(--r-lg)"}}>{tomorrowCancelled}</span>}
  </div>
  <div className="header-search" style={{position:"relative",flex:1,maxWidth:280,minWidth:80}}>
@@ -10341,7 +10342,7 @@ ${MARKETING_FOOTER}`))}`;
  {peopleSegments()}
  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
  <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>{tr("ניהול קשרי לקוחות")}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>{tr("הלקוחות, הפניות וההודעות שלך")}</p>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em"}}>{tr("לקוחות")} <span style={{color:"var(--ink-3)",fontWeight:400}}>({filteredClients.length})</span></h2>
  </div>
  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -10937,10 +10938,6 @@ ${MARKETING_FOOTER}`))}`;
  <button onClick={()=>setMarketingView("campaigns")} className="primary-btn" style={{padding:"8px 18px",fontSize:"var(--t-sm)",borderRadius:"var(--r-sm)",background:marketingView==="campaigns"?pcGrad:"transparent",color:marketingView==="campaigns"?"var(--pc-contrast)":"var(--ink-2)"}}>{tr("קמפיינים בפייסבוק")}</button>
  </div>
 
- {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
- {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");setTillTab("vouchers");}}/>}
- {/* Getting found on Google: profile checklist, texts to paste, a first search ad (app/GoogleKitCard.jsx). Off = nothing renders. */}
- {googleKitEnabled()&&settings?.tenant_id&&<GoogleKitCard settings={settings} bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`} serviceNames={activeServices.map(sv=>sv.name).filter(Boolean)} onSaveTicks={(next)=>saveAutomationsKey("google_kit",next)} toast={toast}/>}
  {marketingView==="campaigns"&&(<>
  <div className="glass-card" style={{padding:18,marginBottom:16}}>
  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -11198,6 +11195,11 @@ ${MARKETING_FOOTER}`))}`;
  {CESDK_POC && <CesdkReelPoc settings={settings}/>}
  </>)}
  </>)}
+ {/* UX pass 2026-11-18: vouchers and the Google kit sit BELOW the posts/campaigns view. They used to open the tab, so a new owner tapping "תוכן" saw holiday voucher copy before any template. */}
+ {/* Gift vouchers for marketing: her shop link, a story image, holiday copy (app/GiftVoucherMarketingCard.jsx). Renders nothing unless on and installed. */}
+ {giftVouchersSelling(settings)&&<GiftVoucherMarketingCard settings={settings} pc={pc} pcTint={pcTint} toast={toast} onSellAtTill={()=>{try{sessionStorage.setItem("kalmea:voucher-sell","1");}catch{}setActiveTab("cashier");setTillTab("vouchers");}}/>}
+ {/* Getting found on Google: profile checklist, texts to paste, a first search ad (app/GoogleKitCard.jsx). Off = nothing renders. */}
+ {googleKitEnabled()&&settings?.tenant_id&&<GoogleKitCard settings={settings} bookingUrl={mySlug ? `${origin}/${encodeURIComponent(mySlug)}` : `${origin}/book?t=${encodeURIComponent(settings.tenant_id)}`} serviceNames={activeServices.map(sv=>sv.name).filter(Boolean)} onSaveTicks={(next)=>saveAutomationsKey("google_kit",next)} toast={toast}/>}
  </div>
  </>)}
 

@@ -160,6 +160,10 @@ const IN_ACTION = [
   { id: "data", title: "מה קורה בעסק", text: "הכנסות ודוחות, בלי חישובים." },
 ];
 
+// Owner, 2026-11-17: the stock photos looked off; the hero shows her own explainer reel (reel 7, "עובדת לבד? זה בשבילך").
+// The photo hero stays in the code behind this flag.
+const HERO_VIDEO = true;
+
 const HERO_PHOTOS = [
   { src: "/landing/photo-cosmetician.jpg", alt: "קוסמטיקאית מבצעת טיפול פנים ללקוחה", position: "center 58%" },
   { src: "/landing/photo-manicure.jpg", alt: "מניקוריסטית מורחת לק על ציפורני לקוחה", position: "center 40%" },
@@ -211,6 +215,11 @@ export default function LandingPage({ signedIn = false }) {
             <a href="#how" className="kl-press lp-quiet">תראי איך זה עובד</a>
           </div>
         </div>
+        {HERO_VIDEO ? (
+          <div className="lp-hero-visual is-video" data-testid="hero-video">
+            <DemoVideo mp4="/media/landing-founder.mp4" poster="/media/landing-founder.jpg" label="מעיין, המייסדת, מסבירה למי Kalmea מתאימה" width={250} sound />
+          </div>
+        ) : (
         <div className="lp-hero-visual">
           {HERO_PHOTOS.map((photo) => (
             <div key={photo.src} className="lp-hero-photo">
@@ -221,6 +230,7 @@ export default function LandingPage({ signedIn = false }) {
             <Image src="/landing/app-home.jpg" alt="צילום מסך אמיתי של מסך הבית של Kalmea" width={560} height={1212} priority sizes="180px" className="lp-shot-img" />
           </div>
         </div>
+        )}
       </section>
 
       {/* ── 3. BEFORE AND AFTER ───────────────────────────────────────────── */}
