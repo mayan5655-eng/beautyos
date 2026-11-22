@@ -70,6 +70,16 @@ const crlf = parseCsv('a,b\r\n1,2\r\n\r\n');
 check('CRLF handled, blank trailing lines dropped', crlf.rows, [['1', '2']]);
 check('headers are trimmed', parseCsv(' a , b \n1,2').headers, ['a', 'b']);
 
+// A quote in the MIDDLE of a field is a literal (Hebrew gershayim). A CRM
+// export headed "שם,דוא"ל,טלפון" used to read as header-only.
+const gersh = parseCsv('﻿נוצר,שם,דוא"ל,טלפון\n11/21/2026,דנה,,+972541234567\n11/20/2026,"כהן, רונית",,0521234567\n');
+check('mid-field quote: header kept as one column', gersh.headers.slice(1), ['שם', 'דוא"ל', 'טלפון']);
+check('mid-field quote: every data row read', gersh.rows.length, 2);
+check('mid-field quote: quoted field after it still works', gersh.rows[1][1], 'כהן, רונית');
+check('mid-field quote in data', parseCsv('a,b\nבע"מ,ת"א\n').rows[0], ['בע"מ', 'ת"א']);
+check('quote after leading space still opens a field', parseCsv('a,b\n1, "x,y"\n').rows[0], ['1', 'x,y']);
+check('mid-field quote does not break delimiter vote', detectDelimiter('שם;דוא"ל;טלפון'), ';');
+
 // ── 3. Masking ──────────────────────────────────────────────────────────────
 console.log('\n[3] Masking — shape preserved, nobody identifiable');
 

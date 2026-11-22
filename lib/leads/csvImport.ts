@@ -110,7 +110,7 @@ export function detectDelimiter(firstLine: string): string {
     let inQuotes = false;
     for (let i = 0; i < firstLine.length; i++) {
       const ch = firstLine[i];
-      if (ch === '"') {
+      if (ch === '"' && (inQuotes || atFieldStart(firstLine, i, [d]))) {
         if (inQuotes && firstLine[i + 1] === '"') { i++; continue; }
         inQuotes = !inQuotes;
       } else if (ch === d && !inQuotes) {
@@ -152,7 +152,13 @@ export function parseCsv(text: string): ParsedCsv {
       continue;
     }
 
-    if (ch === '"') { inQuotes = true; continue; }
+    // A quote OPENS a quoted field only at the start of a field (leading
+    // spaces allowed). Anywhere else it is a literal character. Hebrew writes
+    // abbreviations with a gershayim that keyboards type as '"' - דוא"ל, ת"א,
+    // בע"מ - and a CRM export's header row read דוא"ל. Treating that quote as
+    // an opener swallowed the rest of the file into one field, and the
+    // importer reported "header row only" for a file with 319 leads in it.
+    if (ch === '"' && field.trim() === '') { field = ''; inQuotes = true; continue; }
     if (ch === delimiter) { record.push(field); field = ''; continue; }
     if (ch === '\r') {
       // CRLF: skip the CR and let the LF end the record.
@@ -182,11 +188,23 @@ export function parseCsv(text: string): ParsedCsv {
   return { headers, rows, delimiter };
 }
 
+/** True when position i begins a field: only spaces between it and the
+ * previous delimiter, line break or start of text. Where the delimiter is not
+ * known yet, every candidate counts. */
+function atFieldStart(text: string, i: number, delimiters: string[]): boolean {
+  for (let j = i - 1; j >= 0; j--) {
+    const c = text[j];
+    if (delimiters.includes(c) || c === '\n' || c === '\r') return true;
+    if (c !== ' ') return false;
+  }
+  return true;
+}
+
 function findFirstUnquotedNewline(text: string): number {
   let inQuotes = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === '"') {
+    if (ch === '"' && (inQuotes || atFieldStart(text, i, CANDIDATE_DELIMITERS))) {
       if (inQuotes && text[i + 1] === '"') { i++; continue; }
       inQuotes = !inQuotes;
     } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
