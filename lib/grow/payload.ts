@@ -126,6 +126,8 @@ export type Notification = {
   paymentRef: string;
   /** customFields.cField2: the tenant id we sent with the charge ('' on payments created before it existed). */
   tenantRef: string;
+  /** data.paymentLinkProcessId: set only on a payment request's callback (lib/grow/paymentLink.ts), else ''. */
+  paymentLinkProcessId: string;
   /** Everything approveTransaction asks to be echoed back, as received. */
   echo: Record<string, string>;
 };
@@ -171,6 +173,7 @@ export function readNotification(raw: Record<string, unknown>): Notification | n
     payerEmail: flat.payerEmail || '',
     paymentRef: flat['customFields.cField1'] || flat.cField1 || '',
     tenantRef: tenantRefOf(flat['customFields.cField2'] || flat.cField2 || ''),
+    paymentLinkProcessId: String(flat.paymentLinkProcessId || '').trim(),
     echo,
   };
 }

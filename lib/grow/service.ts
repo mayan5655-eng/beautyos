@@ -299,7 +299,10 @@ export async function applyNotificationByProcess(raw: Record<string, unknown>, d
 async function applyToPayment(p: GrowPayment, raw: Record<string, unknown>, d: Deps, approve?: (n: Notification, p: GrowPayment) => Promise<void>, viaSecret = false): Promise<NotifyResult> {
   const n = readNotification(raw);
   if (!n) return { status: 'ignored' };
-  const exact = !!p.process_id && notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) });
+  // A payment request (lib/grow/paymentLink.ts) stores `pl<paymentLinkProcessId>`: its callback is matched by that id and the amount.
+  const linkMatch = !!p.process_id && !!n.paymentLinkProcessId && p.process_id === `pl${n.paymentLinkProcessId}`
+    && Number.isFinite(n.sum) && Math.abs(n.sum - Number(p.amount)) < 0.005;
+  const exact = linkMatch || (!!p.process_id && notificationMatches(n, { processId: p.process_id, amount: Number(p.amount) }));
   // cField1 is sent with the dashes removed (payload.ts buildProcessFields), so the id is compared the same way (2026-11-02 audit).
   const earlierTap = viaSecret && !exact && !!n.processId && n.paymentRef === String(p.id).replace(/-/g, '')
     && notificationMatches(n, { processId: n.processId, amount: Number(p.amount) });

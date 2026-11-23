@@ -17,6 +17,7 @@ import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { startWalletSession, walletLinkState, inAppLimitFor, inAppWalletEnabled, payContextOf, isBookingDeposit, DEPOSIT_HOLD_OVER_HE } from '@/lib/grow/wallet';
 import type { GrowPayment } from '@/lib/grow/service';
 import { depositHoldOpen } from '@/lib/grow/cancelFees';
+import { paymentLinkCredentials, startPaymentLink } from '@/lib/grow/paymentLink';
 import type { ConsentRow } from '@/lib/grow/cancelFees';
 import { VOUCHER_SERVICE_PREFIX } from '@/lib/giftVouchers';
 import { admin } from '../_shared';
@@ -89,14 +90,31 @@ export async function POST(request: Request) {
   const found = await walletLinkState(token, { repo });
   if (!found.payment || !growUiEnabled(process.env, found.payment.tenant_id)) return hidden();
 
+  const userIdFor = async (tenantId: string) => {
+    const { data } = await db.from('grow_accounts').select('user_id, enabled').eq('tenant_id', tenantId).maybeSingle();
+    return data && (data as { enabled?: unknown }).enabled === true ? String((data as { user_id: unknown }).user_id) : null;
+  };
+
+  // Grow's payment request (GROW_PAYMENT_LINK=1, lib/grow/paymentLink.ts): the client goes to Grow's own page for this payment. A business
+  // whose VAT registration is not set ('not-ready') keeps the wallet, so no document is ever issued with a guessed VAT type.
+  const linkCreds = paymentLinkCredentials(process.env);
+  if (linkCreds) {
+    const l = await startPaymentLink(token, {
+      repo, creds: linkCreds, appUrl: APP_URL, userIdFor, holdOpen: holdOpenFor,
+      taxStatusFor: async (tenantId) => {
+        const { data } = await db.from('settings').select('business_tax_status').eq('tenant_id', tenantId).maybeSingle();
+        return (data as { business_tax_status?: unknown } | null)?.business_tax_status;
+      },
+    });
+    if (l.ok) return NextResponse.json({ success: true, state: 'ready', linkUrl: l.url });
+    if (l.code !== 'not-ready') return NextResponse.json({ success: false, state: l.code, error: l.message }, { status: l.code === 'grow-unreachable' || l.code === 'grow-refused' ? 502 : 409 });
+  }
+
   const r = await startWalletSession(token, {
     repo,
     creds: grow.wallet,
     appUrl: APP_URL,
-    userIdFor: async (tenantId) => {
-      const { data } = await db.from('grow_accounts').select('user_id, enabled').eq('tenant_id', tenantId).maybeSingle();
-      return data && (data as { enabled?: unknown }).enabled === true ? String((data as { user_id: unknown }).user_id) : null;
-    },
+    userIdFor,
     holdOpen: holdOpenFor,
     // A hint from the page, never trusted beyond this: only removes methods, only with the flag on, only for exactly `true`.
     cardAndBitOnly: inAppLimitFor(process.env, body.inApp),

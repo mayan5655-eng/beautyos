@@ -11,6 +11,7 @@ import { resolveGrow } from '@/lib/grow/adapter';
 import { applyNotification, approveTransaction } from '@/lib/grow/service';
 import { supabaseGrowRepo } from '@/lib/grow/repo';
 import { approveCredsFor } from '@/lib/grow/wallet';
+import { paymentLinkCredentials } from '@/lib/grow/paymentLink';
 import { randomBytes } from 'node:crypto';
 import { admin } from '../_shared';
 import { clientIp, ipAllowed, ipCheckEnforced } from '@/lib/grow/webhook';
@@ -42,7 +43,8 @@ export async function POST(request: Request) {
   }
   const token = new URL(request.url).searchParams.get('t') || '';
   const raw = await readBody(request);
-  const grow = resolveGrow(process.env, APP_URL);
+  // paymentLink: a payment request (lib/grow/paymentLink.ts) is approved with its own page code.
+  const grow = { ...resolveGrow(process.env, APP_URL), paymentLink: paymentLinkCredentials(process.env) };
   const creds = grow.creds;
   try {
     const result = await applyNotification(

@@ -95,9 +95,11 @@ export function opensOnWallet(p: Pick<GrowPayment, 'appointment_id' | 'descripti
  * A wallet payment approved with the card or token page code is refused by Grow (its review, 2026-10-27).
  */
 export function approveCredsFor<C extends { apiKey: string; pageCode: string; apiBase: string }>(
-  p: Pick<GrowPayment, 'appointment_id' | 'description'>,
-  grow: { creds: C | null; wallet?: WalletCreds | null; depositWallet?: boolean },
+  p: Pick<GrowPayment, 'appointment_id' | 'description'> & { process_id?: string | null },
+  grow: { creds: C | null; wallet?: WalletCreds | null; depositWallet?: boolean; paymentLink?: { apiKey: string; pageCode: string; apiBase: string } | null },
 ): C | { apiKey: string; pageCode: string; apiBase: string } | null {
+  // Opened as a payment request (lib/grow/paymentLink.ts stores `pl<id>`): approved with that page code, on the 1.0 base.
+  if (/^pl\d+$/.test(String(p.process_id ?? ''))) return grow.paymentLink ? { apiKey: grow.paymentLink.apiKey, pageCode: grow.paymentLink.pageCode, apiBase: grow.paymentLink.apiBase } : null;
   return opensOnWallet(p, !!grow.wallet, !!grow.depositWallet) ? walletAsCreds(grow.wallet) : grow.creds;
 }
 

@@ -119,6 +119,8 @@ export default function PayClient({ token }) {
         if (j?.state === 'paid') { setPhase('paid'); return; }
         setMsg(j?.error || tr("לא הצלחנו לפתוח את התשלום. נסי שוב בעוד רגע.")); setPhase('ready'); return;
       }
+      // Grow's payment request (GROW_PAYMENT_LINK=1, lib/grow/paymentLink.ts): the server made Grow's own page for this payment; go there.
+      if (typeof j.linkUrl === 'string' && j.linkUrl) { report('payment-link-redirect', null, {}); setPhase('redirect'); window.location.assign(j.linkUrl); return; }
       const ua = window.navigator.userAgent;
       const cls = uaClass(ua);
       const hostedUrl = j.hostedUrl || '';

@@ -184,3 +184,27 @@ where source in ('grow:wallet-client', 'grow:wallet-session')
 order by created_at desc
 limit 50;
 ```
+
+## Payment request ("דרישת תשלום", CreatePaymentLink) — built, off, NOT run against Grow
+
+Grow's onboarding mail (2026-11-23) issued a test userId and a "דרישת תשלום" page code and asked that payment requests use
+`CreatePaymentLink` (developers.grow.business > Payment Link) and never Get Transaction Info. Built in `lib/grow/paymentLink.ts`, behind
+`GROW_PAYMENT_LINK=1` (default off: `/pay/<token>` opens the wallet exactly as before).
+
+On: the client taps "pay" on `/pay/<token>` → `CreatePaymentLink` (sandbox base `https://sandboxapi.grow.link/api/light/server/1.1`)
+for THIS payment, one product at its amount, `vatType` from her `settings.business_tax_status` (exempt 3, licensed 1; unset = the wallet
+is used instead, the VAT type is never guessed) → the client is sent to Grow's `url` → Grow's callback to `/api/grow/notify?t=<secret>`
+carries `paymentLinkProcessId`, stored as `pl<id>` on the payment and matched with the amount → `approveTransaction` with the payment-request
+page code on the 1.0 base. PayBox (`transactionTypeId` 5) is labelled PayBox.
+
+| Variable | Meaning |
+|---|---|
+| `GROW_PAYMENT_LINK` | `1` turns it on. |
+| `GROW_PAYMENT_LINK_PAGE_CODE_TEST` | Sandbox "דרישת תשלום" page code, used with `GROW_TOKEN_USER_ID_TEST` (+ `GROW_TOKEN_API_KEY_TEST` if given). |
+| `GROW_PAYMENT_LINK_PAGE_CODE`, `GROW_PAYMENT_LINK_API_BASE` | Production page code and API base (required; not published by Grow), with `GROW_API_KEY`. |
+
+Open questions for Grow before turning it on:
+1. `paymentLinkType`: which value makes a link that closes after ONE payment (the docs' description says one payment, their example shows 2; the code sends 1).
+2. The production base for `CreatePaymentLink`.
+3. Whether a platform sends `apiKey` in this call (the parameter list omits it; it is sent when set).
+4. Whether the callback also reaches the fixed webhook URL set at Grow (the platform webhook matches only stored process ids, so a payment request is recorded through `notifyUrl` only).
