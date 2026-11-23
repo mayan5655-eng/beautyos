@@ -120,7 +120,7 @@ await ok('Grow answering with a url instead of an authCode (a page code that is 
 });
 
 await ok('a paid wallet payment: receipt with the method Grow reported (card, Bit, Apple Pay, Google Pay), token stored for a refund, a second callback adds nothing', async () => {
-  for (const [typeId, label] of [['1', 'אשראי'], ['6', 'ביט'], ['13', 'Apple Pay'], ['14', 'Google Pay'], ['', 'אשראי'], ['99', 'אשראי']] as const) {
+  for (const [typeId, label] of [['1', 'אשראי'], ['5', 'PayBox'], ['6', 'ביט'], ['13', 'Apple Pay'], ['14', 'Google Pay'], ['', 'אשראי'], ['99', 'אשראי']] as const) {
     const m = memory(); const { token, id } = await makePayment(m, `${typeId || 'e'}${'d'.repeat(47)}`.slice(0, 48));
     m.rows.get(id)!.process_id = '777';
     const body = { 'data[processId]': '777', 'data[transactionId]': '9001', 'data[transactionToken]': 'tt-secret', 'data[sum]': '50', 'data[statusCode]': '2', 'data[transactionTypeId]': typeId, 'data[asmachta]': '5551', 'data[customFields][cField2]': '11111111111111111111111111111111' };

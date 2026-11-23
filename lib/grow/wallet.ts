@@ -273,7 +273,8 @@ export function payContextOf(
   };
 }
 
-export const METHOD_BY_TYPE_ID: Record<string, string> ={ '1': 'אשראי', '6': 'ביט', '13': 'Apple Pay', '14': 'Google Pay' };
+// '5' = PayBox: Grow's wallet can return it in the server callback (Grow onboarding mail, 2026-11-23), so it is named, never filed as a card.
+export const METHOD_BY_TYPE_ID: Record<string, string> ={ '1': 'אשראי', '5': 'PayBox', '6': 'ביט', '13': 'Apple Pay', '14': 'Google Pay' };
 
 /** The words on her receipt for how the client paid. Card when Grow did not say. */
 export function paymentMethodLabel(transactionTypeId: unknown): string {
