@@ -196,8 +196,9 @@ export function findInvoiceUrl(raw: unknown): string | null {
 }
 
 /**
- * The document number in an invoice callback. TODO(grow-docs): the public docs show no sample of this payload, so the field name is a guess
- * across the usual spellings; when Grow gives the real payload, pin the exact key here.
+ * The document number in an invoice callback. Grow documents the invoice webhook (developers.grow.business/docs/webhooks, "Invoice Webhook
+ * Format", checked 2026-11-23) as {"transactionCode", "invoiceNumber", "invoiceUrl"}, sent for a VAT invoice/receipt and for automatically
+ * generated invoices only. invoiceNumber is in KEYS below; the other spellings stay as a fallback until the first live callback confirms it.
  */
 export function findInvoiceNumber(raw: unknown): string {
   // No bare "number": any field of that name in the callback would have been stored as the legal document number (2026-10-20 audit).

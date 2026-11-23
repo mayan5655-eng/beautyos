@@ -180,6 +180,10 @@ await ok('the invoice number is read from the usual spellings, empty when absent
   assert.equal(findInvoiceNumber({ data: { documentNumber: 'A-9' } }), 'A-9');
   assert.equal(findInvoiceNumber({ data: { invoice_number: 123 } }), '123');
   assert.equal(findInvoiceNumber({ data: { url: 'https://x.test' } }), '');
+  // Grow's documented invoice webhook sample (developers.grow.business/docs/webhooks, checked 2026-11-23), top level and as an array.
+  const documented = { transactionCode: 'ABCD1234', invoiceNumber: '20', invoiceUrl: 'https://secure.meshulam.co.il' };
+  assert.equal(findInvoiceNumber(documented), '20');
+  assert.equal(findInvoiceNumber([documented]), '20');
 });
 
 // ── wiring (source pins) ─────────────────────────────────────────────────────
