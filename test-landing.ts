@@ -66,7 +66,7 @@ ok('who is behind Kalmea has no invented numbers, names or quotes', () => {
 });
 
 ok('FAQ has the five documented answers and the WhatsApp button uses the support number helper', () => {
-  assert.equal((page.match(/q: "/g) || []).length, 5);
+  assert.equal((page.match(/q: "/g) || []).length, 6);
   assert.match(page, /supportWhatsAppUrl/);
   assert.match(page, /בכל עת/);
   assert.match(page, /תוך 30 יום/);
@@ -123,6 +123,10 @@ ok('before and after: soft red and green in pairs, finished picture without JS, 
   // 8 written inline plus the no-show row and the reschedule row: ten pairs, the most the section should carry.
   const list = page.slice(page.indexOf('const BEFORE_AFTER = ['), page.indexOf('function beforeAfterRows'));
   assert.equal((list.match(/before: "/g) || []).length + (list.match(/^\s+(NO_SHOW_READY|RESCHEDULE),$/gm) || []).length, 10);
+  // Avatar pass (2026-11-22): six rows on the page, the other four kept behind BEFORE_AFTER_SHORT.
+  assert.match(page, /const BEFORE_AFTER_SHORT = true;/);
+  assert.equal((list.match(/extra: true/g) || []).length, 4);
+  assert.match(page, /BEFORE_AFTER_SHORT \? BEFORE_AFTER\.filter\(\(r\) => !r\.extra\) : BEFORE_AFTER/);
   for (const icon of [...page.matchAll(/icon: "(\w+)"/g)].map((m) => m[1])) assert.match(ba, new RegExp(`\\b${icon}: "M`), `icon ${icon} has a path`);
   assert.doesNotMatch(ba, /use client|autoplay|<audio|AudioContext/i);
   const css = rd('app/globals.css');
@@ -149,6 +153,17 @@ ok('the free month without a credit card is said at every call to action', () =>
   assert.match(page, /בלי כרטיס אשראי ובלי התחייבות/);
 });
 
+ok('avatar pass: both businesses named up top, a demo for each in the hero, and the existing-clients question answered', () => {
+  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
+  assert.match(hero, /data-testid="hero-demos"/);
+  assert.match(hero, /DEMOS\.map/);
+  assert.doesNotMatch(hero, /<Link href=\{d\.href\}/, 'demo links are plain <a>, no prefetch');
+  assert.match(page, /q: "יש לי כבר לקוחות\. צריך להקליד את כולן מחדש\?"/);
+  // The file import (Excel / another system) is behind NEXT_PUBLIC_IMPORT_TOOL, so the page does not promise it.
+  const faq = page.slice(page.indexOf('const FAQ'), page.indexOf('const COMPARE_EXTRAS'));
+  assert.doesNotMatch(faq, /אקסל|מתוכנה אחרת/);
+});
+
 console.log(`${n} passed`);
 
 // Landing focus (2026-10-13): one prominent action, everything else quiet.
@@ -169,7 +184,7 @@ console.log(`${n} passed`);
 // Landing sharpen (2026-11-10): founder line up top, a concrete hero line, and only claims that are live for every business.
 {
   const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
-  const kicker = hero.indexOf('<p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות</p>');
+  const kicker = hero.indexOf('<p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות ומניקוריסטיות</p>');
   assert.ok(kicker > 0 && kicker < hero.indexOf('<h1'), 'the founder line sits right above the headline');
   assert.match(hero, /<p className="lp-h1-sub">את מטפלת בלקוחות\. Kalmea עוזרת לך לטפל בעסק\.<\/p>/);
   assert.match(page, /נולדה מתוך הקליניקה/, 'the founder section at the bottom stays');
@@ -177,7 +192,7 @@ console.log(`${n} passed`);
   assert.match(hero, /claims\.deposits \? "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד\." : "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות ומזיזות תור לבד\."/);
   assert.equal((page.match(/משלמות מקדמה/g) || []).length, 1);
   // Deposit rows exist only as the deposit-on swap, and the Grow requirement is said next to them.
-  assert.match(page, /if \(!claims\.deposits\) return BEFORE_AFTER;/);
+  assert.match(page, /if \(!claims\.deposits\) return rows;/);
   assert.match(page, /claims\.depositBit \? NO_SHOW_DEPOSIT_BIT : NO_SHOW_DEPOSIT/);
   assert.match(page, /\{claims\.deposits && <p className="lp-fine" data-testid="deposit-note">[^<]*Grow[^<]*<\/p>\}/);
   assert.match(page, /after: "מזיזה לבד, לפי מדיניות הביטול שלך"/);

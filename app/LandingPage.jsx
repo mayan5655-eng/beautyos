@@ -53,19 +53,25 @@ const BEFORE_AFTER = [
   { icon: "calendar", before: "חורים ריקים ביומן", after: "תור שהתפנה? Kalmea שואלת אם להציע אותו" },
   { icon: "heart", before: "לקוחות קבועות שנעלמות בלי ששמת לב", after: "הודעת חזרה מוכנה ללקוחה שלא הגיעה מזמן" },
   { icon: "spark", before: "שעות על יצירת פוסטים ושיווק", after: "פוסטים וקמפיינים בעזרת AI, בצבעים שלך" },
-  { icon: "wallet", before: "שכחת לגבות או לתעד תשלום", after: "קופה ומעקב אחר תשלומים וחבילות" },
-  { icon: "layers", before: "מעבר בין כמה מערכות ואפליקציות", after: "יומן, לקוחות ושיווק במקום אחד" },
-  { icon: "chart", before: "אין לך מושג ברור כמה הרווחת", after: "דוחות שמראים לך מה קורה בעסק" },
+  { icon: "wallet", before: "שכחת לגבות או לתעד תשלום", after: "קופה ומעקב אחר תשלומים וחבילות", extra: true },
+  { icon: "layers", before: "מעבר בין כמה מערכות ואפליקציות", after: "יומן, לקוחות ושיווק במקום אחד", extra: true },
+  { icon: "chart", before: "אין לך מושג ברור כמה הרווחת", after: "דוחות שמראים לך מה קורה בעסק", extra: true },
   // The intake gate (lib/intakeGate.ts), live since add_reschedule_intake_2026-11-09.sql ran (verified 2026-11-10). She turns it on
   // per service. The form is a digital link; the patch test is a flag and a line to the client, not a digital test, so the copy says so.
-  { icon: "doc", before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה" },
+  { icon: "doc", before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה", extra: true },
 ];
 
+// Avatar pass (2026-11-22): the section shows her six strongest pains; the four "extra" rows stay in the code behind this flag.
+// Each one is still said further down: payments and reports in the five areas, one place in the cost table, the health
+// declaration in the comparison list.
+const BEFORE_AFTER_SHORT = true;
+
 function beforeAfterRows(claims) {
-  if (!claims.deposits) return BEFORE_AFTER;
+  const rows = BEFORE_AFTER_SHORT ? BEFORE_AFTER.filter((r) => !r.extra) : BEFORE_AFTER;
+  if (!claims.deposits) return rows;
   // With deposits on, the no-show row speaks about the deposit; the ready reminders keep their place in "a real day" below.
   const deposit = claims.depositBit ? NO_SHOW_DEPOSIT_BIT : NO_SHOW_DEPOSIT;
-  return BEFORE_AFTER.map((r) => (r === NO_SHOW_READY ? deposit : r));
+  return rows.map((r) => (r === NO_SHOW_READY ? deposit : r));
 }
 
 // The moments of the day. Made-up names; each "with" side is what the product really does, and what needs her OK waits for it.
@@ -111,6 +117,12 @@ const FAQ = [
   {
     q: "מה קורה למידע של הלקוחות שלי?",
     a: "המידע שלך נשאר שלך. כל עסק מבודד, ואת רואה רק את הלקוחות, התורים והלידים של העסק שלך. הערות בריאות מוצגות רק לך, בכרטיס הלקוחה, ואיננו מוכרים מידע. אף מערכת אינה מאובטחת ב-100%, והפרטים המלאים במדיניות הפרטיות.",
+  },
+  // Live for every business (the import sheet in app/beautyos.jsx): phone contacts and a pasted list. The Excel / other-system
+  // file import is behind NEXT_PUBLIC_IMPORT_TOOL, so it is not promised here.
+  {
+    q: "יש לי כבר לקוחות. צריך להקליד את כולן מחדש?",
+    a: "לא. אפשר להעביר את הלקוחות שלך מאנשי הקשר בטלפון, או להדביק רשימה, שורה לכל לקוחה.",
   },
   {
     q: "אפשר להשתמש בזה מהטלפון?",
@@ -205,7 +217,7 @@ export default function LandingPage({ signedIn = false }) {
       {/* ── 2. HERO: who it is for, in the headline, before any scroll. ───── */}
       <section className="lp-hero">
         <div className="lp-hero-text">
-          <p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות</p>
+          <p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות ומניקוריסטיות</p>
           <h1 className="serif lp-h1">קוסמטיקאית או מניקוריסטית שעובדת לבד?</h1>
           <p className="lp-h1-sub">את מטפלת בלקוחות. Kalmea עוזרת לך לטפל בעסק.</p>
           <p className="lp-hero-desc">{claims.deposits ? "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד." : "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות ומזיזות תור לבד."}</p>
@@ -213,6 +225,17 @@ export default function LandingPage({ signedIn = false }) {
             <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
             <p className="lp-cta-note">בלי כרטיס אשראי ובלי התחייבות</p>
             <a href="#how" className="kl-press lp-quiet">תראי איך זה עובד</a>
+            {/* Avatar pass (2026-11-22): each of the two businesses finds her own demo before any scroll. Plain <a>, as in section 9:
+                /demo/<field> signs into the demo account, and <Link> would prefetch it. */}
+            <p className="lp-cta-note" data-testid="hero-demos">
+              רוצה לראות קודם?{" "}
+              {DEMOS.map((d, i) => (
+                <span key={d.field}>
+                  {i > 0 && " · "}
+                  <a href={d.href} className="kl-press" style={{ color: "var(--brand-accent)", textDecoration: "underline", textUnderlineOffset: 3 }}>דמו {d.title}</a>
+                </span>
+              ))}
+            </p>
           </div>
         </div>
         {HERO_VIDEO ? (
