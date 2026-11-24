@@ -19,6 +19,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { trackedCreate } from './usage.ts';
 import { GROUNDING_RULES, buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
+import { buildVoiceBlock } from './voiceExamples.ts';
 import { composeImagePrompt, type ImageFormat, type NegativeSpace } from './imagePrompt.ts';
 import { MODELS, EFFORT } from './models.ts';
 import { withClaimsGuard, fixHebrewSlips } from './claimsGuard.ts';
@@ -65,7 +66,7 @@ export function buildDirectorPrompt(profile: BusinessProfile, template: Template
 
 == פרטי העסק ==
 ${buildBusinessContext(profile)}
-
+${profile.voice_examples?.length ? `\n${buildVoiceBlock(profile.voice_examples)}\n` : ''}
 == הבקשה שלה ==
 ${clean(brief)}
 

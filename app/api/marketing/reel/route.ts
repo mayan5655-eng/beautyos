@@ -18,6 +18,7 @@ import { loadBusinessProfile } from '@/lib/ai/loadBusinessProfile'
 import { GROUNDING_RULES, personaLabel } from '@/lib/ai/marketingAI'
 import { withClaimsGuard, fixHebrewSlips } from '@/lib/ai/claimsGuard'
 import { mapAiError } from '@/lib/ai/aiErrorResponse'
+import { buildVoiceBlock } from '@/lib/ai/voiceExamples'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
 
 == פרטי העסק ==
 ${contextLines}
-${voiceSample ? `\n== איך היא כותבת ללקוחות שלה (דוגמה אמיתית — כתבי בקול הזה) ==\n"${voiceSample}"\n` : ''}
+${voiceSample ? `\n== איך היא כותבת ללקוחות שלה (דוגמה אמיתית — כתבי בקול הזה) ==\n"${voiceSample}"\n` : ''}${profile.voice_examples?.length ? `\n${buildVoiceBlock(profile.voice_examples)}\n` : ''}
 == הנושא של הרילס ==
 ${topic}
 

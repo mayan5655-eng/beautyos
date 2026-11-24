@@ -72,7 +72,7 @@ function openOccasions(fields) {
   return out;
 }
 
-export default function DesignStudio({ settings, readOnly, toast, appointments = [], services = [], onOpenScript, bookingUrl = '' }) {
+export default function DesignStudio({ settings, readOnly, toast, appointments = [], services = [], onOpenScript, bookingUrl = '', onBrandingChange }) {
   const [view, setView] = useState('week'); // the door's views: week | templates | mine
   const [preset, setPreset] = useState(null); // a brief handed to the AI card, e.g. a filming idea as a reel
   const [presetKey, setPresetKey] = useState(0);
@@ -235,7 +235,7 @@ export default function DesignStudio({ settings, readOnly, toast, appointments =
       <div className="glass-card" style={{ padding: '22px 24px', marginBottom: 18 }}>
         <DesignEditor
           key={open.id}
-          design={open} template={template} settings={settings} readOnly={readOnly} previousImages={previousImages} toast={toast}
+          design={open} template={template} settings={settings} readOnly={readOnly} previousImages={previousImages} toast={toast} onBrandingChange={onBrandingChange}
           onBack={() => leave(open)}
           onSaved={(d) => { kept(d); setOpen(d); setDesigns((p) => (p || []).map((x) => (x.id === d.id ? d : x)).map((x) => (d.is_default && x.id !== d.id && x.category === d.category ? { ...x, is_default: false } : x))); }}
           onDuplicated={(d) => { kept(open); setDesigns((p) => [d, ...(p || [])]); setOpen(d); }}

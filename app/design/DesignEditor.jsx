@@ -24,11 +24,12 @@ import AiFill from './AiFill';
 import SaveShare from './SaveShare';
 import { isTouchDevice } from '@/lib/design/sharePost';
 import { defaultCaption } from '@/lib/design/defaultCaption';
+import { VOICE_EXAMPLE_MIN_CHARS } from '@/lib/ai/voiceExamples';
 
 const input = { width: '100%', border: '1px solid var(--line-2)', borderRadius: 'var(--r-xs)', padding: '9px 11px', fontSize: 'var(--t-sm)', fontFamily: 'inherit', background: 'var(--surface)' };
 const label = { fontSize: 'var(--t-xs)', color: 'var(--ink-3)', fontWeight: 600, marginBottom: 4, display: 'block' };
 
-export default function DesignEditor({ design, template, settings, readOnly, previousImages, onSaved, onDuplicated, onDeleted, onBack, toast }) {
+export default function DesignEditor({ design, template, settings, readOnly, previousImages, onSaved, onDuplicated, onDeleted, onBack, toast, onBrandingChange }) {
   const [name, setName] = useState(design.name || template.name);
   const [values, setValues] = useState(design.values || {});
   const [images, setImages] = useState(design.images || {});
@@ -43,6 +44,24 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
   // even empty, keeps hers.
   const [copyText, setCopyText] = useState(() => (typeof design.copy?.text === 'string' ? design.copy.text
     : defaultCaption(template, fillTemplate(template, { settings, inputs: design.values || {}, images: design.images || {} }).values, settings)));
+  // "זה נשמע כמוני": once she has rewritten the post text, one tap keeps it as a voice sample every generator then
+  // writes in (lib/ai/voiceExamples.ts). Offered only for a text she changed, never stored without the tap.
+  const [initialCopy] = useState(copyText);
+  const [voiceSaved, setVoiceSaved] = useState('');
+  const [voiceSaving, setVoiceSaving] = useState(false);
+  const canKeepVoice = !readOnly && copyText.trim().length >= VOICE_EXAMPLE_MIN_CHARS && copyText.trim() !== initialCopy.trim() && copyText.trim() !== voiceSaved;
+  const keepVoice = async () => {
+    const text = copyText.trim();
+    setVoiceSaving(true);
+    try {
+      const res = await fetch('/api/settings/voice-example', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.success) throw new Error(j.error || 'השמירה לא הצליחה');
+      setVoiceSaved(text);
+      onBrandingChange?.(j.branding);
+      toast?.('נשמר. מעכשיו ה-AI יכתוב לך בקול הזה');
+    } catch (e) { toast?.(String(e.message || e), 'error'); } finally { setVoiceSaving(false); }
+  };
   const [hashtags, setHashtags] = useState(Array.isArray(design.copy?.hashtags) ? design.copy.hashtags.join(' ') : '');
   const captionFull = () => [copyText.trim(), hashtags.trim()].filter(Boolean).join('\n\n');
   // Resolves true only when the text really reached the clipboard (the in-app browsers of Instagram and Facebook have none).
@@ -247,6 +266,11 @@ export default function DesignEditor({ design, template, settings, readOnly, pre
               <button onClick={shareWhatsApp} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="whatsapp" size={14} /> וואטסאפ</button>
               <button onClick={shareFacebook} className="primary-btn" style={{ padding: '9px 14px', background: 'var(--surface)', color: 'var(--pc-deep)', border: '1px solid var(--line-2)', fontSize: 'var(--t-sm)' }}><Icon name="share" size={14} /> פייסבוק</button>
             </div>
+            {canKeepVoice && (
+              <button type="button" onClick={keepVoice} disabled={voiceSaving} style={{ display: 'block', marginTop: 10, padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'var(--t-xs)', color: 'var(--pc-deep)', textDecoration: 'underline', textAlign: 'right' }}>
+                {voiceSaving ? <Spinner inline label="שומרת" /> : 'זה נשמע כמוני: לשמור כדוגמה לקול שלי'}
+              </button>
+            )}
             <p style={{ fontSize: 'var(--t-xs)', color: 'var(--ink-3)', marginTop: 6 }}>לאינסטגרם ולפייסבוק: "שמירה ושיתוף" למטה שומר את התמונה בגלריה או שולח אותה ישר, והטקסט מועתק באותה לחיצה.</p>
           </div>
 

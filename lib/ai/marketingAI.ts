@@ -34,6 +34,9 @@ export interface BusinessProfile {
   booking_cta_label?: string | null     // her own wording for the booking button
   brand_tone?: string | null
   unique_selling_points?: string[] | null
+  /** Up to three texts she picked as the voice to write in (lib/ai/voiceExamples.ts).
+   *  Voice only, never facts: kept out of buildBusinessContext on purpose. */
+  voice_examples?: string[] | null
   price_range?: string | null           // derived from real service prices
   // Real brand-voice & identity hints (from settings + branding jsonb)
   therapist_name?: string | null

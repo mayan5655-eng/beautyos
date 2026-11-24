@@ -27,6 +27,7 @@ import { APP_URL } from '../appUrl.ts'
 import { ACTIVE_OR_NULL } from '../serviceActive.js'
 import { businessFieldsOf } from '../businessFields.ts'
 import { isMissingColumnError } from '../pgError.ts'
+import { cleanVoiceExamples } from './voiceExamples.ts'
 
 // The server Supabase client (no generated DB types, so rows come back loosely typed).
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>
@@ -180,6 +181,8 @@ export async function loadBusinessProfile(
     target_audience: clean(brand.target_audience),
     brand_tone: clean(brand.brand_tone),
     unique_selling_points: toList(brand.unique_selling_points),
+    // "פוסטים שאני אוהבת" - voice samples, rendered by buildVoiceBlock, never as facts.
+    voice_examples: cleanVoiceExamples(brand.voice_examples),
     fields: businessFieldsOf(row),
   }
 }

@@ -12,6 +12,7 @@ import { trackedCreate } from '../ai/usage.ts';
 import { MODELS, EFFORT } from '../ai/models.ts';
 import { CLAIMS_RULE_HE, withClaimsGuard, fixHebrewSlips } from '../ai/claimsGuard.ts';
 import { buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from '../ai/marketingAI.ts';
+import { buildVoiceBlock } from '../ai/voiceExamples.ts';
 import type { Suggestion } from '../design/suggestions.ts';
 
 export const PACK_CALL_SITE = 'content/pack';
@@ -102,7 +103,7 @@ export function buildPackPrompt(profile: BusinessProfile, items: Array<{ key: st
 
 == העסק ==
 ${buildBusinessContext(profile)}
-
+${profile.voice_examples?.length ? `\n${buildVoiceBlock(profile.voice_examples)}\n` : ''}
 == הפוסטים של השבוע ==
 ${list}
 

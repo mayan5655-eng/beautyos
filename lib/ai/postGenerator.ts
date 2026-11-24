@@ -19,6 +19,7 @@ import { getCallCapStatus, type CapStatus } from './callCaps.ts';
 import { MODELS, EFFORT } from './models.ts';
 import { CLAIMS_RULE_HE, withClaimsGuard, fixHebrewSlips } from './claimsGuard.ts';
 import { buildBusinessContext, personaLabel, parseClaudeJSON, type BusinessProfile } from './marketingAI.ts';
+import { buildVoiceBlock } from './voiceExamples.ts';
 import type { Template } from '../design/contract.ts';
 import type { Fillable } from '../design/reel.ts';
 import { sanitizeValues } from '../design/design.ts';
@@ -62,6 +63,8 @@ export function candidateTemplates<T extends Fillable>(all: T[], format: 'feed45
 /** The picture slot the generator fills, when the template allows an AI picture. */
 export const aiSlotOf = (t: Fillable) => t.slots.find((s) => s.sources.includes('ai')) || null;
 
+const voiceSection = (p: BusinessProfile) => { const b = buildVoiceBlock(p.voice_examples); return b ? `\n${b}\n` : ''; };
+
 export function buildGeneratePrompt(profile: BusinessProfile, brief: string, candidates: Fillable[]): string {
   const catalogue = candidates.map((t) => {
     const vars = fillableVariables(t).map((v) => `"${v.key}" (${v.label}${v.kind === 'price' ? ', מחיר' : v.kind === 'cta' ? ', קריאה לפעולה' : ''}${v.maxLength ? `, עד ${v.maxLength} תווים` : ''})`).join(', ');
@@ -75,7 +78,7 @@ export function buildGeneratePrompt(profile: BusinessProfile, brief: string, can
 
 == העסק ==
 ${buildBusinessContext(profile)}
-
+${voiceSection(profile)}
 == הבקשה שלה ==
 "${brief}"
 

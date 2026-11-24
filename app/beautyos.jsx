@@ -11092,7 +11092,7 @@ ${MARKETING_FOOTER}`))}`;
                   whatever this div sets. */}
               {aiPostsView==="studio"&&(
  <div style={accentStyle(herAccent)}>
- <DesignStudio settings={settings} readOnly={readOnly} toast={toast} appointments={appointments} services={services} onOpenScript={()=>setAiPostsView("reels")} bookingUrl={settings?.tenant_id?withSource(`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`,"post"):""}/>
+ <DesignStudio settings={settings} readOnly={readOnly} toast={toast} onBrandingChange={b=>b&&setSettings(s=>s?{...s,branding:b}:s)} appointments={appointments} services={services} onOpenScript={()=>setAiPostsView("reels")} bookingUrl={settings?.tenant_id?withSource(`${(typeof window!=="undefined"&&window.location.origin)||APP_URL}${mySlug?`/${encodeURIComponent(mySlug)}`:`/book?t=${settings.tenant_id}`}`,"post"):""}/>
  </div>
               )}
 
@@ -13405,6 +13405,19 @@ ${MARKETING_FOOTER}`))}`;
  <div><p style={lbl}>{tr("קהל היעד שלך")}</p><textarea value={brand.target_audience||""} onChange={e=>setBrand("target_audience",e.target.value)} rows={2} placeholder={tr("למשל: נשים 30-50 מהאזור, אמהות עובדות שמחפשות שעה לעצמן")} style={{...inp,resize:"none"}}/></div>
  <div><p style={lbl}>{tr("סגנון הפנייה שלך")}</p><input value={brand.brand_tone||""} onChange={e=>setBrand("brand_tone",e.target.value)} placeholder={tr("למשל: חם ואישי / מקצועי ורגוע / כיפי וצעיר")} style={inp}/></div>
  <div><p style={lbl}>{tr("מה מייחד אותך (שורה לכל יתרון)")}</p><textarea value={brand.unique_selling_points||""} onChange={e=>setBrand("unique_selling_points",e.target.value)} rows={3} placeholder={tr("למשל:\nחניה חופשית ליד העסק\nמוצרים טבעיים בלבד\n12 שנות ניסיון")} style={{...inp,resize:"none"}}/></div>
+ {/* "פוסטים שאני אוהבת": voice samples for every generator (lib/ai/voiceExamples.ts).
+     Voice only - the prompt forbids taking facts from them and the claims guard never sees them. */}
+ <div>
+ <p style={lbl}>{tr("פוסטים שאת אוהבת (עד 3)")}</p>
+ <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",lineHeight:1.5,margin:"0 0 6px"}}>{tr("הדביקי טקסט של פוסט שכתבת ואת אוהבת איך הוא נשמע. ה-AI ילמד ממנו את הקול שלך: אורך המשפטים, איך את פותחת ואיך את פונה. הוא לא יעתיק ממנו מחירים, מבצעים או משפטים.")}</p>
+ <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {[0,1,2].map(i=>{
+                      const vals=Array.isArray(brand.voice_examples)?brand.voice_examples:[];
+                      if(i>0&&!(vals[i-1]||"").trim()&&!(vals[i]||"").trim()) return null;
+                      return <textarea key={i} value={vals[i]||""} maxLength={1200} onChange={e=>{ const next=[0,1,2].map(j=>vals[j]||""); next[i]=e.target.value; setBrand("voice_examples",next); }} rows={4} placeholder={i===0?tr("הדביקי כאן פוסט שלך"):tr("פוסט נוסף (לא חובה)")} style={{...inp,resize:"vertical"}}/>;
+                    })}
+ </div>
+ </div>
  </div>
  </div>
  <div style={{borderTop:"1px solid var(--line)",paddingTop:12}}>
