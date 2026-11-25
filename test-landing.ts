@@ -105,9 +105,9 @@ ok('hero: the original opening, restored exactly (kicker, slogan, subline, found
   assert.ok(hero.indexOf('lp-kicker') > 0 && hero.indexOf('lp-kicker') < hero.indexOf('<h1'), 'the founder line sits right above the headline');
   assert.match(hero, /<h1[^>]*>קוסמטיקאית או מניקוריסטית שעובדת לבד\?<\/h1>/, 'who it is for IS the headline');
   assert.match(hero, /<p className="lp-h1-sub">את מטפלת בלקוחות\. Kalmea עוזרת לך לטפל בעסק\.<\/p>/);
-  // The hero line names the deposit only while deposits are on for everyone; otherwise the same line without it.
-  assert.match(hero, /claims\.deposits \? "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד\." : "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות ומזיזות תור לבד\."/);
-  assert.equal((page.match(/משלמות מקדמה/g) || []).length, 1);
+  // Value pass (2026-11-25): the feature-list line became the brand slogan, the same with deposits on or off.
+  assert.match(hero, /<p className="lp-hero-desc">פחות זמן על ניהול, יותר זמן בשבילך\.<\/p>/);
+  assert.doesNotMatch(hero, /משלמות מקדמה|יומן, קופה ושיווק/, 'no feature list in the hero');
   assert.equal((hero.match(/style=\{pillBtn\}/g) || []).length, 1, 'one prominent button in the hero');
   assert.match(hero, /href="\/signup"[^>]*style=\{pillBtn\}>התחילי חודש בחינם/);
   assert.match(hero, /href="#how"/);
@@ -123,15 +123,20 @@ ok('hero: the original opening, restored exactly (kicker, slogan, subline, found
 });
 
 
-ok('three blocks (secretary, marketing, sales): an icon, a title of at most 3 words, a line of at most 6, a real screen each', () => {
+ok('three blocks (secretary, marketing, sales): an icon, a title of at most 3 words, a line of at most 12, a real screen each', () => {
   const rows = [...blocksSrc.matchAll(/id: "(\w+)", icon: "(\w+)", title: "([^"]+)", text: "([^"]+)",\s*shot: "(\/landing\/[\w-]+\.jpg)"/g)];
   assert.deepEqual(rows.map((r) => r[1]), ['secretary', 'marketing', 'sales']);
   for (const [, id, icon, title, text, shot] of rows) {
     assert.ok(words(title) <= 3, `${id} title: ${title}`);
-    assert.ok(words(text) <= 6, `${id} line: ${text}`);
+    assert.ok(words(text) <= 12, `${id} line: ${text}`);
     assert.match(page, new RegExp(`${icon}: <>`), `${id} icon is drawn`);
     assert.ok(existsSync(`public${shot}`), shot);
   }
+  assert.deepEqual(rows.map((r) => r[4]), [
+    'לקוחות קובעות לבד. את לא עוצרת טיפול בשביל הטלפון.',
+    'יודעת מה לפרסם כל שבוע, בלי לשבור את הראש.',
+    'פניות לא הולכות לאיבוד. הן הופכות לתורים.',
+  ]);
   assert.match(page, /className="lp-block-shot"/);
 });
 

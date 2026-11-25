@@ -30,17 +30,18 @@ import { landingClaims } from "@/lib/landingClaims";
 
 // The three jobs. Each: an icon, a title (max 3 words), one line (max 6 words) and one real screen.
 // Everything named here is live for every business today. Reminders are "ready to send" (automatic WhatsApp is off).
+// Block lines say what changes for her (value pass, 2026-11-25), not which features exist; they stay within the 12-word rule.
 const BLOCKS = [
   {
-    id: "secretary", icon: "calendar", title: "המזכירה שלך", text: "יומן, תזכורות מוכנות, וקביעת תור עצמית.",
+    id: "secretary", icon: "calendar", title: "המזכירה שלך", text: "לקוחות קובעות לבד. את לא עוצרת טיפול בשביל הטלפון.",
     shot: "/landing/app-calendar.jpg", alt: "צילום מסך של היומן ב-Kalmea",
   },
   {
-    id: "marketing", icon: "spark", title: "המשווקת שלך", text: "רעיונות לתוכן, עיצובים ופוסטים מוכנים.",
+    id: "marketing", icon: "spark", title: "המשווקת שלך", text: "יודעת מה לפרסם כל שבוע, בלי לשבור את הראש.",
     shot: "/landing/app-content.jpg", alt: "צילום מסך של מסך התוכן ב-Kalmea",
   },
   {
-    id: "sales", icon: "wallet", title: "מנהלת המכירות", text: "מתעניינות, מעקבים ותשלומים במקום אחד.",
+    id: "sales", icon: "wallet", title: "מנהלת המכירות", text: "פניות לא הולכות לאיבוד. הן הופכות לתורים.",
     shot: "/landing/app-leads.jpg", alt: "צילום מסך של מסך הפניות ב-Kalmea",
   },
 ];
@@ -188,7 +189,7 @@ export default function LandingPage({ signedIn = false }) {
           <p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות ומניקוריסטיות</p>
           <h1 className="serif lp-h1">קוסמטיקאית או מניקוריסטית שעובדת לבד?</h1>
           <p className="lp-h1-sub">את מטפלת בלקוחות. Kalmea עוזרת לך לטפל בעסק.</p>
-          <p className="lp-hero-desc">{claims.deposits ? "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד." : "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות ומזיזות תור לבד."}</p>
+          <p className="lp-hero-desc">פחות זמן על ניהול, יותר זמן בשבילך.</p>
           <div className="lp-hero-cta">
             <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
             <p className="lp-cta-note">בלי כרטיס אשראי ובלי התחייבות</p>
