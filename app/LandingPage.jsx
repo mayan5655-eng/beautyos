@@ -4,8 +4,8 @@
 // Server component: everything below is static HTML on first paint except DemoVideo (a poster until she presses play).
 //
 // Less-text pass (2026-11-25): a visitor must get what Kalmea is in five seconds, from pictures, not paragraphs.
-// Structure: hero (slogan, one subline, the "one question" screen, one button) -> three blocks (secretary, marketing, sales)
-// -> founder strip -> price -> FAQ (closed). No block outside the FAQ is longer than 12 words. The long explanations of the
+// Structure: the original hero (kept exactly as it was, owner 2026-11-25) -> three blocks (secretary, marketing, sales)
+// -> founder strip -> price -> FAQ (closed). No block below the hero and outside the FAQ is longer than 12 words. The long explanations of the
 // old page (cost table, comparison list, before/after rows, "a real day", price details, founder story) now live in the FAQ,
 // word for word where they were already documented; nothing that is not live today is promised anywhere.
 //
@@ -74,6 +74,15 @@ const demoLinkStyle = { color: "var(--brand-accent)", fontWeight: 700, textDecor
 // The wordmark file's own size, so the page keeps its space before the image arrives.
 const WORDMARK_W = 600;
 const WORDMARK_H = 176;
+
+// Owner, 2026-11-17: the stock photos looked off; the hero shows her own explainer reel (reel 7, "עובדת לבד? זה בשבילך").
+// The photo hero stays in the code behind this flag.
+const HERO_VIDEO = true;
+
+const HERO_PHOTOS = [
+  { src: "/landing/photo-cosmetician.jpg", alt: "קוסמטיקאית מבצעת טיפול פנים ללקוחה", position: "center 58%" },
+  { src: "/landing/photo-manicure.jpg", alt: "מניקוריסטית מורחת לק על ציפורני לקוחה", position: "center 40%" },
+];
 
 const pillBtn = {
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -173,24 +182,50 @@ export default function LandingPage({ signedIn = false }) {
         </Link>
       </header>
 
-      {/* ── 2. HERO: the slogan, one subline, the "one question" screen, one button. All of it above the fold at 390px. ── */}
-      <section className="lp-hero2">
-        <div className="lp-hero2-text">
+      {/* ── 2. HERO: who it is for, in the headline, before any scroll. ───── */}
+      <section className="lp-hero">
+        <div className="lp-hero-text">
+          <p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות ומניקוריסטיות</p>
           <h1 className="serif lp-h1">קוסמטיקאית או מניקוריסטית שעובדת לבד?</h1>
           <p className="lp-h1-sub">את מטפלת בלקוחות. Kalmea עוזרת לך לטפל בעסק.</p>
-          <p className="lp-hero2-sub">מזכירה, משווקת ומנהלת מכירות, באפליקציה אחת.</p>
+          <p className="lp-hero-desc">{claims.deposits ? "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד." : "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות ומזיזות תור לבד."}</p>
+          <div className="lp-hero-cta">
+            <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
+            <p className="lp-cta-note">בלי כרטיס אשראי ובלי התחייבות</p>
+            <a href="#how" className="kl-press lp-quiet">תראי איך זה עובד</a>
+            {/* Avatar pass (2026-11-22): each of the two businesses finds her own demo before any scroll. Plain <a>, as in section 9:
+                /demo/<field> signs into the demo account, and <Link> would prefetch it. */}
+            <p className="lp-cta-note" data-testid="hero-demos">
+              רוצה לראות קודם?{" "}
+              {DEMOS.map((d, i) => (
+                <span key={d.field}>
+                  {i > 0 && " · "}
+                  <a href={d.href} className="kl-press" style={{ color: "var(--brand-accent)", textDecoration: "underline", textUnderlineOffset: 3 }}>דמו {d.title}</a>
+                </span>
+              ))}
+            </p>
+          </div>
         </div>
-        <div className="lp-hero2-phone" data-testid="hero-phone">
-          <Image src="/landing/app-advisor.jpg" alt="צילום מסך של Kalmea: שאלה אחת ליועצת העסקית" width={560} height={1212} priority fetchPriority="high" sizes="200px" className="lp-shot-img" />
+        {HERO_VIDEO ? (
+          <div className="lp-hero-visual is-video" data-testid="hero-video">
+            <DemoVideo mp4="/media/landing-founder.mp4" poster="/media/landing-founder.jpg" label="מעיין, המייסדת, מסבירה למי Kalmea מתאימה" width={250} sound />
+          </div>
+        ) : (
+        <div className="lp-hero-visual">
+          {HERO_PHOTOS.map((photo) => (
+            <div key={photo.src} className="lp-hero-photo">
+              <Image src={photo.src} alt={photo.alt} fill priority fetchPriority="high" sizes="(max-width: 860px) 50vw, 280px" style={{ objectFit: "cover", objectPosition: photo.position }} />
+            </div>
+          ))}
+          <div className="lp-hero-phone">
+            <Image src="/landing/app-home.jpg" alt="צילום מסך אמיתי של מסך הבית של Kalmea" width={560} height={1212} priority sizes="180px" className="lp-shot-img" />
+          </div>
         </div>
-        <div className="lp-hero2-cta">
-          <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
-          <p className="lp-cta-note">בלי כרטיס אשראי</p>
-        </div>
+        )}
       </section>
 
       {/* ── 3. THREE BLOCKS: secretary, marketing, sales ──────────────────── */}
-      <section className="lp-sec is-white" data-testid="landing-blocks">
+      <section id="how" className="lp-sec is-white" data-testid="landing-blocks">
         <div className="lp-wrap">
           <div className="lp-trio">
             {BLOCKS.map((b) => (

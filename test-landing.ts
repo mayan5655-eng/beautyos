@@ -14,7 +14,8 @@ const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 const copy = (s: string) => s.replace(/^\s*(\/\/|\{?\/\*).*$/gm, '');
 
 // The page above the FAQ, and the FAQ itself.
-const aboveFaq = page.slice(page.indexOf('<section className="lp-hero2">'), page.indexOf('6. FAQ'));
+// The hero is the original one (restored 2026-11-25) and is outside the 12-word rule; the rule covers everything below it.
+const belowHero = page.slice(page.indexOf('3. THREE BLOCKS'), page.indexOf('6. FAQ'));
 const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. THREE BLOCKS'));
 const blocksSrc = page.slice(page.indexOf('const BLOCKS = ['), page.indexOf('// The comparison list'));
 const faqSrc = page.slice(page.indexOf('const faq = ['), page.indexOf('return (\n    <div dir="rtl"'));
@@ -53,7 +54,7 @@ ok('the terms page matches the landing: launch price 349 only, no end date', () 
 ok('"no credit card" sits next to both sign-up buttons, and there are exactly two', () => {
   assert.equal(page.split('href="/signup"').length - 1, 2);
   assert.ok((page.match(/בלי כרטיס אשראי/g) || []).length >= 2);
-  assert.match(hero, /התחילי חודש בחינם<\/Link>\s*<p className="lp-cta-note">בלי כרטיס אשראי<\/p>/);
+  assert.match(hero, /התחילי חודש בחינם<\/Link>\s*<p className="lp-cta-note">בלי כרטיס אשראי ובלי התחייבות<\/p>/);
   assert.match(page, /החודש הראשון חינם, בלי כרטיס אשראי\./);
 });
 
@@ -99,16 +100,28 @@ ok('the share card title matches the Hebrew page title', () => {
   assert.match(meta, /twitter: \{/);
 });
 
-ok('hero: the existing two-line slogan, one subline, the one-question screen above the one button', () => {
+ok('hero: the original opening, restored exactly (kicker, slogan, subline, founder reel, one button, quiet link, demo links)', () => {
+  assert.match(hero, /<p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות ומניקוריסטיות<\/p>/);
+  assert.ok(hero.indexOf('lp-kicker') > 0 && hero.indexOf('lp-kicker') < hero.indexOf('<h1'), 'the founder line sits right above the headline');
   assert.match(hero, /<h1[^>]*>קוסמטיקאית או מניקוריסטית שעובדת לבד\?<\/h1>/, 'who it is for IS the headline');
   assert.match(hero, /<p className="lp-h1-sub">את מטפלת בלקוחות\. Kalmea עוזרת לך לטפל בעסק\.<\/p>/);
-  assert.match(hero, /מזכירה, משווקת ומנהלת מכירות, באפליקציה אחת\./);
-  assert.equal((hero.match(/style=\{pillBtn\}/g) || []).length, 1, 'one button in the hero');
+  // The hero line names the deposit only while deposits are on for everyone; otherwise the same line without it.
+  assert.match(hero, /claims\.deposits \? "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד\." : "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות ומזיזות תור לבד\."/);
+  assert.equal((page.match(/משלמות מקדמה/g) || []).length, 1);
+  assert.equal((hero.match(/style=\{pillBtn\}/g) || []).length, 1, 'one prominent button in the hero');
   assert.match(hero, /href="\/signup"[^>]*style=\{pillBtn\}>התחילי חודש בחינם/);
-  assert.ok(hero.indexOf('app-advisor.jpg') > hero.indexOf('<h1') && hero.indexOf('app-advisor.jpg') < hero.indexOf('href="/signup"'), 'screen between the text and the button');
-  assert.match(hero, /priority/);
-  assert.doesNotMatch(hero, /href="#how"|lp-kicker|DemoVideo/, 'nothing else competes in the hero');
+  assert.match(hero, /href="#how"/);
+  assert.match(page, /<section id="how"/, 'the quiet link lands on a real section');
+  assert.match(hero, /data-testid="hero-demos"/);
+  assert.match(hero, /DEMOS\.map/);
+  assert.doesNotMatch(hero, /<Link href=\{d\.href\}/, 'demo links are plain <a>, no prefetch');
+  // Owner, 2026-11-17: the hero shows her own explainer reel, with sound, and the file is there.
+  assert.match(page, /const HERO_VIDEO = true;/);
+  assert.match(hero, /<DemoVideo mp4="\/media\/landing-founder\.mp4" poster="\/media\/landing-founder\.jpg"[^>]*\bsound\b/);
+  assert.match(page, /photo-cosmetician\.jpg/);
+  assert.match(page, /photo-manicure\.jpg/);
 });
+
 
 ok('three blocks (secretary, marketing, sales): an icon, a title of at most 3 words, a line of at most 6, a real screen each', () => {
   const rows = [...blocksSrc.matchAll(/id: "(\w+)", icon: "(\w+)", title: "([^"]+)", text: "([^"]+)",\s*shot: "(\/landing\/[\w-]+\.jpg)"/g)];
@@ -122,10 +135,10 @@ ok('three blocks (secretary, marketing, sales): an icon, a title of at most 3 wo
   assert.match(page, /className="lp-block-shot"/);
 });
 
-ok('word budget: no block outside the FAQ has more than 12 words', () => {
+ok('word budget: no block below the hero and outside the FAQ has more than 12 words', () => {
   // Every static text node of the JSX above the FAQ, plus the strings of the data tables it renders.
-  const nodes = [...copy(aboveFaq).matchAll(/>([^<>{}]*[א-תA-Za-z0-9][^<>{}]*)</g)].map((m) => m[1].trim());
-  assert.ok(nodes.length >= 6, String(nodes.length));
+  const nodes = [...copy(belowHero).matchAll(/>([^<>{}]*[א-תA-Za-z0-9][^<>{}]*)</g)].map((m) => m[1].trim());
+  assert.ok(nodes.length >= 4, String(nodes.length));
   for (const t of nodes) assert.ok(words(t) <= 12, `too long (${words(t)}): ${t}`);
   for (const m of blocksSrc.matchAll(/(?:title|text): "([^"]+)"/g)) assert.ok(words(m[1]) <= 12, m[1]);
 });
@@ -143,7 +156,7 @@ ok('owner, 2026-10-30: nothing AI-made on the page, every screen is a real one',
   assert.doesNotMatch(page, /\/defaults\//, 'the /defaults/ pictures are AI-generated');
   assert.doesNotMatch(page, /presenter|PRESENTER|דמות AI/);
   for (const m of page.matchAll(/"\/landing\/([\w-]+\.jpg)"/g)) assert.ok(existsSync(`public/landing/${m[1]}`), m[1]);
-  assert.equal((page.match(/"\/landing\/app-[\w-]+\.jpg"/g) || []).length, 4, 'the hero screen and the three blocks');
+  assert.equal((page.match(/"\/landing\/app-[\w-]+\.jpg"/g) || []).length, 4, 'the three blocks and the hero fallback photo layout');
   assert.doesNotMatch(page, /[״"]\s*[א-ת ]+\s*[״"]\s*-\s*[א-ת]+/, 'no quoted testimonial');
 });
 
@@ -175,10 +188,11 @@ ok('existing links and analytics are intact: login, signup, legal footer, analyt
   assert.match(rd('app/landing/Testimonials.jsx'), /if \(list\.length === 0\) return null;/);
 });
 
-ok('mobile first: the hero is a single column with a cropped phone window, so the button stays above the fold', () => {
-  assert.match(css, /\.lp-hero2 \{[^}]*flex-direction: column/);
-  assert.match(css, /\.lp-hero2-phone \{[^}]*height: 300px/);
-  assert.match(css, /\.lp-hero2-cta \.kl-press \{ width: 100%/);
+ok('mobile first: the original hero is a single column, and the three blocks stack on a phone', () => {
+  assert.match(css, /\.lp-hero \{[^}]*flex-direction: column/);
+  assert.match(css, /\.lp-trio \{ display: grid; grid-template-columns: 1fr;/);
+  assert.doesNotMatch(css, /lp-hero2/, 'the replaced hero left no CSS behind');
 });
+
 
 console.log(`${n} passed`);
