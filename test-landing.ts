@@ -1,28 +1,23 @@
-// Landing page (2026-10-12): claims that must stay true, and the things that must never regress. Source-level, since the
-// page is a server component with no render harness here.
+// Landing page (2026-10-12, reworked 2026-11-25 "less text"): claims that must stay true, and the things that must never regress.
+// Source-level, since the page is a server component with no render harness here.
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { PLAN_PRICES } from './lib/pricing.ts';
 
 const rd = (p: string) => readFileSync(p, 'utf8').split('\r\n').join('\n');
 const page = rd('app/LandingPage.jsx');
-const cost = rd('app/landing/CostTable.jsx');
 const meta = rd('app/page.tsx');
+const css = rd('app/globals.css');
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; console.log('ok -', name); };
+const words = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+const copy = (s: string) => s.replace(/^\s*(\/\/|\{?\/\*).*$/gm, '');
 
-ok('the cost total starts at the real sum, never at 0', () => {
-  assert.match(cost, /useState\(totalLow\)/);
-  assert.match(cost, /useState\(totalHigh\)/);
-  assert.doesNotMatch(cost, /useState\(0\)/);
-});
-
-ok('the listed ranges add up to the figure on the page', () => {
-  const rows = [...page.matchAll(/low: (\d+), high: (\d+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
-  assert.equal(rows.length, 5); // no receptionist row since 2026-11-16 (owner decision)
-  assert.equal(rows.reduce((s, r) => s + r[0], 0), 2331);
-  assert.equal(rows.reduce((s, r) => s + r[1], 0), 6068);
-});
+// The page above the FAQ, and the FAQ itself.
+const aboveFaq = page.slice(page.indexOf('<section className="lp-hero2">'), page.indexOf('6. FAQ'));
+const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. THREE BLOCKS'));
+const blocksSrc = page.slice(page.indexOf('const BLOCKS = ['), page.indexOf('// The comparison list'));
+const faqSrc = page.slice(page.indexOf('const faq = ['), page.indexOf('return (\n    <div dir="rtl"'));
 
 ok('Kalmea price is shown: launch price 349 only (owner 2026-11-16: no struck regular price), no end date, no limited spots', () => {
   // The numbers live in lib/pricing.ts (test-pricing.ts); the page reads them from there.
@@ -35,6 +30,16 @@ ok('Kalmea price is shown: launch price 349 only (owner 2026-11-16: no struck re
   assert.doesNotMatch(page, /לכל החיים/, 'the page must not say "for life"');
   assert.doesNotMatch(page, /לחברות הראשונות/);
   assert.doesNotMatch(page, /מקומות|מספר מוגבל|כמות מוגבלת|עד שיגמר|רק ל-\d+ /);
+  // The terms say the launch price may change with notice, so the page promises no lock-in.
+  assert.doesNotMatch(page, /נשארת על המחיר/);
+});
+
+ok('price details moved to the FAQ: final price, no cut of her sales, payback line', () => {
+  assert.match(faqSrc, /q: "כמה זה עולה\?"/);
+  assert.match(faqSrc, /זה המחיר הסופי: אין תוספת מע״מ ואין עלויות נסתרות/);
+  assert.match(faqSrc, /Kalmea לא לוקחת אחוזים מהמכירות שלך/);
+  assert.match(faqSrc, /שניים או שלושה תורים בחודש/);
+  assert.match(faqSrc, /annualPlanEnabled\(\) \?/, 'the yearly plan only behind its switch');
 });
 
 ok('the terms page matches the landing: launch price 349 only, no end date', () => {
@@ -45,8 +50,11 @@ ok('the terms page matches the landing: launch price 349 only, no end date', () 
   assert.doesNotMatch(terms, /לכל החיים/);
 });
 
-ok('"no credit card" sits next to both sign-up buttons', () => {
-  assert.equal((page.match(/בלי כרטיס אשראי/g) || []).length >= 3, true);
+ok('"no credit card" sits next to both sign-up buttons, and there are exactly two', () => {
+  assert.equal(page.split('href="/signup"').length - 1, 2);
+  assert.ok((page.match(/בלי כרטיס אשראי/g) || []).length >= 2);
+  assert.match(hero, /התחילי חודש בחינם<\/Link>\s*<p className="lp-cta-note">בלי כרטיס אשראי<\/p>/);
+  assert.match(page, /החודש הראשון חינם, בלי כרטיס אשראי\./);
 });
 
 ok('no claim about an answering bot, and the win-back day count is the app default (90)', () => {
@@ -56,25 +64,33 @@ ok('no claim about an answering bot, and the win-back day count is the app defau
   assert.match(rd('lib/reminders/smartReminders.js'), /winbackDays: .*: 90,/);
 });
 
-ok('who is behind Kalmea has no invented numbers, names or quotes', () => {
-  const section = page.slice(page.indexOf('8b. WHO IS BEHIND'), page.indexOf('9. DEMO'));
-  assert.match(section, /קוסמטיקאית מוסמכת/);
-  const text = [...section.matchAll(/>([^<>{}]+)</g)].map((m) => m[1]).join(' ');
-  assert.ok(text.length > 40);
-  assert.doesNotMatch(text, /\d/);
-  assert.doesNotMatch(text, /[“”"]/);
+ok('the founder strip is her own reel plus one sentence, with no invented numbers, names or quotes', () => {
+  const section = page.slice(page.indexOf('4. FOUNDER STRIP'), page.indexOf('4b. TESTIMONIALS'));
+  assert.match(section, /<DemoVideo mp4="\/media\/landing-founder\.mp4" poster="\/media\/landing-founder\.jpg"[^>]*\bsound\b/);
+  assert.ok(existsSync('public/media/landing-founder.mp4') && existsSync('public/media/landing-founder.jpg'));
+  const line = section.match(/<p className="lp-founder-line">([^<]+)<\/p>/)?.[1] ?? '';
+  assert.ok(line.length > 20);
+  assert.doesNotMatch(line, /\d/);
+  assert.doesNotMatch(line, /[“”"]/);
+  // The longer founder story lives in the FAQ.
+  assert.match(faqSrc, /קוסמטיקאית מוסמכת/);
 });
 
-ok('FAQ has the five documented answers and the WhatsApp button uses the support number helper', () => {
-  assert.equal((page.match(/q: "/g) || []).length, 6);
+ok('FAQ: closed by default, every documented answer kept, the WhatsApp button uses the support number helper', () => {
+  assert.equal((faqSrc.match(/\bq: "/g) || []).length, 12);
   assert.match(page, /supportWhatsAppUrl/);
   assert.match(page, /בכל עת/);
   assert.match(page, /תוך 30 יום/);
+  assert.match(page, /<details key=\{f\.q\}/);
+  assert.doesNotMatch(page, /<details[^>]*\bopen\b/, 'no answer is open by default');
 });
 
-ok('nail techs are addressed and the nails demo link is still there', () => {
+ok('nail techs are addressed and the nails demo link is still there, as a plain link (no prefetch of a signing-in route)', () => {
   assert.match(page, /מניקוריסטיות/);
   assert.match(page, /\/demo\/nails/);
+  assert.match(page, /\/demo\/cosmetics/);
+  assert.match(page, /data-testid="hero-demos"/);
+  assert.doesNotMatch(page, /<Link href=\{d\.href\}/);
 });
 
 ok('the share card title matches the Hebrew page title', () => {
@@ -83,55 +99,66 @@ ok('the share card title matches the Hebrew page title', () => {
   assert.match(meta, /twitter: \{/);
 });
 
-ok('the page carries no long dashes or arrows, and says who it is for in the hero', () => {
-  const copy = (s: string) => s.replace(/^\s*(\/\/|\{?\/\*).*$/gm, '');
-  for (const src of [page, cost, rd('app/landing/PhoneMock.jsx'), meta]) assert.doesNotMatch(copy(src), /[—–←]| -- /);
-  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
+ok('hero: the existing two-line slogan, one subline, the one-question screen above the one button', () => {
   assert.match(hero, /<h1[^>]*>קוסמטיקאית או מניקוריסטית שעובדת לבד\?<\/h1>/, 'who it is for IS the headline');
-  assert.match(page, /photo-cosmetician\.jpg/);
-  assert.match(page, /photo-manicure\.jpg/);
+  assert.match(hero, /<p className="lp-h1-sub">את מטפלת בלקוחות\. Kalmea עוזרת לך לטפל בעסק\.<\/p>/);
+  assert.match(hero, /מזכירה, משווקת ומנהלת מכירות, באפליקציה אחת\./);
+  assert.equal((hero.match(/style=\{pillBtn\}/g) || []).length, 1, 'one button in the hero');
+  assert.match(hero, /href="\/signup"[^>]*style=\{pillBtn\}>התחילי חודש בחינם/);
+  assert.ok(hero.indexOf('app-advisor.jpg') > hero.indexOf('<h1') && hero.indexOf('app-advisor.jpg') < hero.indexOf('href="/signup"'), 'screen between the text and the button');
+  assert.match(hero, /priority/);
+  assert.doesNotMatch(hero, /href="#how"|lp-kicker|DemoVideo/, 'nothing else competes in the hero');
 });
 
-ok('owner, 2026-11-17: the hero shows her own explainer reel, with sound, and the file is there', () => {
-  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
-  assert.match(page, /const HERO_VIDEO = true;/);
-  assert.match(hero, /<DemoVideo mp4="\/media\/landing-founder\.mp4" poster="\/media\/landing-founder\.jpg"[^>]*\bsound\b/);
-  assert.ok(existsSync('public/media/landing-founder.mp4') && existsSync('public/media/landing-founder.jpg'));
+ok('three blocks (secretary, marketing, sales): an icon, a title of at most 3 words, a line of at most 6, a real screen each', () => {
+  const rows = [...blocksSrc.matchAll(/id: "(\w+)", icon: "(\w+)", title: "([^"]+)", text: "([^"]+)",\s*shot: "(\/landing\/[\w-]+\.jpg)"/g)];
+  assert.deepEqual(rows.map((r) => r[1]), ['secretary', 'marketing', 'sales']);
+  for (const [, id, icon, title, text, shot] of rows) {
+    assert.ok(words(title) <= 3, `${id} title: ${title}`);
+    assert.ok(words(text) <= 6, `${id} line: ${text}`);
+    assert.match(page, new RegExp(`${icon}: <>`), `${id} icon is drawn`);
+    assert.ok(existsSync(`public${shot}`), shot);
+  }
+  assert.match(page, /className="lp-block-shot"/);
 });
 
-ok('owner, 2026-10-30: nothing AI-made on the page, every screen is a real one, nothing claims more than the product does', () => {
+ok('word budget: no block outside the FAQ has more than 12 words', () => {
+  // Every static text node of the JSX above the FAQ, plus the strings of the data tables it renders.
+  const nodes = [...copy(aboveFaq).matchAll(/>([^<>{}]*[א-תA-Za-z0-9][^<>{}]*)</g)].map((m) => m[1].trim());
+  assert.ok(nodes.length >= 6, String(nodes.length));
+  for (const t of nodes) assert.ok(words(t) <= 12, `too long (${words(t)}): ${t}`);
+  for (const m of blocksSrc.matchAll(/(?:title|text): "([^"]+)"/g)) assert.ok(words(m[1]) <= 12, m[1]);
+});
+
+ok('only what exists today: nothing in development is promised (campaigns, supplier ordering, automatic sending)', () => {
+  assert.doesNotMatch(copy(page), /קמפיינ|ספק|הזמנת ציוד|אוטומטית|נשלחות אוטומטית|תזכורות אוטומטיות/);
+  assert.match(page, /תזכורות מוכנות/);
+});
+
+ok('the page carries no long dashes or arrows', () => {
+  for (const src of [page, meta]) assert.doesNotMatch(copy(src), /[—–←]| -- /);
+});
+
+ok('owner, 2026-10-30: nothing AI-made on the page, every screen is a real one', () => {
   assert.doesNotMatch(page, /\/defaults\//, 'the /defaults/ pictures are AI-generated');
   assert.doesNotMatch(page, /presenter|PRESENTER|דמות AI/);
   for (const m of page.matchAll(/"\/landing\/([\w-]+\.jpg)"/g)) assert.ok(existsSync(`public/landing/${m[1]}`), m[1]);
-  assert.equal((page.match(/shot: "\/landing\/app-/g) || []).length, 6, 'five areas and the booking moment');
-  // Automatic WhatsApp is off (platform_settings), so reminders are "ready to send" until it is switched on.
-  assert.doesNotMatch(page, /תזכורות אוטומטיות/);
-  assert.match(page, /תזכורות מוכנות לשליחה/);
+  assert.equal((page.match(/"\/landing\/app-[\w-]+\.jpg"/g) || []).length, 4, 'the hero screen and the three blocks');
   assert.doesNotMatch(page, /[״"]\s*[א-ת ]+\s*[״"]\s*-\s*[א-ת]+/, 'no quoted testimonial');
 });
 
-ok('the in-action clips exist and nothing loads before play', () => {
-  const ids = [...page.matchAll(/\{ id: "(\w+)", title:/g)].map((m) => m[1]);
-  assert.deepEqual(ids, ['leads', 'booking', 'messages', 'content', 'data']);
-  for (const id of ids) for (const ext of ['mp4', 'jpg']) assert.ok(existsSync(`public/media/landing-${id}.${ext}`));
-  assert.match(rd('app/landing/DemoVideo.jsx'), /preload="none"/);
-});
-
-ok('before and after: soft red and green in pairs, finished picture without JS, no sound', () => {
-  const ba = rd('app/landing/BeforeAfter.jsx');
-  assert.match(page, /<BeforeAfter rows=\{beforeAfterRows\(claims\)\} \/>/);
-  // 8 written inline plus the no-show row and the reschedule row: ten pairs, the most the section should carry.
-  const list = page.slice(page.indexOf('const BEFORE_AFTER = ['), page.indexOf('function beforeAfterRows'));
-  assert.equal((list.match(/before: "/g) || []).length + (list.match(/^\s+(NO_SHOW_READY|RESCHEDULE),$/gm) || []).length, 10);
-  // Avatar pass (2026-11-22): six rows on the page, the other four kept behind BEFORE_AFTER_SHORT.
-  assert.match(page, /const BEFORE_AFTER_SHORT = true;/);
-  assert.equal((list.match(/extra: true/g) || []).length, 4);
-  assert.match(page, /BEFORE_AFTER_SHORT \? BEFORE_AFTER\.filter\(\(r\) => !r\.extra\) : BEFORE_AFTER/);
-  for (const icon of [...page.matchAll(/icon: "(\w+)"/g)].map((m) => m[1])) assert.match(ba, new RegExp(`\\b${icon}: "M`), `icon ${icon} has a path`);
-  assert.doesNotMatch(ba, /use client|autoplay|<audio|AudioContext/i);
-  const css = rd('app/globals.css');
-  assert.match(css, /\.lp-ba-cell\.is-before \{ background: #FBF0EE/);
-  assert.match(css, /\.lp-ba-cell\.is-after \{ background: #EEF4EE/);
+ok('FAQ keeps the explanations that left the page, and only live claims', () => {
+  assert.match(faqSrc, /q: "מה Kalmea נותנת מעבר למערכת תורים\?"/);
+  assert.match(faqSrc, /list: compareExtras\(claims\)/);
+  assert.match(faqSrc, /q: "איך עובדות התזכורות וההודעות\?"/);
+  assert.match(faqSrc, /ומזיזות תור לבד לפי מדיניות הביטול שלך/);
+  assert.match(faqSrc, /q: "יש לי כבר לקוחות\. צריך להקליד את כולן מחדש\?"/);
+  // The file import (Excel / another system) is behind NEXT_PUBLIC_IMPORT_TOOL, so the page does not promise it.
+  assert.doesNotMatch(faqSrc, /אקסל|מתוכנה אחרת/);
+  // Deposit rows exist only while deposits are on for everyone, and the Grow requirement is said next to them.
+  assert.match(page, /if \(claims\.deposits\) out\.splice/);
+  assert.match(page, /\{claims\.deposits && <p className="lp-fine" data-testid="deposit-note">[^<]*Grow[^<]*<\/p>\}/);
+  assert.match(page, /if \(claims\.receipts\) out\.splice/);
 });
 
 ok('the landing page leaves out the business line, terms and privacy keep it', () => {
@@ -139,74 +166,19 @@ ok('the landing page leaves out the business line, terms and privacy keep it', (
   for (const f of ['app/terms/page.tsx', 'app/privacy/page.tsx']) assert.doesNotMatch(rd(f), /showBusinessLine/);
 });
 
-ok('a real day: three moments, and the "with" side never says a message went out by itself', () => {
-  const m = page.slice(page.indexOf('const MOMENTS'), page.indexOf('const AREAS'));
-  assert.equal((m.match(/\bid: "/g) || []).length, 3);
-  assert.doesNotMatch(m, /נשלח/);
-  assert.match(rd('app/landing/ClinicDay.jsx'), /שום דבר לא יוצא בלי שאת שולחת/);
+ok('existing links and analytics are intact: login, signup, legal footer, analytics, pixel, testimonials slot', () => {
+  assert.match(page, /href=\{signedIn \? "\/dashboard" : "\/login"\}/);
+  assert.match(page, /<PublicFooterLinks/);
+  assert.match(page, /<PublicAnalytics \/>/);
+  assert.match(page, /<MetaPixel \/>/);
+  assert.match(page, /<Testimonials \/>/);
+  assert.match(rd('app/landing/Testimonials.jsx'), /if \(list\.length === 0\) return null;/);
 });
 
-ok('the free month without a credit card is said at every call to action', () => {
-  const links = page.split('href="/signup"').length - 1;
-  assert.equal(links, 3);
-  assert.ok((page.match(/בלי כרטיס אשראי/g) || []).length >= 4);
-  assert.match(page, /בלי כרטיס אשראי ובלי התחייבות/);
-});
-
-ok('avatar pass: both businesses named up top, a demo for each in the hero, and the existing-clients question answered', () => {
-  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
-  assert.match(hero, /data-testid="hero-demos"/);
-  assert.match(hero, /DEMOS\.map/);
-  assert.doesNotMatch(hero, /<Link href=\{d\.href\}/, 'demo links are plain <a>, no prefetch');
-  assert.match(page, /q: "יש לי כבר לקוחות\. צריך להקליד את כולן מחדש\?"/);
-  // The file import (Excel / another system) is behind NEXT_PUBLIC_IMPORT_TOOL, so the page does not promise it.
-  const faq = page.slice(page.indexOf('const FAQ'), page.indexOf('const COMPARE_EXTRAS'));
-  assert.doesNotMatch(faq, /אקסל|מתוכנה אחרת/);
+ok('mobile first: the hero is a single column with a cropped phone window, so the button stays above the fold', () => {
+  assert.match(css, /\.lp-hero2 \{[^}]*flex-direction: column/);
+  assert.match(css, /\.lp-hero2-phone \{[^}]*height: 300px/);
+  assert.match(css, /\.lp-hero2-cta \.kl-press \{ width: 100%/);
 });
 
 console.log(`${n} passed`);
-
-// Landing focus (2026-10-13): one prominent action, everything else quiet.
-{
-  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
-  assert.equal((hero.match(/style=\{pillBtn\}/g) || []).length, 1, 'one prominent button in the hero');
-  assert.match(hero, /href="\/signup"[^>]*style=\{pillBtn\}>התחילי חודש בחינם/);
-  assert.match(hero, /href="#how"/); // the second action is a quiet link down to the real day
-  const demo = page.slice(page.indexOf('9. DEMO'), page.indexOf('9b. FAQ'));
-  assert.doesNotMatch(demo, /boxShadow: "var\(--shadow-sm\)"/); // the two big cards are gone
-  assert.match(demo, /DEMOS\.map/);
-  assert.match(demo, /מניקוריסטיות/);
-  const finalCta = page.slice(page.indexOf('10. FINAL CTA'));
-  assert.equal((finalCta.match(/style=\{pillBtn\}/g) || []).length, 1);
-  console.log('ok - landing focus: one prominent action in the hero and at the end, demo as quiet links');
-}
-
-// Landing sharpen (2026-11-10): founder line up top, a concrete hero line, and only claims that are live for every business.
-{
-  const hero = page.slice(page.indexOf('2. HERO'), page.indexOf('3. BEFORE AND AFTER'));
-  const kicker = hero.indexOf('<p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות ומניקוריסטיות</p>');
-  assert.ok(kicker > 0 && kicker < hero.indexOf('<h1'), 'the founder line sits right above the headline');
-  assert.match(hero, /<p className="lp-h1-sub">את מטפלת בלקוחות\. Kalmea עוזרת לך לטפל בעסק\.<\/p>/);
-  assert.match(page, /נולדה מתוך הקליניקה/, 'the founder section at the bottom stays');
-  // The hero line names the deposit only while deposits are on for everyone; otherwise the same line without it.
-  assert.match(hero, /claims\.deposits \? "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד\." : "יומן, קופה ושיווק במערכת אחת\. הלקוחות קובעות ומזיזות תור לבד\."/);
-  assert.equal((page.match(/משלמות מקדמה/g) || []).length, 1);
-  // Deposit rows exist only as the deposit-on swap, and the Grow requirement is said next to them.
-  assert.match(page, /if \(!claims\.deposits\) return rows;/);
-  assert.match(page, /claims\.depositBit \? NO_SHOW_DEPOSIT_BIT : NO_SHOW_DEPOSIT/);
-  assert.match(page, /\{claims\.deposits && <p className="lp-fine" data-testid="deposit-note">[^<]*Grow[^<]*<\/p>\}/);
-  assert.match(page, /after: "מזיזה לבד, לפי מדיניות הביטול שלך"/);
-  // Not claimed: automatic reminders (off).
-  assert.doesNotMatch(page, /תזכורות אוטומטיות|נשלחות אוטומטית/);
-  // The intake gate is live (its migration ran 2026-11-10). The form is digital; the patch test is never called digital.
-  assert.match(page, /before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה"/);
-  assert.doesNotMatch(page, /בדיקת רגישות דיגיטלית/);
-  // The terms say the launch price may change with notice, so the page promises no lock-in.
-  assert.doesNotMatch(page, /נשארת על המחיר/);
-  assert.match(page, /Kalmea לא לוקחת אחוזים מהמכירות שלך/);
-  // Testimonials: a slot that renders nothing while the list is empty.
-  assert.match(page, /<Testimonials \/>/);
-  assert.match(rd('app/landing/Testimonials.jsx'), /if \(list\.length === 0\) return null;/);
-  console.log('ok - landing sharpen: founder kicker, concrete hero line, deposit claims behind the live switch, no lock-in promise');
-}
-

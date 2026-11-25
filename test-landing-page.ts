@@ -48,14 +48,9 @@ ok(!/קבלה/.test(withoutReceptionist), 'never says קבלה (the receipt docu
 ok(!/נשלח(ת|ה|ים|ות)?\s+אוטומטית/.test(landingSrc),
   'never claims a message is sent automatically - "prepared" (מוכן/ה) is the word for it');
 
-// ── Cost table: the row sum matches the stated total, and matches the brief ─
-const rowMatches = [...landingSrc.matchAll(/low:\s*(\d+),\s*high:\s*(\d+)\s*\}/g)];
-// Five rows since 2026-11-16: the receptionist row was removed (owner decision, most cosmeticians work alone).
-ok(rowMatches.length === 5, `five cost rows (found ${rowMatches.length})`);
-const sumLow = rowMatches.reduce((s, m) => s + Number(m[1]), 0);
-const sumHigh = rowMatches.reduce((s, m) => s + Number(m[2]), 0);
-ok(sumLow === 2331, `row lows sum to 2,331 (got ${sumLow})`);
-ok(sumHigh === 6068, `row highs sum to 6,068 (got ${sumHigh})`);
+// ── Cost table: the section left the landing page (2026-11-25, less text); the component stays, and its rows are checked where
+// they are defined if the page ever shows it again. Nothing on the page may claim a total of its own.
+ok(!/low:s*d+,s*high:s*d+/.test(landingSrc), 'no cost rows left inline on the page');
 
 // ── The one real "moment": rows reveal, THEN the total counts up ────────────
 ok(/requestAnimationFrame/.test(costSrc), 'the total count-up is driven by rAF, not a CSS transition on a number');

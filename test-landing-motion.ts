@@ -54,11 +54,8 @@ ok('the video adds nothing to first load: no poster or source until near, preloa
   assert.match(video, /aspectRatio: "9 \/ 16"/);
 });
 
-ok('the in-action clips sit after the five areas and say they are a sample business', () => {
-  const a = page.indexOf('5. FIVE AREAS');
-  const b = page.indexOf('5c. IN ACTION');
-  assert.ok(a > 0 && b > a);
-  assert.match(page, /על עסק לדוגמה/);
+ok('the in-action clips left the page (2026-11-25, less text)', () => {
+  assert.doesNotMatch(page, /5c. IN ACTION/);
 });
 
 ok('the clip files exist, are small, and have a poster', () => {

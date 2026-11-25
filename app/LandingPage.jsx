@@ -1,20 +1,21 @@
 // app/LandingPage.jsx
 //
 // The real / for a logged-out visitor - what an ad click actually hits.
-// Server component by default: everything below is static HTML on first
-// paint except the small client islands (Reveal, CostTable, ClinicDay).
+// Server component: everything below is static HTML on first paint except DemoVideo (a poster until she presses play).
 //
-// Owner, 2026-10-30: says who it is for in the headline, sells what changes in her day, and looks like a real company. So: no AI images
-// or AI faces (the photos are real, from Pexels, free for commercial use: 10600175 and 4677852), no invented testimonials or numbers,
-// and every screen in public/landing/app-*.jpg is a real screenshot of the demo tenant (marketing/landing-shots.mjs).
-// Reminders and messages are "ready to send", never "sent for her": platform_settings.whatsapp_auto_utility_enabled is off.
+// Less-text pass (2026-11-25): a visitor must get what Kalmea is in five seconds, from pictures, not paragraphs.
+// Structure: hero (slogan, one subline, the "one question" screen, one button) -> three blocks (secretary, marketing, sales)
+// -> founder strip -> price -> FAQ (closed). No block outside the FAQ is longer than 12 words. The long explanations of the
+// old page (cost table, comparison list, before/after rows, "a real day", price details, founder story) now live in the FAQ,
+// word for word where they were already documented; nothing that is not live today is promised anywhere.
+//
+// Owner, 2026-10-30: no AI images or AI faces, no invented testimonials or numbers; every screen in public/landing/app-*.jpg is a
+// real screenshot of the demo tenant (marketing/landing-shots.mjs). Reminders and messages are "ready to send", never "sent for her":
+// platform_settings.whatsapp_auto_utility_enabled is off.
+// Owner, 2026-11-16: the launch price alone, no struck "regular" price and no end date (lib/planCopy.ts PRICE_LINE_HE).
 
 import Image from "next/image";
 import Link from "next/link";
-import Reveal from "./landing/Reveal";
-import CostTable from "./landing/CostTable";
-import BeforeAfter from "./landing/BeforeAfter";
-import ClinicDay from "./landing/ClinicDay";
 import DemoVideo from "./landing/DemoVideo";
 import PublicFooterLinks from "./PublicFooterLinks";
 import KalmeaLegalFooter from "./KalmeaLegalFooter";
@@ -27,114 +28,24 @@ import MetaPixel from "./MetaPixel";
 import Testimonials from "./landing/Testimonials";
 import { landingClaims } from "@/lib/landingClaims";
 
-// No receptionist row (2026-11-16 audit, owner decision): most cosmeticians work alone, so it inflated the "saving".
-const COST_ROWS = [
-  { label: "מערכת לניהול תורים", low: 99, high: 379 },
-  { label: "הנהלת חשבונות / חשבוניות", low: 32, high: 89 },
-  { label: "עיצוב גרפי", low: 300, high: 900 },
-  { label: "ניהול רשתות חברתיות", low: 1500, high: 3500 },
-  { label: "יועצת עסקית", low: 400, high: 1200 },
-];
-const TOTAL_LOW = COST_ROWS.reduce((s, r) => s + r.low, 0);
-const TOTAL_HIGH = COST_ROWS.reduce((s, r) => s + r.high, 0);
-
-// Every "with" side is live for every business. The no-show row depends on a deployment switch and is decided per request by
-// beforeAfterRows() below (lib/landingClaims.ts): the deposit claim only while Grow deposits are really on for everyone.
-const NO_SHOW_READY = { icon: "clock", before: "לקוחות שלא מגיעות לתורים", after: "תזכורות מוכנות לשליחה, יום לפני כל טיפול" };
-const NO_SHOW_DEPOSIT = { icon: "card", before: "לקוחות שלא מגיעות לתורים", after: "מקדמה כבר בקביעת התור, ומדיניות ביטול שהלקוחה מאשרת מראש" };
-const NO_SHOW_DEPOSIT_BIT = { icon: "card", before: "לקוחות שלא מגיעות לתורים", after: "מקדמה בכרטיס או בביט כבר בקביעת התור, ומדיניות ביטול שהלקוחה מאשרת מראש" };
-// Self-reschedule (lib/reschedule.ts, app/confirm/RescheduleFlow.jsx) works for every business, from the link in her reminder.
-const RESCHEDULE = { icon: "move", before: "לקוחה רוצה להזיז תור", after: "מזיזה לבד, לפי מדיניות הביטול שלך" };
-
-const BEFORE_AFTER = [
-  { icon: "chat", before: "הודעות וואטסאפ שלא נגמרות", after: "לקוחות קובעות תורים בעצמן, 24/7" },
-  NO_SHOW_READY,
-  RESCHEDULE,
-  { icon: "calendar", before: "חורים ריקים ביומן", after: "תור שהתפנה? Kalmea שואלת אם להציע אותו" },
-  { icon: "heart", before: "לקוחות קבועות שנעלמות בלי ששמת לב", after: "הודעת חזרה מוכנה ללקוחה שלא הגיעה מזמן" },
-  { icon: "spark", before: "שעות על יצירת פוסטים ושיווק", after: "פוסטים וקמפיינים בעזרת AI, בצבעים שלך" },
-  { icon: "wallet", before: "שכחת לגבות או לתעד תשלום", after: "קופה ומעקב אחר תשלומים וחבילות", extra: true },
-  { icon: "layers", before: "מעבר בין כמה מערכות ואפליקציות", after: "יומן, לקוחות ושיווק במקום אחד", extra: true },
-  { icon: "chart", before: "אין לך מושג ברור כמה הרווחת", after: "דוחות שמראים לך מה קורה בעסק", extra: true },
-  // The intake gate (lib/intakeGate.ts), live since add_reschedule_intake_2026-11-09.sql ran (verified 2026-11-10). She turns it on
-  // per service. The form is a digital link; the patch test is a flag and a line to the client, not a digital test, so the copy says so.
-  { icon: "doc", before: "ניירת והצהרות בריאות", after: "הצהרת בריאות דיגיטלית לפני הטיפול, ותזכורת לבדיקת רגישות ללקוחה חדשה", extra: true },
-];
-
-// Avatar pass (2026-11-22): the section shows her six strongest pains; the four "extra" rows stay in the code behind this flag.
-// Each one is still said further down: payments and reports in the five areas, one place in the cost table, the health
-// declaration in the comparison list.
-const BEFORE_AFTER_SHORT = true;
-
-function beforeAfterRows(claims) {
-  const rows = BEFORE_AFTER_SHORT ? BEFORE_AFTER.filter((r) => !r.extra) : BEFORE_AFTER;
-  if (!claims.deposits) return rows;
-  // With deposits on, the no-show row speaks about the deposit; the ready reminders keep their place in "a real day" below.
-  const deposit = claims.depositBit ? NO_SHOW_DEPOSIT_BIT : NO_SHOW_DEPOSIT;
-  return rows.map((r) => (r === NO_SHOW_READY ? deposit : r));
-}
-
-// The moments of the day. Made-up names; each "with" side is what the product really does, and what needs her OK waits for it.
-const MOMENTS = [
+// The three jobs. Each: an icon, a title (max 3 words), one line (max 6 words) and one real screen.
+// Everything named here is live for every business today. Reminders are "ready to send" (automatic WhatsApp is off).
+const BLOCKS = [
   {
-    id: "night", tab: "22:43 בלילה", title: "22:43. לקוחה רוצה תור, ואת כבר לא עובדת.",
-    before: { screen: "whatsapp", props: { time: "22:43", text: "היי, יש לך תור לטיפול פנים השבוע?", status: "מחכה לך לבוקר" }, text: "ההודעה מחכה לבוקר, ועד אז היא אולי כבר קבעה אצל מישהי אחרת." },
-    after: { shot: "/landing/app-booking.jpg", alt: "צילום מסך של דף ההזמנות של Kalmea בטלפון", text: "הלקוחה נכנסת לקישור ההזמנות האישי שלך ובוחרת תור בעצמה. בבוקר הוא כבר ביומן." },
+    id: "secretary", icon: "calendar", title: "המזכירה שלך", text: "יומן, תזכורות מוכנות, וקביעת תור עצמית.",
+    shot: "/landing/app-calendar.jpg", alt: "צילום מסך של היומן ב-Kalmea",
   },
   {
-    id: "gone", tab: "לקוחה נעלמה", title: "לקוחה לא חזרה כבר שלושה חודשים. שמת לב?",
-    before: { screen: "client", props: { name: "נועה לוי", line: "לקוחה קבועה", last: "לפני 4 חודשים", note: "אף אחת לא שמה לב שהיא הפסיקה להגיע." }, text: "לקוחה שהגיעה במשך שנים מפסיקה להגיע, ואף אחת לא שמה לב." },
-    after: { screen: "draft", props: { to: "נועה", text: "היי נועה, מזמן לא התראינו ואני חושבת עלייך. רוצה שנקבע לך טיפול?" }, text: "Kalmea מזהה לקוחה שלא חזרה אחרי 90 יום ומכינה לך הודעה אישית. את קובעת כמה ימים, ואת שולחת." },
+    id: "marketing", icon: "spark", title: "המשווקת שלך", text: "רעיונות לתוכן, עיצובים ופוסטים מוכנים.",
+    shot: "/landing/app-content.jpg", alt: "צילום מסך של מסך התוכן ב-Kalmea",
   },
   {
-    id: "gap", tab: "תור שהתפנה", title: "יש לך שעה פנויה מחר. מי דואגת למלא אותה?",
-    before: { screen: "day", props: { rows: [{ time: "12:30", text: "מניקור ג'ל, דנה" }, { time: "14:00", text: "התפנה", empty: true }, { time: "15:30", text: "טיפול פנים, רונית" }], note: "ביטול ברגע האחרון." }, text: "ביטול ברגע האחרון משאיר שעה ריקה ביומן." },
-    after: { screen: "offer", props: { text: "התפנה תור מחר ב-14:00. להציע אותו בוואטסאפ ללקוחות מתאימות?" }, text: "Kalmea מזהה את התור שהתפנה ושואלת אותך אם להציע אותו ללקוחות מתאימות." },
+    id: "sales", icon: "wallet", title: "מנהלת המכירות", text: "מתעניינות, מעקבים ותשלומים במקום אחד.",
+    shot: "/landing/app-leads.jpg", alt: "צילום מסך של מסך הפניות ב-Kalmea",
   },
 ];
 
-// The five areas. Each one: a real screen, a short title, and what it changes in her day.
-const AREAS = [
-  { shot: "/landing/app-client.jpg", alt: "צילום מסך של כרטיס לקוחה ב-Kalmea", title: "ניהול תורים ולקוחות", text: "כל מה שחשוב לדעת על הלקוחה שלך, במקום אחד." },
-  { shot: "/landing/app-content.jpg", alt: "צילום מסך של מסך התוכן והתבניות ב-Kalmea", title: "שיווק והחזרת לקוחות", text: "פוסטים בצבעים שלך, והודעה מוכנה ללקוחה שלא חזרה." },
-  { shot: "/landing/app-cashier.jpg", alt: "צילום מסך של מסך התשלומים ב-Kalmea", title: "מכירות, קופה וחבילות", text: "כל תשלום במקום אחד, ואף מתעניינת לא נשכחת בין ההודעות." },
-  { shot: "/landing/app-messages.jpg", alt: "צילום מסך של מרכז ההודעות ב-Kalmea", title: "הודעות ואוטומציות", text: "פחות הודעות שאת צריכה לזכור לשלוח בעצמך." },
-  { shot: "/landing/app-advisor.jpg", alt: "צילום מסך של היועץ העסקי ב-Kalmea", title: "כלי AI וייעוץ עסקי", text: "תביני מה קורה בעסק שלך ומה כדאי לשפר." },
-];
-
-// Every answer below is a fact that is also stated in /terms, /privacy or the app itself. A question whose answer is
-// not documented there does not belong here.
-const FAQ = [
-  {
-    q: "צריך כרטיס אשראי כדי להתחיל?",
-    // The grace sentence follows NEXT_PUBLIC_BOOKING_GRACE_DAYS (lib/planState publicGraceDays): her booking page stays open that long.
-    a: `לא. נרשמים עם אימייל וסיסמה, והחודש הראשון חינם. בסוף החודש המערכת נסגרת עד שמצטרפים למנוי, ושום דבר לא נמחק.${publicGraceDays() > 0 ? ` דף ההזמנות שלך ממשיך לקבל תורים עוד ${daysHe(publicGraceDays())}, כדי שאף לקוחה לא תיתקע.` : ""} לפני כן תראי הודעה בתוך האפליקציה, ואפשר לכתוב לנו בוואטסאפ.`,
-  },
-  {
-    q: "אפשר להפסיק מתי שרוצים?",
-    a: "כן, אפשר להפסיק את השימוש בכל עת, וכל מה שיצרת נשמר אם תרצי לחזור. כשמבקשים למחוק את החשבון, הנתונים נמחקים תוך 30 יום, חוץ מרשומות שחובה לשמור על פי דין.",
-  },
-  {
-    q: "מה קורה למידע של הלקוחות שלי?",
-    a: "המידע שלך נשאר שלך. כל עסק מבודד, ואת רואה רק את הלקוחות, התורים והלידים של העסק שלך. הערות בריאות מוצגות רק לך, בכרטיס הלקוחה, ואיננו מוכרים מידע. אף מערכת אינה מאובטחת ב-100%, והפרטים המלאים במדיניות הפרטיות.",
-  },
-  // Live for every business (the import sheet in app/beautyos.jsx): phone contacts and a pasted list. The Excel / other-system
-  // file import is behind NEXT_PUBLIC_IMPORT_TOOL, so it is not promised here.
-  {
-    q: "יש לי כבר לקוחות. צריך להקליד את כולן מחדש?",
-    a: "לא. אפשר להעביר את הלקוחות שלך מאנשי הקשר בטלפון, או להדביק רשימה, שורה לכל לקוחה.",
-  },
-  {
-    q: "אפשר להשתמש בזה מהטלפון?",
-    a: "כן. Kalmea בנויה לעבוד מהטלפון, ואפשר להוסיף אותה למסך הבית כמו אפליקציה.",
-  },
-  {
-    q: "זה מתאים גם למניקוריסטיות?",
-    a: "כן. יש תחום ציפורניים ודמו משלו, שאפשר לראות לפני שנרשמים.",
-  },
-];
-
-// The comparison list (section 5d): only what every business has today.
+// The comparison list of the old page (only what every business has today), now an FAQ answer.
 const COMPARE_EXTRAS = [
   "פוסטים ורילס בעזרת AI, בצבעים ובסגנון של העסק שלך",
   "הודעת חזרה מוכנה ללקוחה שלא הגיעה מזמן",
@@ -144,7 +55,6 @@ const COMPARE_EXTRAS = [
   // On by default for every cosmetics business (lib/featureFlags.ts skinScanVisible).
   "סריקת עור עם דוח אישי ללקוחה, שמביאה אלייך פניות (לקוסמטיקאיות)",
   "יועצת עסקית שמראה לך מה קורה בעסק",
-  "נבנתה על ידי קוסמטיקאית, רק לקוסמטיקאיות ולמניקוריסטיות",
 ];
 // Behind a deployment switch (lib/landingClaims.ts): only while it is really on for every business.
 function compareExtras(claims) {
@@ -159,27 +69,11 @@ const DEMOS = [
   { field: "nails", title: "ציפורניים", href: "/demo/nails" },
 ];
 
+const demoLinkStyle = { color: "var(--brand-accent)", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3 };
+
 // The wordmark file's own size, so the page keeps its space before the image arrives.
 const WORDMARK_W = 600;
 const WORDMARK_H = 176;
-
-// Real recordings of the demo tenant (marketing/landing-clips.mjs). Nothing in them is sent or saved.
-const IN_ACTION = [
-  { id: "leads", title: "נכנסה מתעניינת", text: "היא לא נשכחת בין ההודעות." },
-  { id: "booking", title: "לקוחה קובעת תור", text: "לבד, מהקישור שלך." },
-  { id: "messages", title: "הודעות מוכנות", text: "את עוברת עליהן ושולחת." },
-  { id: "content", title: "תוכן בצבעים שלך", text: "תבניות מוכנות לעסק שלך." },
-  { id: "data", title: "מה קורה בעסק", text: "הכנסות ודוחות, בלי חישובים." },
-];
-
-// Owner, 2026-11-17: the stock photos looked off; the hero shows her own explainer reel (reel 7, "עובדת לבד? זה בשבילך").
-// The photo hero stays in the code behind this flag.
-const HERO_VIDEO = true;
-
-const HERO_PHOTOS = [
-  { src: "/landing/photo-cosmetician.jpg", alt: "קוסמטיקאית מבצעת טיפול פנים ללקוחה", position: "center 58%" },
-  { src: "/landing/photo-manicure.jpg", alt: "מניקוריסטית מורחת לק על ציפורני לקוחה", position: "center 40%" },
-];
 
 const pillBtn = {
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -188,19 +82,84 @@ const pillBtn = {
   padding: "14px 28px", fontSize: "var(--t-lg)", fontWeight: 700,
   textDecoration: "none", fontFamily: "inherit", cursor: "pointer",
 };
-const quietBtn = {
-  display: "inline-flex", alignItems: "center", gap: 6,
-  background: "none", border: "none", color: "var(--brand-accent)",
-  fontSize: "var(--t-md)", fontWeight: 600, textDecoration: "underline",
-  textUnderlineOffset: 3, padding: "10px 6px", cursor: "pointer", fontFamily: "inherit",
-};
 
-function SectionEyebrow({ children }) {
-  return <p style={{ textAlign: "center", fontSize: "var(--t-sm)", color: "var(--brand-sage-text)", fontWeight: 600, letterSpacing: "0.04em", marginBottom: 8 }}>{children}</p>;
+// Plain outline icons, drawn here: no icon font, no stock art.
+const ICON_PATHS = {
+  calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
+  spark: <><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" /></>,
+  wallet: <><rect x="3" y="6" width="18" height="13" rx="3" /><path d="M3 10h18" /><circle cx="16.5" cy="14.5" r="1.2" /></>,
+};
+function BlockIcon({ name }) {
+  return (
+    <svg className="lp-block-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICON_PATHS[name]}
+    </svg>
+  );
 }
 
 export default function LandingPage({ signedIn = false }) {
   const claims = landingClaims();
+  const grace = publicGraceDays();
+  // Every answer is a fact that is also stated in /terms, /privacy or the app itself. A question whose answer is not documented
+  // there does not belong here. Closed by default (plain <details>, no JS).
+  const faq = [
+    {
+      q: "צריך כרטיס אשראי כדי להתחיל?",
+      // The grace sentence follows NEXT_PUBLIC_BOOKING_GRACE_DAYS (lib/planState publicGraceDays): her booking page stays open that long.
+      a: `לא. נרשמים עם אימייל וסיסמה, והחודש הראשון חינם. בסוף החודש המערכת נסגרת עד שמצטרפים למנוי, ושום דבר לא נמחק.${grace > 0 ? ` דף ההזמנות שלך ממשיך לקבל תורים עוד ${daysHe(grace)}, כדי שאף לקוחה לא תיתקע.` : ""} לפני כן תראי הודעה בתוך האפליקציה, ואפשר לכתוב לנו בוואטסאפ.`,
+    },
+    {
+      q: "כמה זה עולה?",
+      // True in both of Kalmea's tax modes (lib/kalmeaBusiness.ts); Kalmea charges only the subscription, card fees go to Grow (lib/growPricing.ts).
+      a: `מחיר השקה ${priceHe(PLAN_PRICES.launch)} לחודש. זה המחיר הסופי: אין תוספת מע״מ ואין עלויות נסתרות. Kalmea לא לוקחת אחוזים מהמכירות שלך. שניים או שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, והמחיר כבר חוזר.${annualPlanEnabled() ? ` ${annualOfferHe(PLAN_PRICES.launch)}` : ""}`,
+    },
+    {
+      q: "אפשר להפסיק מתי שרוצים?",
+      a: "כן, אפשר להפסיק את השימוש בכל עת, וכל מה שיצרת נשמר אם תרצי לחזור. כשמבקשים למחוק את החשבון, הנתונים נמחקים תוך 30 יום, חוץ מרשומות שחובה לשמור על פי דין.",
+    },
+    {
+      q: "מה Kalmea נותנת מעבר למערכת תורים?",
+      list: compareExtras(claims),
+      a: "מערכת תורים רגילה עולה בדרך כלל 100 עד 170 ₪ לחודש, לפני מע״מ, ונותנת יומן ותזכורות. Kalmea נותנת גם את זה, ועוד:",
+      fine: "הטווח לפי מחירונים פומביים של מערכות תורים בישראל, נובמבר 2026.",
+    },
+    {
+      q: "איך עובדות התזכורות וההודעות?",
+      a: "Kalmea מכינה הודעות ותזכורות מוכנות לשליחה, יום לפני כל טיפול. את עוברת עליהן ושולחת, ואת זו שמחליטה מה יוצא. הלקוחות קובעות תורים בעצמן מהקישור האישי שלך, 24/7, ומזיזות תור לבד לפי מדיניות הביטול שלך.",
+    },
+    {
+      q: "מה קורה ללקוחה שנעלמה או לתור שהתפנה?",
+      a: "Kalmea מזהה לקוחה שלא חזרה אחרי 90 יום ומכינה לך הודעה אישית. את קובעת כמה ימים, ואת שולחת. כשמתפנה תור היא שואלת אם להציע אותו בוואטסאפ ללקוחות מתאימות.",
+    },
+    {
+      q: "מה קורה למידע של הלקוחות שלי?",
+      a: "המידע שלך נשאר שלך. כל עסק מבודד, ואת רואה רק את הלקוחות, התורים והלידים של העסק שלך. הערות בריאות מוצגות רק לך, בכרטיס הלקוחה, ואיננו מוכרים מידע. אף מערכת אינה מאובטחת ב-100%, והפרטים המלאים במדיניות הפרטיות.",
+    },
+    // Live for every business (the import sheet in app/beautyos.jsx): phone contacts and a pasted list. The Excel / other-system
+    // file import is behind NEXT_PUBLIC_IMPORT_TOOL, so it is not promised here.
+    {
+      q: "יש לי כבר לקוחות. צריך להקליד את כולן מחדש?",
+      a: "לא. אפשר להעביר את הלקוחות שלך מאנשי הקשר בטלפון, או להדביק רשימה, שורה לכל לקוחה.",
+    },
+    {
+      q: "אפשר להשתמש בזה מהטלפון?",
+      a: "כן. Kalmea בנויה לעבוד מהטלפון, ואפשר להוסיף אותה למסך הבית כמו אפליקציה.",
+    },
+    {
+      q: "זה מתאים גם למניקוריסטיות?",
+      a: "כן. יש תחום ציפורניים ודמו משלו, שאפשר לראות לפני שנרשמים.",
+    },
+    {
+      q: "אפשר לנסות לפני שנרשמים?",
+      demos: true,
+      a: "כן. יש דמו נפרד לקוסמטיקאיות ודמו נפרד למניקוריסטיות. זה עסק לדוגמה, ולא נשלח שום דבר באמת.",
+    },
+    {
+      q: "מי עומדת מאחורי Kalmea?",
+      a: "Kalmea נבנתה על ידי קוסמטיקאית מוסמכת, שעובדת בעצמה בעסק שלה, כל יום. היא מכירה מקרוב את ההודעות בין טיפול לטיפול, את היומן שצריך למלא ואת השיווק שנדחה לסוף היום. מזה נולדה המערכת.",
+    },
+  ];
+
   return (
     <div dir="rtl" className="lp-page">
       <PublicAnalytics />
@@ -214,196 +173,111 @@ export default function LandingPage({ signedIn = false }) {
         </Link>
       </header>
 
-      {/* ── 2. HERO: who it is for, in the headline, before any scroll. ───── */}
-      <section className="lp-hero">
-        <div className="lp-hero-text">
-          <p className="lp-kicker">נבנתה על ידי קוסמטיקאית, בשביל קוסמטיקאיות ומניקוריסטיות</p>
+      {/* ── 2. HERO: the slogan, one subline, the "one question" screen, one button. All of it above the fold at 390px. ── */}
+      <section className="lp-hero2">
+        <div className="lp-hero2-text">
           <h1 className="serif lp-h1">קוסמטיקאית או מניקוריסטית שעובדת לבד?</h1>
           <p className="lp-h1-sub">את מטפלת בלקוחות. Kalmea עוזרת לך לטפל בעסק.</p>
-          <p className="lp-hero-desc">{claims.deposits ? "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות, משלמות מקדמה ומזיזות תור לבד." : "יומן, קופה ושיווק במערכת אחת. הלקוחות קובעות ומזיזות תור לבד."}</p>
-          <div className="lp-hero-cta">
-            <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
-            <p className="lp-cta-note">בלי כרטיס אשראי ובלי התחייבות</p>
-            <a href="#how" className="kl-press lp-quiet">תראי איך זה עובד</a>
-            {/* Avatar pass (2026-11-22): each of the two businesses finds her own demo before any scroll. Plain <a>, as in section 9:
-                /demo/<field> signs into the demo account, and <Link> would prefetch it. */}
-            <p className="lp-cta-note" data-testid="hero-demos">
-              רוצה לראות קודם?{" "}
-              {DEMOS.map((d, i) => (
-                <span key={d.field}>
-                  {i > 0 && " · "}
-                  <a href={d.href} className="kl-press" style={{ color: "var(--brand-accent)", textDecoration: "underline", textUnderlineOffset: 3 }}>דמו {d.title}</a>
-                </span>
-              ))}
-            </p>
-          </div>
+          <p className="lp-hero2-sub">מזכירה, משווקת ומנהלת מכירות, באפליקציה אחת.</p>
         </div>
-        {HERO_VIDEO ? (
-          <div className="lp-hero-visual is-video" data-testid="hero-video">
-            <DemoVideo mp4="/media/landing-founder.mp4" poster="/media/landing-founder.jpg" label="מעיין, המייסדת, מסבירה למי Kalmea מתאימה" width={250} sound />
-          </div>
-        ) : (
-        <div className="lp-hero-visual">
-          {HERO_PHOTOS.map((photo) => (
-            <div key={photo.src} className="lp-hero-photo">
-              <Image src={photo.src} alt={photo.alt} fill priority fetchPriority="high" sizes="(max-width: 860px) 50vw, 280px" style={{ objectFit: "cover", objectPosition: photo.position }} />
-            </div>
-          ))}
-          <div className="lp-hero-phone">
-            <Image src="/landing/app-home.jpg" alt="צילום מסך אמיתי של מסך הבית של Kalmea" width={560} height={1212} priority sizes="180px" className="lp-shot-img" />
-          </div>
+        <div className="lp-hero2-phone" data-testid="hero-phone">
+          <Image src="/landing/app-advisor.jpg" alt="צילום מסך של Kalmea: שאלה אחת ליועצת העסקית" width={560} height={1212} priority fetchPriority="high" sizes="200px" className="lp-shot-img" />
         </div>
-        )}
+        <div className="lp-hero2-cta">
+          <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
+          <p className="lp-cta-note">בלי כרטיס אשראי</p>
+        </div>
       </section>
 
-      {/* ── 3. BEFORE AND AFTER ───────────────────────────────────────────── */}
-      <section className="lp-sec is-white">
+      {/* ── 3. THREE BLOCKS: secretary, marketing, sales ──────────────────── */}
+      <section className="lp-sec is-white" data-testid="landing-blocks">
         <div className="lp-wrap">
-          <Reveal as="h2" className="serif lp-h2">אותו עסק. יום עבודה אחר לגמרי.</Reveal>
-          <Reveal delay={60} className="lp-lead"><p>את לא צריכה לעבוד יותר קשה. את צריכה מערכת שתעזור לך לעבוד חכם יותר.</p></Reveal>
-          <BeforeAfter rows={beforeAfterRows(claims)} />
-          {claims.deposits && <p className="lp-fine" data-testid="deposit-note">מקדמה ומדיניות ביטול פועלות אחרי חיבור לסליקה של Grow.</p>}
-          <div className="lp-cta-block">
-            <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
-            <p className="lp-cta-note">בלי כרטיס אשראי</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 4. A REAL DAY ─────────────────────────────────────────────────── */}
-      <section id="how" className="lp-sec">
-        <div className="lp-wrap is-narrow">
-          <Reveal as="h2" className="serif lp-h2">סיימת טיפול? מחכות לך עוד 12 הודעות?</Reveal>
-          <Reveal delay={60} className="lp-lead"><p>ככה זה נראה ביום רגיל בקליניקה. בחרי רגע, ותראי מה משתנה.</p></Reveal>
-          <ClinicDay moments={MOMENTS} />
-          <p className="lp-fine">השמות בדוגמאות בדויים. ההודעות מוכנות בשבילך, ואת זו ששולחת.</p>
-        </div>
-      </section>
-
-      {/* ── 5. FIVE AREAS: more than a calendar ───────────────────────────── */}
-      <section className="lp-sec is-white">
-        <div className="lp-wrap">
-          <Reveal as="h2" className="serif lp-h2">הרבה מעבר ליומן</Reveal>
-          <Reveal delay={60} className="lp-lead"><p>את טובה במה שאת עושה. עכשיו תני למערכת לעזור לך לנהל את כל השאר.</p></Reveal>
-          <div className="lp-areas">
-            {AREAS.map((a, i) => (
-              <Reveal key={a.title} delay={Math.min(i, 3) * 50} className="lp-area">
-                <div className="lp-area-shot"><Image src={a.shot} alt={a.alt} width={560} height={1212} loading="lazy" sizes="(max-width: 640px) 70vw, 240px" className="lp-shot-img" /></div>
-                <h3 className="lp-area-title">{a.title}</h3>
-                <p className="lp-area-text">{a.text}</p>
-              </Reveal>
-            ))}
-          </div>
-          <p className="lp-fine">צילומי מסך אמיתיים מתוך Kalmea, על עסק לדוגמה.</p>
-        </div>
-      </section>
-
-      {/* ── 5c. IN ACTION ─────────────────────────────────────────────────── */}
-      <section className="lp-sec">
-        <div className="lp-wrap">
-          <Reveal as="h2" className="serif lp-h2">ככה זה נראה במערכת</Reveal>
-          <Reveal delay={60} className="lp-lead"><p>הקלטות קצרות מתוך Kalmea, על עסק לדוגמה.</p></Reveal>
-          <div className="lp-areas" data-testid="landing-videos">
-            {IN_ACTION.map((v) => (
-              <div key={v.id} className="lp-area">
-                <DemoVideo mp4={`/media/landing-${v.id}.mp4`} poster={`/media/landing-${v.id}.jpg`} label={v.title} width={178} />
-                <h3 className="lp-area-title">{v.title}</h3>
-                <p className="lp-area-text">{v.text}</p>
-              </div>
+          <div className="lp-trio">
+            {BLOCKS.map((b) => (
+              <article key={b.id} className="lp-block" data-block={b.id}>
+                <div className="lp-block-shot">
+                  <Image src={b.shot} alt={b.alt} width={560} height={1212} loading="lazy" sizes="(max-width: 860px) 60vw, 280px" className="lp-shot-img" />
+                </div>
+                <div className="lp-block-head">
+                  <BlockIcon name={b.icon} />
+                  <h2 className="lp-block-title">{b.title}</h2>
+                </div>
+                <p className="lp-block-text">{b.text}</p>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── 5b. PRICE ─────────────────────────────────────────────────────── */}
-      <section className="lp-sec is-white">
+      {/* ── 4. FOUNDER STRIP: her own explainer reel, one sentence. ───────── */}
+      <section className="lp-sec" data-testid="landing-founder">
         <div className="lp-wrap is-narrow">
-          <SectionEyebrow>כמה עולה לנהל עסק בלי Kalmea</SectionEyebrow>
-          <CostTable rows={COST_ROWS} totalLow={TOTAL_LOW} totalHigh={TOTAL_HIGH} closingLine="Kalmea מרכזת את הכלים האלה במקום אחד." />
-          <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", textAlign: "center", marginTop: 10 }}>הסכומים הם הערכה לפי מחירי שוק.</p>
-          <div style={{ textAlign: "center", marginTop: 34 }}>
-            <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", fontWeight: 600, marginBottom: 6 }}>ו-Kalmea</p>
-            <p className="serif" style={{ fontSize: "var(--t-hero)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 6 }}>
-              {priceHe(PLAN_PRICES.launch)} <span style={{ fontSize: "var(--t-lg)", fontWeight: 600 }}>לחודש</span>
-            </p>
-            {/* Owner's decision 2026-11-16: the launch price only, no struck "regular" price beside it and no end date. */}
-            <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>מחיר השקה</p>
-            {/* True in both of Kalmea's tax modes (lib/kalmeaBusiness.ts): exempt adds no VAT, licensed would include it in the price. */}
-            <p data-testid="price-final" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>זה המחיר הסופי. אין תוספת מע״מ ואין עלויות נסתרות.</p>
-            {/* True: Kalmea charges only the subscription. Card clearing fees, once she connects Grow, go to Grow (lib/growPricing.ts). */}
-            <p data-testid="price-no-cut" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>Kalmea לא לוקחת אחוזים מהמכירות שלך</p>
-            {/* The yearly plan, only with NEXT_PUBLIC_ANNUAL_PLAN=1 (its price is pending the owner's confirmation, lib/pricing.ts). */}
-            {annualPlanEnabled() && <p data-testid="price-annual" style={{ fontSize: "var(--t-md)", fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{annualOfferHe(PLAN_PRICES.launch)}</p>}
-            <p style={{ fontSize: "var(--t-lg)", fontWeight: 700, color: "var(--brand-accent)" }}>החודש הראשון עלינו, בלי כרטיס אשראי.</p>
-            <p data-testid="price-payback" style={{ fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6, margin: "14px auto 0", maxWidth: 380, padding: "10px 14px", borderRadius: "var(--r-md)", background: "var(--brand-cream)", border: "1px solid var(--line)" }}>
-              שניים או שלושה תורים בחודש שלא התפספסו בזכות תזכורת או קישור הזמנה, והמחיר כבר חוזר.
-            </p>
+          <div className="lp-founder">
+            <DemoVideo mp4="/media/landing-founder.mp4" poster="/media/landing-founder.jpg" label="מעיין, המייסדת, מסבירה למי Kalmea מתאימה" width={150} sound />
+            <p className="lp-founder-line">אני קוסמטיקאית שעובדת בעצמי, ו-Kalmea נולדה מהקליניקה שלי.</p>
           </div>
         </div>
       </section>
 
-      {/* ── 5d. HONEST COMPARISON (2026-11-16) ───────────────────────────────
-          No competitor is named. The range is what booking-only systems publish for their plans (checked 2026-11-16:
-          roughly 99-170 ILS a month before VAT); every item on the Kalmea side is live for every business. Nothing here
-          says the reminders send themselves: they are ready for her to send (the hero and "a real day" say so). */}
-      <section className="lp-sec" data-testid="landing-compare">
-        <div className="lp-wrap is-narrow">
-          <Reveal as="h2" className="serif lp-h2">למה לא סתם מערכת תורים?</Reveal>
-          <Reveal delay={60} className="lp-lead"><p>מערכת תורים רגילה עולה בדרך כלל 100 עד 170 ₪ לחודש, לפני מע״מ, ונותנת יומן ותזכורות. Kalmea נותנת גם את זה, ועוד:</p></Reveal>
-          <ul className="lp-compare" style={{ listStyle: "none", padding: 0, margin: "18px auto 0", maxWidth: 460, display: "grid", gap: 10 }}>
-            {compareExtras(claims).map((t) => (
-              <li key={t} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: "var(--t-md)", color: "var(--ink)", lineHeight: 1.6 }}>
-                <span aria-hidden="true" style={{ color: "var(--brand-accent)", fontWeight: 700 }}>✓</span><span>{t}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="lp-fine" style={{ marginTop: 14 }}>בלי אחוזים מהמכירות שלך, והמחיר סופי. הטווח לפי מחירונים פומביים של מערכות תורים בישראל, נובמבר 2026.</p>
-        </div>
-      </section>
-
-      {/* ── 8a. TESTIMONIALS: renders nothing at all while lib/testimonials.ts is empty. */}
+      {/* ── 4b. TESTIMONIALS: renders nothing at all while lib/testimonials.ts is empty. */}
       <Testimonials />
 
-      {/* ── 8b. WHO IS BEHIND KALMEA ─────────────────────────────────────── */}
-      <section className="lp-sec">
+      {/* ── 5. PRICE ──────────────────────────────────────────────────────── */}
+      <section className="lp-sec is-white" data-testid="landing-price">
         <div className="lp-wrap is-narrow" style={{ textAlign: "center" }}>
-          <Reveal as="h2" className="serif lp-h2">נולדה מתוך הקליניקה. נבנתה בשביל העסק שלך.</Reveal>
-          <Reveal delay={60} className="lp-lead">
-            <p>Kalmea נבנתה על ידי קוסמטיקאית מוסמכת, שעובדת בעצמה בעסק שלה, כל יום. היא מכירה מקרוב את ההודעות בין טיפול לטיפול, את היומן שצריך למלא ואת השיווק שנדחה לסוף היום. מזה נולדה המערכת.</p>
-          </Reveal>
+          {/* Owner's decision 2026-11-16: the launch price only, no struck "regular" price beside it and no end date. */}
+          <p className="serif lp-price">
+            {priceHe(PLAN_PRICES.launch)} <span className="lp-price-unit">לחודש</span>
+          </p>
+          <p className="lp-price-label">מחיר השקה</p>
+          <p className="lp-price-free">החודש הראשון חינם, בלי כרטיס אשראי.</p>
+          <div className="lp-cta-block">
+            <Link href="/signup" className="kl-press" style={pillBtn}>התחילי חודש בחינם</Link>
+          </div>
+          {/* A plain <a>: /demo/<field> is a route that signs into the demo account, and <Link> would prefetch it (a GET) while scrolling. */}
+          <p className="lp-cta-note" data-testid="hero-demos">
+            {DEMOS.map((d, i) => (
+              <span key={d.field}>
+                {i > 0 && " · "}
+                <a href={d.href} className="kl-press" style={demoLinkStyle}>דמו {d.title}</a>
+              </span>
+            ))}
+          </p>
         </div>
       </section>
 
-      {/* ── 9. DEMO ───────────────────────────────────────────────────────── */}
-      <section style={{ maxWidth: 760, margin: "0 auto", padding: "56px 20px 10px" }}>
-        <SectionEyebrow>נסי לפני שנרשמים</SectionEyebrow>
-        <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.6, marginBottom: 4 }}>
-          יש דמו נפרד לקוסמטיקאיות ודמו נפרד למניקוריסטיות.
-        </p>
-        <p style={{ textAlign: "center", fontSize: "var(--t-md)", color: "var(--ink-2)", lineHeight: 1.7, marginTop: 6 }}>
-          אפשר להיכנס לדמו של{" "}
-          {DEMOS.map((d, i) => (
-            <span key={d.field}>
-              {/* A plain <a>: /demo/<field> is a route that signs into the demo account, and <Link> would prefetch it (a GET) while scrolling. */}
-              {i > 0 && " או של "}
-              <a href={d.href} className="kl-press" style={{ color: "var(--brand-accent)", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3 }}>{d.title}</a>
-            </span>
-          ))}
-          . עסק לדוגמה, ולא נשלח שום דבר באמת.
-        </p>
-      </section>
-
-      {/* ── 9b. FAQ ───────────────────────────────────────────────────────── */}
-      <section style={{ maxWidth: 620, margin: "0 auto", padding: "56px 20px 10px" }}>
-        <SectionEyebrow>שאלות נפוצות</SectionEyebrow>
+      {/* ── 6. FAQ: closed by default. The long explanations live here. ───── */}
+      <section className="lp-faq" data-testid="landing-faq">
+        <h2 className="serif lp-faq-title">שאלות נפוצות</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
-          {FAQ.map((f) => (
+          {faq.map((f) => (
             <details key={f.q} style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r-md)", padding: "14px 18px" }}>
               <summary style={{ cursor: "pointer", fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)" }}>{f.q}</summary>
               <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, marginTop: 10 }}>{f.a}</p>
+              {f.list && (
+                <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", display: "grid", gap: 8 }}>
+                  {f.list.map((t) => (
+                    <li key={t} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: "var(--t-sm)", color: "var(--ink)", lineHeight: 1.6 }}>
+                      <span aria-hidden="true" style={{ color: "var(--brand-accent)", fontWeight: 700 }}>✓</span><span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {f.fine && <p className="lp-fine" style={{ textAlign: "start" }}>{f.fine}</p>}
+              {f.demos && (
+                <p style={{ fontSize: "var(--t-sm)", color: "var(--ink-2)", lineHeight: 1.7, marginTop: 8 }}>
+                  {DEMOS.map((d, i) => (
+                    <span key={d.field}>
+                      {i > 0 && " · "}
+                      <a href={d.href} className="kl-press" style={demoLinkStyle}>דמו {d.title}</a>
+                    </span>
+                  ))}
+                </p>
+              )}
             </details>
           ))}
         </div>
+        {claims.deposits && <p className="lp-fine" data-testid="deposit-note">מקדמה ומדיניות ביטול פועלות אחרי חיבור לסליקה של Grow.</p>}
         {supportWhatsAppUrl("היי, יש לי שאלה על Kalmea") && (
           <p style={{ textAlign: "center", marginTop: 18 }}>
             <a href={supportWhatsAppUrl("היי, יש לי שאלה על Kalmea")} target="_blank" rel="noopener noreferrer" className="kl-press" style={pillBtn}>
@@ -413,22 +287,7 @@ export default function LandingPage({ signedIn = false }) {
         )}
       </section>
 
-      {/* ── 10. FINAL CTA ─────────────────────────────────────────────────── */}
-      <section style={{ textAlign: "center", padding: "60px 20px 70px" }}>
-        <Reveal as="h2" className="serif" style={{ fontSize: "var(--t-2xl)", fontWeight: 700, color: "var(--brand-accent)", marginBottom: 18 }}>
-          החודש הראשון עלינו, כל מה שנשאר זה להתחיל
-        </Reveal>
-        <Reveal delay={120}>
-          <Link href="/signup" className="kl-press" style={pillBtn}>
-            התחילי חודש בחינם
-          </Link>
-        </Reveal>
-        <Reveal delay={180} style={{ fontSize: "var(--t-md)", fontWeight: 700, color: "var(--ink)", marginTop: 12 }}>
-          <p>בלי כרטיס אשראי ובלי התחייבות</p>
-        </Reveal>
-      </section>
-
-      <footer style={{ textAlign: "center", padding: "0 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>
+      <footer style={{ textAlign: "center", padding: "40px 20px 30px", fontSize: "var(--t-xs)", color: "var(--ink-2)" }}>
         <PublicFooterLinks style={{ padding: "0 0 8px" }} />
         <p>© {new Date().getFullYear()} Kalmea</p>
         <KalmeaLegalFooter showBusinessLine={false} style={{ marginTop: 6 }} />

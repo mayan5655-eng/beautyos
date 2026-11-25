@@ -80,9 +80,11 @@ ok('booking page: a monogram when there is no logo and no photo, never a stock i
   assert.match(p, /data-testid="biz-monogram"/);
 });
 
-ok('landing: the payback line sits with the price', () => {
+ok('landing: the payback line sits with the price, in the price answer of the FAQ', () => {
   const l = rd('app/LandingPage.jsx');
-  assert.ok(l.indexOf('data-testid="price-payback"') > l.indexOf('מחיר היכרות 349'));
+  const at = l.indexOf('q: "כמה זה עולה?"');
+  assert.ok(at > 0);
+  assert.ok(l.indexOf('שניים או שלושה תורים בחודש', at) > l.indexOf('מחיר השקה ${priceHe(PLAN_PRICES.launch)} לחודש', at));
 });
 
 console.log(`${n} passed`);
