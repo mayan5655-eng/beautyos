@@ -25,6 +25,8 @@ export type BookUi = {
   backToApp: string; page: string;
   /** The cover: who the book is for (by her fields), the line under the title, the author, the tap hint. */
   forWho: { cosmetics: string; nails: string; both: string }; guide: string; author: string; open: string;
+  /** The certificate gate on the facial chapters (lib/protocolBook/certificate.ts). */
+  cert: { title: string; body: string; declare: string; choose: string; send: string; sending: string; rejected: string; tooBig: string; needBoth: string; error: string };
 };
 
 export const UI: Record<BookLang, BookUi> = {
@@ -43,6 +45,14 @@ export const UI: Record<BookLang, BookUi> = {
     backToApp: 'חזרה למערכת', page: 'עמוד',
     forWho: { cosmetics: 'לקוסמטיקאיות', nails: 'למניקוריסטיות', both: 'לקוסמטיקאיות ולמניקוריסטיות' },
     guide: 'המדריך הדיגיטלי', author: 'מעיין בבאי', open: 'לחצי לפתיחה',
+    cert: {
+      title: 'פרוטוקולי טיפולי הפנים',
+      body: 'הפרקים האלה כוללים מידע מקצועי, והם פתוחים לקוסמטיקאיות בעלות הכשרה. כדי לפתוח אותם, העלי צילום של תעודת הקוסמטיקאית שלך. התעודה נשמרת באופן פרטי, ורק צוות Kalmea רואה אותה.',
+      declare: 'אני מצהירה שאני בעלת הכשרה מקצועית בקוסמטיקה, ושהשימוש בפרוטוקולים הוא באחריותי המקצועית.',
+      choose: 'צילום התעודה (תמונה או PDF)', send: 'העלאה ופתיחת הפרקים', sending: 'מעלה',
+      rejected: 'התעודה שהעלית לא אושרה. אפשר להעלות תעודה אחרת.',
+      tooBig: 'הקובץ גדול מדי. אפשר להעלות עד 4MB.', needBoth: 'צריך לבחור קובץ ולסמן את ההצהרה.', error: 'ההעלאה לא הצליחה, נסי שוב.',
+    },
   },
   en: {
     book: 'The Protocol Book', sub: 'A professional treatment library', contents: 'Contents', back: 'Back', min: 'min', full: 'Full book',
@@ -59,6 +69,14 @@ export const UI: Record<BookLang, BookUi> = {
     backToApp: 'Back to Kalmea', page: 'Page',
     forWho: { cosmetics: 'for Cosmeticians', nails: 'for Nail Technicians', both: 'for Cosmeticians & Nail Technicians' },
     guide: 'The Digital Guide', author: 'Maayan Babai', open: 'Tap to open',
+    cert: {
+      title: 'Facial treatment protocols',
+      body: 'These chapters hold professional material and are open to trained cosmeticians. To open them, upload a photo of your cosmetician certificate. It is stored privately and only the Kalmea team sees it.',
+      declare: 'I declare that I am professionally trained in cosmetics, and that using these protocols is my professional responsibility.',
+      choose: 'Photo of the certificate (image or PDF)', send: 'Upload and open the chapters', sending: 'Uploading',
+      rejected: 'The certificate you uploaded was not approved. You can upload another one.',
+      tooBig: 'The file is too large. You can upload up to 4MB.', needBoth: 'Choose a file and tick the declaration.', error: 'The upload did not go through, try again.',
+    },
   },
   ar: {
     book: 'كتاب البروتوكولات', sub: 'مكتبة علاجات مهنية', contents: 'المحتويات', back: 'رجوع', min: 'د', full: 'من الكتاب الكامل',
@@ -75,6 +93,14 @@ export const UI: Record<BookLang, BookUi> = {
     backToApp: 'العودة إلى Kalmea', page: 'صفحة',
     forWho: { cosmetics: 'لخبيرات التجميل', nails: 'لفنّيات الأظافر', both: 'لخبيرات التجميل وفنّيات الأظافر' },
     guide: 'الدليل الرقمي', author: 'معيان باباي', open: 'اضغطي للفتح',
+    cert: {
+      title: 'بروتوكولات علاجات الوجه',
+      body: 'هذه الفصول تحتوي على معلومات مهنية، وهي مفتوحة لخبيرات التجميل المؤهّلات. لفتحها، ارفعي صورة لشهادة خبيرة التجميل الخاصة بكِ. تُحفظ الشهادة بشكل خاص، ولا يراها سوى فريق Kalmea.',
+      declare: 'أصرّح بأنني حاصلة على تأهيل مهني في التجميل، وأنّ استعمال البروتوكولات على مسؤوليتي المهنية.',
+      choose: 'صورة الشهادة (صورة أو PDF)', send: 'رفع وفتح الفصول', sending: 'جارٍ الرفع',
+      rejected: 'الشهادة التي رفعتِها لم تُعتمد. يمكنكِ رفع شهادة أخرى.',
+      tooBig: 'الملف كبير جداً. يمكن رفع حتى 4MB.', needBoth: 'يجب اختيار ملف ووضع علامة على التصريح.', error: 'لم ينجح الرفع، حاولي مرة أخرى.',
+    },
   },
 };
 

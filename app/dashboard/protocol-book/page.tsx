@@ -25,6 +25,7 @@ export default async function ProtocolBookPage() {
       services={ctx.services}
       links={ctx.links}
       initialLang={ctx.lang}
+      certificate={ctx.certificate}
     />
   );
 }

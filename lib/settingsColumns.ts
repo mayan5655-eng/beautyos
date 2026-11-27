@@ -91,7 +91,9 @@ export const AUTOMATIONS_STORED_WINS_KEYS = ['onboarding_tour_seen', 'onboarding
 // screen opened before she turned a greeting on cannot switch it off again, or the other way round, when she saves something else.
 // protocol_links: which protocol from the protocol book each service carries (lib/protocolBook/book.ts). Only
 // app/api/protocol-book/link writes it, after checking she may open the protocol.
-export const AUTOMATIONS_PROTECTED_KEYS = ['feature_flags', 'calendar_feed_nonce', 'greetings', 'protocol_links'] as const;
+// protocol_certificate: her cosmetician certificate and its review status (lib/protocolBook/certificate.ts). Only the upload route and
+// the admin route write it, so she cannot mark herself approved.
+export const AUTOMATIONS_PROTECTED_KEYS = ['feature_flags', 'calendar_feed_nonce', 'greetings', 'protocol_links', 'protocol_certificate'] as const;
 
 export type PickedSettings = {
   /** Exactly the editable columns that were present in the input. */

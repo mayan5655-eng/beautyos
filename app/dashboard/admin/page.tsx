@@ -31,6 +31,7 @@ import BillingAdmin from './BillingAdmin'
 import ReferralsAdmin from './ReferralsAdmin'
 import WaCloudCosts from './WaCloudCosts'
 import ShareEvents from './ShareEvents'
+import ProtocolCertificates from './ProtocolCertificates'
 import { firstBookingScore } from '@/lib/firstBooking'
 
 // Never cache or prerender an admin listing: it is per-request, privileged, and
@@ -167,6 +168,8 @@ export default async function AdminPage() {
       <WaCloudCosts db={db} />
       {/* Can tenants get their finished posts onto their phones (the save/share panel's outcomes). */}
       <ShareEvents db={db} />
+      {/* Cosmetician certificates for the protocol book: nothing while the book is off or none was uploaded. */}
+      <ProtocolCertificates db={db} />
     </>
   )
 }

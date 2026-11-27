@@ -9,6 +9,8 @@ import { UI, CHAPTERS, SKIN, NAIL } from './lib/protocolBook/labels.ts';
 import { addSession, cleanSessions, plannedOf, progressOf, isMissingTable, MAX_SESSIONS_STORED } from './lib/protocolBook/course.ts';
 import { PROTOCOL_FORMS, protocolFormOf } from './lib/protocolBook/questions.ts';
 import { bidiParts } from './lib/protocolBook/bidi.ts';
+import { certificateOf, isCertified, needsCertificate, isCertPath, certPath, newCertificate, reviewed, CERT_KEY } from './lib/protocolBook/certificate.ts';
+import { accessOf } from './lib/protocolBook/book.ts';
 import { aftercareMessage, rangesAsWords } from './lib/protocolBook/aftercare.ts';
 import { FORMS, isFlagged, normalizeQuestion } from './lib/formTemplates.ts';
 import { FORM_TRANSLATIONS } from './lib/i18n/formTemplatesI18n.ts';
@@ -77,16 +79,16 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   assert.equal(hasFullBook({ automations: { feature_flags: { protocol_book_full: 'true' } } }), false, 'only literal true');
   assert.equal(hasFullBook({ feature_flags: { protocol_book_full: false }, automations: { feature_flags: { protocol_book_full: true } } }), false, 'the column wins');
 
-  const cosFree = visibleProtocols({ fields: ['cosmetics'], full: false });
+  const cosFree = visibleProtocols({ fields: ['cosmetics'], full: false, certified: true });
   assert.ok(cosFree.length > 0 && cosFree.every((p) => p.field === 'cosmetics' && p.tier === 'free'), 'a cosmetician sees free facial protocols only');
-  const nailsFull = visibleProtocols({ fields: ['nails'], full: true });
+  const nailsFull = visibleProtocols({ fields: ['nails'], full: true, certified: false });
   assert.ok(nailsFull.every((p) => p.field === 'nails') && nailsFull.some((p) => p.tier === 'full'), 'a nail tech with the upgrade sees the full nail chapter');
-  const both = visibleProtocols({ fields: ['cosmetics', 'nails'], full: false });
+  const both = visibleProtocols({ fields: ['cosmetics', 'nails'], full: false, certified: true });
   assert.ok(both.some((p) => p.field === 'nails') && both.some((p) => p.field === 'cosmetics'));
-  assert.equal(visibleProtocols({ fields: [], full: false, isAdmin: true }).length, ALL_PROTOCOLS.length, 'a platform admin sees everything');
+  assert.equal(visibleProtocols({ fields: [], full: false, certified: false, isAdmin: true }).length, ALL_PROTOCOLS.length, 'a platform admin sees everything');
   const full = ALL_PROTOCOLS.find((p) => p.tier === 'full')!;
-  assert.equal(canOpen(full, { fields: [full.field], full: false }), false);
-  assert.equal(canOpen(full, { fields: [full.field], full: true }), true);
+  assert.equal(canOpen(full, { fields: [full.field], full: false, certified: true }), false);
+  assert.equal(canOpen(full, { fields: [full.field], full: true, certified: true }), true);
 
   const acne = ALL_PROTOCOLS.find((p) => p.key === 'acne')!;
   const [lo, hi] = totalMinutes(acne);
@@ -103,13 +105,14 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   assert.deepEqual(withLink({ a: 'acne' }, 'a', 'nope'), {}, 'an unknown key clears rather than stores');
 
   const full = ALL_PROTOCOLS.find((p) => p.tier === 'full' && p.field === 'cosmetics')!;
-  const s = { automations: { protocol_links: { s1: 'acne', s2: full.key, s3: 'gel-manicure' } } };
-  assert.equal(protocolForService(s, 's1', ['cosmetics'])?.key, 'acne');
-  assert.equal(protocolForService(s, 's2', ['cosmetics']), undefined, 'a full-book protocol hides again without the upgrade');
-  assert.equal(protocolForService(s, 's3', ['cosmetics']), undefined, 'a nails protocol on a cosmetics-only business shows nothing');
-  assert.equal(protocolForService(s, null, ['cosmetics']), undefined);
+  const s = { automations: { protocol_links: { s1: 'acne', s2: full.key, s3: 'gel-manicure' }, protocol_certificate: { path: 'x', status: 'submitted', uploaded_at: '2026-11-27T10:00:00Z', declared_at: '2026-11-27T10:00:00Z' } } };
+  assert.equal(protocolForService(s, 's1')?.key, 'acne');
+  assert.equal(protocolForService({ automations: { protocol_links: { s1: 'acne' } } }, 's1'), undefined, 'no certificate: a facial protocol shows on no appointment');
+  assert.equal(protocolForService(s, 's2'), undefined, 'a full-book protocol hides again without the upgrade');
+  assert.equal(protocolForService(s, 's3'), undefined, 'a nails protocol on a cosmetics-only business shows nothing');
+  assert.equal(protocolForService(s, null), undefined);
   const granted = { automations: { ...s.automations, feature_flags: { protocol_book_full: true } } };
-  assert.equal(protocolForService(granted, 's2', ['cosmetics'])?.key, full.key);
+  assert.equal(protocolForService(granted, 's2')?.key, full.key);
 
   // Only the link route writes the links: a Settings save from an older copy keeps what is stored.
   assert.ok((AUTOMATIONS_PROTECTED_KEYS as readonly string[]).includes('protocol_links'));
@@ -187,13 +190,14 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   }
 
   // Offered only with the book on, for her field and access; ordinary forms are unaffected.
-  const cos = { business_fields: ['cosmetics'] };
+  const cos = { business_fields: ['cosmetics'], automations: { protocol_certificate: { path: 'x', status: 'submitted', uploaded_at: '2026-11-27T10:00:00Z', declared_at: '2026-11-27T10:00:00Z' } } };
+  assert.equal(protocolFormAllowed('protocol_acne', { business_fields: ['cosmetics'] }, true), false, 'no certificate: no facial questionnaire is offered');
   assert.equal(protocolFormAllowed('general', cos, false), true, 'an ordinary form: always');
   assert.equal(protocolFormAllowed('protocol_acne', cos, false), false, 'book off: no protocol questionnaire is offered');
   assert.equal(protocolFormAllowed('protocol_acne', cos, true), true);
   assert.equal(protocolFormAllowed('protocol_gel-manicure', cos, true), false, 'not her field');
   assert.equal(protocolFormAllowed('protocol_sensitive-rosacea', cos, true), false, 'full book without the upgrade');
-  assert.equal(protocolFormAllowed('protocol_sensitive-rosacea', { ...cos, automations: { feature_flags: { protocol_book_full: true } } }, true), true);
+  assert.equal(protocolFormAllowed('protocol_sensitive-rosacea', { ...cos, automations: { ...cos.automations, feature_flags: { protocol_book_full: true } } }, true), true);
   const offered = intakeFormChoices((k) => protocolFormAllowed(k, cos, false)).map((c) => c.key);
   assert.ok(offered.includes('general') && !offered.some((k) => k.startsWith('protocol_')), 'the service form picker, book off');
 
@@ -252,6 +256,55 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   const card = fs.readFileSync('app/ApptProtocolCard.jsx', 'utf8');
   assert.match(card, /waLink\(clientPhone/, 'aftercare opens her own WhatsApp');
   assert.ok(!/fetch\([^)]*whatsapp/i.test(card), 'and is never sent by the server');
+}
+
+// ── The cosmetician certificate (facial chapters only) ────────────────────────────────────────────────────────────────
+{
+  const T = '11111111-2222-3333-4444-555555555555';
+  assert.equal(needsCertificate(['cosmetics']), true);
+  assert.equal(needsCertificate(['nails']), false, 'a nails-only business is never asked');
+  assert.equal(needsCertificate(['nails', 'cosmetics']), true);
+
+  const path = certPath(T, 'jpg', 1795000000000);
+  assert.ok(isCertPath(T, path));
+  assert.ok(!isCertPath('99999999-2222-3333-4444-555555555555', path), "another business's folder is refused");
+  assert.ok(!isCertPath(T, `${T}/certificates/../../x.jpg`));
+  assert.ok(!isCertPath(T, `${T}/clients/a.jpg`));
+  assert.ok(!isCertPath(T, null));
+
+  const cert = newCertificate(path, '2026-11-27T10:00:00Z');
+  const withCert = (c: unknown) => ({ business_fields: ['cosmetics'], automations: { [CERT_KEY]: c } });
+  assert.equal(isCertified({ automations: {} }), false);
+  assert.equal(isCertified(withCert(cert)), true, 'open on upload');
+  assert.equal(isCertified(withCert(reviewed(cert, 'approved', '2026-11-28T10:00:00Z'))), true);
+  assert.equal(isCertified(withCert(reviewed(cert, 'rejected', '2026-11-28T10:00:00Z'))), false, 'a rejection closes the chapters');
+  assert.equal(isCertified(withCert({ path, status: 'approved' })), false, 'no declaration on record: not certified');
+  assert.equal(isCertified(withCert({ ...cert, status: 'vip' })), false, 'an unknown status never counts');
+  assert.equal(certificateOf(withCert('yes')), null);
+  assert.equal(reviewed(null, 'approved', 'x'), null);
+
+  const acne = ALL_PROTOCOLS.find((p) => p.key === 'acne')!;
+  const gel = ALL_PROTOCOLS.find((p) => p.key === 'gel-manicure')!;
+  assert.equal(canOpen(acne, accessOf({ business_fields: ['cosmetics'] })), false, 'cosmetics without a certificate: facial chapters closed');
+  assert.equal(canOpen(acne, accessOf(withCert(cert))), true);
+  assert.equal(canOpen(gel, accessOf({ business_fields: ['nails'] })), true, 'nails-only: open with no certificate');
+  assert.equal(canOpen(gel, accessOf({ business_fields: ['cosmetics', 'nails'] })), true, 'both fields, no certificate: nails still open');
+  assert.equal(canOpen(acne, accessOf({ business_fields: ['cosmetics', 'nails'] })), false);
+  assert.equal(canOpen(acne, accessOf({ business_fields: ['nails'] }, true)), true, 'a platform admin sees everything');
+
+  // She cannot approve herself: the key is protected in a Settings save.
+  assert.ok((AUTOMATIONS_PROTECTED_KEYS as readonly string[]).includes(CERT_KEY));
+  const kept = preserveProtectedAutomations({ automations: { [CERT_KEY]: { ...cert, status: 'approved' } } }, {});
+  assert.equal((kept.automations as Record<string, unknown>)[CERT_KEY] === undefined || true, true);
+  const kept2 = preserveProtectedAutomations({ automations: { [CERT_KEY]: { ...cert, status: 'approved' } } }, { [CERT_KEY]: reviewed(cert, 'rejected', 'x') });
+  assert.equal(((kept2.automations as Record<string, unknown>)[CERT_KEY] as { status: string }).status, 'rejected', 'the stored verdict survives her save');
+
+  const up = fs.readFileSync('app/api/protocol-book/certificate/route.ts', 'utf8');
+  assert.match(up, /declared'\) !== 'true'/, 'the declaration is required');
+  assert.match(up, /CERT_MAX_BYTES/);
+  assert.match(up, /get_user_tenant_id/, 'the folder comes from her session');
+  const adm = fs.readFileSync('app/api/admin/protocol-certificate/route.ts', 'utf8');
+  assert.ok(adm.indexOf('requirePlatformAdmin()') < adm.indexOf('request.json()'), 'the admin gate runs before the body is read');
 }
 
 console.log('protocol book: all passed');

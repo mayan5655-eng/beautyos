@@ -12,9 +12,8 @@ import { NextResponse } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { createAdminClient, requirePlatformAdmin } from '@/lib/adminGuard';
 import { requireActiveTenant } from '@/lib/planGuard';
-import { businessFieldsOf, FIELD_KEYS } from '@/lib/businessFields';
 import { isMissingColumnError } from '@/lib/pgError';
-import { protocolBookEnabled, protocolByKey, canOpen, hasFullBook } from '@/lib/protocolBook/book';
+import { protocolBookEnabled, protocolByKey, canOpen, accessOf } from '@/lib/protocolBook/book';
 import { addSession, cleanSessions, plannedOf, isMissingTable, type Course, type CourseStatus } from '@/lib/protocolBook/course';
 
 const TABLE = 'client_protocol_courses';
@@ -66,9 +65,7 @@ export async function POST(request: Request) {
     let read = await c.db.from('settings').select('automations, business_fields').eq('tenant_id', c.tenantId).maybeSingle();
     if (read.error && isMissingColumnError(read.error)) read = await c.db.from('settings').select('automations').eq('tenant_id', c.tenantId).maybeSingle();
     const settings = (read.data || {}) as { automations?: unknown; business_fields?: unknown };
-    const isAdmin = (await requirePlatformAdmin()).ok;
-    const fields = isAdmin ? [...FIELD_KEYS] : businessFieldsOf(settings);
-    if (!canOpen(p, { fields, full: hasFullBook(settings), isAdmin })) return fail('הפרוטוקול הזה לא פתוח לעסק שלך', 403);
+    if (!canOpen(p, accessOf(settings, (await requirePlatformAdmin()).ok))) return fail('הפרוטוקול הזה לא פתוח לעסק שלך', 403);
 
     // An active course of the same protocol already open: return it (the unique index would refuse a second one anyway).
     const existing = await c.db.from(TABLE).select(COLS).eq('tenant_id', c.tenantId).eq('client_id', clientId).eq('protocol_key', p.key).eq('status', 'active').maybeSingle();

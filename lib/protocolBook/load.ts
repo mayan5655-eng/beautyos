@@ -4,11 +4,11 @@
 // the page passes only the protocols she can open. Strictly tenant-scoped: the tenant comes from get_user_tenant_id() on
 // her session, never from the URL.
 import type { FieldKey } from '../businessFields.ts';
-import { businessFieldsOf, FIELD_KEYS } from '../businessFields.ts';
 import { ACTIVE_OR_NULL } from '../serviceActive.js';
 import { isMissingColumnError } from '../pgError.ts';
 import { langOfSettings } from '../i18n/core.ts';
-import { hasFullBook, protocolLinks, visibleProtocols, bookLangOf } from './book.ts';
+import { accessOf, protocolLinks, visibleProtocols, bookLangOf } from './book.ts';
+import { certificateOf, needsCertificate, type CertStatus } from './certificate.ts';
 import type { BookLang, Protocol } from './types.ts';
 
 type Row = Record<string, unknown>;
@@ -34,6 +34,8 @@ export type BookContext = {
   protocols: Protocol[];
   services: { id: string; name: string }[];
   links: Record<string, string>;
+  /** The certificate gate for the facial chapters: shown when she is in cosmetics and they are still closed. */
+  certificate: { gate: boolean; status: CertStatus | null };
 };
 
 export async function loadBookContext(session: Sb, isAdmin: boolean): Promise<BookContext | null> {
@@ -46,8 +48,9 @@ export async function loadBookContext(session: Sb, isAdmin: boolean): Promise<Bo
   if (res.error && isMissingColumnError(res.error)) res = await session.from('settings').select('automations, branding').eq('tenant_id', tid).maybeSingle();
   const settings = res.data || {};
 
-  const fields = isAdmin ? [...FIELD_KEYS] : businessFieldsOf(settings);
-  const full = hasFullBook(settings);
+  const access = accessOf(settings, isAdmin);
+  const { fields, full } = access;
+  const cert = certificateOf(settings);
   const svc = await session.from('service_prices').select('id, name').eq('tenant_id', tid).or(ACTIVE_OR_NULL);
   const services = ((svc.data || []) as Row[])
     .filter((s) => s.id !== null && s.id !== undefined && typeof s.name === 'string' && s.name.trim())
@@ -59,8 +62,9 @@ export async function loadBookContext(session: Sb, isAdmin: boolean): Promise<Bo
     full,
     isAdmin,
     lang: bookLangOf(langOfSettings(settings)),
-    protocols: visibleProtocols({ fields, full, isAdmin }),
+    protocols: visibleProtocols(access),
     services,
     links: protocolLinks(settings),
+    certificate: { gate: !isAdmin && needsCertificate(fields) && !access.certified, status: cert ? cert.status : null },
   };
 }

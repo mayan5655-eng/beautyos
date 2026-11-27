@@ -8,7 +8,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { protocolBookEnabled, protocolForService, totalMinutes, bookLangOf, serviceIdForAppt } from "@/lib/protocolBook/book";
 import { progressOf } from "@/lib/protocolBook/course";
-import { businessFieldsOf } from "@/lib/businessFields";
 import { tr, getActiveLang } from "@/lib/i18n/tr";
 import Bidi from "./dashboard/protocol-book/Bidi";
 import { aftercareMessage } from "@/lib/protocolBook/aftercare";
@@ -20,7 +19,7 @@ export default function ApptProtocolCard({ settings, services, serviceName, clie
   const lang = bookLangOf(getActiveLang());
   const protocol = useMemo(() => {
     if (!ON) return undefined;
-    return protocolForService(settings, serviceIdForAppt(services, serviceName), businessFieldsOf(settings));
+    return protocolForService(settings, serviceIdForAppt(services, serviceName));
   }, [settings, services, serviceName]);
   const [open, setOpen] = useState(false);
   const [course, setCourse] = useState(undefined); // undefined: not loaded, null: none

@@ -15,7 +15,8 @@ import type { FieldKey } from '../businessFields.ts';
 import { FACIAL } from './facial.ts';
 import { NAILS } from './nails.ts';
 import type { BookLang, Protocol } from './types.ts';
-import { businessFieldsOf } from '../businessFields.ts';
+import { businessFieldsOf, FIELD_KEYS } from '../businessFields.ts';
+import { isCertified } from './certificate.ts';
 import { protocolFormOf } from './questions.ts';
 
 export * from './types.ts';
@@ -42,12 +43,23 @@ export function hasFullBook(settings: { automations?: unknown; feature_flags?: u
   return fromColumn === true || (fromColumn === undefined && fromAutos === true);
 }
 
-export type Access = { fields: FieldKey[]; full: boolean; isAdmin?: boolean };
+/** certified: her cosmetician certificate is on file and not rejected (lib/protocolBook/certificate.ts). Only the facial chapters ask for it. */
+export type Access = { fields: FieldKey[]; full: boolean; certified: boolean; isAdmin?: boolean };
+
+/** Her access, from her settings row. The one place it is derived, so every reader (page, routes, appointment card, forms) agrees. */
+export function accessOf(
+  settings: { automations?: unknown; feature_flags?: unknown; business_fields?: unknown } | null | undefined,
+  isAdmin = false,
+): Access {
+  return { fields: isAdmin ? [...FIELD_KEYS] : businessFieldsOf(settings), full: hasFullBook(settings), certified: isCertified(settings), isAdmin };
+}
 
 /** May she open this protocol? A platform admin sees everything, to check it. */
 export function canOpen(p: Protocol, a: Access): boolean {
   if (a.isAdmin) return true;
-  return a.fields.includes(p.field) && (p.tier === 'free' || a.full);
+  if (!a.fields.includes(p.field)) return false;
+  if (p.field === 'cosmetics' && !a.certified) return false;
+  return p.tier === 'free' || a.full;
 }
 
 /** The protocols she sees, in book order. */
@@ -78,11 +90,10 @@ export function protocolLinks(settings: { automations?: unknown } | null | undef
 export function protocolForService(
   settings: { automations?: unknown; feature_flags?: unknown; business_fields?: unknown } | null | undefined,
   serviceId: unknown,
-  fields: FieldKey[],
 ): Protocol | undefined {
   if (serviceId === null || serviceId === undefined || serviceId === '') return undefined;
   const p = protocolByKey(protocolLinks(settings)[String(serviceId)]);
-  return p && canOpen(p, { fields, full: hasFullBook(settings) }) ? p : undefined;
+  return p && canOpen(p, accessOf(settings)) ? p : undefined;
 }
 
 /** Set or clear one link, returning the new map. A null key removes it. */
@@ -119,7 +130,7 @@ export function protocolFormAllowed(
   if (!f) return true;
   if (!enabled) return false;
   const p = protocolByKey(f.key);
-  return !!p && canOpen(p, { fields: businessFieldsOf(settings), full: hasFullBook(settings) });
+  return !!p && canOpen(p, accessOf(settings));
 }
 
 /** The service row an appointment points at. Appointments store the treatment's name; a combined booking joins names with " + ". */

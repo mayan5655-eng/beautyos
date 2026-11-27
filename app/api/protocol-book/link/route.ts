@@ -12,9 +12,8 @@ import { NextResponse } from 'next/server';
 import { createClient as createSessionClient } from '@/lib/supabase/server';
 import { createAdminClient, requirePlatformAdmin } from '@/lib/adminGuard';
 import { requireActiveTenant } from '@/lib/planGuard';
-import { businessFieldsOf, FIELD_KEYS } from '@/lib/businessFields';
 import { isMissingColumnError } from '@/lib/pgError';
-import { protocolBookEnabled, protocolByKey, canOpen, hasFullBook, protocolLinks, withLink, LINKS_KEY } from '@/lib/protocolBook/book';
+import { protocolBookEnabled, protocolByKey, canOpen, accessOf, protocolLinks, withLink, LINKS_KEY } from '@/lib/protocolBook/book';
 
 const fail = (error: string, status: number) => NextResponse.json({ success: false, error }, { status });
 
@@ -46,9 +45,7 @@ export async function POST(request: Request) {
   if (key !== null) {
     const p = protocolByKey(key);
     if (!p) return fail('הפרוטוקול לא נמצא', 404);
-    const isAdmin = (await requirePlatformAdmin()).ok;
-    const fields = isAdmin ? [...FIELD_KEYS] : businessFieldsOf(settings);
-    if (!canOpen(p, { fields, full: hasFullBook(settings), isAdmin })) return fail('הפרוטוקול הזה לא פתוח לעסק שלך', 403);
+    if (!canOpen(p, accessOf(settings, (await requirePlatformAdmin()).ok))) return fail('הפרוטוקול הזה לא פתוח לעסק שלך', 403);
   }
 
   const autos = settings.automations && typeof settings.automations === 'object' && !Array.isArray(settings.automations)

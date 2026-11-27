@@ -12,6 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UI, CHAPTERS, SECTIONS, SKIN, NAIL, PHOTOS } from "@/lib/protocolBook/labels";
 import { LOGO_FULL, FLOWER_FULL } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
+import { resizeImage } from "@/lib/imageResize";
+import { CERT_MAX_BYTES, CERT_TYPES } from "@/lib/protocolBook/certificate";
 import { totalMinutes, withLink } from "@/lib/protocolBook/book";
 import Bidi from "./Bidi";
 
@@ -286,9 +288,54 @@ function ProtocolPage({ p, lang, t, no, services, links, setLinks, allProtocols 
   );
 }
 
+// The certificate gate on the facial chapters: a file, a declaration, one button. The chapters open on upload; the page
+// reloads so the protocols come from the server (they are never in this bundle before that).
+function CertificateGate({ t, lang, status }) {
+  const c = t.cert;
+  const [file, setFile] = useState(null);
+  const [declared, setDeclared] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const send = async () => {
+    if (!file || !declared) { setMsg(c.needBoth); return; }
+    setBusy(true); setMsg("");
+    try {
+      let body = file;
+      // A phone photo is far over the 4MB a request may carry: shrink it first. A PDF goes as it is.
+      if (file.type.startsWith("image/")) body = new File([await resizeImage(file, { maxWidth: 1800, maxHeight: 1800, quality: 0.85, type: "image/jpeg" })], "certificate.jpg", { type: "image/jpeg" });
+      if (!CERT_TYPES[body.type] || body.size > CERT_MAX_BYTES) { setMsg(c.tooBig); return; }
+      const fd = new FormData();
+      fd.append("file", body);
+      fd.append("declared", "true");
+      const res = await fetch("/api/protocol-book/certificate", { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.success) { setMsg(res.status === 413 ? c.tooBig : c.error); return; }
+      window.location.reload();
+    } catch { setMsg(c.error); } finally { setBusy(false); }
+  };
+  return (
+    <section className="pb-cert" aria-labelledby="pb-cert-title" data-testid="protocol-cert-gate">
+      <p className="pb-pill">{SECTIONS.cosmetics[lang]}</p>
+      <h3 className="pb-cert-title" id="pb-cert-title">{c.title}</h3>
+      {status === "rejected" && <p className="pb-warn">{c.rejected}</p>}
+      <p className="pb-cert-body">{c.body}</p>
+      <label className="pb-cert-file">
+        <span>{c.choose}</span>
+        <input type="file" id="pb-cert-file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => { setFile(e.target.files?.[0] || null); setMsg(""); }} />
+      </label>
+      <label className="pb-cert-declare">
+        <input type="checkbox" id="pb-cert-declare" checked={declared} onChange={(e) => { setDeclared(e.target.checked); setMsg(""); }} />
+        <span>{c.declare}</span>
+      </label>
+      <button type="button" className="pb-cert-send" onClick={send} disabled={busy}>{busy ? c.sending : c.send}</button>
+      <p className="pb-cert-msg" role="alert" aria-live="polite">{msg}</p>
+    </section>
+  );
+}
+
 // ── The reader ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export default function ProtocolBookView({ protocols, fields, services, links: initialLinks, initialLang }) {
+export default function ProtocolBookView({ protocols, fields, services, links: initialLinks, initialLang, certificate }) {
   const [lang, setLang] = useState(initialLang || "he");
   const [links, setLinks] = useState(initialLinks || {});
   const t = UI[lang];
@@ -397,6 +444,7 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
             </ul>
           </div>
         ))}
+        {certificate?.gate && <CertificateGate t={t} lang={lang} status={certificate.status} />}
         <p className="pb-disclaimer">{t.disclaimer}</p>
       </div>
     </>
@@ -605,6 +653,19 @@ background:radial-gradient(circle at 12% 18%,rgba(255,240,190,.9) 0 10px,transpa
 .pb-cover-foot{gap:4px;background:rgba(252,249,243,.75);border-radius:999px;padding:6px 22px}
 .pb-author{font-family:var(--display-heavy);font-size:clamp(22px,5vw,28px);font-weight:700;color:var(--pb-ink)}
 .pb-site{font-family:var(--pb-num-font);font-size:16px;color:var(--pb-ink);direction:ltr}
+
+/* The certificate gate */
+.pb-cert{display:flex;flex-direction:column;gap:12px;align-items:stretch;border:1px solid var(--pb-line);border-radius:6px;padding:18px 16px;background:rgba(255,255,255,.75)}
+.pb-cert-title{font-family:var(--display-heavy);font-weight:800;font-size:clamp(20px,5vw,26px);margin:0;text-align:center;color:var(--pb-ink)}
+.pb-cert-body{margin:0;font-size:var(--t-md);line-height:1.7;color:var(--pb-ink-2)}
+.pb-cert-file{display:flex;flex-direction:column;gap:6px;font-size:var(--t-sm);font-weight:700}
+.pb-cert-file input{font:inherit;font-weight:400;max-width:100%}
+.pb-cert-declare{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start;font-size:var(--t-md);line-height:1.6;cursor:pointer}
+.pb-cert-declare input{width:20px;height:20px;margin-top:3px;accent-color:var(--pb-ink)}
+.pb-cert-send{font:inherit;font-weight:700;font-size:var(--t-md);min-height:46px;border:0;border-radius:999px;background:var(--pb-ink);color:#fff;cursor:pointer;padding:10px 22px}
+.pb-cert-send:disabled{opacity:.6;cursor:default}
+.pb-cert-send:focus-visible{outline:2px solid var(--pb-gold);outline-offset:2px}
+.pb-cert-msg{margin:0;min-height:1.4em;font-size:var(--t-sm);color:var(--pb-petal-ink);text-align:center}
 
 /* The link panel (her services) */
 .pb-link{border:1px solid var(--pb-line);border-radius:6px;padding:14px;background:rgba(255,255,255,.7)}
