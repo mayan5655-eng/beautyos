@@ -34,7 +34,8 @@ await ok('10: toasts last long enough, and an undo never outlives what it protec
   assert.ok(UNDO_SETTLE_MS > TOAST_ACTION_MS);
   assert.match(app, /toastDurationMs\(msg, !!action\)/);
   assert.ok(!/\}, 65\d\d\);/.test(app), 'the cancel follow-ups wait for UNDO_SETTLE_MS, not the old 6.5s');
-  assert.equal((app.match(/UNDO_SETTLE_MS/g) || []).length >= 5, true);
+  // Four uses. It was five with the import line, which now lives in the sections that use it (scripts/prune-imports.mjs).
+  assert.equal((app.match(/UNDO_SETTLE_MS/g) || []).length >= 4, true);
   assert.match(app, /@media \(max-width:680px\)\{[\s\S]{0,400}\.toast-stack\{top:auto!important;bottom:calc\(74px \+ env\(safe-area-inset-bottom, 0px\) \+ 14px\)!important\}/);
   assert.match(app, /\.toast-stack \.toast\{font-size:var\(--t-md\)!important\}/);
 });

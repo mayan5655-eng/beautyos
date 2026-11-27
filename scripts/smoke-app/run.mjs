@@ -104,7 +104,8 @@ function cleanup() {
   if (wrotePage) {
     fs.rmSync(PAGE_DIR, { recursive: true, force: true }); wrotePage = false;
     // The dev server generated route types that name the page just deleted; left behind, they fail the next `tsc --noEmit`.
-    fs.rmSync(path.join(ROOT, '.next', 'dev'), { recursive: true, force: true });
+    // (The server may still be writing its cache for a moment after the signal: retried, and never worth failing a run over.)
+    try { fs.rmSync(path.join(ROOT, '.next', 'dev'), { recursive: true, force: true, maxRetries: 5, retryDelay: 400 }); } catch { /* left for the next run */ }
   }
   if (agentsBefore !== null && fs.existsSync(AGENTS) && fs.readFileSync(AGENTS, 'utf8') !== agentsBefore) fs.writeFileSync(AGENTS, agentsBefore);
 }

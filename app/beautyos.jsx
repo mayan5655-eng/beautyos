@@ -1,44 +1,22 @@
 "use client";
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
-import { parseDb } from "@/lib/dbTime";
-import { normalizeIsraeliMobile, waLink as waMsgLink } from "@/lib/phone";
-import { APP_URL } from "@/lib/appUrl";
-import { displayName } from "@/lib/personName";
-import { SETTINGS_SWATCHES, swatchLabel } from "@/lib/brandSwatches";
 import { useRouter } from "next/navigation";
 import { supabase } from "./supabase";
-import { daysSinceLastVisit, isActiveClient, isColdClient, winbackDaysOf } from "@/lib/clientActivity";
 import FloralCorners from "./FloralCorners";
-import { PRIVATE_BUCKET, PUBLIC_BUCKET, clientImagePath, toStoragePath } from "../lib/clientImages";
-import { dayHoursFrom, normalizeBusinessHours, legacyHoursFromMap, nextOpenDay, newApptStart } from "@/lib/businessHours";
 import { planState } from "@/lib/planState";
-import { WRITE_BLOCKED_TOAST_HE, DISABLED_REASON_HE, READ_ONLY_BADGE_HE } from "@/lib/planCopy";
-import { LEAD_STATUS_KEYS, LEAD_STATUS_LABELS, LEGACY_LEAD_STATUS_LABELS } from "@/lib/leads/statuses";
-import { renderLeadTemplate, resolveLeadTemplate, hasLeadPlaceholders, pickPreviewLead, DEFAULT_LEAD_TEMPLATES } from "@/lib/leads/templates";
-import { matchesQuery } from "@/lib/search/matchQuery";
-import { contactAgoHe, contactSummaryHe } from "@/lib/leads/contact";
-import { hexToRgb, lighten, darken, applyAccentTokens, accentStyle, DEFAULT_ACCENT } from "@/lib/theme";
-import { LOGO_COMPACT, BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_128, FLOWER_256, ROSE_DIVIDER, ICON_QUESTION, ICON_MICROPHONE, ICON_HEART, ICON_FLOWER, ICON_CALENDAR, ICON_PERSON, ICON_ENVELOPE, ICON_WALLET, ICON_FRAME, ICON_SPARKLE, BANNER_WIDE, BANNER_WIDE_W, BANNER_WIDE_H } from "@/lib/brand";
+import { BRAND_WASH, FLORAL_BLUSH, FLORAL_LILAC, FLOWER_64, FLOWER_256, ICON_QUESTION } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import TrialNudge from "./TrialNudge";
-import FirstBookingCard from "./FirstBookingCard";
-import { firstBookingCardEnabled, firstBookingSteps, firstBookingRecord, firstBookingView, showSetupOnToday, showAttentionOnToday, firstBookingStorageKey, firstLinkMessage, FIRST_BOOKING_KEY } from "@/lib/firstBooking";
 import FeedbackBanner from "./FeedbackBanner";
-import { usePendingSaveCount, flushPendingSaves, clearPendingSaves } from "./pendingSaves";
 import BillingNotices from "./BillingNotices";
-import { addonPackForMessage, OPEN_ADDONS_EVENT } from "@/lib/addonOffer";
-import { openUpgrades } from "@/lib/upgradesStore";
-import { addonButtonHe } from "@/lib/pricing";
 // "שדרוגים ✨": the one-tap store for what she buys from Kalmea, its entry points, and the chip on each metered screen.
-import UpgradesStore, { UpgradeChip, UpgradesEntry, loadUpgrades, packAvailable, setUpgradesIdentity, clearUpgrades } from "./UpgradesStore";
+import UpgradesStore from "./UpgradesStore";
 import PlanBlockedScreen from "./PlanBlockedScreen";
 const BillingCard = dynamic(() => import("./BillingCard"), { ssr: false });
 const BusinessReferralCard = dynamic(() => import("./BusinessReferralCard"), { ssr: false });
 const OnboardingTour = dynamic(() => import("./OnboardingTour"), { ssr: false });
 import { isDemoTenantId } from "@/lib/demoTenants";
-import { installDemoOutboundGuard } from "@/lib/demoOutbound";
-import { CESDK_POC } from "./cesdk-poc/flag"; // cesdk-poc: dev-only proof of concept, see app/cesdk-poc/README.md
 const CesdkReelPoc = dynamic(() => import("./cesdk-poc/ReelPoc"), { ssr: false });
 // The design studio: templates in her branding, her saved designs (lib/design + app/design).
 const DesignStudio = dynamic(() => import("./design/DesignStudio"), { ssr: false });
@@ -46,64 +24,23 @@ const DesignStudio = dynamic(() => import("./design/DesignStudio"), { ssr: false
 const PhotoToPost = dynamic(() => import("./design/PhotoToPost"), { ssr: false });
 // "רילס מהצילומים שלי": her own photos and clips -> a reel in her brand (app/design/OwnReel.jsx), reached from the photo sheet.
 const OwnReel = dynamic(() => import("./design/OwnReel"), { ssr: false });
-import EmptyState from "./EmptyState";
 import Sheet from "./Sheet";
 import Spinner from "./Spinner";
 import DeferredGate from "./DeferredGate";
-import Icon from "./Icon";
-import { startMinute, endMinute, fmtTime, fmtApptTime, startFields, toMinutes, clashesWith, slotsBetween } from "@/lib/apptTime";
-import { eveningSummaryOn, withEveningSummary } from "@/lib/eveningSummarySetting";
-import { exemptCeilingWarning } from "@/lib/vatExemptCeiling";
-import { bufferLookup, businessBufferDefault, cleanBufferMinutes, bufferedRange, clashesWithBuffer, BUFFER_OPTIONS, SERVICE_BUFFER_PENDING_HE, SERVICE_BUFFER_LABEL_HE } from "@/lib/serviceBuffer";
-import { suggestedRebookDays, cleanRebookDays, typedRebookDays, rebookVisible } from "@/lib/reminders/rebookPlan.js";
-import { waitlistOffersOn, waitlistOffersVisible, waitlistOfferToast } from "@/lib/waitlistFlag.js";
-import { DISMISS_KEY as SUGGEST_DISMISS_KEY } from "@/lib/automationSuggest.js";
-import { firstFreeStart } from "@/lib/apptFirstFree";
-import { isPersonal, isClientAppointment, isAllDay, PERSONAL, ALL_DAY_DURATION } from "@/lib/calendarKind";
-import { isMissingColumnError, missingColumnName } from "@/lib/pgError";
-import { apptBufferField, writeWithApptBuffer } from "@/lib/apptBuffer";
-import { loyaltyConfig, loyaltyState, rewardAtTill, afterSaveLine, messageMoment, loyaltyMessage, isMissingLoyaltyTable, isRewardReceipt, rewardGivenOn, loyaltyLedgersSettled, rewardIsStale } from "@/lib/loyalty";
-import LoyaltySettings from "./LoyaltySettings";
-import LoyaltyClientCard from "./LoyaltyClientCard";
-import { paymentsOf, isSplit, validateSplit, discountAmount, liveReceipts, voidOf, voidedIds, totalsOf, receiptsOnDay, monthSummary, bucketByMethod, paidWith, localDayKey, SPLIT_METHOD, mostUsedMethod } from "@/lib/till";
-import { docLabelHe, PAYMENT_NOTICE_HE, PAYMENT_NOTICES_HE, legalStateHe, creditStateHe, needsLegalDoc } from "@/lib/legalReceipts/policy";
-import { effectiveMode, periodFilter, periodLabel, incomeTotals } from "@/lib/incomePeriod";
-import { monthlyReport } from "@/lib/monthlyReport";
-import { tourOnNavigate, tourResumeStep, tourStrandedOutsideSettings, tourMayStart, tourStepsFor } from "@/lib/tourFlow";
-import { NO_SHOW, clientReliability, reliabilityLine, canMarkNoShow, recurrenceDates, shortDates, applyPersonalPreset, PERSONAL_PRESETS } from "@/lib/reliability";
-import { tightGapAppointmentIds, TIGHT_GAP_MINUTES } from "@/lib/scheduleGaps";
-import { durationOutcome, durationOutcomeHe } from "@/lib/durationDrift";
-import { greet as msgGreet, lines as msgLines, mapsLink as msgMapsLink, hebrewDate as msgHebrewDate, moveLine as msgMoveLine } from "@/lib/messages.js";
+import { liveReceipts } from "@/lib/till";
+import { tourOnNavigate, tourStrandedOutsideSettings } from "@/lib/tourFlow";
 
 import {dayWordFor} from "./shared/dayWord"; // @shared-module
-import { resizeImage, IMAGE_PRESETS, MAX_SOURCE_BYTES, TOO_LARGE_SOURCE_HE, COULD_NOT_SHRINK_HE, notUploadable } from "@/lib/imageResize";
-import { readAllRows } from "@/lib/pagedRead";
-import { historyCutoff, mergeById } from "@/lib/historyWindow";
-import { advisorWaitLine } from "@/lib/advisorWait";
-import { defaultHowIWork, defaultHeroHeadline, defaultValueProps } from "@/lib/branding";
-import { STUCK_HE, SAVE_FAILED_HE, couldNotHe } from "@/lib/errorCopy";
-import { LUNCH_DEFAULT } from "@/lib/lunchBreak";
-import { buildClosingList, ALL_CLEAR_HE } from "@/lib/closingList";
-import { buildNextClientBrief, untilHe } from "@/lib/nextClient";
-import { serviceImage, defaultImageUrl } from "@/lib/defaultImages";
+import { couldNotHe } from "@/lib/errorCopy";
 const ResultsManager = dynamic(() => import("./ResultsManager"), { ssr: false });
 import ChromeFlowerBg from "./ChromeFlowerBg";
-import { quietStatus } from "@/lib/quiet";
-import { slugError } from "@/lib/slug";
-import { latinSlugFromName } from "@/lib/latinSlug";
 import * as Sentry from "@/lib/sentryLazy";
-import { supportWhatsAppUrl, SUPPORT_WHATSAPP_MESSAGE, SUPPORT_TEAM_HE } from "@/lib/support";
-import HelpChat from "./HelpChat";
 const LeadImportModal = dynamic(() => import("./LeadImportModal"), { ssr: false });
 const LapsedClientsModal = dynamic(() => import("./LapsedClientsModal"), { ssr: false });
 // Loaded after the home screen is up: it pulls the template catalogue for today's post suggestion.
 const MarketingToday = dynamic(() => import("./MarketingToday"), { ssr: false });
-import { canMarket, marketingStatus, withMarketingFooter, withAdLabel, consentFields, optOutFields, MARKETING_FOOTER } from "@/lib/marketingConsent";
-import { DEFAULT_LEAD_SOURCES, resolveLeadSources, sourceLabelHe } from "@/lib/leadSources";
-import { buildSourceReport } from "@/lib/sourceReport";
 const LeadSourcesEditor = dynamic(() => import("./LeadSourcesEditor"), { ssr: false });
 const SourceReport = dynamic(() => import("./SourceReport"), { ssr: false });
-import GoalsCard from "./GoalsCard";
 const GoalsEditor = dynamic(() => import("./GoalsEditor"), { ssr: false });
 const VisitFeedbackPanel = dynamic(() => import("./VisitFeedbackPanel"), { ssr: false });
 const BookingButtonsCard = dynamic(() => import("./BookingButtonsCard"), { ssr: false });
@@ -137,7 +74,6 @@ const GrowCashierCredit = dynamic(() => import("./GrowCashierCredit"), { ssr: fa
 const MembershipsPanel = dynamic(() => import("./MembershipsPanel"), { ssr: false });
 const MembershipClientCard = dynamic(() => import("./MembershipClientCard"), { ssr: false });
 const MembershipTill = dynamic(() => import("./MembershipTill"), { ssr: false });
-import { clientMembershipsEnabled, MEMBERSHIP_PAYMENT } from "@/lib/membershipFlag";
 // Gift vouchers (lib/giftVouchers.ts): the cashier list and sale, the till redemption, the settings. Each renders nothing unless the
 // platform flag automations.feature_flags.gift_vouchers is on.
 const GiftVouchersPanel = dynamic(() => import("./GiftVouchersPanel"), { ssr: false });
@@ -148,12 +84,7 @@ const GiftVoucherMarketingCard = dynamic(() => import("./GiftVoucherMarketingCar
 // each renders nothing when products are switched off (platform flag or her own switch) or before the migration has run.
 const ProductsPanel = dynamic(() => import("./ProductsPanel"), { ssr: false });
 const ProductSettings = dynamic(() => import("./ProductSettings"), { ssr: false });
-import { ProductTillPicker, ProductTillWarnings } from "./ProductsTill";
 import useProducts from "./useProducts";
-import { lowStockAttention, productsConfig } from "@/lib/products";
-import { tillTabsOf, activeTillTab } from "@/lib/tillTabs";
-import { VOID_REFUND_HE } from "@/lib/grow/voidRefund";
-import { REFUND_STATE_HE, REFUND_STUCK_HE, stateFromVoidRefundAnswer } from "@/lib/grow/refundFollowups";
 const DepositLinkSheet = dynamic(() => import("./DepositLinkSheet"), { ssr: false });
 const RebookNextSheet = dynamic(() => import("./RebookNextSheet"), { ssr: false });
 const ClientPageSheet = dynamic(() => import("./ClientPageSheet"), { ssr: false });
@@ -163,32 +94,9 @@ const FieldPicker = dynamic(() => import("./FieldPicker"), { ssr: false });
 const GrowPaymentRequests = dynamic(() => import("./GrowPaymentRequests"), { ssr: false });
 const CalendarFeedCard = dynamic(() => import("./CalendarFeedCard"), { ssr: false });
 import FeeQuestions from "./FeeQuestions";
-import HoldBadge from "./HoldBadge";
-import ServiceDepositToggle from "./ServiceDepositToggle";
-// The pre-visit intake gate (lib/intakeGate.ts): per-service setting, calendar badges, "send the form" in her queue.
-import ServiceIntakeToggle from "./ServiceIntakeToggle";
-import IntakeBadge, { IntakeQueueSync } from "./IntakeBadge";
-import { intakeColumnReady } from "@/lib/intakeGate";
-import ApptDepositToggle from "./ApptDepositToggle";
-import MyDayCard from "./MyDayCard";
-import { toastDurationMs, UNDO_SETTLE_MS } from "@/lib/toastDuration";
-import { apptStatus, APPT_STATUS_TONE_COLOR } from "@/lib/apptStatus";
-import { buildMyDay, myDayEnabled } from "@/lib/myDay";
-import { feesChanged } from "./useFees";
-import { resolveGoals } from "@/lib/goals";
-import { accountantSheets, periodProfit } from "@/lib/accountantPack";
-import { displayPhone } from "@/lib/publicLanding";
-import { countHe } from "@/lib/hebrewCount";
-import { waStatusLabel, WA_TYPE_LABELS as WA_TYPE_LABELS_BASE } from "@/lib/waStatusLabel";
-import { birthdayMessage, birthdayOfferOf } from "@/lib/birthdayOffer";
-import { withSource } from "@/lib/bookingSource";
-import { googleKitEnabled } from "@/lib/googleKit";
-import { isTabVisible, visibleTabIds, settingsToggleTabs, SWITCHABLE_LABELS, skinScanVisible, SKIN_SCAN_LABEL, voiceBookingVisible } from "@/lib/featureFlags";
-import { VIEW_MODE_KEY, VIEW_MODES, VIEW_MODE_LABELS, viewModeOf, isTillOnly, viewAllowsTab, viewAllowsSettingsGroup, bottomNavIds, moreNavIds } from "@/lib/viewMode";
-import { reviewTimingOf, looksLikeGoogleLink, GOOGLE_LINK_HELP, GOOGLE_LINK_INVALID_HE } from "@/lib/reviewRequests";
+import { isTabVisible, visibleTabIds, voiceBookingVisible } from "@/lib/featureFlags";
+import { isTillOnly, viewAllowsTab, bottomNavIds, moreNavIds } from "@/lib/viewMode";
 import { monthlyPageOn } from "@/lib/monthlyFull";
-import { giftVouchersVisible, giftVouchersSelling, voucherRedeemNote, voucherOverUsed, VOUCHER_OVER_USED_HE, receiptMethodLabel, paidByVoucher, splitVoucherCodes } from "@/lib/giftVouchers";
-import { screenFromSearch, searchForScreen, sameScreen, viewOf, loginPathForScreen } from "@/lib/screenLink";
 const ServiceTemplatePicker = dynamic(() => import("./ServiceTemplatePicker"), { ssr: false });
 // Where bookings come from, and the "bring a friend" link (lib/bookingSource.ts).
 const ClientReferral = dynamic(() => import("./ClientReferral"), { ssr: false });
@@ -199,21 +107,14 @@ const TeamSettings = dynamic(() => import("./TeamSettings"), { ssr: false });
 const TeamReport = dynamic(() => import("./TeamReport"), { ssr: false });
 // The team calendar filter's "everyone".
 const STAFF_FILTER_ALL = "all";
-import { businessFieldsOf, BUSINESS_FIELDS } from "@/lib/businessFields";
-import { DEFAULT_SERVICE_COLOR, SERVICE_COLOR_CYCLE } from "@/lib/serviceColors";
-import { ownServices } from "@/lib/serviceScope";
-import { deliverFile, deliveryToast, dataUrlToBlob } from "@/lib/deliverFile";
-import { copyText } from "@/lib/copyText";
-import { preloadXlsx, loadedXlsx, getXlsx, workbookBlob } from "@/lib/xlsxLoader";
+import { businessFieldsOf } from "@/lib/businessFields";
+import { DEFAULT_SERVICE_COLOR } from "@/lib/serviceColors";
 
 import {AutoToggleRow,SignedImage,Toggle} from "./shared/smallParts"; // @shared-module
 
 import {SEARCH_GROUPS,VOICE_COMMANDS,VoiceCommandList} from "./shared/voiceCommands"; // @shared-module
 
 import {CLOSE_HOURS,DAYS_HE,HOURS_ALL,hourSelectStyle,SCAN_STEPS,WK_ROW_H} from "./shared/calendarConstants"; // @shared-module
-import { HELP_TITLE, HELP_INTRO, helpSectionsFor, TUTORIAL_TITLES, tutorialHref } from "@/lib/helpSections";
-// What is switched on for her (2026-11-09: nothing inactive is shown, help included): her settings plus the server-only switches.
-import { helpGatesFor } from "@/lib/helpVisibility";
 import { useDeployFlags } from "./useDeployFlags";
 
 import {_PLAN_BASIC,_PLAN_PREMIUM,_PLAN_PRO,EXPENSE_CATEGORIES,fmtPhone,FORM_LIST_COLUMNS,FORM_TYPES,FORM_TYPES_ALL,helpInline,LEAD_SOURCES,LEAD_STATUS_COLORS,LEAD_STATUSES,leadStatusMeta,LEGACY_LEAD_STATUS_COLORS,LEGACY_LEAD_STATUSES,MONTHS_HE,PACKAGE_PAYMENT,PAYMENT_METHODS,PLAN_FEATURES,planAllows,SELECTABLE_PAYMENT_METHODS,SKIN_TYPES,SOURCE_ICONS,STATUS_COLORS,STATUS_LABELS,TAX_DISCLAIMER,TAX_STATUS_HE,taxStatusUnconfirmed,TOUR_STEPS,VAT_RATE,vatRateForYear} from "./shared/businessConstants"; // @shared-module
@@ -246,48 +147,20 @@ const emptyClient = {name:"",phone:"",birthday:"",skinType:"",allergies:"",medic
 
 // The client fields a pasted column can be mapped onto. Note skinType, not
 // skintype: the table has both, and the rest of the app writes camelCase.
-import { parseImportGrid, detectHeaderRow, buildServiceRows, buildImportRows, buildApptRows, withServiceDefaults, countExistingServices, IMPORT_SPEC, importPhoneKey } from "@/lib/importMapping";
-import { vcardImportText, isVcardFile, VCARD_ACCEPT } from "@/lib/vcard";
-import { LANGS, LANG_LABELS, langOfSettings, speechLangOf } from "@/lib/i18n/core";
+import { IMPORT_SPEC } from "@/lib/importMapping";
+import { langOfSettings } from "@/lib/i18n/core";
 import { applyOwnerLang, cachedOwnerLang, devLangOverride } from "@/lib/i18n/ownerLang";
-import { tr, trv, uiDir, getActiveLang } from "@/lib/i18n/tr";
+import { tr, trv, uiDir } from "@/lib/i18n/tr";
 import { academyEnabled } from "@/lib/academy";
-import { protocolFormAllowed } from "@/lib/protocolBook/book";
-import { PROTOCOL_FORMS, protocolFormTitle } from "@/lib/protocolBook/questions";
 // The team calendar (lib/team.ts, NEXT_PUBLIC_TEAM_CALENDAR): off, or fewer than two active staff = team.on is false and the
 // calendar is exactly the one-practitioner calendar it was.
 import useTeam from "./useTeam";
-import { activeStaff as teamActiveStaff, ownerOf as teamOwnerOf, sameStaff, staffIdForWrite, staffOfAppt, formDayHours } from "@/lib/team";
-import ProtocolsScreen from "./screens/ProtocolsScreen";
-import PackagesScreen from "./screens/PackagesScreen";
-import CommunityScreen from "./screens/CommunityScreen";
-import AdvisorScreen from "./screens/AdvisorScreen";
-import CashierScreen from "./screens/CashierScreen";
-import ClientsScreen from "./screens/ClientsScreen";
+import { activeStaff as teamActiveStaff, ownerOf as teamOwnerOf, sameStaff, staffIdForWrite, staffOfAppt } from "@/lib/team";
 import CalendarScreen from "./screens/CalendarScreen";
-import CampaignsScreen from "./screens/CampaignsScreen";
-import WhatsappScreen from "./screens/WhatsappScreen";
-import TaxScreen from "./screens/TaxScreen";
-import HelpScreen from "./screens/HelpScreen";
-import ScanReportModal from "./screens/ScanReportModal";
-import ClientCardModal from "./screens/ClientCardModal";
-import SettingsScreen from "./screens/SettingsScreen";
-import PersonalEventModal from "./screens/PersonalEventModal";
-import ReceiptModal from "./screens/ReceiptModal";
-import CashierModal from "./screens/CashierModal";
-import BulkStatusModal from "./screens/BulkStatusModal";
-import ImportModal from "./screens/ImportModal";
-import ApptModal from "./screens/ApptModal";
-import LeadsScreen from "./screens/LeadsScreen";
-import InsightsScreen from "./screens/InsightsScreen";
+// Everything that is not on the first screen is loaded on demand, and fetched in the background once the app is up (app/screens/lazy.jsx).
+import {AdvisorScreen,ApptModal,BulkStatusModal,CampaignsScreen,CashierModal,CashierScreen,ClientCardModal,ClientsScreen,CommunityScreen,ComposeSendModal,HelpScreen,ImportModal,InsightsScreen,LeadCardModal,LeadsScreen,MoreSheetModal,PackageModal,PackagesScreen,PersonalEventModal,ProtocolsScreen,ReceiptModal,ScanReportModal,SettingsScreen,TaxScreen,VoiceModal,WaQueueModal,WhatsappScreen,PreloadScreens} from "./screens/lazy"; // @lazy-screens
 import DashboardScreen from "./screens/DashboardScreen";
-import VoiceModal from "./screens/VoiceModal";
 import HelpModal from "./screens/HelpModal";
-import LeadCardModal from "./screens/LeadCardModal";
-import MoreSheetModal from "./screens/MoreSheetModal";
-import PackageModal from "./screens/PackageModal";
-import WaQueueModal from "./screens/WaQueueModal";
-import ComposeSendModal from "./screens/ComposeSendModal";
 import { useDataLoadingSection } from "./sections/useDataLoadingSection";
 import { useDerivedDataSection } from "./sections/useDerivedDataSection";
 import { useCalendarViewSection } from "./sections/useCalendarViewSection";
@@ -1583,6 +1456,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
                     colourful watercolor instead of a single-colour wash. */}
  <FloralCorners idPrefix="app" fixed zIndex={1} blush={FLORAL_BLUSH} gold={FLORAL_LILAC} skipTop opacity={floralOpacity} />
  <AppStylesPart ctx={{pc}}/>
+ <PreloadScreens/>
 
       {photoPost&&<PhotoToPost open onClose={()=>setPhotoPost(null)} settings={settings} toast={toast} readOnly={readOnly} clientName={photoPost.clientName||""} onReel={()=>{setOwnReel({clientName:photoPost.clientName||""});setPhotoPost(null);}}/>}
       {ownReel&&<OwnReel open onClose={()=>setOwnReel(null)} settings={settings} toast={toast} readOnly={readOnly} clientName={ownReel.clientName||""}/>}

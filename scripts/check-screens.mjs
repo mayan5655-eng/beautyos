@@ -10,6 +10,16 @@ const DIR = 'app/screens';
 const main = fs.readFileSync('app/beautyos.jsx', 'utf8');
 const files = fs.existsSync(DIR) ? fs.readdirSync(DIR).filter((f) => /(?:Screen|Modal|Part)\.jsx$/.test(f)).sort() : [];
 const fail = [];
+// app/screens/lazy.jsx: the screens loaded on demand. Three lists must name the same screens: the dynamic() exports, the
+// preload list, and what beautyos.jsx imports from it.
+const lazySrc = fs.existsSync(`${DIR}/lazy.jsx`) ? fs.readFileSync(`${DIR}/lazy.jsx`, 'utf8') : '';
+const lazyNames = new Set([...lazySrc.matchAll(/^export const ([A-Z][A-Za-z]*) = dynamic\(\(\) => import\("\.\/\1"\), \{ ssr: false, loading: (?:TabLoading|nothing) \}\);$/gm)].map((m) => m[1]));
+const lazyPreloaded = new Set([...(lazySrc.match(/const LOADERS = \[([\s\S]*?)\];/) || ['', ''])[1].matchAll(/import\("\.\/([A-Z][A-Za-z]*)"\)/g)].map((m) => m[1]));
+const lazyLine = main.match(/^import \{([^{}\n]*)\} from "\.\/screens\/lazy"; \/\/ @lazy-screens$/m);
+const lazyImported = new Set(lazyLine ? lazyLine[1].split(',').map((x) => x.trim()).filter((x) => x && x !== 'PreloadScreens') : []);
+for (const n of lazyImported) if (!lazyNames.has(n)) fail.push(`lazy.jsx: beautyos.jsx imports ${n} from it, which it does not export as a screen`);
+for (const n of lazyPreloaded) if (!lazyNames.has(n)) fail.push(`lazy.jsx: ${n} is preloaded but is not one of its screens`);
+if (lazyNames.size && !/<PreloadScreens\/>/.test(main)) fail.push('lazy.jsx: beautyos.jsx never renders <PreloadScreens/>');
 const names = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
 for (const f of files) {
@@ -19,7 +29,12 @@ for (const f of files) {
   const calls = [...main.matchAll(new RegExp(`<${name} ctx=\\{\\{([^{}]*)\\}\\}\\/>`, 'g'))];
   if (!taken) { fail.push(`${f}: no \`const { ... } = ctx;\``); continue; }
   if (calls.length !== 1) { fail.push(`${f}: beautyos.jsx renders <${name} ctx={{...}}/> ${calls.length} times, expected once`); continue; }
-  if (!new RegExp(`^import ${name} from "\\./screens/${name}";$`, 'm').test(main)) fail.push(`${f}: beautyos.jsx does not import it`);
+  // Imported directly (in the first download) or through app/screens/lazy.jsx (its own chunk), never both.
+  const direct = new RegExp(`^import ${name} from "\\./screens/${name}";$`, 'm').test(main);
+  const isLazy = lazyNames.has(name);
+  if (direct === isLazy) fail.push(`${f}: beautyos.jsx must import it either directly or from ./screens/lazy (${direct ? 'both' : 'neither'} found)`);
+  if (isLazy && !lazyImported.has(name)) fail.push(`${f}: it is in app/screens/lazy.jsx but beautyos.jsx does not import it from there`);
+  if (isLazy && !lazyPreloaded.has(name)) fail.push(`${f}: it is lazy but missing from the preload list in app/screens/lazy.jsx`);
   const want = new Set(names(taken[1])), given = new Set(names(calls[0][1]));
   const missing = [...want].filter((n) => !given.has(n)), extra = [...given].filter((n) => !want.has(n));
   if (missing.length) fail.push(`${f}: takes from ctx what beautyos.jsx does not pass: ${missing.join(', ')}`);
@@ -75,4 +90,4 @@ for (const f of shared) {
 }
 
 if (fail.length) { console.error('check-screens: FAILED\n  ' + fail.join('\n  ')); process.exit(1); }
-console.log(`check-screens: ${files.length} screen(s), ${sections.length} logic section(s) and ${shared.length} shared module(s) agree with app/beautyos.jsx`);
+console.log(`check-screens: ${files.length} screen(s) (${lazyNames.size} loaded on demand), ${sections.length} logic section(s) and ${shared.length} shared module(s) agree with app/beautyos.jsx`);

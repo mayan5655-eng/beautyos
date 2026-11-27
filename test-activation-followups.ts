@@ -132,7 +132,11 @@ ok('the vCard text goes through the existing mapping, preview and dedupe unchang
 });
 
 ok('wired: the vCard button is in the clients import paste step, with the iPhone how-to', () => {
-  assert.match(app, /import \{ vcardImportText, isVcardFile, VCARD_ACCEPT \} from "@\/lib\/vcard";/);
+  // The app imports the three from lib/vcard. Since the owner's app was split (2026-11-27) each part imports what it uses,
+  // and beautyos.jsx no longer carries imports it does not read (scripts/prune-imports.mjs): the importing logic takes the
+  // two functions, the import sheet takes the accept list.
+  assert.match(readFileSync('app/sections/useImportingSection.jsx', 'utf8'), /import \{ vcardImportText, isVcardFile \} from "@\/lib\/vcard";/);
+  assert.match(readFileSync('app/screens/ImportModal.jsx', 'utf8'), /import \{ VCARD_ACCEPT \} from "@\/lib\/vcard";/);
   assert.match(app, /<input type="file" accept=\{VCARD_ACCEPT\} onChange=\{importVcardFile\}/);
   assert.match(app, /const importVcardFile = async \(e\) => \{[\s\S]{0,1200}setImportText\(r\.text\);\n\s*goToImportMapping\(r\.text\);/, 'straight to the mapping step');
   assert.match(app, /const goToImportMapping = \(text\) => \{\n\s*const grid = parseImportGrid\(typeof text === "string" \? text : importText\);/);
