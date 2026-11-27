@@ -65,9 +65,11 @@ fs.readFileSync = function patchedRead(p, opts) {
   const enc = typeof opts === 'string' ? opts : opts && opts.encoding;
   const raw = !!(opts && typeof opts === 'object' && opts.raw);
   const out = realRead.call(fs, p, typeof opts === 'object' && opts && 'raw' in opts ? { ...opts, raw: undefined } : opts);
-  if (raw || typeof out !== 'string' || !/^utf-?8$/i.test(String(enc || ''))) return out;
+  if (typeof out !== 'string' || !/^utf-?8$/i.test(String(enc || ''))) return out;
   const abs = p instanceof URL || /^file:/.test(String(p)) ? fileURLToPath(p) : path.resolve(String(p));
   const rel = path.relative(ROOT, abs).replace(/\\/g, '/');
+  // A raw read keeps the tr() wrapping, but it still means "the owner's app as written": the moved tabs are part of it.
+  if (raw) return rel === 'app/beautyos.jsx' ? withScreens(out) : out;
   if (rel.startsWith('..')) return out;
   // A Windows checkout (core.autocrlf) has CRLF; the tests' patterns, CI and Vercel see LF. Read every repo file as LF,
   // so a run here means what it means there.
