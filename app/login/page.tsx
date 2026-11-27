@@ -31,6 +31,9 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--brand-deep, #14261F)', outline: 'none', fontFamily: 'inherit',
   transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
 }
+const labelStyle: React.CSSProperties = {
+  display: 'block', marginBottom: 6, fontSize: 'var(--t-sm)', fontWeight: 600, color: 'var(--brand-deep, #14261F)', textAlign: 'start',
+}
 const textLinkStyle: React.CSSProperties = {
   // Green, not pink: petal pink on paper is 1.9:1 and fails AA badly. Deep
   // green is 11.9:1. Same reasoning as before the rebrand, new numbers.
@@ -58,6 +61,7 @@ function btnStyle(): React.CSSProperties {
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'login' | 'forgot'>('login')
@@ -200,9 +204,14 @@ export default function LoginPage() {
           border: `1px solid ${ACCENT_LINE}`,
         }}>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <h1 style={{ margin: 0, color: MUTED, fontSize:"var(--t-xs)", letterSpacing: '2.5px', fontWeight: 600 }}>
+            {/* A real heading, in the display face, like /signup's. It was 11px, muted and letter-spaced: Hebrew letters
+                spread apart read as a watermark, not as the title of the page (2026-11-27 review). */}
+            <h1 style={{ margin: 0, color: 'var(--brand-deep, #14261F)', fontFamily: "var(--display, 'Frank Ruhl Libre', Georgia, serif)", fontSize:"var(--t-2xl)", lineHeight: 1.25, fontWeight: 600 }}>
               {mode === 'login' ? 'כניסה לחשבון' : 'איפוס סיסמה'}
             </h1>
+            {mode === 'forgot' && (
+              <p style={{ margin: '8px 0 0', color: MUTED, fontSize: 'var(--t-md)', lineHeight: 1.6 }}>נשלח לך למייל קישור לבחירת סיסמה חדשה.</p>
+            )}
             {/* Hairline rule with the actual flower mark, echoing the logo's
                 own flower now that there is one to echo. */}
             <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
@@ -213,29 +222,41 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={mode === 'login' ? handleLogin : handleForgot}>
+            {/* Labels that stay on screen, as on /signup. A placeholder disappears with the first letter, and then a field
+                that browser autofill got wrong is two unlabelled boxes. */}
+            <label htmlFor="login-email" style={labelStyle}>אימייל</label>
             <input
               className="auth-input"
+              id="login-email"
               type="email"
+              inputMode="email"
               autoComplete="email"
-              placeholder="אימייל"
-              aria-label="אימייל"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               style={{ ...inputStyle, direction: 'ltr', textAlign: 'right' }}
             />
             {mode === 'login' && (
-              <input
-                className="auth-input"
-                type="password"
-                autoComplete="current-password"
-                placeholder="סיסמה"
-                aria-label="סיסמה"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{ ...inputStyle, marginBottom: 16 }}
-              />
+              <>
+                <label htmlFor="login-password" style={labelStyle}>סיסמה</label>
+                <input
+                  className="auth-input"
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  style={{ ...inputStyle, marginBottom: 2 }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 10 }}>
+                  <button type="button" onClick={() => setShowPassword((v) => !v)} aria-pressed={showPassword} className="auth-link"
+                    style={{ ...textLinkStyle, fontSize: 'var(--t-sm)', padding: '10px 4px', minHeight: 44 }}>
+                    {showPassword ? 'הסתרת הסיסמה' : 'הצגת הסיסמה'}
+                  </button>
+                </div>
+              </>
             )}
 
             {error && <div role="alert" style={noticeStyle('error')}>{error}</div>}

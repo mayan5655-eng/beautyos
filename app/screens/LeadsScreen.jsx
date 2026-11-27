@@ -12,6 +12,7 @@ import { contactAgoHe } from "@/lib/leads/contact";
 import { ICON_ENVELOPE } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import Icon from "../Icon";
+import { sourceLabelHe } from "@/lib/leadSources";
 import { tr, trv, uiDir } from "@/lib/i18n/tr";
 
 export default function LeadsScreen({ ctx }) {
@@ -129,7 +130,7 @@ export default function LeadsScreen({ ctx }) {
  <span className="pill" style={{fontSize:"var(--t-sm)",background:st.bg,color:st.color,padding:"3px 8px"}}>{trv(st.label)}</span>
                         {hasReminder&&<span className="pill" style={{fontSize:"var(--t-sm)",background:"rgba(242,184,75,0.16)",color:"var(--warning)",padding:"3px 8px"}}>{tr("◴ תזכורת")}</span>}
  </div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${fmtPhone(lead.phone)} · `}{SOURCE_ICONS[lead.source]} {lead.source}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
+ <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lead.phone&&`${fmtPhone(lead.phone)} · `}{SOURCE_ICONS[lead.source]} {lead.source?trv(sourceLabelHe(lead.source)):""}{lead.service_interest&&` · ${lead.service_interest}`}{lead.last_contacted_at&&` · ✓ ${contactAgoHe(lead.last_contacted_at)}`}</p>
  </div>
                     {lead.phone&&<a href={waLink(lead.phone)} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="wa-btn" style={{padding:"5px 9px",fontSize:"var(--t-sm)"}}>✆</a>}
                     {lead.status!=="closed"&&lead.status!=="lost"&&lead.status!=="irrelevant"&&<button onClick={e=>{e.stopPropagation();handleConvertLead(lead);}} style={{background:"var(--success)",color:"var(--surface)",border:"none",borderRadius:"var(--r-lg)",padding:"5px 11px",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600,flexShrink:0}}>{tr("המר ✓")}</button>}

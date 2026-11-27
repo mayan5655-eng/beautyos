@@ -604,6 +604,10 @@ body:has(.sheet-backdrop, [data-overlay]) [data-install-banner] { display: none 
   }
   .sheet-flush { padding: 0 0 env(safe-area-inset-bottom, 0px); }
   .sheet input, .sheet select, .sheet textarea { font-size: 16px !important; } /* no zoom-on-focus on iOS */
+  /* The box has to grow with the text. The 16px above applies on every phone, but the widening of the narrow number fields
+     lived behind an iOS-only gate in the app's stylesheet: on any other phone a 44px duration box held 16px digits, and in a
+     browser that draws spin buttons the first digit of "280" was cut off (2026-11-27 review, services in Settings). */
+  .sheet input[type="number"] { min-width: 62px !important; }
   @keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 }
 
@@ -664,6 +668,9 @@ body:has(.sheet-backdrop, [data-overlay]) [data-install-banner] { display: none 
 /* Kalmea's small mark at the bottom of a business's page */
 .pub-powered { position: relative; z-index: 1; margin-top: 24px; display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--brand-muted, #656A56); opacity: 0.85; }
 .pub-powered img { display: block; width: 66px; height: auto; }
+/* Kalmea's wordmark alone under a page that belongs to no business (PublicChrome KalmeaMark): the same quiet size, no words. */
+.pub-mark { position: relative; z-index: 1; margin-top: 24px; display: flex; justify-content: center; opacity: 0.85; }
+.pub-mark img { display: block; width: 66px; height: auto; }
 .pub-icon { display: block; margin: 0 auto 14px; width: 60px; height: 60px; object-fit: contain; }
 @media (prefers-reduced-motion: reduce) { .pub-pill { transition: none; } }
 

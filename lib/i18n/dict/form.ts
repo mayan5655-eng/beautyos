@@ -13,6 +13,7 @@ export const FORM_DICT: Dict = {
   },
   retry: { he: 'נסי שוב', ar: 'حاولي مرة أخرى', en: 'Try again' },
   notFound: { he: 'הטופס לא נמצא', ar: 'لم يتم العثور على النموذج', en: 'Form not found' },
+  notFoundBody: { he: 'אפשר לבקש קישור חדש מהעסק.', ar: 'يمكنكِ طلب رابط جديد من المكان.', en: 'You can ask the business for a new link.' },
   unknownTitle: { he: 'לא הצלחנו להציג את הטופס', ar: 'لم نتمكّن من عرض النموذج', en: "We couldn't show the form" },
   unknownBody: {
     he: 'סוג הטופס אינו מוכר למערכת. כדאי לפנות לעסק ששלח לך את הקישור.',

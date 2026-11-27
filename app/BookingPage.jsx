@@ -963,6 +963,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
         .bk-stack { animation: fadein .2s ease-out both; }
         @keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
         @media (prefers-reduced-motion: reduce) { .bk-stack { animation: none } }
+        /* On a wide screen the page is a 540px column on cream. The photo used to end in two hard vertical edges, like a phone
+           screenshot pasted on a desktop; there it gets rounded lower corners and a soft shadow, so it reads as a card. */
+        @media (min-width: 720px) { .bk-hero { border-radius: 0 0 28px 28px; box-shadow: 0 24px 48px -30px rgba(31,58,48,0.35); } }
         .bk-chip { transition: transform .2s, box-shadow .2s; cursor: pointer; }
         .bk-chip:hover { transform: translateY(-2px); box-shadow: 0 18px 36px -22px rgba(70,50,60,0.4); }
         .bk-chip:active { transform: scale(.99); }
@@ -982,7 +985,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           default or hides itself, so a clinic with nothing uploaded still reads
           as finished. */}
       {step === 1 && (
-        <div className="bk-stack" style={{ paddingBottom: barShown ? "calc(112px + env(safe-area-inset-bottom, 0px))" : 0 }}>
+        <div className="bk-stack">
           {growReturn && (
             <div role="status" data-testid="grow-return" style={{ width: "100%", maxWidth: 540, boxSizing: "border-box", padding: "14px 18px", background: cream, borderBottom: `1px solid ${hair}`, textAlign: "center", fontSize: "var(--t-md)", color: ink, lineHeight: 1.6 }}>
               {growReturn === "paid" ? tr("✓ הכל הושלם, תודה! 🌸 התור שלך שמור, אין צורך לקבוע אותו שוב.") : tr("התשלום לא הושלם ולא חויב כסף. לשאלות אפשר לפנות לעסק.")}
@@ -993,10 +996,14 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
           {/* HERO - the photograph is the page; everything is written ON it.
               Her hero photo, else the shipped default. The veil is light and
               opaque enough that dark type reads on any photo she picks. */}
-          <div style={{ position: "relative", width: "100%", maxWidth: 540, minHeight: "min(80vh, 660px)", overflow: "hidden", display: "flex" }}>
+          <div className="bk-hero" style={{ position: "relative", width: "100%", maxWidth: 540, minHeight: "min(80vh, 660px)", overflow: "hidden", display: "flex" }}>
             <Photo src={brand?.heroImageUrl || defaultImageUrl(defaultHeroKey(brand?.fields))} eager
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
-            <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(254,250,247,0.88) 0%, rgba(254,250,247,0.64) 46%, rgba(254,250,247,0.34) 100%)" }} />
+            {/* The veil is strongest where the words are: under her name at the top, and again behind the headline at the bottom.
+                It used to thin out to 34% at the bottom, which is exactly where the headline's second line (her accent, not
+                ink) sits on the busiest part of the photo (2026-11-27 review: it read as grey on grey). The photo shows through
+                most in the band between them. */}
+            <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(254,250,247,0.88) 0%, rgba(254,250,247,0.56) 34%, rgba(254,250,247,0.5) 50%, rgba(254,250,247,0.8) 74%, rgba(254,250,247,0.86) 100%)" }} />
             <div style={{ position: "relative", width: "100%", padding: "26px 22px 34px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
               {brand?.logoUrl ? (
                 <Logo src={logoSrc(brand.logoUrl, tenantIdProp || tenantId)} alt={bizName} w={300} h={104}
@@ -1264,8 +1271,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
                   rows of chrome on every visit, above the prices. */}
               {!showAllHours && (
                 <button onClick={() => setShowAllHours(true)} className="bk-btn"
-                  style={{ ...T_BODY, background: "none", padding: 0, color: ink, textDecoration: "underline", textDecorationColor: hair, textUnderlineOffset: 5 }}>
-                  {tr("כל השעות")}
+                  aria-expanded={false}
+                  style={{ ...T_BODY, background: "none", padding: "10px 0", minHeight: 44, color: ink, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "underline", textDecorationColor: hair, textUnderlineOffset: 5 }}>
+                  {tr("כל השעות")} <Icon name="chevron-down" size={16} />
                 </button>
               )}
               {(showAllHours ? [0, 1, 2, 3, 4, 5, 6] : []).map((d) => {
@@ -1297,7 +1305,7 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
             <div style={{ ...section }}>
               <div>
                 {/* "Follow us" only when there is something to follow; WhatsApp alone is a way to write. */}{eyebrow(socials.length > 0 ? tr("עקבי אחריי") : tr("כתבי לנו"))}
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-start" }}>
                 {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={socialPill("#0B7A3E")}>{tr("וואטסאפ")}</a>}
                   {socials.map((s) => (
                     <a key={s.key} href={s.href} target="_blank" rel="noreferrer" style={socialPill("var(--brand-surface, #FDFBF9)", deep, pc)}>{s.label}</a>
@@ -1720,7 +1728,9 @@ export default function BookingPage({ tenantId: tenantIdProp, initialSettings = 
 
       {/* FOOTER - her address (when she has one), then Kalmea as a small mark. The full 340px banner used to sit here and
           out-shouted her own page; on a business's page the business is the most prominent thing (public-page language). */}
-      <div style={{ marginTop: "auto", textAlign: "center", padding: "30px 20px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      {/* The room for the sticky booking bar is kept UNDER the footer, not between the last section and the footer: there it left
+          a blank screen-third before Kalmea's mark, and the bar still sat on the accessibility and privacy links. */}
+      <div style={{ marginTop: "auto", textAlign: "center", padding: "30px 20px 0", paddingBottom: step === 1 && barShown ? "calc(96px + env(safe-area-inset-bottom, 0px))" : 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
         {addr && step === 1 && (
           <p style={{ fontSize:"var(--t-sm)", color: muted, fontWeight: 500, marginBottom: 8, letterSpacing: "0.3px" }}>{addr}</p>
         )}

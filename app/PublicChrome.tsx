@@ -4,7 +4,9 @@
 //
 // (The <main> landmark comes from app/layout.tsx - only it may render one - so the frame uses a div.)
 //   <PublicPage primary={her colour} owner="her">   a business's page: her accent tokens, a small Kalmea mark at the bottom
-//   <PublicPage owner="kalmea">                     Kalmea's own page (404, error): no business, no "powered by"
+//   <PublicPage owner="kalmea">                     Kalmea's own page (404, error, a link that names no business): Kalmea's
+//                                                   wordmark alone under the card, so the page is somebody's (2026-11-27)
+//   <StatusMark kind colour />                       the one stroked mark a status page shows: tick, cross, info, ask
 //   <BusinessHeader logoUrl name />                 HER logo (or her name) first, large - the most prominent thing on the page
 //   <LineIcon src />                                a brand line icon for an empty / error state
 //
@@ -43,7 +45,7 @@ export function PublicPage({
     <div dir={dirOf(lang)} lang={lang} className="pub-page" style={{ ...(owner === 'her' ? accentStyle(primary) : {}), ...style }}>
       <Watermark />
       <div className="pub-main" style={{ maxWidth }}>{children}</div>
-      {owner === 'her' && <PoweredBy lang={lang} />}
+      {owner === 'her' ? <PoweredBy lang={lang} /> : <KalmeaMark />}
     </div>
   );
 }
@@ -56,6 +58,29 @@ export function PoweredBy({ lang = 'he' }: { lang?: Lang | null } = {}) {
       <span>{tr("מופעל על ידי")}</span>
       <BrandImage src={LOGO_TEXT} alt="Kalmea" width={66} height={Math.round(66 * LOGO_TEXT_H / LOGO_TEXT_W)} />
     </div>
+  );
+}
+
+/** Kalmea's wordmark alone, under a page that belongs to no business (an invalid link, a 404). */
+export function KalmeaMark() {
+  return (
+    <div className="pub-mark">
+      <BrandImage src={LOGO_TEXT} alt="Kalmea" width={66} height={Math.round(66 * LOGO_TEXT_H / LOGO_TEXT_W)} />
+    </div>
+  );
+}
+
+/** The one stroked mark of a status page (signed, confirmed, could not load). Monochrome on purpose: no colour emoji. */
+export function StatusMark({ kind, colour = 'var(--pc-deep)' }: { kind: 'tick' | 'cross' | 'info' | 'ask'; colour?: string }) {
+  const common = { width: 58, height: 58, fill: 'none', stroke: colour, strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true, style: { display: 'block', margin: '0 auto 14px' } };
+  return (
+    <svg viewBox="0 0 24 24" {...common}>
+      <circle cx="12" cy="12" r="9.2" />
+      {kind === 'tick' && <path d="M7.8 12.4l2.9 2.9 5.5-5.9" />}
+      {kind === 'cross' && <path d="M9 9l6 6M15 9l-6 6" />}
+      {kind === 'info' && <><path d="M12 11v5.4" /><circle cx="12" cy="7.9" r="0.9" fill={colour} stroke="none" /></>}
+      {kind === 'ask' && <><path d="M9.4 9.4a2.7 2.7 0 1 1 3.4 3.2c-.6.2-.9.8-.9 1.5v.4" /><circle cx="12" cy="17.4" r="0.9" fill={colour} stroke="none" /></>}
+    </svg>
   );
 }
 

@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import Icon from "../Icon";
 import Spinner from "../Spinner";
+import { PublicPage, BusinessHeader, LineIcon, StatusMark } from "../PublicChrome";
+import { ICON_QUESTION } from "@/lib/brand";
 import { accentStyle } from "@/lib/theme";
 // Languages (lib/i18n): the form opens in the business's language and the client can switch it here, independently of
 // the language the business runs its system in. Display only: answers are stored as the Hebrew options, whatever she reads.
@@ -203,64 +205,71 @@ export default function FormPage() {
     }
   };
 
-  if (loading) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",fontSize:"var(--t-xl)",fontFamily:"Heebo"}}>
-      <Spinner inline label={t("loading")} />
-    </div>
-  );
+  // The status screens share the frame every public page uses (app/PublicChrome.tsx): the card, the brand type, her logo and
+  // name when the form is known, Kalmea's mark at the bottom. They used to be bare text on an empty page in another font
+  // (2026-11-27 review): "הטופס לא נמצא" alone in the middle of a white screen is what a client saw from a mistyped link.
+  const pubButton = { marginTop: 20, padding: "12px 28px", borderRadius: "var(--r-full)", border: "none", background: "var(--ink, #1F3A30)", color: "#fff", fontSize: "var(--t-lg)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", minHeight: 44 };
+  const hers = { primary: brandInfo.primaryColor || null, lang: shownLang };
+
+  if (loading) return <PublicPage owner="kalmea" lang={shownLang}><Spinner label={t("loading")} /></PublicPage>;
 
   // THREE distinct outcomes, previously all one "form not found" screen.
   // Conflating "could not load" with "does not exist" is what made this page's
   // failure invisible for months.
   if (loadError === "failed") return (
-    <div dir={dir} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
-      <div style={{marginBottom:14,color:"var(--danger)"}}><Icon name="warning" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>{t("failedTitle")}</h2>
-      <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)",marginBottom:20,maxWidth:320,lineHeight:1.7}}>
-        {t("failedBody")}
-      </p>
-      <button
-        type="button"
-        onClick={() => formId && loadForm(formId)}
-        style={{padding:"12px 28px",borderRadius:"var(--r-full)",border:"none",background:"var(--ink, #1F3A30)",color:"#fff",fontSize:"var(--t-lg)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}
-      >
-        {t("retry")}
-      </button>
-    </div>
+    <PublicPage owner="kalmea" lang={shownLang}>
+      <div className="pub-card">
+        <StatusMark kind="info" colour="var(--ink-2)" />
+        <h1 className="pub-h1">{t("failedTitle")}</h1>
+        <p className="pub-p">{t("failedBody")}</p>
+        <button type="button" onClick={() => formId && loadForm(formId)} style={pubButton}>{t("retry")}</button>
+      </div>
+    </PublicPage>
   );
 
   if (loadError === "notfound" || !formData) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100dvh",fontSize:"var(--t-xl)",fontFamily:"Heebo"}}>
-      {t("notFound")}
-    </div>
+    <PublicPage owner="kalmea" lang={shownLang}>
+      <div className="pub-card">
+        <LineIcon src={ICON_QUESTION} />
+        <h1 className="pub-h1">{t("notFound")}</h1>
+        <p className="pub-p">{t("notFoundBody")}</p>
+      </div>
+    </PublicPage>
   );
 
   // The form exists but its form_type matches no template. A real data problem,
   // and NOT the same as a missing form - saying "not found" here sends her
   // chasing a link that is perfectly fine.
   if (!formTemplate) return (
-    <div dir={dir} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24,textAlign:"center"}}>
-      <div style={{marginBottom:14,color:"var(--danger)"}}><Icon name="warning" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>{t("unknownTitle")}</h2>
-      <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)",maxWidth:320,lineHeight:1.7}}>
-        {t("unknownBody")}
-      </p>
-    </div>
+    <PublicPage {...hers}>
+      <div className="pub-card">
+        <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} lang={shownLang} />
+        <StatusMark kind="info" colour="var(--ink-2)" />
+        <h1 className="pub-h1">{t("unknownTitle")}</h1>
+        <p className="pub-p">{t("unknownBody")}</p>
+      </div>
+    </PublicPage>
   );
 
   if (submitted) return (
-    <div dir={dir} lang={shownLang} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
-      <div style={{marginBottom:16,color:"var(--success)"}}><Icon name="check" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)",marginBottom:8}}>{t("signedTitle")}</h2>
-      <p style={{fontSize:"var(--t-md)",color:"var(--brand-muted, #7D8D87)"}}>{t("signedBody", { name: formData.client_name })}</p>
-    </div>
+    <PublicPage {...hers}>
+      <div className="pub-card">
+        <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} lang={shownLang} />
+        <StatusMark kind="tick" />
+        <h1 className="pub-h1">{t("signedTitle")}</h1>
+        <p className="pub-p">{t("signedBody", { name: formData.client_name })}</p>
+      </div>
+    </PublicPage>
   );
 
   if (formData.status === "signed") return (
-    <div dir={dir} lang={shownLang} style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100dvh",fontFamily:"Heebo",background:"var(--brand-cream, #FBF8F1)",padding:24}}>
-      <div style={{marginBottom:16,color:"var(--success)"}}><Icon name="check" size={44}/></div>
-      <h2 style={{fontSize:"var(--t-2xl)",fontWeight:800,color:"var(--ink, #1F3A30)"}}>{t("alreadySigned")}</h2>
-    </div>
+    <PublicPage {...hers}>
+      <div className="pub-card">
+        <BusinessHeader logoUrl={brandInfo.logoUrl} name={brandInfo.businessName} lang={shownLang} />
+        <StatusMark kind="tick" />
+        <h1 className="pub-h1">{t("alreadySigned")}</h1>
+      </div>
+    </PublicPage>
   );
 
   // Counts only required real questions: a heading is not a question, and an optional one never holds the bar back.

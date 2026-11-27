@@ -13,8 +13,12 @@ ok('/book: today\'s hours are an LTR island (it read "19:00–09:00")', () => {
 
 ok('/login: a heading, named inputs, an announced error, readable error red', () => {
   const l = raw('app/login/page.tsx');
-  assert.ok(/<h1 style=\{\{ margin: 0, color: MUTED/.test(l));
-  assert.ok(l.includes('aria-label="אימייל"') && l.includes('aria-label="סיסמה"'));
+  // 2026-11-27: the heading is a real one (display face, ink, no letter-spacing) and the inputs carry visible labels,
+  // which name them better than the aria-label over a placeholder that this used to pin.
+  assert.ok(/<h1 style=\{\{ margin: 0, color: 'var\(--brand-deep/.test(l) && !/letterSpacing: '2\.5px'/.test(l));
+  assert.ok(l.includes('<label htmlFor="login-email"') && l.includes('id="login-email"'));
+  assert.ok(l.includes('<label htmlFor="login-password"') && l.includes('id="login-password"'));
+  assert.ok(l.includes("type={showPassword ? 'text' : 'password'}") && l.includes('aria-pressed={showPassword}'));
   assert.ok(l.includes("{error && <div role=\"alert\" style={noticeStyle('error')}>{error}</div>}"));
   assert.ok(l.includes("'#9D4A42'") && !l.includes("'#B25B52'"));
 });

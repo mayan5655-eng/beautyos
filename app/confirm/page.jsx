@@ -174,6 +174,9 @@ function ConfirmContent() {
     if (status === 'ready') return { emoji: '', title: tr("לבטל את התור?"), color: 'var(--ink)' };
     if (status === 'declined') return { emoji: '', title: tr("התור נשאר"), color: 'var(--pc-deep)' };
     if (status === 'error' && refused) return { emoji: '', title: action === 'cancel' ? tr("אי אפשר לבטל מהקישור") : action === 'reschedule' ? tr("אי אפשר להזיז מהקישור") : tr("אי אפשר לשנות מהקישור"), color: 'var(--ink)' };
+    // A link with no appointment in it is not a failure of hers and not a red cross: the same quiet "this link is not valid,
+    // ask for a new one" the review and form pages show (2026-11-27 review: three pages, three different dead-link screens).
+    if (status === 'error' && !id) return { emoji: '', title: tr("הקישור אינו תקין"), color: 'var(--ink-2)' };
     if (status === 'error') return { emoji: '', title: tr("אופס!"), color: 'var(--danger)' };
     if (status === 'success' && action === 'confirm') return { emoji: '', title: tr("התור אושר!"), color: 'var(--pc-deep)' };
     if (status === 'success' && action === 'cancel') return { emoji: '', title: tr("התור בוטל"), color: 'var(--ink-2)' };
@@ -198,7 +201,7 @@ function ConfirmContent() {
   const markKind =
     status === 'ready' ? 'ask'
     : status === 'declined' ? 'tick'
-    : status === 'error' ? (refused ? 'info' : 'cross')
+    : status === 'error' ? (refused ? 'info' : !id ? 'ask' : 'cross')
     : status === 'already' ? 'info'
     : status === 'success' ? (action === 'cancel' ? 'info' : 'tick')
     : null;
@@ -236,6 +239,7 @@ function ConfirmContent() {
         <p className="pub-p">
           {status === 'working' || status === 'moveLoading' ? <Spinner inline label={tr("מעדכנת את התור שלך")} /> : status === 'ready' ? tr("ביטול משחרר את השעה שלך, ואי אפשר להחזיר אותה מהקישור הזה. אם לא התכוונת לבטל, אפשר פשוט לסגור את החלון.")
             : status === 'declined' ? tr("לא שינינו כלום. נתראה בתור.")
+            : status === 'error' && !id ? tr("אפשר לבקש קישור חדש מהעסק.")
             : message}
         </p>
 

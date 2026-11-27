@@ -25,6 +25,8 @@ export default function GiftPurchase({ tenantId, slug, brand, options, validityM
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const chosen = options.find((o) => o.key === pick) || null;
+  // Three amounts sit in one row of three; in two columns the third was alone on a row of its own (2026-11-27 review).
+  const amountCols = options.filter((o) => o.kind !== 'service').length % 3 === 0 ? 3 : 2;
   const can = online && !!chosen && f.buyerName.trim() && f.recipientName.trim() && f.buyerPhone.replace(/\D/g, '').length >= 9 && !busy;
 
   const field: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid var(--line-2, #DAD2BF)', borderRadius: 12, padding: '12px 14px', fontSize: 16, fontFamily: 'inherit', background: '#fff', color: 'var(--ink)', minHeight: 48, outline: 'none' };
@@ -58,7 +60,7 @@ export default function GiftPurchase({ tenantId, slug, brand, options, validityM
         <p className="pub-p" style={{ textAlign: 'center', fontSize: 'var(--t-md)' }}>{tr("מתנה מפנקת למישהי שאת אוהבת. היא תקבל דף אישי עם קוד, ותממש אותו אצלנו.")}</p>
 
         <p style={label}>{tr("במה תבחרי?")}</p>
-        <div role="radiogroup" aria-label={tr("סוג השובר")} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+        <div role="radiogroup" aria-label={tr("סוג השובר")} style={{ display: 'grid', gridTemplateColumns: `repeat(${amountCols}, minmax(0, 1fr))`, gap: 8 }}>
           {options.map((o) => {
             const on = o.key === pick;
             return (

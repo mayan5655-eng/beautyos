@@ -35,8 +35,9 @@ export default function InsightsScreen({ ctx }) {
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:3}}>{tr("סקירה עסקית")}</p>
  <h2 className="serif" style={{fontSize:"var(--t-2xl)",fontWeight:600,color:"var(--ink)",letterSpacing:"-0.01em",marginBottom:18}}>{tr("תובנות")}</h2>
 
-                {/* STAT WIDGETS — full size */}
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:16,marginBottom:24}}>
+                {/* STAT WIDGETS. Two across on a phone: at a 210px minimum they stacked one per row, and her four numbers took
+                    two full screens of mostly empty cards (2026-11-27 review). The padding and the number shrink with the width. */}
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(150px,100%),1fr))",gap:"clamp(10px,3vw,16px)",marginBottom:24}}>
                   {stats.map((s,i)=>{
                     const up=s.trend!=null&&s.trend>=0;
                     return(
@@ -46,16 +47,16 @@ export default function InsightsScreen({ ctx }) {
    tabIndex={s.onClick?0:undefined}
    onKeyDown={s.onClick?onKbdActivate:undefined}
    aria-label={s.onClick?tr("{0}, {1}, פתיחת הרשימה", [s.label, s.value]):undefined}
-   style={{animationDelay:`${0.05*i}s`,background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"22px 22px",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden",cursor:s.onClick?"pointer":"default"}}>
+   style={{animationDelay:`${0.05*i}s`,background:"var(--surface)",borderRadius:"var(--r-lg)",padding:"clamp(14px,4vw,22px)",border:"1px solid var(--line)",textAlign:"right",position:"relative",overflow:"hidden",cursor:s.onClick?"pointer":"default"}}>
  <div aria-hidden style={{position:"absolute",top:0,right:0,width:110,height:110,background:`radial-gradient(circle at 100% 0%, ${lighten(s.accent,0.82)}, transparent 70%)`,pointerEvents:"none"}}/>
- <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+ <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"clamp(10px,3vw,16px)"}}>
  <span style={{width:42,height:42,borderRadius:"var(--r-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-xl)",fontWeight:700,color:s.accent,background:lighten(s.accent,0.86),border:`1px solid ${lighten(s.accent,0.7)}`}}>{s.icon}</span>
                         {s.trend!=null&&(
  <span className="pill" style={{background:up?"rgba(70,179,123,0.12)":"rgba(224,91,111,0.12)",color:up?"var(--success)":"var(--danger)",padding:"4px 9px"}}>{up?"▲":"▼"} {Math.abs(s.trend)}%</span>
                         )}
  </div>
  <p style={{position:"relative",fontSize:"var(--t-sm)",color:"var(--ink-3)",fontWeight:600,letterSpacing:"0.02em",marginBottom:6}}>{trv(s.label)}</p>
- <p className="serif" style={{position:"relative",fontSize:"var(--t-hero)",fontWeight:600,color:"var(--ink)",lineHeight:1,letterSpacing:"-0.01em"}}>{s.value}</p>
+ <p className="serif" style={{position:"relative",fontSize:"clamp(26px,7.5vw,var(--t-hero))",fontWeight:600,color:"var(--ink)",lineHeight:1,letterSpacing:"-0.01em",overflowWrap:"anywhere"}}>{s.value}</p>
                       {s.sub&&<p style={{position:"relative",fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:10,fontWeight:500}}>{trv(s.sub)}</p>}
  </div>
                     );

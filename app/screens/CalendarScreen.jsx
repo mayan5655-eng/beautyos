@@ -19,7 +19,7 @@ import { NO_SHOW, canMarkNoShow } from "@/lib/reliability";
 import { durationOutcome } from "@/lib/durationDrift";
 import HoldBadge from "../HoldBadge";
 import IntakeBadge from "../IntakeBadge";
-import { apptStatus, APPT_STATUS_TONE_COLOR } from "@/lib/apptStatus";
+import { apptStatus, apptEnded, APPT_STATUS_TONE_COLOR } from "@/lib/apptStatus";
 import { tr, trv } from "@/lib/i18n/tr";
 import { activeStaff as teamActiveStaff } from "@/lib/team";
 
@@ -265,7 +265,7 @@ export default function CalendarScreen({ ctx }) {
                                     clipped at phone width. Every action is the same handler as before. */}
  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
  <p style={{fontSize:"var(--t-lg)",fontWeight:700,color:"var(--ink)",lineHeight:1.25,minWidth:0,overflowWrap:"anywhere",textDecoration:appt.confirmation_status==="cancelled"?"line-through":"none"}}>{isPersonal(appt)?"🔒 ":""}{appt.name}</p>
- {(()=>{const s0=apptStatus(appt,{personal:isPersonal(appt)});const st={l:s0.label,c:APPT_STATUS_TONE_COLOR[s0.tone]};return <span style={{flexShrink:0,fontSize:"var(--t-xs)",fontWeight:700,color:st.c,border:`1px solid ${st.c}`,borderRadius:"var(--r-full)",padding:"2px 8px",whiteSpace:"nowrap"}}>{trv(st.l)}</span>;})()}
+ {(()=>{const s0=apptStatus(appt,{personal:isPersonal(appt)});const nowD=new Date();if(s0.key==="pending"&&apptEnded(appt,today,nowD.getHours()*60+nowD.getMinutes()))return null;const st={l:s0.label,c:APPT_STATUS_TONE_COLOR[s0.tone]};return <span style={{flexShrink:0,fontSize:"var(--t-xs)",fontWeight:700,color:st.c,border:`1px solid ${st.c}`,borderRadius:"var(--r-full)",padding:"2px 8px",whiteSpace:"nowrap"}}>{trv(st.l)}</span>;})()}
  </div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginTop:2}}>{entrySubtitle(appt)} · {isAllDay(appt)?tr("כל היום"):tr("{0}ד׳", [appt.duration])}</p>
  {teamCal&&staffNameOf(appt)&&<p data-testid="agenda-staff" style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:"var(--t-xs)",fontWeight:600,color:"var(--ink-2)",marginTop:4}}><span aria-hidden style={{width:9,height:9,borderRadius:"50%",background:staffColorOf(appt)||"var(--line-2)"}}/>{staffNameOf(appt)}</p>}

@@ -2,7 +2,7 @@
 //
 // The rule (2026-10-06): on a page that belongs to a business, HER logo, colour and name are the most prominent things on it,
 // and Kalmea is the small mark at the bottom, never competing. One quiet flower per page. Kalmea's own pages (404, error)
-// are Kalmea's: no "powered by", and no business accent.
+// are Kalmea's: no "powered by" wording and no business accent, only Kalmea's own wordmark under the card.
 //
 // This RENDERS the real components (testkit/render.mjs) and reads the HTML. The pages' loaded states are shown by
 // screenshots (before/after at 430 px in the Stage 4 report) because they need a live API; here: the frame, and the first
@@ -34,6 +34,10 @@ void her;
 const own = renderApp(() => h(PublicPage, { owner: 'kalmea' }, h('p', null, 'x')));
 assert.equal(count(own, /pub-wm/g), 1, 'one watermark here too');
 assert.ok(!own.includes('pub-powered') && !own.includes('מופעל על ידי'), 'no "powered by" on Kalmea\'s own page');
+// 2026-11-27: but the page is somebody's. A dead link used to open on a card with no name anywhere on the screen; Kalmea's
+// wordmark alone, with no words, sits under it.
+assert.equal(count(own, /pub-mark/g), 1, "Kalmea's wordmark under its own page");
+assert.ok(own.includes('alt="Kalmea"'), 'and it is the wordmark');
 assert.ok(!/--pc:/.test(own), 'and no business accent');
 
 // ── her logo and name come first, large, in that order ──────────────────────────────────────────────

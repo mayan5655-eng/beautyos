@@ -87,20 +87,25 @@ export default function ClientCardModal({ ctx }) {
  </div>
  {/* One tap to the NEXT visit: her rhythm, the nearest free slot at her usual time (components/RebookNextSheet). */}
  <button data-testid="rebook-client" onClick={()=>{setRebookNext({client:c,appt:null});}} style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"transparent",color:"var(--surface)",border:"1.5px solid rgba(255,255,255,0.85)",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>{tr("↻ קבעי לה שוב")}</button>
+ {/* The three things she does less often share ONE row. Each was a full-width button of its own, and with the referral
+     box above them the card opened on a wall of nine buttons: nothing about the client herself was on the first screen
+     (2026-11-27 review). Same buttons, same handlers, a third of the height. */}
+ <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
  {/* Her private results page: photos she agreed to, what was done, aftercare, next-visit button (app/ClientPageSheet). */}
- <button type="button" onClick={()=>setClientPageFor(c)} data-testid="client-page-open" style={{display:"block",width:"100%",minHeight:40,marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>{tr("✦ שליחת הדף שלה")}</button>
+ <button type="button" onClick={()=>setClientPageFor(c)} data-testid="client-page-open" style={{flex:"1 1 104px",minWidth:0,minHeight:44,lineHeight:1.25,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 6px",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>{tr("✦ שליחת הדף שלה")}</button>
  {/* Facial skin analysis: inherently cosmetics work. Hidden by default for a
      nails-only tenant (skinScanVisible derives that from business_fields
      when she hasn't explicitly toggled it in Settings); existing scan
      history below is untouched either way — this only hides the action to
      take a NEW scan, never past data. */}
- <button type="button" onClick={()=>{if(guardWrite())return;setSelectedClient(null);setPhotoPost({clientName:c.name||""});}} data-testid="photo-to-post-client" style={{display:"block",width:"100%",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>{tr("✦ צילום אחרי טיפול")}</button>
+ <button type="button" onClick={()=>{if(guardWrite())return;setSelectedClient(null);setPhotoPost({clientName:c.name||""});}} data-testid="photo-to-post-client" style={{flex:"1 1 104px",minWidth:0,minHeight:44,lineHeight:1.25,background:"rgba(255,255,255,0.95)",color:pc,border:"none",borderRadius:"var(--r-lg)",padding:"9px 6px",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:"pointer",fontFamily:"inherit"}}>{tr("✦ צילום אחרי טיפול")}</button>
  {skinScanVisible(settings)&&(
- <label style={{display:"block",marginTop:8,background:"rgba(255,255,255,0.95)",color:pc,borderRadius:"var(--r-lg)",padding:"9px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:scanLoading?"not-allowed":"pointer",opacity:scanLoading?0.6:1,pointerEvents:scanLoading?"none":"auto"}}>
+ <label style={{flex:"1 1 104px",minWidth:0,minHeight:44,lineHeight:1.25,boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,0.95)",color:pc,borderRadius:"var(--r-lg)",padding:"9px 6px",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",cursor:scanLoading?"not-allowed":"pointer",opacity:scanLoading?0.6:1,pointerEvents:scanLoading?"none":"auto"}}>
  {scanLoading?<Spinner inline label={tr("סורקת")}/>:tr("✦ סריקת עור AI")}
  <input type="file" accept="image/*" disabled={scanLoading} onChange={e=>{const f=e.target.files?.[0]; if(f) scanClientSkin(c,f); e.target.value="";}} style={{display:"none"}}/>
  </label>
  )}
+ </div>
  </div>
 
                 {(()=>{
