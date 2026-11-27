@@ -314,7 +314,7 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   for (const k of ['deep-cleansing', 'dehydrated', 'oily-pores', 'glow', 'acne-marks', 'superficial-peel', 'devices', 'laser-hair', 'pedicure']) {
     assert.ok(keys.includes(k), `${k} is in the book`);
   }
-  assert.ok(!keys.some((k) => /plasma|needling/.test(k)), 'no plasma pen and no microneedling protocol: medical territory');
+  assert.ok(!keys.some((k) => /plasma|needling/.test(k)), 'no plasma pen or microneedling protocol until the owner decides (regulation differs by country)');
   assert.ok(ALL_PROTOCOLS.filter((p) => !['acne', 'pigmentation', 'anti-aging', 'gel-manicure', 'gel-removal'].includes(p.key)).every((p) => p.tier === 'full'), 'the five open protocols stay the only free ones');
   // Open chapters first within each field, so a reader without the upgrade sees no gap in the numbering.
   for (const f of ['cosmetics', 'nails'] as const) {
