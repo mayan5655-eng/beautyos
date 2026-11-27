@@ -3261,5 +3261,7 @@
  "פרוטוקול": "Protocol",
  "פתיחת סדרה בכרטיס הלקוחה": "Start a series on her card",
  "רישום הטיפול הזה בסדרה": "Record this session",
- "שמירת סדרת טיפולים בכרטיס הלקוחה תיפתח אחרי עדכון במסד הנתונים.": "Saving a series on the client card opens after a database update."
+ "שמירת סדרת טיפולים בכרטיס הלקוחה תיפתח אחרי עדכון במסד הנתונים.": "Saving a series on the client card opens after a database update.",
+ "הוראות אחרי הטיפול בוואטסאפ": "Aftercare on WhatsApp",
+ "צילום לפני/אחרי לסדרה": "Before/after photos for the series"
 }

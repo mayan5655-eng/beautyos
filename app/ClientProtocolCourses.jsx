@@ -10,7 +10,7 @@ import { tr, getActiveLang } from "@/lib/i18n/tr";
 const ON = protocolBookEnabled();
 const STATUS = { active: "בתהליך", done: "הסתיימה", stopped: "הופסקה" };
 
-export default function ClientProtocolCourses({ clientId, toast }) {
+export default function ClientProtocolCourses({ clientId, toast, photos = [], onAddPhotos }) {
   const [courses, setCourses] = useState([]);
   const lang = bookLangOf(getActiveLang());
 
@@ -38,6 +38,9 @@ export default function ClientProtocolCourses({ clientId, toast }) {
         const p = protocolByKey(c.protocol_key);
         const pr = progressOf(c);
         const last = (c.sessions || []).at(-1);
+        // Before/after photos for this course: the existing client_photos rows saved under the protocol's name.
+        const title = p ? p.text.he.title : "";
+        const shots = title ? photos.filter((ph) => String(ph.treatment || "").trim() === title).length : 0;
         return (
           <div key={c.id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -50,6 +53,7 @@ export default function ClientProtocolCourses({ clientId, toast }) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", fontSize: "var(--t-xs)", color: "var(--ink-3)" }}>
               <span>{last ? tr("טיפול אחרון: {0}", [last.date.split("-").reverse().join("/")]) : tr("עוד לא נרשם טיפול")}</span>
+              {onAddPhotos && p && <button type="button" onClick={() => onAddPhotos(title)} style={{ background: "none", border: 0, padding: 0, color: "var(--k-green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>{shots ? tr("לפני/אחרי ({0})", [shots]) : tr("צילום לפני/אחרי לסדרה")}</button>}
               {c.status === "active"
                 ? <button type="button" onClick={() => setStatus(c.id, "stopped")} style={{ background: "none", border: 0, padding: 0, color: "var(--ink-3)", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>{tr("הפסקת הסדרה")}</button>
                 : <button type="button" onClick={() => setStatus(c.id, "active")} style={{ background: "none", border: 0, padding: 0, color: "var(--ink-3)", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" }}>{tr("החזרה לתהליך")}</button>}

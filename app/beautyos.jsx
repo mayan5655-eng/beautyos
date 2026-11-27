@@ -1124,6 +1124,8 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
   const [scanReport,        setScanReport]         = useState(null);
   const [clientScans,       setClientScans]        = useState([]);
   const [clientPhotos,      setClientPhotos]       = useState([]);
+  // The treatment name the before/after form opens with, when a protocol course sends her there (app/ClientProtocolCourses).
+  const [photoTreatmentPrefill, setPhotoTreatmentPrefill] = useState("");
   const [photoUploading,    setPhotoUploading]     = useState(false);
   const [scansLoading,      setScansLoading]       = useState(false);
   const [viewScan,          setViewScan]           = useState(null);
@@ -2506,6 +2508,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
 
   // Load skin-scan history whenever a client card is opened
   useEffect(() => {
+   setPhotoTreatmentPrefill(""); // a prefilled treatment name belongs to the client it was set for
    if (selectedClient?.id) { loadClientScans(selectedClient.id); loadClientPhotos(selectedClient.id); }
     else { setClientScans([]); setClientPhotos([]); }
     /* eslint-disable-next-line */
@@ -7508,6 +7511,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       }]);
       if (error) { handleDbError(error, "save client photo"); return; }
       toast(tr("התמונות נשמרו"));
+      setPhotoTreatmentPrefill("");
       loadClientPhotos(clientId);
     } catch { toast(tr("שגיאה בהעלאת התמונות"), "error"); }
     finally { setPhotoUploading(false); }
@@ -11934,7 +11938,7 @@ ${MARKETING_FOOTER}`))}`;
                   tap away, and the summary line says when there is something
                   in them, so nothing can be hidden and forgotten. */}
  {/* The treatment's protocol (app/ApptProtocolCard): an existing appointment only, closed by default, nothing when the service has none. */}
- {editingAppointmentId&&<ApptProtocolCard settings={settings} services={services} serviceName={newAppt.service} clientId={newAppt.clientId||null} appointmentId={editingAppointmentId} date={newAppt.date} toast={toast}/>}
+ {editingAppointmentId&&<ApptProtocolCard settings={settings} services={services} serviceName={newAppt.service} clientId={newAppt.clientId||null} clientName={newAppt.name} clientPhone={clients.find(x=>String(x.id)===String(newAppt.clientId))?.phone||null} appointmentId={editingAppointmentId} date={newAppt.date} toast={toast}/>}
  <button onClick={()=>setApptMoreOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",padding:"4px 2px",cursor:"pointer",fontFamily:"inherit"}}>
  <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep}}>{tr("פרטים נוספים")}</span>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{apptMoreOpen?tr("סגירה"):`₪${Number(newAppt.price)||0}${apptNote.trim()?" · הערה":""}`}</span>
@@ -14325,7 +14329,7 @@ ${MARKETING_FOOTER}`))}`;
  {/* Her membership, or "צירוף למנוי" (app/MembershipClientCard): renders nothing unless memberships are on and ready for this business. */}
  {!isDemoTenantId(settings?.tenant_id)&&(<MembershipClientCard client={c} pc={pc} pcTint={pcTint} pcGrad={pcGrad} toast={toast}/>)}
  {/* Her protocol courses for this client (app/ClientProtocolCourses): nothing unless the book is on and a course exists. */}
- <ClientProtocolCourses clientId={c.id} toast={toast}/>
+ <ClientProtocolCourses clientId={c.id} toast={toast} photos={clientPhotos} onAddPhotos={(title)=>{setPhotoTreatmentPrefill(title);setClientTab("beforeafter");}}/>
                       {/* Where she came from. Always shown, including when the
                           answer is "we do not know" - a blank row would read as
                           "no source", and לא ידוע is the honest version for a
@@ -14451,7 +14455,7 @@ ${MARKETING_FOOTER}`))}`;
                 {clientTab==="beforeafter"&&(
  <div>
  {(()=>{
- let beforeFile=null, afterFile=null, taVal="", noteVal="";
+ let beforeFile=null, afterFile=null, taVal=photoTreatmentPrefill||"", noteVal="";
  return(
  <div style={{background:pcTint,borderRadius:"var(--r-sm)",padding:"12px",marginBottom:14}}>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",fontWeight:600,marginBottom:8}}>{tr("הוספת תמונות לפני/אחרי")}</p>
@@ -14465,7 +14469,7 @@ ${MARKETING_FOOTER}`))}`;
  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{afterFile=e.target.files?.[0]||null;const l=document.getElementById("ba-after-lbl");if(l&&afterFile)l.style.borderStyle="solid";}}/>
  </label>
  </div>
- <input placeholder={tr("שם הטיפול (לא חובה)")} onChange={e=>{taVal=e.target.value;}} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:"var(--surface)",marginBottom:6,boxSizing:"border-box"}}/>
+ <input key={"ba-t-"+photoTreatmentPrefill} defaultValue={photoTreatmentPrefill} placeholder={tr("שם הטיפול (לא חובה)")} onChange={e=>{taVal=e.target.value;}} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:"var(--surface)",marginBottom:6,boxSizing:"border-box"}}/>
  <input placeholder={tr("הערה (לא חובה)")} onChange={e=>{noteVal=e.target.value;}} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:"var(--surface)",marginBottom:8,boxSizing:"border-box"}}/>
  <button disabled={photoUploading} onClick={()=>uploadClientPhoto(beforeFile,afterFile,taVal,noteVal,c.id)} className="primary-btn" style={{width:"100%",padding:"10px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{photoUploading?<Spinner inline label={tr("מעלה")}/>:tr("שמירת התמונות")}</button>
  </div>

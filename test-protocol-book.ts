@@ -9,6 +9,7 @@ import { UI, CHAPTERS, SKIN, NAIL } from './lib/protocolBook/labels.ts';
 import { addSession, cleanSessions, plannedOf, progressOf, isMissingTable, MAX_SESSIONS_STORED } from './lib/protocolBook/course.ts';
 import { PROTOCOL_FORMS, protocolFormOf } from './lib/protocolBook/questions.ts';
 import { bidiParts } from './lib/protocolBook/bidi.ts';
+import { aftercareMessage, rangesAsWords } from './lib/protocolBook/aftercare.ts';
 import { FORMS, isFlagged, normalizeQuestion } from './lib/formTemplates.ts';
 import { FORM_TRANSLATIONS } from './lib/i18n/formTemplatesI18n.ts';
 import { intakeFormChoices } from './lib/intakeGate.ts';
@@ -230,6 +231,27 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   assert.deepEqual(nums('כל 2–3 שבועות · 6–8 טיפולים'), ['2–3', '6–8']);
   assert.equal(bidiParts('בלי מספרים').length, 1);
   assert.equal(bidiParts('a 1 b').map((p) => p.t).join(''), 'a 1 b', 'nothing is lost');
+}
+
+// ── Aftercare message (sent by her, from her own WhatsApp) ────────────────────────────────────────────────────────────
+{
+  assert.equal(rangesAsWords('3–5 ימים בלי חומצות', 'he'), '3 עד 5 ימים בלי חומצות', 'a range reads as words in a right-to-left chat');
+  assert.equal(rangesAsWords('كل 2–3 ساعات', 'ar'), 'كل 2 إلى 3 ساعات');
+  assert.equal(rangesAsWords('3–5 days', 'en'), '3–5 days');
+  const acne = ALL_PROTOCOLS.find((p) => p.key === 'acne')!;
+  for (const lang of BOOK_LANGS) {
+    const m = aftercareMessage(acne, lang, { clientName: 'רונית כהן', signedBy: 'מעיין' });
+    assert.ok(m.includes('רונית') && !m.includes('כהן'), `${lang}: her first name only`);
+    assert.ok(m.endsWith('מעיין'), `${lang}: signed by her`);
+    if (lang !== 'en') assert.ok(!/\d\s?[–-]\s?\d/.test(m), `${lang}: no dash range left to flip`);
+    assert.ok(!/נשלח|sent|أُرسل/.test(m), `${lang}: the text never claims anything was sent`);
+  }
+  const noName = aftercareMessage(acne, 'he', {});
+  assert.ok(noName.startsWith('היי 🌸'), 'no name: still a warm opening');
+  assert.match(noName, /אחרי טיפול אקנה,/, 'the chapter name, not the long protocol title');
+  const card = fs.readFileSync('app/ApptProtocolCard.jsx', 'utf8');
+  assert.match(card, /waLink\(clientPhone/, 'aftercare opens her own WhatsApp');
+  assert.ok(!/fetch\([^)]*whatsapp/i.test(card), 'and is never sent by the server');
 }
 
 console.log('protocol book: all passed');

@@ -11,10 +11,12 @@ import { progressOf } from "@/lib/protocolBook/course";
 import { businessFieldsOf } from "@/lib/businessFields";
 import { tr, getActiveLang } from "@/lib/i18n/tr";
 import Bidi from "./dashboard/protocol-book/Bidi";
+import { aftercareMessage } from "@/lib/protocolBook/aftercare";
+import { waLink } from "@/lib/phone";
 
 const ON = protocolBookEnabled();
 
-export default function ApptProtocolCard({ settings, services, serviceName, clientId, appointmentId, date, toast }) {
+export default function ApptProtocolCard({ settings, services, serviceName, clientId, clientName, clientPhone, appointmentId, date, toast }) {
   const lang = bookLangOf(getActiveLang());
   const protocol = useMemo(() => {
     if (!ON) return undefined;
@@ -101,6 +103,16 @@ export default function ApptProtocolCard({ settings, services, serviceName, clie
               </button>
             )
           )}
+          {/* Aftercare from HER WhatsApp: the link opens her chat with the text ready; she sends it. Nothing is sent from here. */}
+          {(() => {
+            const href = waLink(clientPhone, aftercareMessage(protocol, lang, { clientName, signedBy: settings?.therapist_name || settings?.business_name }));
+            return href ? (
+              <a href={href} target="_blank" rel="noopener noreferrer" data-testid="appt-aftercare"
+                style={{ alignSelf: "flex-start", fontSize: "var(--t-xs)", fontWeight: 700, padding: "6px 12px", borderRadius: "var(--r-full)", border: "1px solid var(--line-2)", background: "var(--surface)", color: "var(--ink)", textDecoration: "none" }}>
+                {tr("הוראות אחרי הטיפול בוואטסאפ")}
+              </a>
+            ) : null;
+          })()}
           <a href={`/dashboard/protocol-book#${protocol.key}`} style={{ fontSize: "var(--t-xs)", fontWeight: 600, color: "var(--ink-2)" }}>{tr("לפרוטוקול המלא בספר")}</a>
         </div>
       )}
