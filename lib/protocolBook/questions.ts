@@ -133,17 +133,17 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
     },
     "ask": {
       "he": [
-        "האם את משתמשת עכשיו במשחת סטרואידים על הפנים?",
+        "האם השתמשת במשחת סטרואידים על הפנים בחודש האחרון?",
         "האם יש לך עכשיו פצעונים מוגלתיים או עיניים אדומות ויבשות?",
         "האם יש לך כרגע הרפס או זיהום בעור הפנים?"
       ],
       "ar": [
-        "هل تستعملين الآن مرهم ستيرويد على الوجه؟",
+        "هل استعملتِ مرهم ستيرويد على الوجه خلال الشهر الأخير؟",
         "هل لديكِ الآن بثور قيحية أو عيون حمراء جافة؟",
         "هل لديكِ الآن هربس أو عدوى في جلد الوجه؟"
       ],
       "en": [
-        "Are you using a steroid cream on your face right now?",
+        "Have you used a steroid cream on your face in the last month?",
         "Do you have pustules or red, dry eyes right now?",
         "Do you have a cold sore or a skin infection on your face right now?"
       ]

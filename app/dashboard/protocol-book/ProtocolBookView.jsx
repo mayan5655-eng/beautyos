@@ -103,7 +103,7 @@ function SkinSection({ label }) {
 }
 
 function DepthChart({ names, label }) {
-  const ends = [34, 62, 100, 200], xs = [170, 220, 270, 320];
+  const ends = [34, 62, 54, 200], xs = [170, 220, 270, 320];
   return (
     <svg viewBox="0 0 360 230" role="img" aria-label={label} className="pb-fig-svg">
       <rect x="130" y="24" width="226" height="12" fill="#F2E2D6" /><rect x="130" y="36" width="226" height="30" fill="#F6CFCB" />
