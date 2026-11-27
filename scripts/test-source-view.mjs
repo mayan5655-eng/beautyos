@@ -46,6 +46,21 @@ export function hebrewView(src) {
   return out;
 }
 
+// The tabs of app/beautyos.jsx live in app/screens/ since 2026-11-27 (scripts/extract-screen.mjs moved each one byte for
+// byte). A test that reads app/beautyos.jsx is protecting the words and the wiring of those tabs, wherever they are filed:
+// so each <XScreen ctx={{...}}/> is shown to it as the body that was moved, exactly where it used to be.
+const SCREEN_OPEN = '/* @screen-body */';
+const SCREEN_CLOSE = '/* @screen-end */';
+export function withScreens(src) {
+  return src.replace(/<([A-Z][A-Za-z]*Screen) ctx=\{\{[^{}]*\}\}\/>/g, (m, name) => {
+    const file = path.join(ROOT, 'app', 'screens', `${name}.jsx`);
+    if (!fs.existsSync(file)) return m;
+    const s = realRead.call(fs, file, 'utf8').replace(/\r\n/g, '\n');
+    const a = s.indexOf(SCREEN_OPEN), z = s.lastIndexOf(SCREEN_CLOSE);
+    return a < 0 || z < 0 ? m : s.slice(a + SCREEN_OPEN.length, z);
+  });
+}
+
 fs.readFileSync = function patchedRead(p, opts) {
   const enc = typeof opts === 'string' ? opts : opts && opts.encoding;
   const raw = !!(opts && typeof opts === 'object' && opts.raw);
@@ -58,10 +73,13 @@ fs.readFileSync = function patchedRead(p, opts) {
   // so a run here means what it means there.
   const lf = out.replace(/\r\n/g, '\n');
   if (!rel.startsWith('app/') || !/\.(jsx|tsx|ts|js)$/.test(rel)) return lf;
-  return hebrewView(lf);
+  return hebrewView(rel === 'app/beautyos.jsx' ? withScreens(lf) : lf);
 };
 
 // `import { readFileSync } from 'node:fs'` is a separate binding: this makes it the patched one too.
 syncBuiltinESMExports();
 
-export const readRawSource = (p) => realRead.call(fs, p, 'utf8');
+export const readRawSource = (p) => {
+  const out = realRead.call(fs, p, 'utf8');
+  return path.relative(ROOT, path.resolve(String(p))).replace(/\\/g, '/') === 'app/beautyos.jsx' ? withScreens(out) : out;
+};
