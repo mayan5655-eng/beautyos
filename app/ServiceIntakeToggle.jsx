@@ -9,11 +9,12 @@
 // that, and then this renders nothing at all, because a setting that cannot be saved is not shown (owner rule 2026-11-09).
 import { resolveIntake, intakeToStore, intakeFormChoices, DEFAULT_FORM_TYPE } from '@/lib/intakeGate';
 import { tr, trv } from "@/lib/i18n/tr";
+import { protocolFormAllowed } from '@/lib/protocolBook/book';
 
-const CHOICES = intakeFormChoices();
-
-export default function ServiceIntakeToggle({ ready, value, onChange }) {
+export default function ServiceIntakeToggle({ ready, value, onChange, settings }) {
   if (!ready) return null;
+  // A protocol questionnaire is offered only with the book on and for a protocol she may open; the one already chosen stays listed.
+  const CHOICES = intakeFormChoices((k) => protocolFormAllowed(k, settings) || k === resolveIntake({ intake: value })?.formType);
   const cur = resolveIntake({ intake: value }) || { form: false, formType: DEFAULT_FORM_TYPE, patchTest: false };
   const set = (patch) => onChange(intakeToStore({ ...cur, ...patch }));
   const row = { display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, cursor: 'pointer', fontSize: 'var(--t-sm)', color: 'var(--ink)' };

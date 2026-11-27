@@ -82,8 +82,8 @@ export function intakeColumnReady(services: Array<Record<string, unknown>> | nul
 }
 
 /** The template choices for the setting: key and Hebrew title. */
-export function intakeFormChoices(): Array<{ key: string; title: string }> {
-  return Object.entries(FORMS).map(([key, t]) => ({ key, title: t.title }));
+export function intakeFormChoices(allow: (key: string) => boolean = () => true): Array<{ key: string; title: string }> {
+  return Object.entries(FORMS).filter(([key]) => allow(key)).map(([key, t]) => ({ key, title: t.title }));
 }
 
 export type IntakeBadge = { kind: 'form_missing' | 'form_done' | 'patch_test'; label: string };

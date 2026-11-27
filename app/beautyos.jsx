@@ -124,6 +124,11 @@ const ImportChooser = dynamic(() => import("./ImportChooser"), { ssr: false });
 const ImportFromSystem = dynamic(() => import("./ImportFromSystem"), { ssr: false });
 // Kalmea Academy: renders nothing unless NEXT_PUBLIC_ACADEMY is on and she can open a course (app/AcademyNavEntry.jsx).
 const AcademyNavEntry = dynamic(() => import("./AcademyNavEntry"), { ssr: false });
+// The protocol book: renders nothing unless NEXT_PUBLIC_PROTOCOL_BOOK is on (app/ProtocolBookNavEntry.jsx).
+const ProtocolBookNavEntry = dynamic(() => import("./ProtocolBookNavEntry"), { ssr: false });
+// The protocol on an appointment and the client's courses: both render nothing while the book is off.
+const ApptProtocolCard = dynamic(() => import("./ApptProtocolCard"), { ssr: false });
+const ClientProtocolCourses = dynamic(() => import("./ClientProtocolCourses"), { ssr: false });
 const ACADEMY_ON = academyEnabled();
 const WaitlistOfferSetting = dynamic(() => import("./WaitlistOfferSetting"), { ssr: false });
 const WaAutoMessagesSetting = dynamic(() => import("./WaAutoMessagesSetting"), { ssr: false });
@@ -463,6 +468,9 @@ const FORM_TYPES = [
   {key:"nails_general",label:"הצהרת בריאות ואישור טיפול (ציפורניים)",only:["nails"]},
   {key:"nails_media",label:"אישור צילום עבודות",only:["nails"]},
 ];
+// The protocol book's questionnaires (lib/formTemplates.ts appends them). Listed for sending only through protocolFormAllowed;
+// in this list so a form already sent keeps its name on the client card and in the answers sheet.
+const FORM_TYPES_ALL = [...FORM_TYPES, ...PROTOCOL_FORMS.map(f=>({key:f.formKey,label:protocolFormTitle(f,"he"),protocol:true}))];
 // What the boot reads of public.forms: enough to list them. form_data and signature stay in the database until asked for.
 const FORM_LIST_COLUMNS = "id, tenant_id, client_id, client_name, form_type, status, signed_at";
 // The default list. Her own list (settings.automations.lead_sources) is resolved by resolveLeadSources.
@@ -810,6 +818,8 @@ import { LANGS, LANG_LABELS, langOfSettings, speechLangOf } from "@/lib/i18n/cor
 import { applyOwnerLang, cachedOwnerLang, devLangOverride } from "@/lib/i18n/ownerLang";
 import { tr, trv, uiDir, getActiveLang } from "@/lib/i18n/tr";
 import { academyEnabled } from "@/lib/academy";
+import { protocolFormAllowed } from "@/lib/protocolBook/book";
+import { PROTOCOL_FORMS, protocolFormTitle } from "@/lib/protocolBook/questions";
 // The team calendar (lib/team.ts, NEXT_PUBLIC_TEAM_CALENDAR): off, or fewer than two active staff = team.on is false and the
 // calendar is exactly the one-practitioner calendar it was.
 import useTeam from "./useTeam";
@@ -9280,6 +9290,7 @@ ${MARKETING_FOOTER}`))}`;
  <span style={{flex:1}}>{tr("הגדרות")}</span>
  </button>
  {ACADEMY_ON&&!tillOnly&&<AcademyNavEntry variant="nav" onOpen={()=>{setShowMobileSidebar(false);router.push("/dashboard/academy");}}/>}
+ {!tillOnly&&<ProtocolBookNavEntry variant="nav" onOpen={()=>{setShowMobileSidebar(false);router.push("/dashboard/protocol-book");}}/>}
           {/* The two header icons that do not fit on a phone. Inline display
               none + .mobile-only{display:flex!important} is this file's
               established pattern - the inline value has to be the DESKTOP one,
@@ -11764,7 +11775,7 @@ ${MARKETING_FOOTER}`))}`;
         createAppointment={rebookNext.receiptId ? async (args)=>{ const row = await insertRebookAppointment(args); if (row) setRebookDone({ receiptId: rebookNext.receiptId, appt: row }); return row; } : insertRebookAppointment}
         onQueued={refreshWaQueue} onOpened={markRebookMessageOpened} onClose={()=>setRebookNext(null)} toast={toast} bufferOf={apptBufferOf}
         pc={pc} pcGrad={pcGrad} pcTint={pcTint} pcDeep={pcDeep}/>)}
-      {formAnswersFor&&(<FormAnswersSheet form={formAnswersFor} tenantId={settings?.tenant_id} label={FORM_TYPES.find(ft=>ft.key===formAnswersFor.form_type)?.label} onClose={()=>setFormAnswersFor(null)} pcTint={pcTint}/>)}
+      {formAnswersFor&&(<FormAnswersSheet form={formAnswersFor} tenantId={settings?.tenant_id} label={FORM_TYPES_ALL.find(ft=>ft.key===formAnswersFor.form_type)?.label} onClose={()=>setFormAnswersFor(null)} pcTint={pcTint}/>)}
       {clientPageFor&&(<ClientPageSheet client={clientPageFor} onClose={()=>setClientPageFor(null)} toast={toast} pc={pc} pcDeep={pcDeep} pcTint={pcTint}/>)}
       {depositLink&&(<DepositLinkSheet info={depositLink} onClose={()=>setDepositLink(null)} toast={toast} pc={pc} pcTint={pcTint}/>)}
       {showModal&&(
@@ -11922,6 +11933,8 @@ ${MARKETING_FOOTER}`))}`;
                   note is for the exception. Neither is removed - both are one
                   tap away, and the summary line says when there is something
                   in them, so nothing can be hidden and forgotten. */}
+ {/* The treatment's protocol (app/ApptProtocolCard): an existing appointment only, closed by default, nothing when the service has none. */}
+ {editingAppointmentId&&<ApptProtocolCard settings={settings} services={services} serviceName={newAppt.service} clientId={newAppt.clientId||null} appointmentId={editingAppointmentId} date={newAppt.date} toast={toast}/>}
  <button onClick={()=>setApptMoreOpen(v=>!v)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:"none",border:"none",padding:"4px 2px",cursor:"pointer",fontFamily:"inherit"}}>
  <span style={{fontSize:"var(--t-sm)",fontWeight:700,color:pcDeep}}>{tr("פרטים נוספים")}</span>
  <span style={{fontSize:"var(--t-sm)",color:"var(--ink-3)"}}>{apptMoreOpen?tr("סגירה"):`₪${Number(newAppt.price)||0}${apptNote.trim()?" · הערה":""}`}</span>
@@ -12949,6 +12962,7 @@ ${MARKETING_FOOTER}`))}`;
  <span style={{fontSize:"var(--t-sm)",fontWeight:600}}>{tr("חיפוש")}</span>
  </button>
               {ACADEMY_ON&&!tillOnly&&<AcademyNavEntry variant="more" onOpen={()=>{setShowMoreSheet(false);router.push("/dashboard/academy");}}/>}
+              {!tillOnly&&<ProtocolBookNavEntry variant="more" onOpen={()=>{setShowMoreSheet(false);router.push("/dashboard/protocol-book");}}/>}
               {ownerEntry}
  </div>
  </div>
@@ -13918,7 +13932,7 @@ ${MARKETING_FOOTER}`))}`;
  <input type="number" inputMode="numeric" min={0} max={120} disabled={!bufferColumnReady} aria-label={SERVICE_BUFFER_LABEL_HE} value={svc.buffer_minutes==null?"":svc.buffer_minutes} placeholder={String(bufferDefaultHere)} onChange={e=>patchDraftService(idx,{buffer_minutes:e.target.value===""?null:cleanBufferMinutes(e.target.value)})} style={{width:54,flexShrink:0,border:"1px solid var(--line)",borderRadius:"var(--r-xs)",padding:"4px 6px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",textAlign:"center",background:bufferColumnReady?"var(--surface)":"var(--surface-2)"}}/>
  </label>
  {!bufferColumnReady&&<p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",margin:"3px 0 0",lineHeight:1.5}}>{tr("יופעל אחרי עדכון קטן במערכת. עד אז חל זמן ההפסקה הכללי מ״כללי קביעת תור״.")}</p>}
- <ServiceIntakeToggle ready={intakeColumnReady(services)} value={svc.intake} onChange={v=>patchDraftService(idx,{intake:v})}/>
+ <ServiceIntakeToggle ready={intakeColumnReady(services)} value={svc.intake} settings={settings} onChange={v=>patchDraftService(idx,{intake:v})}/>
  {/* Days after a visit of this treatment until the "time for the next one" nudge. Empty = automatic (her rhythm, else a
      suggestion by the name, shown as the placeholder); 0 = never for this treatment. */}
  {rebookShown&&(()=>{const sug=suggestedRebookDays(svc.name,svc.field);return(<>
@@ -14310,6 +14324,8 @@ ${MARKETING_FOOTER}`))}`;
  <FeeQuestions clientId={selectedClient?.id} pc={pc} pcTint={pcTint} toast={toast} onCharged={feeCharged}/>
  {/* Her membership, or "צירוף למנוי" (app/MembershipClientCard): renders nothing unless memberships are on and ready for this business. */}
  {!isDemoTenantId(settings?.tenant_id)&&(<MembershipClientCard client={c} pc={pc} pcTint={pcTint} pcGrad={pcGrad} toast={toast}/>)}
+ {/* Her protocol courses for this client (app/ClientProtocolCourses): nothing unless the book is on and a course exists. */}
+ <ClientProtocolCourses clientId={c.id} toast={toast}/>
                       {/* Where she came from. Always shown, including when the
                           answer is "we do not know" - a blank row would read as
                           "no source", and לא ידוע is the honest version for a
@@ -14415,7 +14431,7 @@ ${MARKETING_FOOTER}`))}`;
  <div>
  <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:6}}>{tr("שלחי טופס לחתימה דיגיטלית")}</p>
  <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
-                        {FORM_TYPES.filter(ft=>!ft.only||ft.only.some(f=>businessFieldsOf(settings).includes(f))).map(ft=>(
+                        {FORM_TYPES_ALL.filter(ft=>ft.protocol?protocolFormAllowed(ft.key,settings):(!ft.only||ft.only.some(f=>businessFieldsOf(settings).includes(f)))).map(ft=>(
  <button key={ft.key} onClick={()=>handleSendForm(c,ft.key)} style={{background:pcTint,border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 11px",fontSize:"var(--t-sm)",color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",textAlign:"right"}}>{trv(ft.label)}</button>
                         ))}
  </div>
@@ -14424,7 +14440,7 @@ ${MARKETING_FOOTER}`))}`;
                         {cForms.map(f=>(
  <div key={f.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",background:f.status==="signed"?"var(--surface-2)":"var(--surface-2)",borderRadius:"var(--r-sm)",marginBottom:4}}>
  <span style={{fontSize:"var(--t-sm)"}}>{f.status==="signed"?"✓":"⏳"}</span>
- <p style={{flex:1,minWidth:0,fontSize:"var(--t-sm)",color:"var(--ink)"}}>{FORM_TYPES.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
+ <p style={{flex:1,minWidth:0,fontSize:"var(--t-sm)",color:"var(--ink)"}}>{FORM_TYPES_ALL.find(ft=>ft.key===f.form_type)?.label||f.form_type}</p>
  <span style={{fontSize:"var(--t-xs)",color:f.status==="signed"?"var(--success)":"var(--warning)"}}>{f.status==="signed"?tr("נחתם"):tr("ממתין")}</span>
  {f.status==="signed"&&<button type="button" data-testid="form-view-answers" onClick={()=>setFormAnswersFor(f)} style={{minHeight:44,padding:"0 12px",background:"var(--surface)",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",fontSize:"var(--t-xs)",fontWeight:700,color:"var(--ink)",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{tr("צפייה בתשובות")}</button>}
  </div>

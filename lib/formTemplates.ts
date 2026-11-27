@@ -26,6 +26,8 @@
 // flag: true marks a health question whose answer the owner should notice (anything but `none`; for free text,
 // anything but "אין"). A yes/no "כן" is always flagged.
 
+import { PROTOCOL_FORMS, protocolFormTitle } from './protocolBook/questions.ts';
+
 export const YES = 'כן';
 export const NO = 'לא';
 /** Joins a multi answer. No option contains it (test-form-templates.ts). */
@@ -199,6 +201,12 @@ export const FORMS: Record<string, FormTemplate> = {
     ]
   }
 };
+
+// The protocol book's questionnaires ("שאלון לפני טיפול: אקנה"), one per protocol, appended AFTER every template above so no
+// existing key moves. Their questions are the protocol's own client questions (lib/protocolBook/questions.ts, generated
+// from the book): plain yes/no, so a "כן" is flagged for the owner like any health answer. Who is OFFERED one is decided
+// where the forms are listed (lib/protocolBook/book.ts protocolFormAllowed): only with the book on, for her field and access.
+for (const f of PROTOCOL_FORMS) FORMS[f.formKey] = { title: protocolFormTitle(f, 'he'), questions: [...f.ask.he] };
 
 // ── Reading a template ────────────────────────────────────────────────────
 

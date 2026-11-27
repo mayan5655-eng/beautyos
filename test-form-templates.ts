@@ -186,7 +186,9 @@ const frozen = JSON.parse(src('test-fixtures/form-templates-before-2026-11-04.js
   const app = src('app/beautyos.jsx');
   assert.ok(app.includes('{key:"skin_anamnesis",label:"אבחון עור ואנמנזה",only:["cosmetics"]}'), 'FORM_TYPES: cosmetics only');
   const formTypeKeys = [...app.slice(app.indexOf('const FORM_TYPES = ['), app.indexOf('];', app.indexOf('const FORM_TYPES = ['))).matchAll(/\{key:"([a-z_]+)"/g)].map((m) => m[1]);
-  assert.deepEqual([...formTypeKeys].sort(), Object.keys(FORMS).sort(), 'every template is offered and every offered form has a template');
+  // The protocol book's questionnaires (protocol_*) are offered through FORM_TYPES_ALL, gated by protocolFormAllowed (test-protocol-book.ts).
+  assert.deepEqual([...formTypeKeys].sort(), Object.keys(FORMS).filter((k) => !k.startsWith('protocol_')).sort(), 'every template is offered and every offered form has a template');
+  assert.ok(app.includes('const FORM_TYPES_ALL = [...FORM_TYPES, ...PROTOCOL_FORMS.map('), 'the protocol questionnaires are listed too');
   const help = (f: string[]) => helpSectionsFor(f).flatMap((s) => s.body).join('\n');
   assert.ok(help(['cosmetics']).includes('אבחון עור ואנמנזה'), 'help mentions it for cosmetics');
   assert.ok(help(['cosmetics', 'nails']).includes('אבחון עור ואנמנזה'));

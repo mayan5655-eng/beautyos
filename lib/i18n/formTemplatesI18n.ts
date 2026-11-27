@@ -16,6 +16,7 @@
 
 import type { Lang } from './core.ts';
 import { FORMS, isSection, normalizeQuestion, type FormItem } from '../formTemplates.ts';
+import { PROTOCOL_FORMS, protocolFormTitle } from '../protocolBook/questions.ts';
 
 export type LocItem = string | { q: string; options?: string[]; placeholder?: string };
 export interface LocTemplate { title: string; intro?: string; questions: LocItem[] }
@@ -326,6 +327,12 @@ const EN: Record<string, LocTemplate> = {
     ],
   },
 };
+
+// The protocol questionnaires carry their own Arabic and English from the book (lib/protocolBook/questions.ts).
+for (const f of PROTOCOL_FORMS) {
+  AR[f.formKey] = { title: protocolFormTitle(f, 'ar'), questions: [...f.ask.ar] };
+  EN[f.formKey] = { title: protocolFormTitle(f, 'en'), questions: [...f.ask.en] };
+}
 
 export const FORM_TRANSLATIONS: Record<Exclude<Lang, 'he'>, Record<string, LocTemplate>> = { ar: AR, en: EN };
 
