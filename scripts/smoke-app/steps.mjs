@@ -32,6 +32,7 @@ export const STEPS = [
   c('lead-convert', 'leads', 'המר ✓'),
   c('cash-new', 'cashier', '✦ תשלום חדש'),
   c('cash-quick', 'cashier', '₪ קופה'),
+  c('cash-request', 'cashier', '✆ בקשת תשלום בוואטסאפ'),
   c('cash-vouchers', 'cashier', 'שוברי מתנה'),
   c('cash-products', 'cashier', { text: 'מוצרים', exact: true }),
   c('cash-receipt', 'cashier', { text: 'אישורי תשלום', exact: true }),

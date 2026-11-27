@@ -129,11 +129,22 @@ export default function CashierScreen({ ctx }) {
  </div>
                       {paid?<span className="pill" style={{fontSize:"var(--t-sm)",color:"var(--success)",background:"rgba(70,179,123,0.12)",padding:"4px 11px"}}>{tr("✓ שולם")}</span>
                         :<div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-                          {client?.phone&&PAYMENT_METHODS.slice(1).map(pm=>(
- <a key={pm.key} href={waPayment(client.phone,a.name,a.price,a.service,pm.key,settings.business_phone)} target="_blank" rel="noreferrer" title={pm.key} aria-label={tr("בקשת תשלום ב{0} מ{1} בוואטסאפ", [pm.key, a.name||"הלקוחה"])}
-                              style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minHeight:44,minWidth:44,background:pm.color,color:"var(--surface)",border:"none",borderRadius:"var(--r-md)",padding:"5px 9px",fontSize:"var(--t-sm)",cursor:"pointer",textDecoration:"none",fontWeight:600,boxSizing:"border-box"}}>{pm.icon}</a>
-                          ))}
  <button onClick={()=>handleOpenCashier(a)} style={{minHeight:44,background:pcGrad,color:"var(--pc-contrast)",border:"none",borderRadius:"var(--r-md)",padding:"5px 12px",fontSize:"var(--t-sm)",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>{tr("₪ קופה")}</button>
+                          {/* Asking her to pay, from the owner's own WhatsApp, by the way she will pay. These were five identical
+                              brown squares with a dot in each: the method was only in a tooltip, which a phone does not have, and a
+                              tap opened WhatsApp with a message she had not asked for (2026-11-27 review). One named button now, and
+                              each way to pay is written on its own link. */}
+                          {client?.phone&&(
+ <details data-testid="quick-pay-request">
+ <summary style={{display:"inline-flex",alignItems:"center",minHeight:44,padding:"5px 12px",border:"1px solid var(--line-2)",borderRadius:"var(--r-md)",background:"var(--surface)",color:"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",listStyle:"none"}}>{tr("✆ בקשת תשלום בוואטסאפ")}</summary>
+ <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
+                          {PAYMENT_METHODS.slice(1).map(pm=>(
+ <a key={pm.key} href={waPayment(client.phone,a.name,a.price,a.service,pm.key,settings.business_phone)} target="_blank" rel="noreferrer" title={pm.key} aria-label={tr("בקשת תשלום ב{0} מ{1} בוואטסאפ", [pm.key, a.name||"הלקוחה"])}
+                              style={{display:"inline-flex",alignItems:"center",justifyContent:"center",minHeight:44,minWidth:44,background:pm.color,color:"var(--surface)",border:"none",borderRadius:"var(--r-md)",padding:"5px 12px",fontSize:"var(--t-sm)",cursor:"pointer",textDecoration:"none",fontWeight:600,boxSizing:"border-box"}}>{trv(pm.key)}</a>
+                          ))}
+ </div>
+ </details>
+                          )}
  </div>
                       }
  </div>

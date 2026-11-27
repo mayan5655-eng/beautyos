@@ -226,7 +226,7 @@ export default function ApptModal({ ctx }) {
               )}
  </div>
  <div style={{display:"flex",gap:6,marginTop:16}}>
- <button onClick={closeApptModal} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{tr("ביטול")}</button>
+ <button onClick={closeApptModal} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line-2)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{editingAppointmentId?tr("סגירה"):tr("ביטול")}</button>
  <button onClick={handleSave} disabled={isBusy("saveAppt")||!apptDayHours||apptSelectedTaken} className="primary-btn" style={{flex:2,padding:"11px 0",background:apptSelectedTaken?"var(--danger)":pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)",boxShadow:"var(--shadow-accent)",opacity:(apptDayHours&&!apptSelectedTaken)?1:0.6,cursor:(apptDayHours&&!apptSelectedTaken)?undefined:"not-allowed"}}>{isBusy("saveAppt")?<Spinner inline label={tr("שומרת")}/>:!apptDayHours?tr("סגור ביום זה"):apptSelectedTaken?tr("⛔ השעה תפוסה"):editingAppointmentId?tr("עדכון ✓"):(apptRepeat.on&&apptRepeat.count>1)?tr("קביעת {0} תורים ✓", [apptRepeat.count]):tr("שמירה ✓")}</button>
  </div>
               {/* Edit mode, past or today: the same real start/finish the

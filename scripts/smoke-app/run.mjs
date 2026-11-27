@@ -101,7 +101,11 @@ let server = null, wrotePage = false, agentsBefore = null;
 
 function cleanup() {
   if (server) { try { process.kill(-server.pid, 'SIGTERM'); } catch { /* already gone */ } server = null; }
-  if (wrotePage) { fs.rmSync(PAGE_DIR, { recursive: true, force: true }); wrotePage = false; }
+  if (wrotePage) {
+    fs.rmSync(PAGE_DIR, { recursive: true, force: true }); wrotePage = false;
+    // The dev server generated route types that name the page just deleted; left behind, they fail the next `tsc --noEmit`.
+    fs.rmSync(path.join(ROOT, '.next', 'dev'), { recursive: true, force: true });
+  }
   if (agentsBefore !== null && fs.existsSync(AGENTS) && fs.readFileSync(AGENTS, 'utf8') !== agentsBefore) fs.writeFileSync(AGENTS, agentsBefore);
 }
 process.on('SIGINT', () => { cleanup(); process.exit(130); });

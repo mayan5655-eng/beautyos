@@ -12,6 +12,7 @@ import { contactSummaryHe } from "@/lib/leads/contact";
 import Icon from "../Icon";
 import { localDayKey } from "@/lib/till";
 import { tr, trv } from "@/lib/i18n/tr";
+import { sourceLabelHe } from "@/lib/leadSources";
 
 export default function LeadCardModal({ ctx }) {
   const {
@@ -28,11 +29,11 @@ export default function LeadCardModal({ ctx }) {
  <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
  <button onClick={()=>setSelectedLead(null)} aria-label={tr("סגירה")} className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
  <div style={{display:"flex",alignItems:"center",gap:13}}>
- <div style={{width:54,height:54,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",flexShrink:0}}>{SOURCE_ICONS[l.source]||""}</div>
+ <div style={{width:54,height:54,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",flexShrink:0}}>{SOURCE_ICONS[l.source]||<span style={{fontWeight:700}}>{String(l.name||"").trim().charAt(0)||"✦"}</span>}</div>
  <div style={{flex:1}}>
  <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600}}>{l.name}</h3>
  <p style={{fontSize:"var(--t-xs)",opacity:0.9}}>{l.phone||tr("אין טלפון")}</p>
- <span style={{fontSize:"var(--t-xs)",background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:"var(--r-lg)",marginTop:4,display:"inline-block"}}>{SOURCE_ICONS[l.source]} {l.source}</span>
+ <span style={{fontSize:"var(--t-xs)",background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:"var(--r-lg)",marginTop:4,display:"inline-block"}}>{SOURCE_ICONS[l.source]} {l.source?trv(sourceLabelHe(l.source)):""}</span>
  </div>
  </div>
  <div style={{display:"flex",gap:6,marginTop:14}}>
