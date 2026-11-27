@@ -127,7 +127,7 @@ export const SKIN: Record<BookLang, { title: string; lead: string; layers: [stri
     depthTitle: 'מה מגיע לאן', depthLead: 'ככל שהטיפול עמוק יותר, ההחלמה ארוכה יותר והסיכון גבוה יותר.',
     depth: [['פילינג אנזימטי ו-AHA עדין', 'שכבה קרנית'], ['סליצילית, מנדלית, ג׳סנר', 'אפידרמיס'], ['אולטרסאונד והחדרה', 'אפידרמיס (משפרים חדירה שטחית)'], ['עיסוי וניקוז לימפטי', 'היפודרמיס ושרירים']],
     layerNames: ['שכבה קרנית', 'אפידרמיס', 'דרמיס', 'היפודרמיס'],
-    medical: 'פילינג בינוני ועמוק, מיקרונידלינג (כל מכשיר שמחורר את העור), מזותרפיה והזרקות מגיעים לדרמיס. זה תחום רפואי, ובישראל הוא שמור לרופאים.',
+    medical: 'פילינג בינוני ועמוק, מיקרונידלינג, RF ופלזמה פועלים בדרמיס, ולכן הסיכון בהם גבוה יותר. הזרקות שמורות לרופאים. לגבי השאר הכללים שונים ממדינה למדינה: בדקי את הרגולציה אצלך, את ההכשרה הנדרשת ואת הביטוח המקצועי שלך.',
     facts: [
       ['pH העור', '4.5–5.5. המעטפת החומצית מגינה מחיידקים. ניקוי בסיסי מדי פוגע בה.'],
       ['פוטוטיפ IV–VI', 'חום ופגיעה במחסום מגבירים סיכון לכתמים פוסט-דלקתיים. מתחילים בעדינות.'],
@@ -145,7 +145,7 @@ export const SKIN: Record<BookLang, { title: string; lead: string; layers: [stri
     depthTitle: 'What reaches where', depthLead: 'The deeper a treatment goes, the longer the recovery and the higher the risk.',
     depth: [['Enzyme peel & gentle AHA', 'Stratum corneum'], ['Salicylic, mandelic, Jessner', 'Epidermis'], ['Ultrasound & infusion', 'Epidermis (improves surface penetration)'], ['Massage & lymphatic drainage', 'Hypodermis & muscles']],
     layerNames: ['Corneum', 'Epidermis', 'Dermis', 'Hypodermis'],
-    medical: 'Medium and deep peels, microneedling (any device that punctures the skin), mesotherapy and injections reach the dermis. That is medical territory. In Israel it is reserved for physicians; elsewhere, check what your country allows.',
+    medical: 'Medium and deep peels, microneedling, RF and plasma work in the dermis, so the risk is higher. Injections are reserved for physicians. For the rest, the rules differ by country: check the regulation where you work, the training it requires and your professional insurance.',
     facts: [
       ['Skin pH', '4.5–5.5. The acid mantle protects against bacteria. Overly alkaline cleansing damages it.'],
       ['Phototypes IV–VI', 'Heat and barrier damage raise the risk of post-inflammatory marks. Start gently.'],
@@ -163,7 +163,7 @@ export const SKIN: Record<BookLang, { title: string; lead: string; layers: [stri
     depthTitle: 'ما الذي يصل إلى أين', depthLead: 'كلما كان العلاج أعمق، طالت فترة التعافي وزادت المخاطر.',
     depth: [['تقشير إنزيمي وأحماض AHA لطيفة', 'الطبقة القرنية'], ['ساليسيليك، مانديليك، جيسنر', 'البشرة'], ['موجات فوق صوتية وإدخال مكوّنات', 'البشرة (تحسّن النفاذ السطحي)'], ['تدليك وتصريف لمفاوي', 'تحت الجلد والعضلات']],
     layerNames: ['القرنية', 'البشرة', 'الأدمة', 'تحت الجلد'],
-    medical: 'التقشير المتوسط والعميق، الوخز بالإبر الدقيقة (أي جهاز يثقب الجلد)، الميزوثيرابي والحقن تصل إلى الأدمة. هذا مجال طبي، وفي إسرائيل هو مخصّص للأطباء.',
+    medical: 'التقشير المتوسط والعميق، الوخز بالإبر الدقيقة، RF والبلازما تعمل في الأدمة، ولذلك الخطر فيها أعلى. الحقن مخصّصة للأطباء. أمّا الباقي فالقواعد تختلف من بلد إلى آخر: افحصي الأنظمة عندكِ، التأهيل المطلوب وتأمينكِ المهني.',
     facts: [
       ['حموضة الجلد', '4.5–5.5. الغلاف الحمضي يحمي من البكتيريا. التنظيف القلوي جداً يضرّه.'],
       ['أنواع البشرة IV–VI', 'الحرارة وإضعاف الحاجز يزيدان خطر البقع ما بعد الالتهاب. نبدأ بلطف.'],
