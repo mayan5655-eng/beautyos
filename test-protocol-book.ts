@@ -5,7 +5,8 @@ import {
   ALL_PROTOCOLS, protocolBookEnabled, hasFullBook, canOpen, visibleProtocols, totalMinutes, protocolLinks, withLink,
   protocolForService, questionsFor, bookLangOf, protocolFormAllowed, serviceIdForAppt, BOOK_LANGS,
 } from './lib/protocolBook/book.ts';
-import { UI, CHAPTERS, SKIN, NAIL } from './lib/protocolBook/labels.ts';
+import { UI, CHAPTERS, SKIN, NAIL, PHOTOS } from './lib/protocolBook/labels.ts';
+import { HOWTO, GLOSSARY } from './lib/protocolBook/frontMatter.ts';
 import { addSession, cleanSessions, plannedOf, progressOf, isMissingTable, MAX_SESSIONS_STORED } from './lib/protocolBook/course.ts';
 import { PROTOCOL_FORMS, protocolFormOf } from './lib/protocolBook/questions.ts';
 import { bidiParts } from './lib/protocolBook/bidi.ts';
@@ -168,7 +169,7 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
     }
   }
   // APPEND-ONLY: a signed form stores answers by index. These are the first lists, frozen.
-  const FROZEN_HE: Record<string, number> = { acne: 6, pigmentation: 5, 'anti-aging': 5, 'sensitive-rosacea': 3, 'gel-manicure': 5, 'gel-removal': 3, 'gel-extensions': 3 };
+  const FROZEN_HE: Record<string, number> = { 'deep-cleansing': 5, dehydrated: 5, 'oily-pores': 5, glow: 6, 'acne-marks': 5, 'superficial-peel': 7, devices: 7, 'laser-hair': 8, pedicure: 6, acne: 6, pigmentation: 5, 'anti-aging': 5, 'sensitive-rosacea': 3, 'gel-manicure': 5, 'gel-removal': 3, 'gel-extensions': 3 };
   for (const [key, n] of Object.entries(FROZEN_HE)) {
     const f = protocolFormOf(`protocol_${key}`)!;
     assert.ok(f.ask.he.length >= n, `${key}: questions are only ever appended`);
@@ -305,6 +306,34 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   assert.match(up, /get_user_tenant_id/, 'the folder comes from her session');
   const adm = fs.readFileSync('app/api/admin/protocol-certificate/route.ts', 'utf8');
   assert.ok(adm.indexOf('requirePlatformAdmin()') < adm.indexOf('request.json()'), 'the admin gate runs before the body is read');
+}
+
+// ── The whole book: every chapter of the plan is there, and what must stay out stays out ─────────────────────────────
+{
+  const keys = ALL_PROTOCOLS.map((p) => p.key);
+  for (const k of ['deep-cleansing', 'dehydrated', 'oily-pores', 'glow', 'acne-marks', 'superficial-peel', 'devices', 'laser-hair', 'pedicure']) {
+    assert.ok(keys.includes(k), `${k} is in the book`);
+  }
+  assert.ok(!keys.some((k) => /plasma|needling/.test(k)), 'no plasma pen and no microneedling protocol: medical territory');
+  assert.ok(ALL_PROTOCOLS.filter((p) => !['acne', 'pigmentation', 'anti-aging', 'gel-manicure', 'gel-removal'].includes(p.key)).every((p) => p.tier === 'full'), 'the five open protocols stay the only free ones');
+  // Open chapters first within each field, so a reader without the upgrade sees no gap in the numbering.
+  for (const f of ['cosmetics', 'nails'] as const) {
+    const tiers = ALL_PROTOCOLS.filter((p) => p.field === f).map((p) => p.tier);
+    assert.equal(tiers.lastIndexOf('free') < tiers.indexOf('full'), true, `${f}: free before full`);
+  }
+  // The salon ceiling the fact-check set: no AHA above 30% anywhere in the book.
+  const allText = JSON.stringify(ALL_PROTOCOLS.map((p) => p.text));
+  assert.ok(!/(3[1-9]|[4-9]\d)%/.test(allText), 'no acid concentration above 30%');
+  assert.ok(!/תוצאות מובטחות|תוצאה מובטחת|מעלים את|נעלמים לגמרי|guaranteed|نتيجة مضمونة/.test(allText), 'no promised result');
+  for (const p of ALL_PROTOCOLS) assert.ok(PHOTOS[p.key], `${p.key}: a chapter photograph`);
+  for (const f of Object.values(PHOTOS)) assert.ok(fs.existsSync(`public${f}`), `${f} exists`);
+
+  for (const lang of BOOK_LANGS) {
+    assert.equal(HOWTO[lang].parts.length, HOWTO.he.parts.length);
+    assert.equal(HOWTO[lang].rules.length, 5, `${lang}: five rules, as the title says`);
+    assert.equal(GLOSSARY[lang].terms.length, GLOSSARY.he.terms.length);
+    if (lang !== 'he') assert.ok(!HEB.test(JSON.stringify([HOWTO[lang], GLOSSARY[lang]])), `${lang}: front matter fully translated`);
+  }
 }
 
 console.log('protocol book: all passed');

@@ -150,6 +150,302 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
     }
   },
   {
+    "key": "deep-cleansing",
+    "formKey": "protocol_deep-cleansing",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "ניקוי עמוק קלאסי",
+      "ar": "التنظيف العميق الكلاسيكي",
+      "en": "Classic deep cleansing"
+    },
+    "ask": {
+      "he": [
+        "האם נטלת רואקוטן בחצי השנה האחרונה?",
+        "האם יש לך קוצב לב, שתל מתכתי או אפילפסיה?",
+        "האם את בהריון?",
+        "האם יש לך סוכרת או שאת נוטלת מדללי דם?",
+        "האם יש לך כרגע הרפס או פצע פתוח בפנים?"
+      ],
+      "ar": [
+        "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
+        "هل لديكِ جهاز تنظيم قلب، زرعة معدنية أو صرع؟",
+        "هل أنتِ حامل؟",
+        "هل لديكِ سكري أو تتناولين مميّعات الدم؟",
+        "هل لديكِ الآن هربس أو جرح مفتوح في الوجه؟"
+      ],
+      "en": [
+        "Have you taken isotretinoin (Roaccutane) in the last six months?",
+        "Do you have a pacemaker, a metal implant or epilepsy?",
+        "Are you pregnant?",
+        "Do you have diabetes or take blood thinners?",
+        "Do you have a cold sore or an open wound on your face right now?"
+      ]
+    }
+  },
+  {
+    "key": "dehydrated",
+    "formKey": "protocol_dehydrated",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "עור מיובש ומחסום פגוע",
+      "ar": "البشرة المجفّفة والحاجز المتضرّر",
+      "en": "Dehydrated skin & a damaged barrier"
+    },
+    "ask": {
+      "he": [
+        "האם יש לך אקזמה, דרמטיטיס או מחלת עור פעילה?",
+        "האם יש לך קוצב לב, שתל מתכתי או אפילפסיה?",
+        "האם את בהריון?",
+        "האם יש לך אלרגיה ידועה לרכיב קוסמטי?",
+        "האם את משתמשת בקרם עם רטינול או חומצות?"
+      ],
+      "ar": [
+        "هل لديكِ إكزيما، التهاب جلد أو مرض جلدي نشط؟",
+        "هل لديكِ جهاز تنظيم قلب، زرعة معدنية أو صرع؟",
+        "هل أنتِ حامل؟",
+        "هل لديكِ حساسية معروفة من مكوّن تجميلي؟",
+        "هل تستعملين كريماً بالريتينول أو بالأحماض؟"
+      ],
+      "en": [
+        "Do you have eczema, dermatitis or an active skin condition?",
+        "Do you have a pacemaker, a metal implant or epilepsy?",
+        "Are you pregnant?",
+        "Do you have a known allergy to a cosmetic ingredient?",
+        "Do you use a cream with retinol or acids?"
+      ]
+    }
+  },
+  {
+    "key": "oily-pores",
+    "formKey": "protocol_oily-pores",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "עור שמן ונקבוביות מורחבות",
+      "ar": "البشرة الدهنية والمسام الواسعة",
+      "en": "Oily skin & enlarged pores"
+    },
+    "ask": {
+      "he": [
+        "האם נטלת רואקוטן בחצי השנה האחרונה?",
+        "האם יש לך אלרגיה לאספירין?",
+        "האם את בהריון או מניקה?",
+        "האם יש לך כרגע הרפס או פצע פתוח בפנים?",
+        "האם את משתמשת בקרם עם רטינול או חומצות?"
+      ],
+      "ar": [
+        "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
+        "هل لديكِ حساسية من الأسبرين؟",
+        "هل أنتِ حامل أو مرضعة؟",
+        "هل لديكِ الآن هربس أو جرح مفتوح في الوجه؟",
+        "هل تستعملين كريماً بالريتينول أو بالأحماض؟"
+      ],
+      "en": [
+        "Have you taken isotretinoin (Roaccutane) in the last six months?",
+        "Are you allergic to aspirin?",
+        "Are you pregnant or breastfeeding?",
+        "Do you have a cold sore or an open wound on your face right now?",
+        "Do you use a cream with retinol or acids?"
+      ]
+    }
+  },
+  {
+    "key": "glow",
+    "formKey": "protocol_glow",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "עור עייף וחסר זוהר",
+      "ar": "البشرة المتعبة الباهتة",
+      "en": "Dull, tired skin"
+    },
+    "ask": {
+      "he": [
+        "האם נטלת רואקוטן בחצי השנה האחרונה?",
+        "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?",
+        "האם את נוטלת תרופה שגורמת לרגישות לאור?",
+        "האם יש לך אפילפסיה?",
+        "האם את בהריון?",
+        "האם יש לך כרגע הרפס או פצע פתוח בפנים?"
+      ],
+      "ar": [
+        "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
+        "هل عملتِ بوتوكس أو مادة مالئة خلال الأسبوعين الأخيرين؟",
+        "هل تتناولين دواءً يسبّب حساسية للضوء؟",
+        "هل لديكِ صرع؟",
+        "هل أنتِ حامل؟",
+        "هل لديكِ الآن هربس أو جرح مفتوح في الوجه؟"
+      ],
+      "en": [
+        "Have you taken isotretinoin (Roaccutane) in the last six months?",
+        "Have you had Botox or filler in the last two weeks?",
+        "Do you take medication that makes you sensitive to light?",
+        "Do you have epilepsy?",
+        "Are you pregnant?",
+        "Do you have a cold sore or an open wound on your face right now?"
+      ]
+    }
+  },
+  {
+    "key": "acne-marks",
+    "formKey": "protocol_acne-marks",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "סימנים וכתמים אחרי אקנה",
+      "ar": "الآثار والبقع بعد حبّ الشباب",
+      "en": "Marks & spots after acne"
+    },
+    "ask": {
+      "he": [
+        "האם נטלת רואקוטן בחצי השנה האחרונה?",
+        "האם יש לך נטייה לצלקות בולטות (קלואידים)?",
+        "האם את בהריון או מניקה?",
+        "האם את מתכננת חופשה בשמש בשבועיים הקרובים?",
+        "האם יש לך כרגע הרפס או פצע פתוח בפנים?"
+      ],
+      "ar": [
+        "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
+        "هل لديكِ ميل للندوب البارزة (الجدرة)؟",
+        "هل أنتِ حامل أو مرضعة؟",
+        "هل تخطّطين لعطلة مشمسة خلال الأسبوعين القادمين؟",
+        "هل لديكِ الآن هربس أو جرح مفتوح في الوجه؟"
+      ],
+      "en": [
+        "Have you taken isotretinoin (Roaccutane) in the last six months?",
+        "Do you tend to get raised scars (keloids)?",
+        "Are you pregnant or breastfeeding?",
+        "Are you planning a sunny holiday in the next two weeks?",
+        "Do you have a cold sore or an open wound on your face right now?"
+      ]
+    }
+  },
+  {
+    "key": "superficial-peel",
+    "formKey": "protocol_superficial-peel",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "פילינג כימי שטחי: בחירה וביצוע",
+      "ar": "التقشير الكيميائي السطحي: الاختيار والتنفيذ",
+      "en": "Superficial chemical peel: choosing & performing"
+    },
+    "ask": {
+      "he": [
+        "האם נטלת רואקוטן בחצי השנה האחרונה?",
+        "האם יש לך אלרגיה לאספירין?",
+        "האם את בהריון או מניקה?",
+        "האם יש לך נטייה לצלקות בולטות (קלואידים)?",
+        "האם עשית שעווה, אפילציה או לייזר בפנים בשבוע האחרון?",
+        "האם יש לך כרגע הרפס או פצע פתוח בפנים?",
+        "האם את משתמשת בקרם עם רטינול או חומצות?"
+      ],
+      "ar": [
+        "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
+        "هل لديكِ حساسية من الأسبرين؟",
+        "هل أنتِ حامل أو مرضعة؟",
+        "هل لديكِ ميل للندوب البارزة (الجدرة)؟",
+        "هل عملتِ شمعاً، إزالة شعر أو ليزر في الوجه خلال الأسبوع الأخير؟",
+        "هل لديكِ الآن هربس أو جرح مفتوح في الوجه؟",
+        "هل تستعملين كريماً بالريتينول أو بالأحماض؟"
+      ],
+      "en": [
+        "Have you taken isotretinoin (Roaccutane) in the last six months?",
+        "Are you allergic to aspirin?",
+        "Are you pregnant or breastfeeding?",
+        "Do you tend to get raised scars (keloids)?",
+        "Have you had waxing, epilation or laser on your face in the last week?",
+        "Do you have a cold sore or an open wound on your face right now?",
+        "Do you use a cream with retinol or acids?"
+      ]
+    }
+  },
+  {
+    "key": "devices",
+    "formKey": "protocol_devices",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "מכשור בקליניקה: גלווני, תדר גבוה, אולטרסאונד ו-LED",
+      "ar": "الأجهزة في العيادة: غلفاني، تردد عالٍ، موجات فوق صوتية و-LED",
+      "en": "Clinic devices: galvanic, high frequency, ultrasound & LED"
+    },
+    "ask": {
+      "he": [
+        "האם יש לך קוצב לב או שתל חשמלי אחר?",
+        "האם את בהריון?",
+        "האם יש לך אפילפסיה?",
+        "האם יש לך שתלי מתכת, חוטים או סד מתכתי בשיניים?",
+        "האם את נמצאת כרגע בטיפול אונקולוגי?",
+        "האם את נוטלת תרופה שגורמת לרגישות לאור?",
+        "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?"
+      ],
+      "ar": [
+        "هل لديكِ جهاز تنظيم قلب أو زرعة كهربائية أخرى؟",
+        "هل أنتِ حامل؟",
+        "هل لديكِ صرع؟",
+        "هل لديكِ زرعات معدنية، خيوط أو تقويم أسنان معدني؟",
+        "هل تتلقّين حالياً علاجاً للأورام؟",
+        "هل تتناولين دواءً يسبّب حساسية للضوء؟",
+        "هل عملتِ بوتوكس أو مادة مالئة خلال الأسبوعين الأخيرين؟"
+      ],
+      "en": [
+        "Do you have a pacemaker or another electrical implant?",
+        "Are you pregnant?",
+        "Do you have epilepsy?",
+        "Do you have metal implants, threads or metal braces?",
+        "Are you currently having cancer treatment?",
+        "Do you take medication that makes you sensitive to light?",
+        "Have you had Botox or filler in the last two weeks?"
+      ]
+    }
+  },
+  {
+    "key": "laser-hair",
+    "formKey": "protocol_laser-hair",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "הסרת שיער בלייזר",
+      "ar": "إزالة الشعر بالليزر",
+      "en": "Laser hair removal"
+    },
+    "ask": {
+      "he": [
+        "האם נחשפת לשמש או השתזפת בחודש האחרון?",
+        "האם נטלת רואקוטן בחצי השנה האחרונה?",
+        "האם את נוטלת תרופות קבועות או אנטיביוטיקה?",
+        "האם את בהריון?",
+        "האם יש לך קעקוע או איפור קבוע באזור הטיפול?",
+        "האם עשית שעווה או מריטה באזור בחודש האחרון?",
+        "האם יש לך אפילפסיה?",
+        "האם יש לך נטייה לצלקות בולטות (קלואידים)?"
+      ],
+      "ar": [
+        "هل تعرّضتِ للشمس أو اسمررتِ خلال الشهر الأخير؟",
+        "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
+        "هل تتناولين أدوية دائمة أو مضادات حيوية؟",
+        "هل أنتِ حامل؟",
+        "هل لديكِ وشم أو مكياج دائم في منطقة العلاج؟",
+        "هل عملتِ شمعاً أو نتفاً في المنطقة خلال الشهر الأخير؟",
+        "هل لديكِ صرع؟",
+        "هل لديكِ ميل للندوب البارزة (الجدرة)؟"
+      ],
+      "en": [
+        "Have you been in the sun or tanned in the last month?",
+        "Have you taken isotretinoin (Roaccutane) in the last six months?",
+        "Do you take regular medication or antibiotics?",
+        "Are you pregnant?",
+        "Do you have a tattoo or permanent makeup in the treatment area?",
+        "Have you waxed or plucked the area in the last month?",
+        "Do you have epilepsy?",
+        "Do you tend to get raised scars (keloids)?"
+      ]
+    }
+  },
+  {
     "key": "gel-manicure",
     "formKey": "protocol_gel-manicure",
     "field": "nails",
@@ -236,6 +532,43 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "Do you have a fungal infection or inflammation in your nails?",
         "Have you ever had itching, redness or blisters around your nails after gel?",
         "Do you have diabetes or take blood thinners?"
+      ]
+    }
+  },
+  {
+    "key": "pedicure",
+    "formKey": "protocol_pedicure",
+    "field": "nails",
+    "tier": "full",
+    "title": {
+      "he": "פדיקור היגייני",
+      "ar": "باديكير صحي",
+      "en": "Hygienic pedicure"
+    },
+    "ask": {
+      "he": [
+        "האם יש לך סוכרת?",
+        "האם את נוטלת תרופות לדילול דם?",
+        "האם יש לך פטרייה בציפורניים או בכפות הרגליים?",
+        "האם יש לך פצע או ציפורן חודרנית כואבת?",
+        "האם יש לך ירידה בתחושה בכפות הרגליים?",
+        "האם את בהריון?"
+      ],
+      "ar": [
+        "هل لديكِ سكري؟",
+        "هل تتناولين أدوية لتمييع الدم؟",
+        "هل لديكِ فطريات في الأظافر أو القدمين؟",
+        "هل لديكِ جرح أو ظفر ناشب مؤلم؟",
+        "هل لديكِ ضعف في الإحساس بالقدمين؟",
+        "هل أنتِ حامل؟"
+      ],
+      "en": [
+        "Do you have diabetes?",
+        "Do you take blood-thinning medication?",
+        "Do you have a fungal infection on your nails or feet?",
+        "Do you have a wound or a painful ingrown nail?",
+        "Do you have reduced feeling in your feet?",
+        "Are you pregnant?"
       ]
     }
   }

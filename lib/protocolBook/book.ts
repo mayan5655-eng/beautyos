@@ -14,6 +14,8 @@
 import type { FieldKey } from '../businessFields.ts';
 import { FACIAL } from './facial.ts';
 import { NAILS } from './nails.ts';
+import { FACIAL_MORE } from './facialMore.ts';
+import { NAILS_MORE } from './nailsMore.ts';
 import type { BookLang, Protocol } from './types.ts';
 import { businessFieldsOf, FIELD_KEYS } from '../businessFields.ts';
 import { isCertified } from './certificate.ts';
@@ -28,7 +30,8 @@ export function protocolBookEnabled(env: Env = { NEXT_PUBLIC_PROTOCOL_BOOK: proc
   return v === '1' || v === 'true';
 }
 
-export const ALL_PROTOCOLS: Protocol[] = [...FACIAL, ...NAILS];
+// Book order: within each field, the open chapters first, then the full book's.
+export const ALL_PROTOCOLS: Protocol[] = [...FACIAL, ...FACIAL_MORE, ...NAILS, ...NAILS_MORE];
 
 export const protocolByKey = (key: unknown): Protocol | undefined =>
   typeof key === 'string' ? ALL_PROTOCOLS.find((p) => p.key === key) : undefined;

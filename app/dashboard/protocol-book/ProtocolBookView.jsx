@@ -10,6 +10,7 @@
 // sells: no price, no buy button, no locked chapter, no "בקרוב".
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UI, CHAPTERS, SECTIONS, SKIN, NAIL, PHOTOS } from "@/lib/protocolBook/labels";
+import { HOWTO, GLOSSARY } from "@/lib/protocolBook/frontMatter";
 import { LOGO_FULL, FLOWER_FULL } from "@/lib/brand";
 import BrandImage from "@/app/BrandImage";
 import { resizeImage } from "@/lib/imageResize";
@@ -27,6 +28,7 @@ const ICONS = {
   loupe: <><circle cx="8" cy="8" r="5" /><path d="m12 12 4 4" /></>,
   prep: <><path d="M7 2h4v3l1.5 2v9h-7V7L7 5Z" /><path d="M5.5 10h7" /></>,
   peel: <><path d="M9 1v4M7 5h4v3l-1 1v4a1 1 0 0 1-2 0V9L7 8Z" /><path d="M9 16v1" /></>,
+  steam: <path d="M5 15c-2-2 2-3 0-5s2-3 0-5M9 15c-2-2 2-3 0-5s2-3 0-5M13 15c-2-2 2-3 0-5s2-3 0-5" />,
   extract: <><circle cx="9" cy="9" r="2" /><path d="M3 4l3.5 3.5M15 4l-3.5 3.5M3 14l3.5-3.5M15 14l-3.5-3.5" /></>,
   bolt: <path d="M10 1 4 10h5l-1 7 6-9H9Z" />,
   mask: <><path d="M3 5c4-3 8-3 12 0v5c0 4-3 6-6 6s-6-2-6-6Z" /><path d="M6 8h1.5M10.5 8H12M7 12c1.2.8 2.8.8 4 0" /></>,
@@ -342,7 +344,7 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
 
   // Pages in reading order: contents, then per field its foundation chapter and its protocols.
   const pages = useMemo(() => {
-    const out = [{ id: "cover" }, { id: "contents" }];
+    const out = [{ id: "cover" }, { id: "contents" }, { id: "before" }];
     for (const f of ["cosmetics", "nails"]) {
       if (!fields.includes(f)) continue;
       const ps = protocols.filter((p) => p.field === f);
@@ -350,6 +352,7 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
       out.push({ id: f === "cosmetics" ? "skin" : "nail", field: f });
       ps.forEach((p) => out.push({ id: p.key, protocol: p }));
     }
+    out.push({ id: "glossary" });
     return out;
   }, [protocols, fields]);
 
@@ -431,6 +434,9 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
       <PageTop />
       <div className="pb-body">
         <h2 className="pb-h2 pb-h2-xl pb-center">{t.contents}</h2>
+        <ul className="pb-toc pb-toc-plain">
+          <li><button type="button" className="pb-toc-line" onClick={() => go(idx("before"))}><span className="pb-toc-nm">{HOWTO[lang].title}</span><span className="pb-toc-tag">{HOWTO[lang].rulesTitle}</span></button></li>
+        </ul>
         {["cosmetics", "nails"].filter((f) => pages.some((p) => p.field === f)).map((f) => (
           <div key={f} className="pb-toc-group">
             <p className="pb-pill">{SECTIONS[f][lang]}</p>
@@ -445,10 +451,50 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
           </div>
         ))}
         {certificate?.gate && <CertificateGate t={t} lang={lang} status={certificate.status} />}
+        <ul className="pb-toc pb-toc-plain">
+          <li><button type="button" className="pb-toc-line" onClick={() => go(idx("glossary"))}><span className="pb-toc-nm">{GLOSSARY[lang].title}</span><span className="pb-toc-tag">{GLOSSARY[lang].lead}</span></button></li>
+        </ul>
         <p className="pb-disclaimer">{t.disclaimer}</p>
       </div>
     </>
   );
+
+  const before = (() => {
+    const h = HOWTO[lang];
+    return (
+      <>
+        <PageTop />
+        <div className="pb-body">
+          <h2 className="pb-h2 pb-h2-xl pb-center">{h.title}</h2>
+          <p className="pb-lead pb-lead-c">{h.lead}</p>
+          <div className="pb-rule" />
+          <section className="pb-sec">
+            <h3 className="pb-h3">{h.partsTitle}</h3>
+            <ol className="pb-legend">{h.parts.map(([a, b], i) => <li key={a}><span className="pb-nb">{i + 1}</span><span><b>{a}.</b> {b}</span></li>)}</ol>
+          </section>
+          <section className="pb-sec">
+            <h3 className="pb-h3">{h.rulesTitle}</h3>
+            <ol className="pb-rules">{h.rules.map((r, i) => <li key={i}><span className="pb-no">{pad(i + 1)}</span><span><Bidi>{r}</Bidi></span></li>)}</ol>
+          </section>
+          <p className="pb-disclaimer">{t.disclaimer}</p>
+        </div>
+      </>
+    );
+  })();
+
+  const glossary = (() => {
+    const g = GLOSSARY[lang];
+    return (
+      <>
+        <PageTop />
+        <div className="pb-body">
+          <h2 className="pb-h2 pb-h2-xl pb-center">{g.title}</h2>
+          <p className="pb-lead pb-lead-c">{g.lead}</p>
+          <dl className="pb-gloss">{g.terms.map(([a, b]) => <div key={a}><dt>{a}</dt><dd><Bidi>{b}</Bidi></dd></div>)}</dl>
+        </div>
+      </>
+    );
+  })();
 
   const foundation = (field) => {
     if (field === "cosmetics") {
@@ -502,6 +548,8 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
       <article key={`${page.id}-${lang}`} className={`pb-page${page.id === "cover" ? " pb-page-cover" : ""} ${dir > 0 ? "pb-turn-fwd" : "pb-turn-back"}`}>
         {page.id === "cover" ? cover
           : page.id === "contents" ? contents
+          : page.id === "before" ? before
+          : page.id === "glossary" ? glossary
           : page.protocol ? <ProtocolPage p={page.protocol} lang={lang} t={t} no={numberOf[page.id]} services={services} links={links} setLinks={setLinks} allProtocols={protocols} />
           : foundation(page.field)}
         {page.id !== "cover" && (
@@ -653,6 +701,19 @@ background:radial-gradient(circle at 12% 18%,rgba(255,240,190,.9) 0 10px,transpa
 .pb-cover-foot{gap:4px;background:rgba(252,249,243,.75);border-radius:999px;padding:6px 22px}
 .pb-author{font-family:var(--display-heavy);font-size:clamp(22px,5vw,28px);font-weight:700;color:var(--pb-ink)}
 .pb-site{font-family:var(--pb-num-font);font-size:16px;color:var(--pb-ink);direction:ltr}
+
+/* Front and back matter */
+.pb-lead-c{text-align:center;margin-inline:auto}
+.pb-toc-plain{border-top:0}
+.pb-toc-line{all:unset;box-sizing:border-box;width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--pb-line);cursor:pointer}
+.pb-toc-line:focus-visible{outline:2px solid var(--pb-gold);outline-offset:2px}
+.pb-rules{list-style:none;margin:0;padding:0}
+.pb-rules li{display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--pb-line);font-size:var(--t-md);line-height:1.6}
+.pb-rules .pb-no{font-size:26px;line-height:1}
+.pb-gloss{margin:0;display:flex;flex-direction:column}
+.pb-gloss div{padding:10px 0;border-bottom:1px solid var(--pb-line)}
+.pb-gloss dt{font-weight:700;font-size:var(--t-md);color:var(--pb-ink)}
+.pb-gloss dd{margin:2px 0 0;font-size:var(--t-md);line-height:1.6;color:var(--pb-ink-2)}
 
 /* The certificate gate */
 .pb-cert{display:flex;flex-direction:column;gap:12px;align-items:stretch;border:1px solid var(--pb-line);border-radius:6px;padding:18px 16px;background:rgba(255,255,255,.75)}

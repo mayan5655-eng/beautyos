@@ -13,8 +13,10 @@
 import fs from 'node:fs';
 import { FACIAL } from '../lib/protocolBook/facial.ts';
 import { NAILS } from '../lib/protocolBook/nails.ts';
+import { FACIAL_MORE } from '../lib/protocolBook/facialMore.ts';
+import { NAILS_MORE } from '../lib/protocolBook/nailsMore.ts';
 
-const rows = [...FACIAL, ...NAILS].map((p) => ({
+const rows = [...FACIAL, ...FACIAL_MORE, ...NAILS, ...NAILS_MORE].map((p) => ({
   key: p.key,
   formKey: `protocol_${p.key}`,
   field: p.field,

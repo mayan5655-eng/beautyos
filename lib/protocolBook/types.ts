@@ -8,7 +8,7 @@ export const BOOK_LANGS: readonly BookLang[] = ['he', 'ar', 'en'];
 export type Tier = 'free' | 'full';
 
 export type StepIcon =
-  | 'drop' | 'loupe' | 'prep' | 'peel' | 'extract' | 'bolt' | 'mask' | 'led' | 'cream' | 'snow' | 'serum' | 'sun'
+  | 'drop' | 'loupe' | 'prep' | 'peel' | 'steam' | 'extract' | 'bolt' | 'mask' | 'led' | 'cream' | 'snow' | 'serum' | 'sun'
   | 'hands' | 'eye' | 'file' | 'pusher' | 'drill' | 'buffer' | 'brush' | 'lamp' | 'oil' | 'form' | 'shield';
 
 export type FaceZone = 'forehead' | 'nose' | 'cheek' | 'chin' | 'lip' | 'eyes' | 'jaw';
