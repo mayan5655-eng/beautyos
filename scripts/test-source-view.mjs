@@ -52,6 +52,15 @@ export function hebrewView(src) {
 const SCREEN_OPEN = '/* @screen-body */';
 const SCREEN_CLOSE = '/* @screen-end */';
 export function withScreens(src) {
+  // The logic moved into app/sections/ (scripts/extract-section.mjs) goes back the same way: the one-line hook call
+  // becomes the statements it replaced.
+  src = src.replace(/^([ \t]*)(?:const \{[^{}\n]*\} = )?(use[A-Z][A-Za-z]*Section)\(\{.*\}\);$/gm, (m, indent, name) => {
+    const file = path.join(ROOT, 'app', 'sections', `${name}.jsx`);
+    if (!fs.existsSync(file)) return m;
+    const s = realRead.call(fs, file, 'utf8').replace(/\r\n/g, '\n');
+    const a = s.indexOf('/* @section-body */'), z = s.lastIndexOf('/* @section-end */');
+    return a < 0 || z < 0 ? m : indent + s.slice(a + '/* @section-body */'.length, z);
+  });
   return src.replace(/<([A-Z][A-Za-z]*(?:Screen|Modal)) ctx=\{\{[^{}]*\}\}\/>/g, (m, name) => {
     const file = path.join(ROOT, 'app', 'screens', `${name}.jsx`);
     if (!fs.existsSync(file)) return m;
