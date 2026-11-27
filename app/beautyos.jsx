@@ -849,6 +849,11 @@ import InsightsScreen from "./screens/InsightsScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import VoiceModal from "./screens/VoiceModal";
 import HelpModal from "./screens/HelpModal";
+import LeadCardModal from "./screens/LeadCardModal";
+import MoreSheetModal from "./screens/MoreSheetModal";
+import PackageModal from "./screens/PackageModal";
+import WaQueueModal from "./screens/WaQueueModal";
+import ComposeSendModal from "./screens/ComposeSendModal";
 
 // Manually added leads start at "new", the same entry status the Facebook
 // webhook writes, so both intake paths begin in one place.
@@ -8771,43 +8776,7 @@ export default function BeautyOS({ ownerEntry = null } = {}) {
       {/* COMPOSE-AND-SEND: what a yes on the one-question card opens. The
           message is editable; each client gets a wa.me tap that opens HER
           WhatsApp with the text plus that client's personal link. */}
-      {composeSend&&(()=>{
-        // \D, not D: an earlier tooling pass ate the backslash, so this stripped
-        // the letter D and left dashes and spaces in the number, and every
-        // wa.me link built from a phone stored as "050-123 4567" was dead.
-        const waDigits=(raw)=>{let d=String(raw||"").replace(/\D/g,"");if(d.startsWith("972"))return d;if(d.startsWith("0"))return "972"+d.slice(1);if(d.length===9)return "972"+d;return d;};
-        const waHref=(c)=>`https://wa.me/${waDigits(c.phone)}?text=${encodeURIComponent(withAdLabel(`שלום${c.name?` ${c.name}`:""}! ✦
-${composeSend.messageTemplate}
-${c.claimUrl}
-
-${MARKETING_FOOTER}`))}`;
-        const doneCount=composeSend.candidates.filter(c=>composeDone[c.phone]).length;
-        return (
- <Sheet open onClose={()=>setComposeSend(null)} width={440} zIndex={4000} title={trv(composeSend.title)}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:12}}>{tr("ההודעה נשלחת מהוואטסאפ שלך. לחיצה על לקוחה פותחת את השיחה עם ההודעה מוכנה, ואת רק שולחת.")}</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:600,marginBottom:5}}>{tr("ההודעה (אפשר לערוך)")}</p>
- <textarea value={composeSend.messageTemplate} onChange={e=>setComposeSend({...composeSend,messageTemplate:e.target.value})} rows={3} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"10px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:"var(--surface-2)",resize:"none",marginBottom:4}}/>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginBottom:12}}>{tr("הקישור האישי של כל לקוחה מתווסף אוטומטית בסוף.")}</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",fontWeight:600,marginBottom:6}}>{composeSend.candidates.length} {tr("לקוחות")}{doneCount>0?tr(" · נשלחו {0}", [doneCount]):""}</p>
- {composeSend.candidates.map((c,i)=>(
- <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i===0?"none":"1px solid var(--line)"}}>
- <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name||tr("(ללא שם)")}</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",direction:"ltr",textAlign:"right"}}>{fmtPhone(c.phone)}</p>
- </div>
- <a href={waHref(c)} target="_blank" rel="noreferrer" onClick={()=>setComposeDone(prev=>({...prev,[c.phone]:true}))} className="primary-btn" style={{background:composeDone[c.phone]?"var(--surface-2)":"#25D366",color:composeDone[c.phone]?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{composeDone[c.phone]?tr("✓ נפתח"):tr("שליחה בוואטסאפ")}</a>
- </div>
- ))}
- <div style={{display:"flex",gap:8,marginTop:14}}>
- {/* No automatic-send button, by decision: marketing goes out from HER
-     WhatsApp only. A personal number connected to an API got restricted;
-     wa.me carries no such risk, so it is the only marketing path. */}
- <div style={{flex:1}}/>
- <button onClick={()=>setComposeSend(null)} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"9px 18px",fontSize:"var(--t-sm)"}}>{tr("סיימתי")}</button>
- </div>
- </Sheet>
-        );
-      })()}
+      {composeSend&&<ComposeSendModal ctx={{composeDone,composeSend,fmtPhone,pcGrad,setComposeDone,setComposeSend}}/>}
 
       {/* MANUAL WHATSAPP QUEUE — every utility send that's manual-mode or fell
           back, plus every outreach send (slot_offer, comeback, lead_bulk,
@@ -8818,51 +8787,7 @@ ${MARKETING_FOOTER}`))}`;
           no delivery receipt for a tap WhatsApp doesn't report back on, so
           trusting her tap is the whole mechanism, same as every prepare flow. */}
       {showWaQueue&&(
- <Sheet open onClose={()=>setShowWaQueue(false)} width={440} zIndex={4000} title={tr("הודעות מוכנות לשליחה")}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",lineHeight:1.6,marginBottom:14}}>{tr("ההודעות כאן עוד לא נשלחו. לחיצה על \"שליחה\" פותחת את הוואטסאפ שלך עם הטקסט מוכן, ונשאר רק ללחוץ שליחה.")}</p>
-          {whatsappPending.length===0?(
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",textAlign:"center",padding:"20px 0"}}>{tr("אין הודעות שמחכות לשליחה.")}</p>
-          ):(whatsappPending.map((m,i)=>{
-            const link=waMsg(m.recipient_phone,m.message_body);
-            const done=!!waQueueDone[m.id];
-            // The visible age marker: how long this has been waiting for her
-            // tap. Minutes/hours for anything recent, falling back to the
-            // same day-granularity contactAgoHe uses elsewhere once it's
-            // been more than a day - a message that's been sitting that
-            // long needs the same quiet urgency a lapsed-client line gets.
-            const ageHe=(()=>{
-              const ts=parseDb(m.created_at).getTime();
-              if(!Number.isFinite(ts))return"";
-              const mins=Math.floor((Date.now()-ts)/60000);
-              if(mins<1)return"ממש עכשיו";
-              if(mins<60)return`לפני ${mins} דק׳`;
-              const hrs=Math.floor(mins/60);
-              if(hrs<24)return`לפני ${hrs} שע׳`;
-              return contactAgoHe(m.created_at);
-            })();
-            return(
- <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i===0?"none":"1px solid var(--line)"}}>
- <div style={{flex:1,minWidth:0}}>
- <p style={{fontSize:"var(--t-sm)",fontWeight:600,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.recipient_name||tr("(ללא שם)")}</p>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.message_body}</p>
- {ageHe&&<p style={{fontSize:"var(--t-xs)",color:"var(--warning)",marginTop:2}}>{tr("ממתינה ·")} {ageHe}</p>}
- </div>
-                {link?(
- <a href={link} target="_blank" rel="noreferrer" onClick={()=>{setWaQueueDone(prev=>({...prev,[m.id]:true}));fetch("/api/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:m.id})}).then(r=>{if(!r.ok)throw new Error(String(r.status));}).catch(()=>{setWaQueueDone(prev=>({...prev,[m.id]:false}));toast(tr("לא הצלחנו לשמור שההודעה נפתחה"),"error");});}} className="primary-btn" style={{background:done?"var(--surface-2)":"#25D366",color:done?"var(--ink-3)":"#fff",padding:"8px 14px",fontSize:"var(--t-sm)",textDecoration:"none",whiteSpace:"nowrap",borderRadius:"var(--r-sm)"}}>{done?tr("✓ נפתח"):tr("שליחה")}</a>
-                ):(
- <span style={{fontSize:"var(--t-xs)",color:"var(--danger)",whiteSpace:"nowrap"}}>{tr("מספר לא תקין")}</span>
-                )}
-                {/* Off the list without sending: an old reminder for a visit that already happened.
-                    It stays in the message log as "הוסרה מהרשימה". */}
-                {!done&&<button aria-label={tr("הסרת ההודעה ל{0} מהרשימה", [m.recipient_name||"לקוחה"])} title={tr("הסרה מהרשימה בלי לשלוח")} onClick={()=>{fetch("/api/messages",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:m.id,action:"dismiss"})}).then(r=>{if(!r.ok)throw new Error(String(r.status));setWhatsappPending(prev=>prev.filter(x=>x.id!==m.id));}).catch(()=>toast(tr("לא הצלחנו להסיר את ההודעה מהרשימה"),"error"));}} style={{background:"none",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"7px 10px",fontSize:"var(--t-sm)",color:"var(--ink-3)",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{tr("הסרה")}</button>}
- </div>
-            );
-          }))}
- <div style={{display:"flex",gap:8,marginTop:14}}>
- <div style={{flex:1}}/>
- <button onClick={()=>{setShowWaQueue(false);setWhatsappPending(prev=>prev.filter(m=>!waQueueDone[m.id]));}} className="primary-btn" style={{background:pcGrad,color:"var(--pc-contrast)",padding:"9px 18px",fontSize:"var(--t-sm)"}}>{tr("סיימתי")}</button>
- </div>
- </Sheet>
+ <WaQueueModal ctx={{pcGrad,setShowWaQueue,setWaQueueDone,setWhatsappPending,toast,waMsg,waQueueDone,whatsappPending}}/>
       )}
 
       {/* CONFIRM DIALOG */}
@@ -9330,53 +9255,7 @@ ${MARKETING_FOOTER}`))}`;
 
       {/* PACKAGE MODAL */}
       {showPackageModal&&(
- <Sheet open onClose={()=>setShowPackageModal(false)} width={340} zIndex={1000} title={tr("חבילת טיפולים חדשה")}>
- <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {clients.length===0&&setupHint(NO_CLIENTS_HINT)}
-                  {activeServices.length===0&&setupHint(NO_SERVICES_HINT)}
-                  {offerings.filter(o=>o.active).length>0&&(
- <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:5}}>{tr("מהקטלוג")}</p>
- <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                        {offerings.filter(o=>o.active).map(o=>{
-                          const sel = newPackage.offering_id===o.id;
-                          return (
- <button key={o.id} onClick={()=>setNewPackage({...newPackage,offering_id:o.id,service:o.service,total_sessions:Number(o.sessions),price:Number(o.price)})} style={{padding:"7px 11px",borderRadius:"var(--r-sm)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"1px solid",borderColor:sel?"transparent":"var(--line-2)",background:sel?pcGrad:"var(--surface)",color:sel?"var(--pc-contrast)":"var(--ink-2)"}}>
-                              {o.service} · {o.sessions} · ₪{o.price}
- </button>
-                          );
-                        })}
- </div>
- </div>
-                  )}
- <select value={newPackage.client_id} onChange={e=>{const c=clients.find(cl=>String(cl.id)===e.target.value);setNewPackage({...newPackage,client_id:e.target.value,client_name:c?.name||""});}} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:"var(--surface-2)"}}><option value="">{tr("בחרי לקוחה")}</option>{clients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
- <select value={newPackage.service} onChange={e=>setNewPackage({...newPackage,service:e.target.value})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:"var(--surface-2)"}}><option value="">{tr("בחרי שירות")}</option>{activeServices.map(s=><option key={s.name}>{s.name}</option>)}</select>
- <div style={{display:"flex",gap:6}}>
- <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>{tr("מספר טיפולים")}</p><input type="number" value={newPackage.total_sessions} onChange={e=>setNewPackage({...newPackage,total_sessions:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
- <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>{tr("תוקף")}</p><select aria-label={tr("תוקף החבילה")} value={newPackage.valid_months||0} onChange={e=>setNewPackage({...newPackage,valid_months:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 8px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",direction:uiDir(),background:"var(--surface-2)"}}>{[[0,"ללא"],[3,"3 חודשים"],[6,"חצי שנה"],[12,"שנה"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
- <div style={{flex:1}}><p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:3}}>{tr("מחיר חבילה ₪")}</p><input type="number" value={newPackage.price} onChange={e=>setNewPackage({...newPackage,price:Number(e.target.value)})} style={{width:"100%",border:"1px solid var(--line)",borderRadius:"var(--r-sm)",padding:"8px 10px",fontSize:"var(--t-xs)",fontFamily:"inherit",outline:"none",textAlign:"center",background:pcTint}}/></div>
- </div>
-                  {/* She is taking money here, so the receipt has to say how.
-                      A receipt with no payment method drops out of
-                      paymentBreakdown without a trace - the same silence this
-                      whole change is about. */}
-                  {Number(newPackage.price)>0&&(
- <div>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-2)",marginBottom:5}}>{tr("אמצעי תשלום")}</p>
- <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                      {PAYMENT_METHODS.map(m=>(
- <button key={m.key} onClick={()=>setNewPackage({...newPackage,payment_method:m.key})} style={{flex:1,minWidth:70,padding:"8px 0",borderRadius:"var(--r-sm)",border:"1px solid",borderColor:newPackage.payment_method===m.key?"transparent":"var(--line-2)",background:newPackage.payment_method===m.key?pcGrad:"var(--surface)",color:newPackage.payment_method===m.key?"var(--pc-contrast)":"var(--ink-2)",fontSize:"var(--t-sm)",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{m.key}</button>
-                      ))}
- </div>
- <p style={{fontSize:"var(--t-xs)",color:"var(--ink-3)",marginTop:6,lineHeight:1.5}}>{tr("יירשם תשלום על סכום החבילה, והיא תיכנס להכנסות.")}</p>
- </div>
-                  )}
- </div>
- <div style={{display:"flex",gap:6,marginTop:16}}>
- <button onClick={()=>setShowPackageModal(false)} className="primary-btn" style={{flex:1,padding:"11px 0",border:"1px solid var(--line)",background:"var(--surface)",fontSize:"var(--t-sm)",color:"var(--ink-2)"}}>{tr("ביטול")}</button>
- <button onClick={handleSavePackage} className="primary-btn" style={{flex:2,padding:"11px 0",background:pcGrad,color:"var(--pc-contrast)",fontSize:"var(--t-sm)"}}>{tr("שמירה ✓")}</button>
- </div>
- </Sheet>
+ <PackageModal ctx={{activeServices,clients,handleSavePackage,newPackage,NO_CLIENTS_HINT,NO_SERVICES_HINT,offerings,PAYMENT_METHODS,pcGrad,pcTint,setNewPackage,setShowPackageModal,setupHint}}/>
       )}
 
       {/* ============================================================
@@ -9448,49 +9327,7 @@ ${MARKETING_FOOTER}`))}`;
 
       {/* "עוד" SHEET — the remaining tabs. */}
       {showMoreSheet&&(
- <div className="mobile-only" data-overlay="more" onClick={()=>setShowMoreSheet(false)}
-      style={{position:"fixed",inset:0,zIndex:1401,background:"rgba(48,24,72,0.34)",
-              backdropFilter:"blur(2px)",WebkitBackdropFilter:"blur(2px)",
-              /* Same reasoning as the bar: no inline display, so .mobile-only
-                 alone decides whether this can appear. */
-              alignItems:"flex-end",justifyContent:"center"}}>
- <div onClick={e=>e.stopPropagation()} role="dialog" aria-label={tr("עוד מסכים")}
-      style={{width:"100%",maxWidth:560,background:"var(--surface)",
-              borderTopLeftRadius:26,borderTopRightRadius:26,
-              border:"1px solid var(--line)",borderBottom:"none",
-              boxShadow:"var(--shadow-xl)",
-              padding:"14px 16px calc(78px + env(safe-area-inset-bottom, 0px))",
-              animation:"sheetUp 0.22s cubic-bezier(.2,.7,.3,1)"}}>
- <div aria-hidden style={{width:42,height:4,borderRadius:"var(--r-full)",background:"var(--line-2)",margin:"2px auto 14px"}}/>
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(96px,1fr))",gap:8}}>
-              {MORE_NAV.map(id=>{
-                const label=(NAV_ITEMS.find(n=>n.id===id)||{}).label||id;
-                const on=activeTab===id;
-                return (
- <button key={id} onClick={()=>{setActiveTab(id);setShowMoreSheet(false);}}
-        style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:7,
-                padding:"14px 6px",borderRadius:"var(--r-md)",cursor:"pointer",fontFamily:"inherit",
-                border:`1px solid ${on?"var(--pc)":"var(--line)"}`,
-                background:on?"var(--pc-tint)":"var(--surface-2)",
-                color:on?"var(--pc)":"var(--ink-2)",transition:"background 0.18s,border-color 0.18s"}}>
-                  {navIcon(id)}
- <span style={{fontSize:"var(--t-sm)",fontWeight:on?700:600}}>{trv(label)}</span>
- </button>
-                );
-              })}
-              <button data-testid="more-search" onClick={()=>{setShowMoreSheet(false);setShowMobileSidebar(true);}}
-        style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:7,
-                padding:"14px 6px",borderRadius:"var(--r-md)",cursor:"pointer",fontFamily:"inherit",
-                border:"1px solid var(--line)",background:"var(--surface-2)",color:"var(--ink-2)"}}>
- <span aria-hidden style={{fontSize:20,lineHeight:1}}>⌕</span>
- <span style={{fontSize:"var(--t-sm)",fontWeight:600}}>{tr("חיפוש")}</span>
- </button>
-              {ACADEMY_ON&&!tillOnly&&<AcademyNavEntry variant="more" onOpen={()=>{setShowMoreSheet(false);router.push("/dashboard/academy");}}/>}
-              {!tillOnly&&<ProtocolBookNavEntry variant="more" onOpen={()=>{setShowMoreSheet(false);router.push("/dashboard/protocol-book");}}/>}
-              {ownerEntry}
- </div>
- </div>
- </div>
+ <MoreSheetModal ctx={{ACADEMY_ON,AcademyNavEntry,activeTab,MORE_NAV,NAV_ITEMS,navIcon,ownerEntry,ProtocolBookNavEntry,router,setActiveTab,setShowMobileSidebar,setShowMoreSheet,tillOnly}}/>
       )}
 
       {/* PROTOCOL MODAL */}
@@ -9606,62 +9443,7 @@ ${MARKETING_FOOTER}`))}`;
 
       {/* LEAD PROFILE DRAWER */}
       {selectedLead&&(
- <div style={{position:"fixed",inset:0,background:"rgba(43,34,51,0.45)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-start",zIndex:1200}} data-overlay="lead" onClick={()=>setSelectedLead(null)}>
- <div onClick={e=>e.stopPropagation()} className="lead-drawer" style={{background:"var(--surface)",width:400,maxWidth:"100%",height:"100%",overflowY:"auto",boxShadow:"var(--shadow-xl)",borderLeft:"1px solid var(--line)"}}>
-            {(()=>{
-              const l=selectedLead;
-              const st=leadStatusMeta(l.status);
-              return(<>
- <div className="drawer-head" style={{background:`linear-gradient(135deg,${pc2} 0%,${pc} 100%)`,padding:"22px 22px 18px",color:"var(--surface)",position:"relative"}}>
- <button onClick={()=>setSelectedLead(null)} aria-label={tr("סגירה")} className="drawer-close" style={{position:"absolute",left:14,background:"rgba(255,255,255,0.25)",border:"none",borderRadius:"50%",width:44,height:44,color:"var(--surface)",fontSize:"var(--t-lg)",cursor:"pointer"}}>✕</button>
- <div style={{display:"flex",alignItems:"center",gap:13}}>
- <div style={{width:54,height:54,borderRadius:"50%",background:"rgba(255,255,255,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"var(--t-2xl)",flexShrink:0}}>{SOURCE_ICONS[l.source]||""}</div>
- <div style={{flex:1}}>
- <h3 className="serif" style={{fontSize:"var(--t-xl)",fontWeight:600}}>{l.name}</h3>
- <p style={{fontSize:"var(--t-xs)",opacity:0.9}}>{l.phone||tr("אין טלפון")}</p>
- <span style={{fontSize:"var(--t-xs)",background:"rgba(255,255,255,0.25)",padding:"2px 8px",borderRadius:"var(--r-lg)",marginTop:4,display:"inline-block"}}>{SOURCE_ICONS[l.source]} {l.source}</span>
- </div>
- </div>
- <div style={{display:"flex",gap:6,marginTop:14}}>
-                    {l.phone&&<a href={waLink(l.phone)} target="_blank" rel="noreferrer" style={{flex:1,background:"var(--surface)",color:pc,borderRadius:"var(--r-lg)",padding:"8px 0",fontSize:"var(--t-xs)",fontWeight:700,textAlign:"center",textDecoration:"none"}}>{tr("וואטסאפ")}</a>}
- <button onClick={()=>openEditLead(l)} style={{flex:1,background:"rgba(255,255,255,0.25)",color:"var(--surface)",border:"none",borderRadius:"var(--r-lg)",padding:"8px 0",fontSize:"var(--t-xs)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}><Icon name="edit" size={13}/> {tr("עריכה")}</button>
- </div>
- {/* One-click send to THIS lead, prefilled from the template saved for her
-     current status. Opens the same confirm flow as a group send. */}
- {l.phone&&(
- <button onClick={()=>openBulk(l.status,l)} style={{width:"100%",marginTop:6,background:"rgba(255,255,255,0.25)",color:"var(--surface)",border:"none",borderRadius:"var(--r-lg)",padding:"8px 0",fontSize:"var(--t-xs)",fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{tr("הודעה מוכנה")}</button>
- )}
- </div>
- <div style={{padding:"16px 22px"}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:6,fontWeight:600}}>{tr("סטטוס")}</p>
- <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:16}}>
-                    {/* aria-pressed, not just colour: the active chip was signalled
-                        only by a border and a background at 9.5px, which is the
-                        weakest confirmation in the app and says nothing to a screen
-                        reader. Type goes up to 11.5px and the tap target to 32px —
-                        these are read and hit one-handed. */}
-                    {Object.entries(LEAD_STATUSES).map(([key,s])=>(
- <button key={key} onClick={()=>handleUpdateLeadStatus(l,key)} disabled={isBusy("leadStatus")} aria-pressed={l.status===key} style={{padding:"7px 13px",minHeight:32,border:"1px solid",borderColor:l.status===key?s.color:"var(--line-2)",borderRadius:"var(--r-lg)",background:l.status===key?s.bg:"var(--surface)",color:l.status===key?s.color:"var(--ink-2)",fontSize:"var(--t-sm)",cursor:isBusy("leadStatus")?"default":"pointer",fontFamily:"inherit",fontWeight:l.status===key?700:500,opacity:isBusy("leadStatus")&&l.status!==key?0.55:1,transition:"background .15s,border-color .15s,opacity .15s"}}>{trv(s.label)}</button>
-                    ))}
- </div>
-                  {l.service_interest&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>{tr("תחום עניין")}</span><span style={{fontWeight:600,color:"var(--ink)"}}>{l.service_interest}</span></div>}
-                  {l.created_at&&<div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>{tr("נוצר")}</span><span style={{color:"var(--ink)"}}>{fmtDateHe(localDayKey(l.created_at))}</span></div>}
-                  {/* Contact trail. Reads "טרם יצרת קשר" until the first
-                      successful WhatsApp send from the app. */}
- <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--line)",fontSize:"var(--t-sm)"}}><span style={{color:"var(--ink-3)"}}>{tr("יצירת קשר")}</span><span style={{color:l.last_contacted_at?"var(--ink)":"var(--ink-3)",fontWeight:l.last_contacted_at?600:400}}>{contactSummaryHe(l)}</span></div>
- <div style={{marginTop:12}}>
- <p style={{fontSize:"var(--t-sm)",color:"var(--ink-3)",marginBottom:4,fontWeight:600}}>{tr("תזכורת מעקב")}</p>
- <input type="date" value={l.reminder_date||""} onChange={e=>handleSetReminder(l,e.target.value)} disabled={isBusy("leadReminder")} style={{width:"100%",border:"1px solid var(--line-2)",borderRadius:"var(--r-sm)",padding:"9px 12px",fontSize:"var(--t-sm)",fontFamily:"inherit",outline:"none",background:"var(--surface-2)",opacity:isBusy("leadReminder")?0.6:1}}/>
- </div>
-                  {l.notes&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--pc-tint)",borderRadius:"var(--r-sm)"}}><p style={{color:"var(--ink-3)",fontWeight:700,fontSize:"var(--t-sm)",marginBottom:2}}>{tr("הערות")}</p><p style={{fontSize:"var(--t-xs)",color:"var(--ink)"}}>{l.notes}</p></div>}
-                  {l.status!=="closed"&&l.status!=="lost"&&l.status!=="irrelevant"&&(
- <button onClick={()=>handleConvertLead(l)} className="primary-btn" style={{width:"100%",marginTop:16,background:"var(--success)",color:"var(--surface)",borderRadius:"var(--r-xl)",padding:"12px 0",fontSize:"var(--t-sm)",fontWeight:700,boxShadow:"var(--shadow-md)"}}>{tr("✓ המירי ללקוחה רשומה")}</button>
-                  )}
- </div>
- </>);
-            })()}
- </div>
- </div>
+ <LeadCardModal ctx={{fmtDateHe,handleConvertLead,handleSetReminder,handleUpdateLeadStatus,isBusy,LEAD_STATUSES,leadStatusMeta,openBulk,openEditLead,pc,pc2,selectedLead,setSelectedLead,SOURCE_ICONS,waLink}}/>
       )}
 
  </div>
