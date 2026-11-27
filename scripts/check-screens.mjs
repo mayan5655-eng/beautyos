@@ -8,7 +8,7 @@ import fs from 'node:fs';
 
 const DIR = 'app/screens';
 const main = fs.readFileSync('app/beautyos.jsx', 'utf8');
-const files = fs.existsSync(DIR) ? fs.readdirSync(DIR).filter((f) => /Screen\.jsx$/.test(f)).sort() : [];
+const files = fs.existsSync(DIR) ? fs.readdirSync(DIR).filter((f) => /(?:Screen|Modal)\.jsx$/.test(f)).sort() : [];
 const fail = [];
 const names = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 

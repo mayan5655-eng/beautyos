@@ -52,7 +52,7 @@ export function hebrewView(src) {
 const SCREEN_OPEN = '/* @screen-body */';
 const SCREEN_CLOSE = '/* @screen-end */';
 export function withScreens(src) {
-  return src.replace(/<([A-Z][A-Za-z]*Screen) ctx=\{\{[^{}]*\}\}\/>/g, (m, name) => {
+  return src.replace(/<([A-Z][A-Za-z]*(?:Screen|Modal)) ctx=\{\{[^{}]*\}\}\/>/g, (m, name) => {
     const file = path.join(ROOT, 'app', 'screens', `${name}.jsx`);
     if (!fs.existsSync(file)) return m;
     const s = realRead.call(fs, file, 'utf8').replace(/\r\n/g, '\n');

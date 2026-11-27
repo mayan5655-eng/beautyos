@@ -2,8 +2,11 @@
 //
 // Moves one tab of app/beautyos.jsx into its own file under app/screens/, mechanically.
 //
-//   node scripts/extract-screen.mjs packages            -> app/screens/PackagesScreen.jsx
-//   node scripts/extract-screen.mjs packages --dry      -> prints what it would pass, changes nothing
+//   node scripts/extract-screen.mjs packages                         -> app/screens/PackagesScreen.jsx (the "packages" tab)
+//   node scripts/extract-screen.mjs --cond 'showCashier' CashierModal   -> any `{<cond> && (...)}` block, by its condition
+//   ... --dry                                                        -> prints what it would pass, changes nothing
+//
+// A name ends in Screen (a tab or a whole view) or Modal (something that opens over the app).
 //
 // ── Why a tool and not a hand edit ───────────────────────────────────────────────────────────────────────────────────────
 // app/beautyos.jsx is one component of some 13,800 lines. Every tab's JSX reads dozens of that component's variables. Moving
@@ -34,12 +37,20 @@ export const SCREENS_DIR = 'app/screens';
 export const BODY_OPEN = '/* @screen-body */';
 export const BODY_CLOSE = '/* @screen-end */';
 export const screenNameOf = (tab) => tab.replace(/(^|[-_])([a-z])/g, (m, a, c) => c.toUpperCase()) + 'Screen';
+export const NAME_RE = /^[A-Z][A-Za-z]*(?:Screen|Modal)$/;
+const squash = (s) => s.replace(/\s+/g, '');
 
 function main() {
-  const tab = process.argv[2];
+  const args = process.argv.slice(2).filter((a) => a !== '--dry');
   const dry = process.argv.includes('--dry');
-  if (!tab || !/^[a-z_]+$/.test(tab)) { console.error('usage: node scripts/extract-screen.mjs <tab> [--dry]'); process.exit(2); }
-  const name = screenNameOf(tab);
+  const byCond = args[0] === '--cond';
+  const tab = byCond ? null : args[0];
+  const cond = byCond ? args[1] : null;
+  const name = byCond ? args[2] : tab && screenNameOf(tab);
+  if (byCond ? !(cond && NAME_RE.test(name || '')) : !(tab && /^[a-z_]+$/.test(tab))) {
+    console.error("usage: node scripts/extract-screen.mjs <tab> [--dry]\n       node scripts/extract-screen.mjs --cond '<condition>' <NameScreen|NameModal> [--dry]"); process.exit(2);
+  }
+  const what = byCond ? `{${cond} && ...}` : `the "${tab}" tab`;
   const out = `${SCREENS_DIR}/${name}.jsx`;
   if (fs.existsSync(out)) { console.error(`${out} already exists`); process.exit(1); }
 
@@ -52,6 +63,15 @@ function main() {
     JSXExpressionContainer(p) {
       const e = p.node.expression;
       if (e.type !== 'LogicalExpression' || e.operator !== '&&') return;
+      if (byCond) {
+        // By condition: the whole left-hand side, compared without whitespace. Small blocks with the same condition
+        // (a one-line badge) are not what is being moved.
+        if (squash(code.slice(e.left.start, e.left.end)) !== squash(cond)) return;
+        if (e.right.loc.end.line - e.right.loc.start.line < 30) return;
+        if (block) { console.error(`more than one large block with the condition ${cond}`); process.exit(1); }
+        block = p.get('expression.right');
+        return;
+      }
       const tests = [];
       let cur = e.left;
       while (cur.type === 'LogicalExpression' && cur.operator === '&&') { tests.push(cur.right); cur = cur.left; }
@@ -63,7 +83,7 @@ function main() {
       block = p.get('expression.right');
     },
   });
-  if (!block) { console.error(`no \`activeTab==="${tab}" && ...\` block found`); process.exit(1); }
+  if (!block) { console.error(`no block found for ${what}`); process.exit(1); }
 
   // 2. Resolve what the block references from outside itself.
   const inside = (p) => p.node === block.node || !!p.findParent((x) => x.node === block.node);
@@ -132,7 +152,7 @@ function main() {
   };
 
   const screen = `"use client";
-// ${out} — the "${tab}" tab of the owner's app.
+// ${out} — ${what} of the owner's app.
 //
 // Moved out of app/beautyos.jsx by scripts/extract-screen.mjs, byte for byte: nothing between the two markers below was
 // rewritten. Everything it reads from the app arrives in one \`ctx\` object, whose names scripts/check-screens.mjs holds
