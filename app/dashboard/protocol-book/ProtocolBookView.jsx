@@ -151,7 +151,7 @@ const Flower = ({ at }) => <BrandImage src={FLOWER_FULL} width={150} height={150
 /** The top of every inner page: the full Kalmea logo with its flower, centred, and two flowers in opposite corners. */
 const PageTop = ({ eyebrow }) => (
   <>
-    <Flower at="tl" /><Flower at="br" />
+    <span className="pb-pbg" aria-hidden="true" /><Flower at="br" />
     <div className="pb-ptop">
       <BrandImage src={LOGO_FULL} alt="Kalmea" width={157} height={46} className="pb-logo" />
       {eyebrow && <p className="pb-eyebrow">{eyebrow}</p>}
@@ -400,10 +400,8 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
 
   const cover = (
     <button type="button" className="pb-cover" onClick={() => go(idx("contents"))} aria-label={`${t.book}. ${t.open}`}>
-      <span className="pb-bokeh" aria-hidden="true" />
       <BrandImage src={FLOWER_FULL} width={420} height={420} sizes="(max-width: 560px) 62vw, 420px" aria-hidden="true" className="pb-cfl pb-cfl-1" />
       <BrandImage src={FLOWER_FULL} width={300} height={300} sizes="(max-width: 560px) 44vw, 300px" aria-hidden="true" className="pb-cfl pb-cfl-2" />
-      <BrandImage src={FLOWER_FULL} width={210} height={210} sizes="(max-width: 560px) 30vw, 210px" aria-hidden="true" className="pb-cfl pb-cfl-3" />
       <span className="pb-cover-top">
         <BrandImage src={LOGO_FULL} alt="Kalmea" width={330} height={97} sizes="(max-width: 560px) 76vw, 330px" className="pb-cover-logo" priority />
         <span className="pb-h1">{t.book}<br />{t.forWho[who]}</span>
@@ -588,10 +586,12 @@ font-family:var(--sans);color:var(--pb-ink);display:flex;flex-direction:column;g
 .pb-langs button{font:inherit;font-size:var(--t-sm);border:0;background:none;color:var(--pb-ink);padding:6px 14px;border-radius:999px;min-height:36px;cursor:pointer}
 .pb-langs button[aria-pressed="true"]{background:var(--pb-ink);color:#fff}
 
-/* The page: paper, a watercolour wash at two corners, a soft drop shadow, a spine shade on the binding side. */
-.pb-page{position:relative;overflow:hidden;border-radius:4px;border:1px solid var(--pb-line);
-background:radial-gradient(120% 60% at 0% 0%,rgba(220,228,213,.55),transparent 55%),radial-gradient(90% 50% at 100% 100%,rgba(246,218,212,.45),transparent 60%),var(--pb-paper);
+/* The page: paper under the owner's watercolour background (public/protocol-book/page-bg.jpg, cut from the Kalmea banner
+   she supplied, 2026-11-27), which sits behind the top of the page and fades into the paper. */
+.pb-page{position:relative;overflow:hidden;border-radius:4px;border:1px solid var(--pb-line);background:var(--pb-paper);
 box-shadow:0 1px 0 var(--pb-line),0 22px 44px -26px rgba(20,38,31,.35);transform-origin:right center}
+.pb-pbg{position:absolute;inset:0 0 auto 0;height:min(520px,70%);pointer-events:none;z-index:0;
+background:linear-gradient(to bottom,rgba(252,249,243,.25) 0,rgba(252,249,243,.55) 45%,var(--pb-paper) 100%),url(/protocol-book/page-bg.jpg) top center/cover no-repeat}
 .pb-root[dir="ltr"] .pb-page{transform-origin:left center}
 @keyframes pbTurnF{from{opacity:0;transform:perspective(1600px) rotateY(-9deg) translateX(-14px)}to{opacity:1;transform:none}}
 @keyframes pbTurnB{from{opacity:0;transform:perspective(1600px) rotateY(9deg) translateX(14px)}to{opacity:1;transform:none}}
@@ -601,7 +601,6 @@ box-shadow:0 1px 0 var(--pb-line),0 22px 44px -26px rgba(20,38,31,.35);transform
 
 /* Flowers in the corners: behind the text, clipped by the page. */
 .pb-fl{position:absolute;pointer-events:none;z-index:0;width:150px;height:auto;opacity:.95}
-.pb-fl-tl{top:-34px;left:-30px;transform:rotate(160deg) scaleX(-1)}
 .pb-fl-br{bottom:-40px;right:-34px;transform:rotate(-20deg);width:130px}
 .pb-ptop,.pb-body,.pb-foot{position:relative;z-index:1}
 .pb-ptop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:26px 22px 4px}
@@ -685,13 +684,10 @@ box-shadow:0 1px 0 var(--pb-line),0 22px 44px -26px rgba(20,38,31,.35);transform
 .pb-page-cover{border:0}
 .pb-cover{all:unset;box-sizing:border-box;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:space-between;width:100%;min-height:min(150vw,860px);
 padding:44px 22px 30px;text-align:center;cursor:pointer;overflow:hidden;
-background:radial-gradient(60% 40% at 15% 10%,rgba(232,214,150,.45),transparent 70%),radial-gradient(50% 35% at 90% 25%,rgba(220,228,213,.7),transparent 70%),radial-gradient(80% 50% at 10% 95%,rgba(246,218,212,.6),transparent 70%),linear-gradient(180deg,#FBF7EC,#F8F3E6)}
-.pb-bokeh{position:absolute;inset:0;pointer-events:none;opacity:.7;
-background:radial-gradient(circle at 12% 18%,rgba(255,240,190,.9) 0 10px,transparent 22px),radial-gradient(circle at 26% 8%,rgba(255,244,205,.8) 0 7px,transparent 16px),radial-gradient(circle at 82% 12%,rgba(255,240,190,.7) 0 9px,transparent 20px),radial-gradient(circle at 92% 40%,rgba(255,246,214,.8) 0 6px,transparent 14px),radial-gradient(circle at 8% 52%,rgba(255,240,190,.8) 0 8px,transparent 18px),radial-gradient(circle at 70% 60%,rgba(255,246,214,.6) 0 5px,transparent 12px)}
+background:linear-gradient(to bottom,rgba(252,249,243,.5) 0,rgba(252,249,243,.3) 40%,rgba(252,249,243,0) 70%),url(/protocol-book/cover-bg.jpg) center/cover no-repeat,#F8F3E6}
 .pb-cfl{position:absolute;pointer-events:none;height:auto}
 .pb-cfl-1{width:62%;left:-14%;bottom:-6%;transform:rotate(-12deg)}
 .pb-cfl-2{width:44%;right:-8%;bottom:10%;transform:rotate(18deg) scaleX(-1)}
-.pb-cfl-3{width:30%;left:-6%;top:34%;transform:rotate(28deg);opacity:.85}
 .pb-cover-top,.pb-cover-foot,.pb-open{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:14px}
 .pb-cover-logo{width:min(76%,330px);height:auto}
 .pb-guide{display:flex;align-items:center;gap:12px;font-size:var(--t-lg);color:var(--pb-ink);letter-spacing:.02em}
