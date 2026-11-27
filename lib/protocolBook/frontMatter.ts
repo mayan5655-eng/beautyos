@@ -9,7 +9,7 @@ export type Glossary = { title: string; lead: string; terms: [string, string][] 
 export const HOWTO: Record<BookLang, HowTo> = {
   he: {
     title: 'לפני שמתחילים',
-    lead: 'הספר הזה נכתב כדי לעמוד לידך בחדר הטיפולים. כל פרוטוקול בנוי באותו סדר, כך שתמצאי כל דבר באותו מקום.',
+    lead: 'כל הפרוטוקולים בספר בנויים באותו סדר, כדי שתמצאי מהר את מה שאת צריכה גם באמצע יום עבודה.',
     partsTitle: 'איך בנוי פרוטוקול',
     parts: [
       ['מטרה ולמי מתאים', 'מה הטיפול אמור להשיג, ולמי הוא לא מיועד.'],
@@ -22,15 +22,15 @@ export const HOWTO: Record<BookLang, HowTo> = {
     rulesTitle: 'חמישה כללים לפני כל טיפול',
     rules: [
       'שאלון בריאות חתום ומעודכן. בכל טיפול שואלים שוב: "השתנה משהו מאז הפעם הקודמת?"',
-      'אבחון של העור או הציפורן לפני שבוחרים פרוטוקול, לא אחרי.',
+      'קודם מאבחנים את העור או את הציפורן, ורק אחר כך בוחרים פרוטוקול.',
       'מוצר חדש או לקוחה חדשה: בדיקת רגישות 48 שעות לפני.',
-      'ריכוזים, זמנים ופרמטרים של מכשור הם לפי הוראות היצרן. הספר נותן את המסגרת, והיצרן נותן את המספרים.',
+      'ריכוזים, זמנים ופרמטרים של מכשור קובעים לפי הוראות היצרן של המוצר או המכשיר שלך. בספר מופיעים הטווחים המקובלים.',
       'מתעדים בכרטיס הלקוחה מה נעשה, באיזה מוצר, ואיך העור הגיב.',
     ],
   },
   en: {
     title: 'Before we begin',
-    lead: 'This book was written to stand beside you in the treatment room. Every protocol follows the same order, so you find each thing in the same place.',
+    lead: 'Every protocol in the book follows the same order, so you can find what you need quickly, even in the middle of a working day.',
     partsTitle: 'How a protocol is built',
     parts: [
       ['Goal and who it suits', 'What the treatment is meant to achieve, and who it is not for.'],
@@ -45,13 +45,13 @@ export const HOWTO: Record<BookLang, HowTo> = {
       'A signed, up-to-date health questionnaire. At every session ask again: "Has anything changed since last time?"',
       'Analyze the skin or nail before you choose a protocol, not after.',
       'A new product or a new client: patch test 48 hours before.',
-      'Concentrations, times and device settings follow the manufacturer. The book gives the framework; the manufacturer gives the numbers.',
+      'Set concentrations, times and device settings by the instructions of your own product or device. The book shows the usual ranges.',
       'Record on the client card what was done, with which product, and how the skin reacted.',
     ],
   },
   ar: {
     title: 'قبل أن نبدأ',
-    lead: 'كُتب هذا الكتاب ليقف إلى جانبكِ في غرفة العلاج. كل بروتوكول مبني بنفس الترتيب، فتجدين كل شيء في المكان نفسه.',
+    lead: 'كل البروتوكولات في الكتاب مبنية بنفس الترتيب، لتجدي ما تحتاجينه بسرعة حتى في منتصف يوم العمل.',
     partsTitle: 'كيف يُبنى البروتوكول',
     parts: [
       ['الهدف ولمن يناسب', 'ما الذي يُفترض أن يحقّقه العلاج، ولمن لا يصلح.'],
@@ -66,7 +66,7 @@ export const HOWTO: Record<BookLang, HowTo> = {
       'استبيان صحي موقّع ومحدَّث. في كل جلسة نسأل من جديد: "هل تغيّر شيء منذ المرة السابقة؟"',
       'تشخيص البشرة أو الظفر قبل اختيار البروتوكول، وليس بعده.',
       'مستحضر جديد أو زبونة جديدة: اختبار حساسية قبل 48 ساعة.',
-      'التركيزات والأوقات وإعدادات الأجهزة حسب تعليمات المصنّع. الكتاب يعطي الإطار، والمصنّع يعطي الأرقام.',
+      'تُحدَّد التركيزات والأوقات وإعدادات الأجهزة حسب تعليمات مصنّع المستحضر أو الجهاز الذي لديكِ. الكتاب يعرض النطاقات المتعارف عليها.',
       'نوثّق في بطاقة الزبونة ما الذي تمّ، بأي مستحضر، وكيف تفاعلت البشرة.',
     ],
   },

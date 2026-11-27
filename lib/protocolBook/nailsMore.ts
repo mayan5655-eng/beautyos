@@ -20,7 +20,7 @@ export const NAILS_MORE: Protocol[] = [
       he: {
         title: 'פדיקור היגייני',
         goal: 'כפות רגליים נקיות ומטופחות וציפורניים גזורות נכון, בלי פציעות ובלי להעביר זיהום.',
-        suits: 'כפות רגליים בריאות. פדיקור קוסמטי אינו פדיקור רפואי: בעיות רפואיות בכף הרגל מופנות לפודיאטור או לרופא.',
+        suits: 'כפות רגליים בריאות. זה פדיקור קוסמטי, ובעיות רפואיות בכף הרגל מפנים לפודיאטור או לרופא.',
         contraStop: [
           'סוכרת עם ירידה בתחושה או פצע בכף הרגל: הפניה לפדיקור רפואי',
           'פטרייה בציפורן או בעור, או יבלות: הפניה לרופא. לא מטפלים באזור הנגוע',
@@ -52,7 +52,7 @@ export const NAILS_MORE: Protocol[] = [
         after: 'קרם רגליים כל ערב. נעליים שלא לוחצות על האצבעות. גוזרים ישר, לא לעומק בצדדים.',
         home: 'קרם עם אוריאה 10% לעקבים, ייבוש טוב בין האצבעות אחרי מקלחת, וגרביים מכותנה.',
         freq: 'כל 4–6 שבועות',
-        tip: 'את רואה את כפות הרגליים של הלקוחה יותר מכל אחד אחר. פס כהה חדש בציפורן, פצע שלא נסגר או שינוי בצבע העור הם סיבה להפנות לרופא, וזה יכול להיות חשוב מאוד בשבילה.',
+        tip: 'לקוחות רבות לא מסתכלות על כפות הרגליים שלהן, ואת כן. אם ראית פס כהה חדש בציפורן, פצע שלא נסגר או שינוי בצבע העור, אמרי לה והפני אותה לרופא.',
         ask: [
           'האם יש לך סוכרת?',
           'האם את נוטלת תרופות לדילול דם?',
@@ -97,7 +97,7 @@ export const NAILS_MORE: Protocol[] = [
         after: 'Foot cream every evening. Shoes that do not press on the toes. Cut straight, not down into the sides.',
         home: 'A 10% urea cream for the heels, drying well between the toes after a shower, and cotton socks.',
         freq: 'Every 4–6 weeks',
-        tip: 'You see your client\'s feet more than anyone else does. A new dark streak in a nail, a wound that does not close or a change in skin color is a reason to refer her to a doctor, and it can matter a great deal to her.',
+        tip: 'Many clients never look at their own feet, and you do. If you see a new dark streak in a nail, a wound that does not close or a change in skin color, tell her and refer her to a doctor.',
         ask: [
           'Do you have diabetes?',
           'Do you take blood-thinning medication?',
@@ -142,7 +142,7 @@ export const NAILS_MORE: Protocol[] = [
         after: 'كريم قدمين كل مساء. حذاء لا يضغط على الأصابع. القصّ مستقيم، ليس عميقاً في الجانبين.',
         home: 'كريم يوريا 10% للكعبين، تجفيف جيد بين الأصابع بعد الاستحمام، وجوارب قطنية.',
         freq: 'كل 4–6 أسابيع',
-        tip: 'أنتِ ترين قدمَي الزبونة أكثر من أي شخص آخر. خط داكن جديد في الظفر، جرح لا يلتئم أو تغيّر في لون الجلد سبب لتحويلها إلى طبيب، وقد يكون ذلك مهماً جداً لها.',
+        tip: 'كثير من الزبونات لا ينظرن إلى أقدامهنّ، وأنتِ تنظرين. إذا رأيتِ خطاً داكناً جديداً في الظفر، جرحاً لا يلتئم أو تغيّراً في لون الجلد، أخبريها وحوّليها إلى طبيب.',
         ask: [
           'هل لديكِ سكري؟',
           'هل تتناولين أدوية لتمييع الدم؟',
