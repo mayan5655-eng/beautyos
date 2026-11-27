@@ -362,6 +362,7 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   assert.ok(!/תוצאות מובטחות|תוצאה מובטחת|מעלים את|נעלמים לגמרי|guaranteed|نتيجة مضمونة/.test(allText), 'no promised result');
   for (const p of ALL_PROTOCOLS) assert.ok(PHOTOS[p.key], `${p.key}: a chapter photograph`);
   for (const f of Object.values(PHOTOS)) assert.ok(fs.existsSync(`public${f}`), `${f} exists`);
+  assert.notEqual(PHOTOS['plasma-pen'], '/defaults/plasma-pen.jpg', 'the plasma chapter does not show the pen on an eyelid, which it forbids');
 
   for (const lang of BOOK_LANGS) {
     assert.equal(HOWTO[lang].parts.length, HOWTO.he.parts.length);

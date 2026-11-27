@@ -247,7 +247,8 @@ export const PHOTOS: Record<string, string> = {
   pedicure: '/defaults/nails-pedicure.jpg',
   microneedling: '/defaults/anti-aging.jpg',
   'rf-tightening': '/defaults/equipment.jpg',
-  'plasma-pen': '/defaults/plasma-pen.jpg',
+  // Not /defaults/plasma-pen.jpg: that photo shows the pen on an eyelid, which this chapter forbids.
+  'plasma-pen': '/defaults/about.jpg',
   'meso-needle-free': '/defaults/facial-classic.jpg',
   'gel-manicure': '/defaults/nails-manicure.jpg',
   'gel-removal': '/defaults/nails-neutral.jpg',
