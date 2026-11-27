@@ -320,11 +320,12 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   assert.deepEqual(adv.map((p) => p.key).sort(), ['meso-needle-free', 'microneedling', 'plasma-pen', 'rf-tightening']);
   assert.ok(adv.every((p) => Array.isArray(p.countries) && p.countries.length > 0 && p.tier === 'full' && p.field === 'cosmetics'), 'every advanced protocol names its countries');
   assert.ok(ALL_PROTOCOLS.filter((p) => !p.advanced).every((p) => !p.countries), 'the ordinary chapters are shown everywhere');
-  assert.deepEqual(ADVANCED_COUNTRIES, ['IL'], 'Israel only until another market is checked');
+  assert.deepEqual(ADVANCED_COUNTRIES, ['IL', 'GB'], 'Israel and the United Kingdom; every other market stays closed until it is checked');
   const base = { fields: ['cosmetics' as const], full: true, certified: true };
   for (const p of adv) {
     assert.equal(canOpen(p, { ...base, country: 'IL' }), true, `${p.key}: shown in Israel`);
-    for (const c of ['US', 'FR', 'CA', 'GB', 'AE']) assert.equal(canOpen(p, { ...base, country: c }), false, `${p.key}: hidden in ${c}`);
+    assert.equal(canOpen(p, { ...base, country: 'GB' }), true, `${p.key}: shown in the United Kingdom`);
+    for (const c of ['US', 'FR', 'CA', 'DE', 'AU', 'AE']) assert.equal(canOpen(p, { ...base, country: c }), false, `${p.key}: hidden in ${c}`);
     assert.equal(canOpen(p, { ...base, country: 'IL', full: false }), false, `${p.key}: full book only`);
     assert.equal(canOpen(p, { ...base, country: 'IL', certified: false }), false, `${p.key}: certificate still required`);
   }

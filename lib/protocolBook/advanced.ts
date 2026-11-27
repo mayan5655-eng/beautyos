@@ -9,8 +9,11 @@
 //     treated skin-perforating mesotherapy as physician-only. Injections are physician-only, which the owner confirms.
 //   * Abroad: most markets checked keep microneedling and plasma pens from aestheticians (California, France; Canada
 //     authorises plasma pens for health-care professionals only; the FDA has cleared no plasma pen for skin tightening).
-// So each protocol carries the list of countries where it is shown. Today that is Israel alone. To open one in another
-// market: check that market's rules, then add its ISO code to that protocol's `countries`. Never add a country on a guess.
+// So each protocol carries the list of countries where it is shown: Israel, and the United Kingdom (owner decision the same
+// day: the check found that almost nothing is reserved by law there yet; the licensing scheme under the Health and Care Act
+// 2022 was confirmed in August 2025 but is not in force. When it comes into force, GB must be re-checked, and may have to
+// come off this list). To open another market: check its rules, then add its ISO code to that protocol's `countries`.
+// Never add a country on a guess.
 //
 // ── What these chapters are, and are not ────────────────────────────────────────────────────────────────────────────────
 //   * Microneedling: cosmetic depth only (0.25–0.5 mm). Deeper needling is not this protocol.
@@ -22,7 +25,7 @@
 import type { Protocol } from './types.ts';
 
 /** Where the advanced chapters are shown. One list for all four today; a protocol may get its own when markets differ. */
-export const ADVANCED_COUNTRIES = ['IL'];
+export const ADVANCED_COUNTRIES = ['IL', 'GB'];
 
 export const ADVANCED: Protocol[] = [
   {
