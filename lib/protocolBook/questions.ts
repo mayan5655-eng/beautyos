@@ -377,7 +377,7 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "האם יש לך קוצב לב או שתל חשמלי אחר?",
         "האם את בהריון?",
         "האם יש לך אפילפסיה?",
-        "האם יש לך שתלי מתכת, חוטים או סד מתכתי בשיניים?",
+        "האם יש לך שתלי מתכת, חוטים או גשר יישור שיניים ממתכת?",
         "האם את נמצאת כרגע בטיפול אונקולוגי?",
         "האם את נוטלת תרופה שגורמת לרגישות לאור?",
         "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?"
@@ -464,7 +464,8 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "האם את נמצאת כרגע בטיפול אונקולוגי, או שיש לך מחלה אוטואימונית?",
         "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?",
         "האם יש לך כרגע הרפס, יבלת, פצעונים מודלקים או זיהום בפנים?",
-        "האם את סובלת מהרפס חוזר בשפתיים?"
+        "האם את סובלת מהרפס חוזר בשפתיים?",
+        "האם יש לך אלרגיה למתכות, למשל ניקל?"
       ],
       "ar": [
         "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
@@ -474,7 +475,8 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "هل تتلقّين حالياً علاجاً للأورام، أو لديكِ مرض مناعي ذاتي؟",
         "هل عملتِ بوتوكس أو مادة مالئة خلال الأسبوعين الأخيرين؟",
         "هل لديكِ الآن هربس، ثؤلول، بثور ملتهبة أو عدوى في الوجه؟",
-        "هل تعانين من هربس متكرّر في الشفاه؟"
+        "هل تعانين من هربس متكرّر في الشفاه؟",
+        "هل لديكِ حساسية من المعادن، مثل النيكل؟"
       ],
       "en": [
         "Have you taken isotretinoin (Roaccutane) in the last six months?",
@@ -484,7 +486,8 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "Are you currently having cancer treatment, or do you have an autoimmune disease?",
         "Have you had Botox or filler in the last two weeks?",
         "Do you have a cold sore, a wart, inflamed spots or an infection on your face right now?",
-        "Do you get recurring cold sores?"
+        "Do you get recurring cold sores?",
+        "Are you allergic to metals, for example nickel?"
       ]
     }
   },
@@ -552,7 +555,9 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "האם נחשפת לשמש בחודש האחרון, או שאת מתכננת חופשה בשמש בשלושת החודשים הקרובים?",
         "האם יש לך מחלת עיניים, או שעברת ניתוח עיניים בשנה האחרונה?",
         "האם את נוטלת מדללי דם?",
-        "האם את סובלת מהרפס חוזר?"
+        "האם את סובלת מהרפס חוזר?",
+        "האם יש לך אלרגיה לחומרי אלחוש?",
+        "האם עשית חומר מילוי, לייזר, פילינג או בוטוקס בפנים בשלושת החודשים האחרונים?"
       ],
       "ar": [
         "هل تبقى لديكِ بقع داكنة بعد جرح أو بثرة؟",
@@ -564,7 +569,9 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "هل تعرّضتِ للشمس خلال الشهر الأخير، أو تخطّطين لعطلة مشمسة خلال الأشهر الثلاثة القادمة؟",
         "هل لديكِ مرض في العين، أو أجريتِ جراحة عين خلال السنة الأخيرة؟",
         "هل تتناولين مميّعات الدم؟",
-        "هل تعانين من هربس متكرّر؟"
+        "هل تعانين من هربس متكرّر؟",
+        "هل لديكِ حساسية من مواد التخدير؟",
+        "هل عملتِ مادة مالئة، ليزر، تقشيراً أو بوتوكس في الوجه خلال الأشهر الثلاثة الأخيرة؟"
       ],
       "en": [
         "Are you left with dark marks after a wound or a spot?",
@@ -576,7 +583,9 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "Have you been in the sun in the last month, or are you planning a sunny holiday in the next three months?",
         "Do you have an eye disease, or have you had eye surgery in the last year?",
         "Do you take blood thinners?",
-        "Do you get recurring cold sores?"
+        "Do you get recurring cold sores?",
+        "Are you allergic to anesthetics?",
+        "Have you had filler, laser, a peel or Botox on your face in the last three months?"
       ]
     }
   },
@@ -595,10 +604,11 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "האם יש לך קוצב לב או שתל חשמלי אחר?",
         "האם את בהריון?",
         "האם יש לך אפילפסיה?",
-        "האם יש לך שתלי מתכת, חוטים או סד מתכתי בשיניים?",
+        "האם יש לך שתלי מתכת, חוטים או גשר יישור שיניים ממתכת?",
         "האם את נמצאת כרגע בטיפול אונקולוגי?",
         "האם יש לך אלרגיה ידועה לרכיב קוסמטי?",
-        "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?"
+        "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?",
+        "האם יש לך מחלת לב או הפרעת קצב?"
       ],
       "ar": [
         "هل لديكِ جهاز تنظيم قلب أو زرعة كهربائية أخرى؟",
@@ -607,7 +617,8 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "هل لديكِ زرعات معدنية، خيوط أو تقويم أسنان معدني؟",
         "هل تتلقّين حالياً علاجاً للأورام؟",
         "هل لديكِ حساسية معروفة من مكوّن تجميلي؟",
-        "هل عملتِ بوتوكس أو مادة مالئة خلال الأسبوعين الأخيرين؟"
+        "هل عملتِ بوتوكس أو مادة مالئة خلال الأسبوعين الأخيرين؟",
+        "هل لديكِ مرض قلب أو اضطراب في النبض؟"
       ],
       "en": [
         "Do you have a pacemaker or another electrical implant?",
@@ -616,7 +627,8 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
         "Do you have metal implants, threads or metal braces?",
         "Are you currently having cancer treatment?",
         "Do you have a known allergy to a cosmetic ingredient?",
-        "Have you had Botox or filler in the last two weeks?"
+        "Have you had Botox or filler in the last two weeks?",
+        "Do you have heart disease or an arrhythmia?"
       ]
     }
   },
