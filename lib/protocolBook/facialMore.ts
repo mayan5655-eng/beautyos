@@ -4,12 +4,11 @@
 // Written to the same rules the fact-check set for the first chapters (2026-11-27):
 //   * AHA peels stay at or under the professional-salon ceiling (up to 30%, pH 3.0 or higher); numbers defer to the manufacturer.
 //   * Goals describe what the treatment aims at, never a promised result ("lower", "improve", "reduce", not "remove").
-//   * Microneedling, RF and the plasma pen have NO protocol here yet. Regulation check, 2026-11-27 (search summaries only, no
+//   * Microneedling, RF, the plasma pen and needle-free mesotherapy are in lib/protocolBook/advanced.ts, behind a country switch. Regulation check, 2026-11-27 (search summaries only, no
 //     source page could be opened): in Israel no law names them and cosmeticians do them in practice, but the State Comptroller
 //     (report 69b, 2019) treated skin-perforating mesotherapy as physician-only; abroad most markets checked keep them from
 //     aestheticians (California, France, Canada for plasma pens). The book therefore says what is certain (injections are for
-//     physicians), that deeper treatments carry more risk, and to check local regulation and insurance. Adding these chapters
-//     is the owner's decision, and would need a per-country switch before the book is sold outside Israel.
+//     physicians), that deeper treatments carry more risk, and to check local regulation and insurance.
 //   * The post-acne chapter treats marks (colour); it says a superficial peel does not change a scar (structure).
 //   * Laser: "long-term reduction", never "permanent removal"; tanned skin is a stop; parameters per manufacturer and phototype.
 import type { Protocol } from './types.ts';

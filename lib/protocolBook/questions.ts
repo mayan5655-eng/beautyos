@@ -446,6 +446,181 @@ export const PROTOCOL_FORMS: ProtocolForm[] = [
     }
   },
   {
+    "key": "microneedling",
+    "formKey": "protocol_microneedling",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "מיקרונידלינג קוסמטי",
+      "ar": "الوخز التجميلي بالإبر الدقيقة",
+      "en": "Cosmetic microneedling"
+    },
+    "ask": {
+      "he": [
+        "האם נטלת רואקוטן בחצי השנה האחרונה?",
+        "האם יש לך נטייה לצלקות בולטות (קלואידים)?",
+        "האם את בהריון או מניקה?",
+        "האם את נוטלת מדללי דם, או שיש לך הפרעת קרישה או סוכרת?",
+        "האם את נמצאת כרגע בטיפול אונקולוגי, או שיש לך מחלה אוטואימונית?",
+        "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?",
+        "האם יש לך כרגע הרפס, יבלת, פצעונים מודלקים או זיהום בפנים?",
+        "האם את סובלת מהרפס חוזר בשפתיים?"
+      ],
+      "ar": [
+        "هل تناولتِ روكوتان خلال الأشهر الستة الأخيرة؟",
+        "هل لديكِ ميل للندوب البارزة (الجدرة)؟",
+        "هل أنتِ حامل أو مرضعة؟",
+        "هل تتناولين مميّعات الدم، أو لديكِ اضطراب تخثّر أو سكري؟",
+        "هل تتلقّين حالياً علاجاً للأورام، أو لديكِ مرض مناعي ذاتي؟",
+        "هل عملتِ بوتوكس أو مادة مالئة خلال الأسبوعين الأخيرين؟",
+        "هل لديكِ الآن هربس، ثؤلول، بثور ملتهبة أو عدوى في الوجه؟",
+        "هل تعانين من هربس متكرّر في الشفاه؟"
+      ],
+      "en": [
+        "Have you taken isotretinoin (Roaccutane) in the last six months?",
+        "Do you tend to get raised scars (keloids)?",
+        "Are you pregnant or breastfeeding?",
+        "Do you take blood thinners, or have a clotting disorder or diabetes?",
+        "Are you currently having cancer treatment, or do you have an autoimmune disease?",
+        "Have you had Botox or filler in the last two weeks?",
+        "Do you have a cold sore, a wart, inflamed spots or an infection on your face right now?",
+        "Do you get recurring cold sores?"
+      ]
+    }
+  },
+  {
+    "key": "rf-tightening",
+    "formKey": "protocol_rf-tightening",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "RF למיצוק העור",
+      "ar": "RF لشدّ البشرة",
+      "en": "RF skin tightening"
+    },
+    "ask": {
+      "he": [
+        "האם יש לך קוצב לב או שתל חשמלי אחר?",
+        "האם יש לך שתלי מתכת, פלטות או ברגים בפנים או בצוואר?",
+        "האם את בהריון?",
+        "האם את נמצאת כרגע בטיפול אונקולוגי?",
+        "האם עשית חומר מילוי או חוטים בפנים?",
+        "האם עשית בוטוקס בשבועיים האחרונים?",
+        "האם יש לך אפילפסיה?",
+        "האם יש לך ירידה בתחושה בעור הפנים?"
+      ],
+      "ar": [
+        "هل لديكِ جهاز تنظيم قلب أو زرعة كهربائية أخرى؟",
+        "هل لديكِ زرعات معدنية، صفائح أو براغٍ في الوجه أو الرقبة؟",
+        "هل أنتِ حامل؟",
+        "هل تتلقّين حالياً علاجاً للأورام؟",
+        "هل عملتِ مادة مالئة أو خيوطاً في الوجه؟",
+        "هل عملتِ بوتوكس خلال الأسبوعين الأخيرين؟",
+        "هل لديكِ صرع؟",
+        "هل لديكِ ضعف في الإحساس بجلد الوجه؟"
+      ],
+      "en": [
+        "Do you have a pacemaker or another electrical implant?",
+        "Do you have metal implants, plates or screws in your face or neck?",
+        "Are you pregnant?",
+        "Are you currently having cancer treatment?",
+        "Have you had filler or threads in your face?",
+        "Have you had Botox in the last two weeks?",
+        "Do you have epilepsy?",
+        "Do you have reduced feeling in the skin of your face?"
+      ]
+    }
+  },
+  {
+    "key": "plasma-pen",
+    "formKey": "protocol_plasma-pen",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "פלזמה פן (פיברובלסט)",
+      "ar": "بلازما بن (فيبروبلاست)",
+      "en": "Plasma pen (fibroblast)"
+    },
+    "ask": {
+      "he": [
+        "האם נשארים לך כתמים כהים אחרי פצע או פצעון?",
+        "האם יש לך נטייה לצלקות בולטות (קלואידים)?",
+        "האם יש לך קוצב לב או שתל חשמלי אחר?",
+        "האם את בהריון או מניקה?",
+        "האם יש לך סוכרת, מחלה אוטואימונית או טיפול שמדכא את מערכת החיסון?",
+        "האם נטלת רואקוטן בשנה האחרונה?",
+        "האם נחשפת לשמש בחודש האחרון, או שאת מתכננת חופשה בשמש בשלושת החודשים הקרובים?",
+        "האם יש לך מחלת עיניים, או שעברת ניתוח עיניים בשנה האחרונה?",
+        "האם את נוטלת מדללי דם?",
+        "האם את סובלת מהרפס חוזר?"
+      ],
+      "ar": [
+        "هل تبقى لديكِ بقع داكنة بعد جرح أو بثرة؟",
+        "هل لديكِ ميل للندوب البارزة (الجدرة)؟",
+        "هل لديكِ جهاز تنظيم قلب أو زرعة كهربائية أخرى؟",
+        "هل أنتِ حامل أو مرضعة؟",
+        "هل لديكِ سكري، مرض مناعي ذاتي أو علاج مثبّط للمناعة؟",
+        "هل تناولتِ روكوتان خلال السنة الأخيرة؟",
+        "هل تعرّضتِ للشمس خلال الشهر الأخير، أو تخطّطين لعطلة مشمسة خلال الأشهر الثلاثة القادمة؟",
+        "هل لديكِ مرض في العين، أو أجريتِ جراحة عين خلال السنة الأخيرة؟",
+        "هل تتناولين مميّعات الدم؟",
+        "هل تعانين من هربس متكرّر؟"
+      ],
+      "en": [
+        "Are you left with dark marks after a wound or a spot?",
+        "Do you tend to get raised scars (keloids)?",
+        "Do you have a pacemaker or another electrical implant?",
+        "Are you pregnant or breastfeeding?",
+        "Do you have diabetes, an autoimmune disease or treatment that suppresses the immune system?",
+        "Have you taken isotretinoin (Roaccutane) in the last year?",
+        "Have you been in the sun in the last month, or are you planning a sunny holiday in the next three months?",
+        "Do you have an eye disease, or have you had eye surgery in the last year?",
+        "Do you take blood thinners?",
+        "Do you get recurring cold sores?"
+      ]
+    }
+  },
+  {
+    "key": "meso-needle-free",
+    "formKey": "protocol_meso-needle-free",
+    "field": "cosmetics",
+    "tier": "full",
+    "title": {
+      "he": "מזותרפיה ללא מחט (אלקטרופורציה)",
+      "ar": "ميزوثيرابي بدون إبر (إلكتروبوريشن)",
+      "en": "Needle-free mesotherapy (electroporation)"
+    },
+    "ask": {
+      "he": [
+        "האם יש לך קוצב לב או שתל חשמלי אחר?",
+        "האם את בהריון?",
+        "האם יש לך אפילפסיה?",
+        "האם יש לך שתלי מתכת, חוטים או סד מתכתי בשיניים?",
+        "האם את נמצאת כרגע בטיפול אונקולוגי?",
+        "האם יש לך אלרגיה ידועה לרכיב קוסמטי?",
+        "האם עשית בוטוקס או חומר מילוי בשבועיים האחרונים?"
+      ],
+      "ar": [
+        "هل لديكِ جهاز تنظيم قلب أو زرعة كهربائية أخرى؟",
+        "هل أنتِ حامل؟",
+        "هل لديكِ صرع؟",
+        "هل لديكِ زرعات معدنية، خيوط أو تقويم أسنان معدني؟",
+        "هل تتلقّين حالياً علاجاً للأورام؟",
+        "هل لديكِ حساسية معروفة من مكوّن تجميلي؟",
+        "هل عملتِ بوتوكس أو مادة مالئة خلال الأسبوعين الأخيرين؟"
+      ],
+      "en": [
+        "Do you have a pacemaker or another electrical implant?",
+        "Are you pregnant?",
+        "Do you have epilepsy?",
+        "Do you have metal implants, threads or metal braces?",
+        "Are you currently having cancer treatment?",
+        "Do you have a known allergy to a cosmetic ingredient?",
+        "Have you had Botox or filler in the last two weeks?"
+      ]
+    }
+  },
+  {
     "key": "gel-manicure",
     "formKey": "protocol_gel-manicure",
     "field": "nails",

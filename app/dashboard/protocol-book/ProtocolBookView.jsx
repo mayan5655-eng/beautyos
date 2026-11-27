@@ -223,10 +223,11 @@ function ProtocolPage({ p, lang, t, no, services, links, setLinks, allProtocols 
   const fmt = (m) => (m[0] === m[1] ? `${m[0]}` : `${m[0]}–${m[1]}`);
   return (
     <>
-      <PageTop eyebrow={<><span className="pb-no pb-no-lg">{pad(no)}</span>{(CHAPTERS[p.chapter] || {})[lang]}{p.tier === "full" && <span className="pb-full">{t.full}</span>}</>} />
+      <PageTop eyebrow={<><span className="pb-no pb-no-lg">{pad(no)}</span>{(CHAPTERS[p.chapter] || {})[lang]}{p.advanced ? <span className="pb-full pb-adv">{t.advancedTag}</span> : p.tier === "full" && <span className="pb-full">{t.full}</span>}</>} />
       <div className="pb-body">
         <h2 className="pb-h2 pb-center">{x.title}</h2>
         <Photo k={p.key} alt={x.title} />
+        {p.advanced && <p className="pb-warn pb-adv-note" data-testid="protocol-advanced-note">{t.advancedNote}</p>}
         <dl className="pb-meta">
           <div><dt>{t.total}</dt><dd className="pb-num"><bdi dir="ltr">{fmt([lo, hi])}</bdi> {t.min}</dd></div>
           <div><dt>{t.freq}</dt><dd><Bidi>{x.freq}</Bidi></dd></div>
@@ -444,7 +445,7 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
               {tocRow(f === "cosmetics" ? "skin" : "nail", "00", (f === "cosmetics" ? SKIN : NAIL)[lang].title, t.foundations, f === "cosmetics" ? "skin" : "nail")}
               {pages.filter((p) => p.protocol && p.protocol.field === f).map((p) => {
                 const [lo, hi] = totalMinutes(p.protocol);
-                const tag = <><bdi dir="ltr">{lo === hi ? lo : `${lo}–${hi}`}</bdi> {t.min}{p.protocol.tier === "full" && <span className="pb-full">{t.full}</span>}</>;
+                const tag = <><bdi dir="ltr">{lo === hi ? lo : `${lo}–${hi}`}</bdi> {t.min}{p.protocol.advanced ? <span className="pb-full pb-adv">{t.advancedTag}</span> : p.protocol.tier === "full" && <span className="pb-full">{t.full}</span>}</>;
                 return tocRow(p.id, pad(numberOf[p.id]), p.protocol.text[lang].title, tag, p.id);
               })}
             </ul>
@@ -701,6 +702,9 @@ background:radial-gradient(circle at 12% 18%,rgba(255,240,190,.9) 0 10px,transpa
 .pb-cover-foot{gap:4px;background:rgba(252,249,243,.75);border-radius:999px;padding:6px 22px}
 .pb-author{font-family:var(--display-heavy);font-size:clamp(22px,5vw,28px);font-weight:700;color:var(--pb-ink)}
 .pb-site{font-family:var(--pb-num-font);font-size:16px;color:var(--pb-ink);direction:ltr}
+
+.pb-adv{background:var(--pb-pill)}
+.pb-adv-note{font-size:var(--t-sm)}
 
 /* Front and back matter */
 .pb-lead-c{text-align:center;margin-inline:auto}

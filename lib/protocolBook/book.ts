@@ -16,6 +16,7 @@ import { FACIAL } from './facial.ts';
 import { NAILS } from './nails.ts';
 import { FACIAL_MORE } from './facialMore.ts';
 import { NAILS_MORE } from './nailsMore.ts';
+import { ADVANCED } from './advanced.ts';
 import type { BookLang, Protocol } from './types.ts';
 import { businessFieldsOf, FIELD_KEYS } from '../businessFields.ts';
 import { isCertified } from './certificate.ts';
@@ -31,7 +32,7 @@ export function protocolBookEnabled(env: Env = { NEXT_PUBLIC_PROTOCOL_BOOK: proc
 }
 
 // Book order: within each field, the open chapters first, then the full book's.
-export const ALL_PROTOCOLS: Protocol[] = [...FACIAL, ...FACIAL_MORE, ...NAILS, ...NAILS_MORE];
+export const ALL_PROTOCOLS: Protocol[] = [...FACIAL, ...FACIAL_MORE, ...ADVANCED, ...NAILS, ...NAILS_MORE];
 
 export const protocolByKey = (key: unknown): Protocol | undefined =>
   typeof key === 'string' ? ALL_PROTOCOLS.find((p) => p.key === key) : undefined;
@@ -46,15 +47,31 @@ export function hasFullBook(settings: { automations?: unknown; feature_flags?: u
   return fromColumn === true || (fromColumn === undefined && fromAutos === true);
 }
 
-/** certified: her cosmetician certificate is on file and not rejected (lib/protocolBook/certificate.ts). Only the facial chapters ask for it. */
-export type Access = { fields: FieldKey[]; full: boolean; certified: boolean; isAdmin?: boolean };
+/**
+ * certified: her cosmetician certificate is on file and not rejected (lib/protocolBook/certificate.ts). Only the facial chapters ask for it.
+ * country: where the business works (countryOf). A protocol with a `countries` list is shown only there.
+ */
+export type Access = { fields: FieldKey[]; full: boolean; certified: boolean; country: string; isAdmin?: boolean };
+
+/** Kalmea works in Israel today, so a business with no country on record is Israeli. */
+export const DEFAULT_COUNTRY = 'IL';
+
+/**
+ * The business's country, as an ISO code. Read ONLY from the protected flag bags (feature_flags.country), which a business
+ * cannot write: a country she could set herself would be a switch she could flip to open chapters her market does not allow.
+ * When Kalmea opens in another country, signup sets this flag for the new business.
+ */
+export function countryOf(settings: { automations?: unknown; feature_flags?: unknown } | null | undefined): string {
+  const raw = obj(settings?.feature_flags).country ?? obj(obj(settings?.automations).feature_flags).country;
+  return typeof raw === 'string' && /^[A-Za-z]{2}$/.test(raw.trim()) ? raw.trim().toUpperCase() : DEFAULT_COUNTRY;
+}
 
 /** Her access, from her settings row. The one place it is derived, so every reader (page, routes, appointment card, forms) agrees. */
 export function accessOf(
   settings: { automations?: unknown; feature_flags?: unknown; business_fields?: unknown } | null | undefined,
   isAdmin = false,
 ): Access {
-  return { fields: isAdmin ? [...FIELD_KEYS] : businessFieldsOf(settings), full: hasFullBook(settings), certified: isCertified(settings), isAdmin };
+  return { fields: isAdmin ? [...FIELD_KEYS] : businessFieldsOf(settings), full: hasFullBook(settings), certified: isCertified(settings), country: countryOf(settings), isAdmin };
 }
 
 /** May she open this protocol? A platform admin sees everything, to check it. */
@@ -62,6 +79,7 @@ export function canOpen(p: Protocol, a: Access): boolean {
   if (a.isAdmin) return true;
   if (!a.fields.includes(p.field)) return false;
   if (p.field === 'cosmetics' && !a.certified) return false;
+  if (p.countries && !p.countries.includes(a.country)) return false;
   return p.tier === 'free' || a.full;
 }
 

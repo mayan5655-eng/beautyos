@@ -43,6 +43,10 @@ export interface Protocol {
   field: FieldKey;
   chapter: string;
   tier: Tier;
+  /** An advanced treatment (microneedling, RF, plasma, needle-free mesotherapy): marked as such in the book. */
+  advanced?: boolean;
+  /** ISO country codes where this protocol is shown. Absent: everywhere. See lib/protocolBook/advanced.ts. */
+  countries?: string[];
   /** Face map (cosmetics only). */
   zones?: FaceZone[];
   lift?: boolean;

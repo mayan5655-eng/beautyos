@@ -16,6 +16,7 @@ export const CHAPTERS: Record<string, Record<BookLang, string>> = {
   devices: { he: 'מכשור', en: 'Devices', ar: 'الأجهزة' },
   laser: { he: 'לייזר', en: 'Laser', ar: 'الليزر' },
   pedicure: { he: 'פדיקור', en: 'Pedicure', ar: 'الباديكير' },
+  advanced: { he: 'טיפולים מתקדמים', en: 'Advanced treatments', ar: 'علاجات متقدّمة' },
   manicure: { he: 'מניקור וג׳ל', en: 'Manicure & gel', ar: 'المانيكير والجل' },
   extensions: { he: 'בניית ציפורניים', en: 'Nail extensions', ar: 'بناء الأظافر' },
 };
@@ -35,6 +36,8 @@ export type BookUi = {
   /** The cover: who the book is for (by her fields), the line under the title, the author, the tap hint. */
   forWho: { cosmetics: string; nails: string; both: string }; guide: string; author: string; open: string;
   /** The certificate gate on the facial chapters (lib/protocolBook/certificate.ts). */
+  /** The mark and the notice on an advanced treatment (lib/protocolBook/advanced.ts). */
+  advancedTag: string; advancedNote: string;
   cert: { title: string; body: string; declare: string; choose: string; send: string; sending: string; rejected: string; tooBig: string; needBoth: string; error: string };
 };
 
@@ -54,6 +57,8 @@ export const UI: Record<BookLang, BookUi> = {
     backToApp: 'חזרה למערכת', page: 'עמוד',
     forWho: { cosmetics: 'לקוסמטיקאיות', nails: 'למניקוריסטיות', both: 'לקוסמטיקאיות ולמניקוריסטיות' },
     guide: 'המדריך הדיגיטלי', author: 'מעיין בבאי', open: 'לחצי לפתיחה',
+    advancedTag: 'מתקדם',
+    advancedNote: 'טיפול מתקדם. הוא מוצג בספר רק במדינות שבהן נבדק שמותר להציג אותו. נדרשות הכשרה מעשית על המכשיר שלך, וביטוח מקצועי שמכסה את הטיפול. הכללים עשויים להשתנות, והאחריות לבדוק אותם היא שלך.',
     cert: {
       title: 'פרוטוקולי טיפולי הפנים',
       body: 'הפרקים האלה כוללים מידע מקצועי, והם פתוחים לקוסמטיקאיות בעלות הכשרה. כדי לפתוח אותם, העלי צילום של תעודת הקוסמטיקאית שלך. התעודה נשמרת באופן פרטי, ורק צוות Kalmea רואה אותה.',
@@ -78,6 +83,8 @@ export const UI: Record<BookLang, BookUi> = {
     backToApp: 'Back to Kalmea', page: 'Page',
     forWho: { cosmetics: 'for Cosmeticians', nails: 'for Nail Technicians', both: 'for Cosmeticians & Nail Technicians' },
     guide: 'The Digital Guide', author: 'Maayan Babai', open: 'Tap to open',
+    advancedTag: 'Advanced',
+    advancedNote: 'An advanced treatment. It is shown in the book only in countries where showing it has been checked. It needs hands-on training on your own device and professional insurance that covers the treatment. Rules can change, and checking them is your responsibility.',
     cert: {
       title: 'Facial treatment protocols',
       body: 'These chapters hold professional material and are open to trained cosmeticians. To open them, upload a photo of your cosmetician certificate. It is stored privately and only the Kalmea team sees it.',
@@ -102,6 +109,8 @@ export const UI: Record<BookLang, BookUi> = {
     backToApp: 'العودة إلى Kalmea', page: 'صفحة',
     forWho: { cosmetics: 'لخبيرات التجميل', nails: 'لفنّيات الأظافر', both: 'لخبيرات التجميل وفنّيات الأظافر' },
     guide: 'الدليل الرقمي', author: 'معيان باباي', open: 'اضغطي للفتح',
+    advancedTag: 'متقدّم',
+    advancedNote: 'علاج متقدّم. يُعرض في الكتاب فقط في الدول التي تمّ التحقّق من جواز عرضه فيها. يتطلّب تدريباً عملياً على جهازكِ وتأميناً مهنياً يغطّي العلاج. القواعد قد تتغيّر، ومسؤولية التحقّق منها عليكِ.',
     cert: {
       title: 'بروتوكولات علاجات الوجه',
       body: 'هذه الفصول تحتوي على معلومات مهنية، وهي مفتوحة لخبيرات التجميل المؤهّلات. لفتحها، ارفعي صورة لشهادة خبيرة التجميل الخاصة بكِ. تُحفظ الشهادة بشكل خاص، ولا يراها سوى فريق Kalmea.',
@@ -236,6 +245,10 @@ export const PHOTOS: Record<string, string> = {
   devices: '/defaults/equipment.jpg',
   'laser-hair': '/defaults/laser-hair.jpg',
   pedicure: '/defaults/nails-pedicure.jpg',
+  microneedling: '/defaults/anti-aging.jpg',
+  'rf-tightening': '/defaults/equipment.jpg',
+  'plasma-pen': '/defaults/plasma-pen.jpg',
+  'meso-needle-free': '/defaults/facial-classic.jpg',
   'gel-manicure': '/defaults/nails-manicure.jpg',
   'gel-removal': '/defaults/nails-neutral.jpg',
   'gel-extensions': '/defaults/nails-extensions.jpg',

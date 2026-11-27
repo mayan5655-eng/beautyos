@@ -11,7 +11,8 @@ import { addSession, cleanSessions, plannedOf, progressOf, isMissingTable, MAX_S
 import { PROTOCOL_FORMS, protocolFormOf } from './lib/protocolBook/questions.ts';
 import { bidiParts } from './lib/protocolBook/bidi.ts';
 import { certificateOf, isCertified, needsCertificate, isCertPath, certPath, newCertificate, reviewed, CERT_KEY } from './lib/protocolBook/certificate.ts';
-import { accessOf } from './lib/protocolBook/book.ts';
+import { accessOf, countryOf } from './lib/protocolBook/book.ts';
+import { ADVANCED_COUNTRIES } from './lib/protocolBook/advanced.ts';
 import { aftercareMessage, rangesAsWords } from './lib/protocolBook/aftercare.ts';
 import { FORMS, isFlagged, normalizeQuestion } from './lib/formTemplates.ts';
 import { FORM_TRANSLATIONS } from './lib/i18n/formTemplatesI18n.ts';
@@ -54,7 +55,7 @@ const HEB = /[֐-׿]/;
   }
   // The medical line the book must hold: no protocol teaches an injection, a filler or a needle procedure.
   const allHe = JSON.stringify(ALL_PROTOCOLS.map((p) => p.text.he.steps));
-  assert.ok(!/הזרק|חומר מילוי|מזותרפיה|מיקרונידלינג|PRP/.test(allHe), 'no medical procedure is a step of any protocol');
+  assert.ok(!/הזרק|חומר מילוי|PRP/.test(allHe), 'no medical procedure is a step of any protocol');
 
   for (const lang of BOOK_LANGS) {
     assert.ok(UI[lang].book && UI[lang].disclaimer, `${lang}: labels`);
@@ -80,16 +81,16 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
   assert.equal(hasFullBook({ automations: { feature_flags: { protocol_book_full: 'true' } } }), false, 'only literal true');
   assert.equal(hasFullBook({ feature_flags: { protocol_book_full: false }, automations: { feature_flags: { protocol_book_full: true } } }), false, 'the column wins');
 
-  const cosFree = visibleProtocols({ fields: ['cosmetics'], full: false, certified: true });
+  const cosFree = visibleProtocols({ fields: ['cosmetics'], full: false, certified: true, country: 'IL' });
   assert.ok(cosFree.length > 0 && cosFree.every((p) => p.field === 'cosmetics' && p.tier === 'free'), 'a cosmetician sees free facial protocols only');
-  const nailsFull = visibleProtocols({ fields: ['nails'], full: true, certified: false });
+  const nailsFull = visibleProtocols({ fields: ['nails'], full: true, certified: false, country: 'IL' });
   assert.ok(nailsFull.every((p) => p.field === 'nails') && nailsFull.some((p) => p.tier === 'full'), 'a nail tech with the upgrade sees the full nail chapter');
-  const both = visibleProtocols({ fields: ['cosmetics', 'nails'], full: false, certified: true });
+  const both = visibleProtocols({ fields: ['cosmetics', 'nails'], full: false, certified: true, country: 'IL' });
   assert.ok(both.some((p) => p.field === 'nails') && both.some((p) => p.field === 'cosmetics'));
-  assert.equal(visibleProtocols({ fields: [], full: false, certified: false, isAdmin: true }).length, ALL_PROTOCOLS.length, 'a platform admin sees everything');
+  assert.equal(visibleProtocols({ fields: [], full: false, certified: false, country: 'IL', isAdmin: true }).length, ALL_PROTOCOLS.length, 'a platform admin sees everything');
   const full = ALL_PROTOCOLS.find((p) => p.tier === 'full')!;
-  assert.equal(canOpen(full, { fields: [full.field], full: false, certified: true }), false);
-  assert.equal(canOpen(full, { fields: [full.field], full: true, certified: true }), true);
+  assert.equal(canOpen(full, { fields: [full.field], full: false, certified: true, country: 'IL' }), false);
+  assert.equal(canOpen(full, { fields: [full.field], full: true, certified: true, country: 'IL' }), true);
 
   const acne = ALL_PROTOCOLS.find((p) => p.key === 'acne')!;
   const [lo, hi] = totalMinutes(acne);
@@ -169,7 +170,7 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
     }
   }
   // APPEND-ONLY: a signed form stores answers by index. These are the first lists, frozen.
-  const FROZEN_HE: Record<string, number> = { 'deep-cleansing': 5, dehydrated: 5, 'oily-pores': 5, glow: 6, 'acne-marks': 5, 'superficial-peel': 7, devices: 7, 'laser-hair': 8, pedicure: 6, acne: 6, pigmentation: 5, 'anti-aging': 5, 'sensitive-rosacea': 3, 'gel-manicure': 5, 'gel-removal': 3, 'gel-extensions': 3 };
+  const FROZEN_HE: Record<string, number> = { microneedling: 8, 'rf-tightening': 8, 'plasma-pen': 10, 'meso-needle-free': 7, 'deep-cleansing': 5, dehydrated: 5, 'oily-pores': 5, glow: 6, 'acne-marks': 5, 'superficial-peel': 7, devices: 7, 'laser-hair': 8, pedicure: 6, acne: 6, pigmentation: 5, 'anti-aging': 5, 'sensitive-rosacea': 3, 'gel-manicure': 5, 'gel-removal': 3, 'gel-extensions': 3 };
   for (const [key, n] of Object.entries(FROZEN_HE)) {
     const f = protocolFormOf(`protocol_${key}`)!;
     assert.ok(f.ask.he.length >= n, `${key}: questions are only ever appended`);
@@ -311,10 +312,43 @@ assert.equal(protocolBookEnabled({ NEXT_PUBLIC_PROTOCOL_BOOK: 'yes' }), false);
 // ── The whole book: every chapter of the plan is there, and what must stay out stays out ─────────────────────────────
 {
   const keys = ALL_PROTOCOLS.map((p) => p.key);
-  for (const k of ['deep-cleansing', 'dehydrated', 'oily-pores', 'glow', 'acne-marks', 'superficial-peel', 'devices', 'laser-hair', 'pedicure']) {
+  for (const k of ['microneedling', 'rf-tightening', 'plasma-pen', 'meso-needle-free', 'deep-cleansing', 'dehydrated', 'oily-pores', 'glow', 'acne-marks', 'superficial-peel', 'devices', 'laser-hair', 'pedicure']) {
     assert.ok(keys.includes(k), `${k} is in the book`);
   }
-  assert.ok(!keys.some((k) => /plasma|needling/.test(k)), 'no plasma pen or microneedling protocol until the owner decides (regulation differs by country)');
+  // ── The advanced chapters and their country switch ──
+  const adv = ALL_PROTOCOLS.filter((p) => p.advanced);
+  assert.deepEqual(adv.map((p) => p.key).sort(), ['meso-needle-free', 'microneedling', 'plasma-pen', 'rf-tightening']);
+  assert.ok(adv.every((p) => Array.isArray(p.countries) && p.countries.length > 0 && p.tier === 'full' && p.field === 'cosmetics'), 'every advanced protocol names its countries');
+  assert.ok(ALL_PROTOCOLS.filter((p) => !p.advanced).every((p) => !p.countries), 'the ordinary chapters are shown everywhere');
+  assert.deepEqual(ADVANCED_COUNTRIES, ['IL'], 'Israel only until another market is checked');
+  const base = { fields: ['cosmetics' as const], full: true, certified: true };
+  for (const p of adv) {
+    assert.equal(canOpen(p, { ...base, country: 'IL' }), true, `${p.key}: shown in Israel`);
+    for (const c of ['US', 'FR', 'CA', 'GB', 'AE']) assert.equal(canOpen(p, { ...base, country: c }), false, `${p.key}: hidden in ${c}`);
+    assert.equal(canOpen(p, { ...base, country: 'IL', full: false }), false, `${p.key}: full book only`);
+    assert.equal(canOpen(p, { ...base, country: 'IL', certified: false }), false, `${p.key}: certificate still required`);
+  }
+  assert.equal(canOpen(ALL_PROTOCOLS.find((p) => p.key === 'acne')!, { ...base, country: 'US' }), true, 'an ordinary chapter is open abroad');
+  // The country comes only from the protected flags; a business cannot set it herself.
+  assert.equal(countryOf(null), 'IL');
+  assert.equal(countryOf({ automations: { feature_flags: { country: 'us' } } }), 'US');
+  assert.equal(countryOf({ feature_flags: { country: 'FR' }, automations: { feature_flags: { country: 'IL' } } }), 'FR', 'the column wins');
+  assert.equal(countryOf({ automations: { country: 'US' } }), 'IL', 'not from a key she can write');
+  assert.equal(countryOf({ automations: { screens: { country: 'US' } } }), 'IL');
+  assert.equal(countryOf({ automations: { feature_flags: { country: 'Israel' } } }), 'IL', 'anything but a two-letter code falls back');
+  const abroad = { business_fields: ['cosmetics'], automations: { feature_flags: { country: 'US', protocol_book_full: true }, protocol_certificate: { path: 'x', status: 'submitted', uploaded_at: 'a', declared_at: 'a' }, protocol_links: { s9: 'plasma-pen' } } };
+  assert.equal(protocolForService(abroad, 's9'), undefined, 'abroad: an advanced protocol shows on no appointment');
+  assert.equal(protocolFormAllowed('protocol_plasma-pen', abroad, true), false, 'abroad: its questionnaire is not offered');
+  assert.ok(visibleProtocols(accessOf(abroad)).every((p) => !p.advanced), 'abroad: none of the four reaches the page');
+  // What the four chapters hold to.
+  const byKey = (k: string) => ALL_PROTOCOLS.find((p) => p.key === k)!;
+  assert.match(byKey('meso-needle-free').text.he.title, /ללא מחט/, 'mesotherapy here is needle-free');
+  assert.match(byKey('meso-needle-free').text.he.suits, /הזרקה/, 'and says needle mesotherapy is an injection');
+  assert.match(JSON.stringify(byKey('microneedling').text.he), /0\.25–0\.5/, 'cosmetic depth only');
+  assert.ok(!/1\.5 מ״מ|2 מ״מ/.test(JSON.stringify(byKey('microneedling').text.he)));
+  assert.match(byKey('plasma-pen').text.he.suits, /I–III בלבד/);
+  assert.match(byKey('rf-tightening').text.he.suits, /אינם חלק מהפרוטוקול/, 'needle RF is out');
+  for (const lang of BOOK_LANGS) assert.ok(UI[lang].advancedNote && UI[lang].advancedTag);
   assert.ok(ALL_PROTOCOLS.filter((p) => !['acne', 'pigmentation', 'anti-aging', 'gel-manicure', 'gel-removal'].includes(p.key)).every((p) => p.tier === 'full'), 'the five open protocols stay the only free ones');
   // Open chapters first within each field, so a reader without the upgrade sees no gap in the numbering.
   for (const f of ['cosmetics', 'nails'] as const) {

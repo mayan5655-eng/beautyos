@@ -15,8 +15,9 @@ import { FACIAL } from '../lib/protocolBook/facial.ts';
 import { NAILS } from '../lib/protocolBook/nails.ts';
 import { FACIAL_MORE } from '../lib/protocolBook/facialMore.ts';
 import { NAILS_MORE } from '../lib/protocolBook/nailsMore.ts';
+import { ADVANCED } from '../lib/protocolBook/advanced.ts';
 
-const rows = [...FACIAL, ...FACIAL_MORE, ...NAILS, ...NAILS_MORE].map((p) => ({
+const rows = [...FACIAL, ...FACIAL_MORE, ...ADVANCED, ...NAILS, ...NAILS_MORE].map((p) => ({
   key: p.key,
   formKey: `protocol_${p.key}`,
   field: p.field,
