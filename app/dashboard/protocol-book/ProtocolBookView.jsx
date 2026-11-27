@@ -9,7 +9,9 @@
 // It only ever receives protocols she may open (app/dashboard/protocol-book/page.tsx decides on the server). Nothing here
 // sells: no price, no buy button, no locked chapter, no "בקרוב".
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { UI, CHAPTERS, SECTIONS, SKIN, NAIL } from "@/lib/protocolBook/labels";
+import { UI, CHAPTERS, SECTIONS, SKIN, NAIL, PHOTOS } from "@/lib/protocolBook/labels";
+import { LOGO_FULL, FLOWER_FULL } from "@/lib/brand";
+import BrandImage from "@/app/BrandImage";
 import { totalMinutes, withLink } from "@/lib/protocolBook/book";
 import Bidi from "./Bidi";
 
@@ -139,9 +141,21 @@ function NailUnit({ label }) {
 
 // ── Pieces ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const RunningHead = ({ left, right }) => (
-  <div className="pb-head"><span className="pb-wm">Kalmea</span><i /><span className="pb-head-r">{left}</span>{right != null && <span className="pb-folio-sq">{right}</span>}</div>
+// The watercolour cosmos, in the corners of a page. Decoration only: hidden from screen readers, never over text.
+const Flower = ({ at }) => <BrandImage src={FLOWER_FULL} width={150} height={150} aria-hidden="true" className={`pb-fl pb-fl-${at}`} />;
+
+/** The top of every inner page: the full Kalmea logo with its flower, centred, and two flowers in opposite corners. */
+const PageTop = ({ eyebrow }) => (
+  <>
+    <Flower at="tl" /><Flower at="br" />
+    <div className="pb-ptop">
+      <BrandImage src={LOGO_FULL} alt="Kalmea" width={157} height={46} className="pb-logo" />
+      {eyebrow && <p className="pb-eyebrow">{eyebrow}</p>}
+    </div>
+  </>
 );
+
+const Photo = ({ k, alt, className = "pb-hero" }) => (PHOTOS[k] ? <img src={PHOTOS[k]} alt={alt} className={className} loading="lazy" decoding="async" /> : null);
 
 function Section({ title, children, tone }) {
   return (
@@ -205,10 +219,10 @@ function ProtocolPage({ p, lang, t, no, services, links, setLinks, allProtocols 
   const fmt = (m) => (m[0] === m[1] ? `${m[0]}` : `${m[0]}–${m[1]}`);
   return (
     <>
-      <RunningHead left={(CHAPTERS[p.chapter] || {})[lang]} right={pad(no)} />
+      <PageTop eyebrow={<><span className="pb-no pb-no-lg">{pad(no)}</span>{(CHAPTERS[p.chapter] || {})[lang]}{p.tier === "full" && <span className="pb-full">{t.full}</span>}</>} />
       <div className="pb-body">
-        <p className="pb-eyebrow">{SECTIONS[p.field][lang]}{p.tier === "full" && <span className="pb-full">{t.full}</span>}</p>
-        <h2 className="pb-h2">{x.title}</h2>
+        <h2 className="pb-h2 pb-center">{x.title}</h2>
+        <Photo k={p.key} alt={x.title} />
         <dl className="pb-meta">
           <div><dt>{t.total}</dt><dd className="pb-num"><bdi dir="ltr">{fmt([lo, hi])}</bdi> {t.min}</dd></div>
           <div><dt>{t.freq}</dt><dd><Bidi>{x.freq}</Bidi></dd></div>
@@ -241,8 +255,9 @@ function ProtocolPage({ p, lang, t, no, services, links, setLinks, allProtocols 
           <ol className="pb-steps">
             {x.steps.map(([name, detail], i) => (
               <li key={i}>
+                <span className="pb-no">{pad(i + 1)}</span>
                 <StepIcon k={p.steps[i]?.icon} />
-                <div className="pb-step-tx"><strong><span className="pb-no">{pad(i + 1)}</span><Bidi>{name}</Bidi></strong><span><Bidi>{detail}</Bidi></span></div>
+                <div className="pb-step-tx"><strong><Bidi>{name}</Bidi></strong><span><Bidi>{detail}</Bidi></span></div>
                 <span className="pb-time pb-num">{p.steps[i] ? <><bdi dir="ltr">{fmt(p.steps[i].min)}</bdi> {t.min}</> : ""}</span>
               </li>
             ))}
@@ -280,7 +295,7 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
 
   // Pages in reading order: contents, then per field its foundation chapter and its protocols.
   const pages = useMemo(() => {
-    const out = [{ id: "contents" }];
+    const out = [{ id: "cover" }, { id: "contents" }];
     for (const f of ["cosmetics", "nails"]) {
       if (!fields.includes(f)) continue;
       const ps = protocols.filter((p) => p.field === f);
@@ -308,7 +323,7 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
     if (n < 0 || n >= pages.length || n === cur) return;
     setDir(n > cur ? 1 : -1);
     const id = pages[n].id;
-    if (id === "contents") history.pushState(null, "", window.location.pathname); else window.location.hash = id;
+    if (id === "cover") history.pushState(null, "", window.location.pathname); else window.location.hash = id;
     setCur(n);
     topRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }, [cur, pages]);
@@ -330,33 +345,54 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
   const numberOf = {};
   pages.forEach((p) => { if (p.protocol) numberOf[p.id] = ++protoNo; });
 
+  const who = fields.includes("cosmetics") && fields.includes("nails") ? "both" : fields.includes("nails") ? "nails" : "cosmetics";
+
+  const cover = (
+    <button type="button" className="pb-cover" onClick={() => go(idx("contents"))} aria-label={`${t.book}. ${t.open}`}>
+      <span className="pb-bokeh" aria-hidden="true" />
+      <BrandImage src={FLOWER_FULL} width={420} height={420} sizes="(max-width: 560px) 62vw, 420px" aria-hidden="true" className="pb-cfl pb-cfl-1" />
+      <BrandImage src={FLOWER_FULL} width={300} height={300} sizes="(max-width: 560px) 44vw, 300px" aria-hidden="true" className="pb-cfl pb-cfl-2" />
+      <BrandImage src={FLOWER_FULL} width={210} height={210} sizes="(max-width: 560px) 30vw, 210px" aria-hidden="true" className="pb-cfl pb-cfl-3" />
+      <span className="pb-cover-top">
+        <BrandImage src={LOGO_FULL} alt="Kalmea" width={330} height={97} sizes="(max-width: 560px) 76vw, 330px" className="pb-cover-logo" priority />
+        <span className="pb-h1">{t.book}<br />{t.forWho[who]}</span>
+        <span className="pb-guide"><i />{t.guide}<i /></span>
+      </span>
+      <span className="pb-open">{t.open}</span>
+      <span className="pb-cover-foot">
+        <span className="pb-author">{t.author}</span>
+        <span className="pb-site">kalmea.app</span>
+      </span>
+    </button>
+  );
+
+  const tocRow = (id, no, title, tag, photoKey) => (
+    <li key={id}>
+      <button type="button" className="pb-toc-row" onClick={() => go(idx(id))}>
+        <span className="pb-toc-tx">
+          <span className="pb-no pb-no-xl">{no}</span>
+          <span className="pb-toc-nm">{title}</span>
+          <span className="pb-toc-tag">{tag}</span>
+        </span>
+        <Photo k={photoKey} alt="" className="pb-toc-ph" />
+      </button>
+    </li>
+  );
+
   const contents = (
     <>
-      <div className="pb-cover">
-        <span className="pb-wm pb-wm-lg">Kalmea</span>
-        <span className="pb-gold" />
-        <h1 className="pb-h1">{t.book}</h1>
-        <p className="pb-sub">{t.sub}</p>
-        <span className="pb-gold" />
-      </div>
+      <PageTop />
       <div className="pb-body">
-        <h2 className="pb-h2 pb-center">{t.contents}</h2>
+        <h2 className="pb-h2 pb-h2-xl pb-center">{t.contents}</h2>
         {["cosmetics", "nails"].filter((f) => pages.some((p) => p.field === f)).map((f) => (
           <div key={f} className="pb-toc-group">
-            <p className="pb-eyebrow">{SECTIONS[f][lang]}</p>
+            <p className="pb-pill">{SECTIONS[f][lang]}</p>
             <ul className="pb-toc">
-              <li><button type="button" onClick={() => go(idx(f === "cosmetics" ? "skin" : "nail"))}>
-                <span className="pb-toc-no">00</span><span className="pb-toc-nm">{(f === "cosmetics" ? SKIN : NAIL)[lang].title}</span><span className="pb-toc-tag">{t.foundations}</span>
-              </button></li>
+              {tocRow(f === "cosmetics" ? "skin" : "nail", "00", (f === "cosmetics" ? SKIN : NAIL)[lang].title, t.foundations, f === "cosmetics" ? "skin" : "nail")}
               {pages.filter((p) => p.protocol && p.protocol.field === f).map((p) => {
                 const [lo, hi] = totalMinutes(p.protocol);
-                return (
-                  <li key={p.id}><button type="button" onClick={() => go(idx(p.id))}>
-                    <span className="pb-toc-no">{pad(numberOf[p.id])}</span>
-                    <span className="pb-toc-nm">{p.protocol.text[lang].title}{p.protocol.tier === "full" && <span className="pb-full">{t.full}</span>}</span>
-                    <span className="pb-toc-tag pb-num"><bdi dir="ltr">{lo === hi ? lo : `${lo}–${hi}`}</bdi> {t.min}</span>
-                  </button></li>
-                );
+                const tag = <><bdi dir="ltr">{lo === hi ? lo : `${lo}–${hi}`}</bdi> {t.min}{p.protocol.tier === "full" && <span className="pb-full">{t.full}</span>}</>;
+                return tocRow(p.id, pad(numberOf[p.id]), p.protocol.text[lang].title, tag, p.id);
               })}
             </ul>
           </div>
@@ -371,9 +407,10 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
       const s = SKIN[lang];
       return (
         <>
-          <RunningHead left={t.foundations} right="00" />
+          <PageTop eyebrow={<><span className="pb-no pb-no-lg">00</span>{t.foundations}</>} />
           <div className="pb-body">
-            <h2 className="pb-h2">{s.title}</h2>
+            <h2 className="pb-h2 pb-center">{s.title}</h2>
+            <Photo k="skin" alt={s.title} />
             <p className="pb-lead"><Bidi>{s.lead}</Bidi></p>
             <figure className="pb-fig"><SkinSection label={s.title} /></figure>
             <ol className="pb-legend">{s.layers.map(([a, b], i) => <li key={a}><span className="pb-nb">{i + 1}</span><span><b>{a}.</b> <Bidi>{b}</Bidi></span></li>)}</ol>
@@ -391,9 +428,10 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
     const n = NAIL[lang];
     return (
       <>
-        <RunningHead left={t.foundations} right="00" />
+        <PageTop eyebrow={<><span className="pb-no pb-no-lg">00</span>{t.foundations}</>} />
         <div className="pb-body">
-          <h2 className="pb-h2">{n.title}</h2>
+          <h2 className="pb-h2 pb-center">{n.title}</h2>
+          <Photo k="nail" alt={n.title} />
           <p className="pb-lead"><Bidi>{n.lead}</Bidi></p>
           <figure className="pb-fig"><NailUnit label={n.title} /></figure>
           <ol className="pb-legend">{n.parts.map(([a, b], i) => <li key={a}><span className="pb-nb">{i + 1}</span><span><b>{a}.</b> <Bidi>{b}</Bidi></span></li>)}</ol>
@@ -413,14 +451,17 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
         </div>
       </div>
 
-      <article key={`${page.id}-${lang}`} className={`pb-page ${dir > 0 ? "pb-turn-fwd" : "pb-turn-back"}`}>
-        {page.id === "contents" ? contents
+      <article key={`${page.id}-${lang}`} className={`pb-page${page.id === "cover" ? " pb-page-cover" : ""} ${dir > 0 ? "pb-turn-fwd" : "pb-turn-back"}`}>
+        {page.id === "cover" ? cover
+          : page.id === "contents" ? contents
           : page.protocol ? <ProtocolPage p={page.protocol} lang={lang} t={t} no={numberOf[page.id]} services={services} links={links} setLinks={setLinks} allProtocols={protocols} />
           : foundation(page.field)}
-        <footer className="pb-foot">
-          {cur > 0 ? <button type="button" onClick={() => go(0)}>{t.toContents}</button> : <span />}
-          <span className="pb-num pb-folio">{t.page} {cur + 1} / {pages.length}</span>
-        </footer>
+        {page.id !== "cover" && (
+          <footer className="pb-foot">
+            {page.id !== "contents" ? <button type="button" onClick={() => go(idx("contents"))}>{t.toContents} {rtl ? "←" : "→"}</button> : <span />}
+            <span className="pb-num pb-folio"><bdi dir="ltr">{pad(cur + 1)}</bdi></span>
+          </footer>
+        )}
       </article>
 
       <nav className="pb-nav" aria-label={t.contents}>
@@ -432,117 +473,166 @@ export default function ProtocolBookView({ protocols, fields, services, links: i
   );
 }
 
-// Kalmea's own colours (app/globals.css --k-*), named for their job in the book. Light only, like the rest of the app.
+// The book's look follows the owner's reference (2026-11-27): cream paper with a faint watercolour wash, the full Kalmea logo
+// with its flower centred on every page, watercolour cosmos in two corners (more only on the cover), a photograph per
+// chapter, big green headings, italic serif numbers, and petal-pink pills for section labels. Colours are Kalmea's own
+// (app/globals.css --k-*). Light only, like the rest of the app.
 const CSS = `
-.pb-root{--pb-paper:var(--k-cream,#FBF8F1);--pb-paper-2:#FFFDF8;--pb-ink:var(--k-green,#1F3A30);--pb-ink-2:var(--ink-2,#44594F);
---pb-gold:#B8975A;--pb-petal:var(--k-petal,#FBEDE9);--pb-petal-mark:var(--k-pink,#E9A9A1);--pb-petal-ink:#A4434F;--pb-sage:var(--k-sage,#DCE4D5);
---pb-sage-ink:#2E5243;--pb-line:var(--line,#E8E1D1);
-max-width:760px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px));
+.pb-root{--pb-paper:#FCF9F3;--pb-ink:var(--k-green,#1F3A30);--pb-ink-2:var(--ink-2,#44594F);
+--pb-gold:#B8975A;--pb-petal:var(--k-petal,#FBEDE9);--pb-pill:#F6DAD4;--pb-petal-mark:var(--k-pink,#E9A9A1);--pb-petal-ink:#A4434F;
+--pb-sage:var(--k-sage,#DCE4D5);--pb-sage-ink:#2E5243;--pb-line:#E4DCC9;--pb-paper-2:#FFFDF8;
+--pb-num-font:"Cormorant Garamond",var(--display),Georgia,serif;
+max-width:720px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px));
 font-family:var(--sans);color:var(--pb-ink);display:flex;flex-direction:column;gap:14px}
 .pb-root *{box-sizing:border-box;min-width:0}
 .pb-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .pb-back{font-size:var(--t-md);font-weight:600;color:var(--pb-ink-2);text-decoration:none}
-.pb-langs{display:flex;gap:2px;background:var(--surface,#fff);border:1px solid var(--pb-line);padding:3px;border-radius:999px}
+.pb-langs{display:flex;gap:2px;background:#fff;border:1px solid var(--pb-line);padding:3px;border-radius:999px}
 .pb-langs button{font:inherit;font-size:var(--t-sm);border:0;background:none;color:var(--pb-ink);padding:6px 14px;border-radius:999px;min-height:36px;cursor:pointer}
-.pb-langs button[aria-pressed="true"]{background:var(--pb-ink);color:var(--pb-paper)}
-.pb-page{background:var(--pb-paper-2);border:1px solid var(--pb-line);border-radius:6px 14px 14px 6px;box-shadow:0 1px 0 var(--pb-line),0 18px 40px -24px rgba(20,38,31,.35);
-position:relative;overflow:hidden;transform-origin:right center}
-.pb-root[dir="ltr"] .pb-page{border-radius:14px 6px 6px 14px;transform-origin:left center}
-.pb-page::before{content:"";position:absolute;inset:0 0 0 auto;width:14px;background:linear-gradient(to left,rgba(31,58,48,.07),transparent);pointer-events:none}
-.pb-root[dir="ltr"] .pb-page::before{inset:0 auto 0 0;background:linear-gradient(to right,rgba(31,58,48,.07),transparent)}
+.pb-langs button[aria-pressed="true"]{background:var(--pb-ink);color:#fff}
+
+/* The page: paper, a watercolour wash at two corners, a soft drop shadow, a spine shade on the binding side. */
+.pb-page{position:relative;overflow:hidden;border-radius:4px;border:1px solid var(--pb-line);
+background:radial-gradient(120% 60% at 0% 0%,rgba(220,228,213,.55),transparent 55%),radial-gradient(90% 50% at 100% 100%,rgba(246,218,212,.45),transparent 60%),var(--pb-paper);
+box-shadow:0 1px 0 var(--pb-line),0 22px 44px -26px rgba(20,38,31,.35);transform-origin:right center}
+.pb-root[dir="ltr"] .pb-page{transform-origin:left center}
 @keyframes pbTurnF{from{opacity:0;transform:perspective(1600px) rotateY(-9deg) translateX(-14px)}to{opacity:1;transform:none}}
 @keyframes pbTurnB{from{opacity:0;transform:perspective(1600px) rotateY(9deg) translateX(14px)}to{opacity:1;transform:none}}
-.pb-turn-fwd{animation:pbTurnF .42s cubic-bezier(.3,.7,.2,1) both}.pb-turn-back{animation:pbTurnB .42s cubic-bezier(.3,.7,.2,1) both}
+.pb-turn-fwd{animation:pbTurnF .45s cubic-bezier(.3,.7,.2,1) both}.pb-turn-back{animation:pbTurnB .45s cubic-bezier(.3,.7,.2,1) both}
 .pb-root[dir="ltr"] .pb-turn-fwd{animation-name:pbTurnB}.pb-root[dir="ltr"] .pb-turn-back{animation-name:pbTurnF}
 @media (prefers-reduced-motion:reduce){.pb-turn-fwd,.pb-turn-back{animation:none}}
-.pb-head{display:flex;align-items:center;gap:10px;padding:16px 22px 4px;font-size:var(--t-sm);color:var(--pb-ink-2)}
-.pb-head i{flex:1;height:1px;background:var(--pb-gold);opacity:.7}
-.pb-wm{font-family:var(--display);font-weight:600;color:var(--pb-ink);letter-spacing:.02em;direction:ltr;unicode-bidi:isolate}
-.pb-head .pb-wm{font-size:20px}
-.pb-folio-sq{background:var(--pb-sage);color:var(--pb-ink);font-family:var(--display-heavy);font-weight:700;padding:1px 8px;border-radius:3px;font-variant-numeric:tabular-nums}
-.pb-body{padding:8px 22px 18px;display:flex;flex-direction:column;gap:16px}
-.pb-cover{background:var(--pb-ink);color:var(--pb-paper);text-align:center;padding:38px 22px 30px;display:flex;flex-direction:column;align-items:center;gap:6px}
-.pb-cover .pb-wm{color:var(--pb-paper)}.pb-wm-lg{font-size:56px;line-height:1}
-.pb-gold{display:block;width:84px;height:1.5px;background:var(--pb-gold);margin:10px 0}
-.pb-h1{font-family:var(--display-heavy);font-weight:800;font-size:clamp(28px,6vw,36px);margin:0;line-height:1.15;text-wrap:balance}
-.pb-sub{margin:0;font-size:var(--t-md);opacity:.85;letter-spacing:.02em}
-.pb-h2{font-family:var(--display-heavy);font-weight:800;font-size:clamp(24px,5vw,30px);color:var(--pb-ink);margin:0;line-height:1.15;text-wrap:balance}
+
+/* Flowers in the corners: behind the text, clipped by the page. */
+.pb-fl{position:absolute;pointer-events:none;z-index:0;width:150px;height:auto;opacity:.95}
+.pb-fl-tl{top:-34px;left:-30px;transform:rotate(160deg) scaleX(-1)}
+.pb-fl-br{bottom:-40px;right:-34px;transform:rotate(-20deg);width:130px}
+.pb-ptop,.pb-body,.pb-foot{position:relative;z-index:1}
+.pb-ptop{display:flex;flex-direction:column;align-items:center;gap:6px;padding:26px 22px 4px}
+.pb-logo{height:46px;width:auto}
+.pb-eyebrow{margin:0;font-size:var(--t-sm);font-weight:700;color:var(--pb-sage-ink);letter-spacing:.03em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;justify-content:center}
+.pb-body{padding:10px 24px 20px;display:flex;flex-direction:column;gap:18px}
+
+/* Type */
+.pb-h1{font-family:var(--display-heavy);font-weight:800;font-size:clamp(30px,7.4vw,44px);color:var(--pb-ink);line-height:1.2;text-wrap:balance;display:block}
+.pb-h2{font-family:var(--display-heavy);font-weight:800;font-size:clamp(26px,6vw,36px);color:var(--pb-ink);margin:0;line-height:1.15;text-wrap:balance}
+.pb-h2-xl{font-size:clamp(32px,8vw,46px)}
 .pb-center{text-align:center}
-.pb-h3{font-size:var(--t-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--pb-ink-2);margin:0 0 6px}
-.pb-eyebrow{margin:0;font-size:var(--t-sm);font-weight:700;color:var(--pb-sage-ink);letter-spacing:.04em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.pb-full{white-space:nowrap;display:inline-block;font-size:11px;font-weight:700;color:var(--pb-ink);background:var(--pb-sage);border-radius:999px;padding:1px 9px;letter-spacing:0;margin-inline-start:8px}
+.pb-no{font-family:var(--pb-num-font);font-style:italic;font-weight:600;color:var(--pb-ink);font-variant-numeric:lining-nums tabular-nums}
+.pb-no-lg{font-size:22px}
+.pb-no-xl{font-size:44px;line-height:1}
+.pb-h3{display:inline-block;margin:0 0 8px;font-size:var(--t-sm);font-weight:700;color:var(--pb-ink);background:var(--pb-pill);border-radius:999px;padding:4px 16px}
+.pb-pill{align-self:center;margin:0;font-size:var(--t-sm);font-weight:700;color:var(--pb-ink);background:var(--pb-pill);border-radius:999px;padding:4px 18px}
+.pb-full{white-space:nowrap;display:inline-block;font-size:11px;font-weight:700;color:var(--pb-ink);background:var(--pb-sage);border-radius:999px;padding:1px 9px;margin-inline-start:8px;font-style:normal;font-family:var(--sans)}
 .pb-lead{margin:0;font-size:var(--t-md);color:var(--pb-ink-2);line-height:1.7;max-width:62ch}
-.pb-rule{height:1px;background:var(--pb-gold);opacity:.55}
-.pb-meta{display:flex;gap:10px 28px;flex-wrap:wrap;margin:0}
+.pb-rule{height:1px;background:var(--pb-sage-ink);opacity:.25}
+.pb-num{font-variant-numeric:tabular-nums}
+
+/* Photograph under the title, as in the reference. */
+.pb-hero{display:block;width:100%;max-width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:3px;box-shadow:0 10px 24px -18px rgba(20,38,31,.5)}
+
+.pb-meta{display:flex;gap:10px 28px;flex-wrap:wrap;margin:0;justify-content:center;text-align:center}
 .pb-meta div{display:flex;flex-direction:column;gap:2px}
 .pb-meta dt{font-size:var(--t-xs);color:var(--pb-ink-2);letter-spacing:.06em}
 .pb-meta dd{margin:0;font-size:var(--t-md);font-weight:600}
-.pb-num{font-variant-numeric:tabular-nums}
 .pb-sec p{margin:0;line-height:1.7;font-size:var(--t-md)}
 .pb-sec ul{margin:0;padding-inline-start:18px;display:flex;flex-direction:column;gap:5px;line-height:1.55;font-size:var(--t-md)}
-.pb-stop,.pb-adapt{border-radius:10px;padding:12px 14px}
-.pb-stop{background:var(--pb-petal)}.pb-stop .pb-h3{color:var(--pb-petal-ink)}.pb-stop li::marker{color:var(--pb-petal-ink)}
-.pb-adapt{background:color-mix(in srgb,var(--pb-sage) 60%,#fff)}.pb-adapt .pb-h3{color:var(--pb-sage-ink)}.pb-adapt li::marker{color:var(--pb-sage-ink)}
+.pb-stop,.pb-adapt{border-radius:6px;padding:14px}
+.pb-stop{background:rgba(251,237,233,.9)}.pb-stop .pb-h3{background:#fff;color:var(--pb-petal-ink)}.pb-stop li::marker{color:var(--pb-petal-ink)}
+.pb-adapt{background:rgba(220,228,213,.6)}.pb-adapt .pb-h3{background:#fff;color:var(--pb-sage-ink)}.pb-adapt li::marker{color:var(--pb-sage-ink)}
 .pb-contra{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.pb-intro-grid{display:grid;grid-template-columns:minmax(0,200px) 1fr;gap:18px;align-items:center}
+.pb-intro-grid{display:grid;grid-template-columns:minmax(0,190px) 1fr;gap:18px;align-items:center}
 .pb-stack{display:flex;flex-direction:column;gap:14px}
-.pb-fig{margin:0;background:#fff;border:1px solid var(--pb-line);border-radius:10px;padding:10px;overflow-x:auto}
+.pb-fig{margin:0;background:#fff;border:1px solid var(--pb-line);border-radius:4px;padding:10px;overflow-x:auto}
 .pb-fig-svg{display:block;width:100%;min-width:300px;height:auto;direction:ltr}
-.pb-face{display:block;width:100%;max-width:200px;height:auto;margin:0 auto}
+.pb-face{display:block;width:100%;max-width:190px;height:auto;margin:0 auto}
 .pb-face-fig figcaption{margin-top:6px}
 .pb-chips{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
 .pb-chips span{background:var(--pb-petal);color:var(--pb-petal-ink);font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px}
 .pb-chips .pb-chip-sage{background:var(--pb-sage);color:var(--pb-sage-ink)}
-.pb-steps{list-style:none;margin:0;padding:0;border-top:1px solid var(--pb-line)}
-.pb-steps li{display:grid;grid-template-columns:36px 1fr auto;gap:12px;align-items:start;padding:11px 0;border-bottom:1px solid var(--pb-line)}
-.pb-si{width:36px;height:36px;border-radius:50%;background:var(--pb-sage);color:var(--pb-ink);display:grid;place-items:center}
+
+/* Steps: an italic number, the step, its time; hairlines between, like the reference's list. */
+.pb-steps{list-style:none;margin:0;padding:0}
+.pb-steps li{display:grid;grid-template-columns:auto 36px 1fr auto;gap:12px;align-items:start;padding:12px 0;border-bottom:1px solid var(--pb-line)}
+.pb-steps .pb-no{font-size:28px;line-height:1;min-width:34px}
+.pb-si{width:36px;height:36px;border-radius:50%;background:rgba(220,228,213,.8);color:var(--pb-ink);display:grid;place-items:center}
 .pb-step-tx{display:flex;flex-direction:column;gap:3px}
-.pb-step-tx strong{font-size:var(--t-md);display:flex;align-items:baseline;gap:8px}
+.pb-step-tx strong{font-size:var(--t-md)}
 .pb-step-tx span{font-size:var(--t-sm);color:var(--pb-ink-2);line-height:1.5}
-.pb-no{font-family:var(--display-heavy);font-weight:700;color:var(--pb-gold);font-variant-numeric:tabular-nums}
-.pb-time{font-size:var(--t-sm);font-weight:700;color:var(--pb-ink);background:var(--pb-paper);border:1px solid var(--pb-line);border-radius:999px;padding:3px 10px;white-space:nowrap;margin-top:6px}
-.pb-warn{margin:0;background:var(--pb-petal);border-inline-start:3px solid var(--pb-petal-ink);padding:10px 14px;border-radius:4px;font-size:var(--t-md);line-height:1.6}
-.pb-tip{background:var(--pb-ink);color:var(--pb-paper);border-radius:10px;padding:13px 16px;font-size:var(--t-md);line-height:1.65}
+.pb-time{font-size:var(--t-sm);font-weight:700;color:var(--pb-ink);background:#fff;border:1px solid var(--pb-line);border-radius:999px;padding:3px 10px;white-space:nowrap;margin-top:6px}
+.pb-warn{margin:0;background:var(--pb-petal);border-inline-start:3px solid var(--pb-petal-ink);padding:10px 14px;border-radius:3px;font-size:var(--t-md);line-height:1.6}
+.pb-tip{background:var(--pb-ink);color:#F4EFE4;border-radius:6px;padding:14px 16px;font-size:var(--t-md);line-height:1.65}
 .pb-tip b{color:#E6CF9C;margin-inline-end:6px}
 .pb-muted{color:var(--pb-ink-2);font-size:var(--t-sm)!important;margin:0 0 8px!important}
 .pb-ask{list-style:none!important;padding:0!important;counter-reset:q}
-.pb-ask li{counter-increment:q;display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px dashed var(--pb-line)}
-.pb-ask li::before{content:counter(q);font-family:var(--display-heavy);font-weight:700;color:var(--pb-gold)}
+.pb-ask li{counter-increment:q;display:grid;grid-template-columns:30px 1fr;gap:8px;padding:8px 0;border-bottom:1px dashed var(--pb-line)}
+.pb-ask li::before{content:counter(q,decimal-leading-zero);font-family:var(--pb-num-font);font-style:italic;font-weight:600;font-size:18px;color:var(--pb-ink)}
 .pb-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .pb-legend li{display:grid;grid-template-columns:26px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--pb-line);font-size:var(--t-md);line-height:1.55}
-.pb-nb{width:22px;height:22px;border-radius:50%;background:var(--pb-ink);color:var(--pb-paper);font-size:12px;font-weight:700;display:grid;place-items:center;margin-top:2px}
+.pb-nb{width:22px;height:22px;border-radius:50%;background:var(--pb-ink);color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;margin-top:2px}
 .pb-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pb-facts div{background:var(--pb-paper);border:1px solid var(--pb-line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:4px;font-size:var(--t-sm);line-height:1.55}
-.pb-toc-group{display:flex;flex-direction:column;gap:8px}
+.pb-facts div{background:rgba(255,255,255,.7);border:1px solid var(--pb-line);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:4px;font-size:var(--t-sm);line-height:1.55}
+
+/* Contents: number and title on the reading side, the chapter's photograph on the other. */
+.pb-toc-group{display:flex;flex-direction:column;gap:10px}
 .pb-toc{list-style:none;margin:0;padding:0;border-top:1px solid var(--pb-line)}
-.pb-toc button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--pb-line);cursor:pointer;font-size:var(--t-md)}
-.pb-toc button:hover{background:var(--pb-paper)}
-.pb-toc button:focus-visible,.pb-nav button:focus-visible,.pb-langs button:focus-visible,.pb-foot button:focus-visible{outline:2px solid var(--pb-gold);outline-offset:2px}
-.pb-toc-no{font-family:var(--display-heavy);font-size:20px;font-weight:700;color:var(--pb-gold);font-variant-numeric:tabular-nums}
-.pb-toc-nm{font-weight:600}
-.pb-toc-tag{font-size:var(--t-xs);color:var(--pb-ink-2)}
+.pb-toc-row{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:1fr 46%;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid var(--pb-line);cursor:pointer}
+.pb-toc-row:hover .pb-toc-ph{transform:scale(1.02)}
+.pb-toc-tx{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.pb-toc-nm{font-weight:700;font-size:var(--t-md);line-height:1.35}
+.pb-toc-tag{font-size:var(--t-xs);color:var(--pb-ink-2);display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.pb-toc-ph{display:block;width:100%;max-width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:3px;transition:transform .3s}
+.pb-toc-row:focus-visible,.pb-nav button:focus-visible,.pb-langs button:focus-visible,.pb-foot button:focus-visible,.pb-cover:focus-visible{outline:2px solid var(--pb-gold);outline-offset:2px}
 .pb-disclaimer{margin:4px 0 0;font-size:var(--t-sm);color:var(--pb-ink-2);line-height:1.6;border-top:1px solid var(--pb-line);padding-top:12px}
-.pb-link{border:1px solid var(--pb-line);border-radius:10px;padding:14px;background:var(--pb-paper)}
+
+/* The cover: a watercolour garden on cream, gold bokeh, the full logo, the title, the author. */
+.pb-page-cover{border:0}
+.pb-cover{all:unset;box-sizing:border-box;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:space-between;width:100%;min-height:min(150vw,860px);
+padding:44px 22px 30px;text-align:center;cursor:pointer;overflow:hidden;
+background:radial-gradient(60% 40% at 15% 10%,rgba(232,214,150,.45),transparent 70%),radial-gradient(50% 35% at 90% 25%,rgba(220,228,213,.7),transparent 70%),radial-gradient(80% 50% at 10% 95%,rgba(246,218,212,.6),transparent 70%),linear-gradient(180deg,#FBF7EC,#F8F3E6)}
+.pb-bokeh{position:absolute;inset:0;pointer-events:none;opacity:.7;
+background:radial-gradient(circle at 12% 18%,rgba(255,240,190,.9) 0 10px,transparent 22px),radial-gradient(circle at 26% 8%,rgba(255,244,205,.8) 0 7px,transparent 16px),radial-gradient(circle at 82% 12%,rgba(255,240,190,.7) 0 9px,transparent 20px),radial-gradient(circle at 92% 40%,rgba(255,246,214,.8) 0 6px,transparent 14px),radial-gradient(circle at 8% 52%,rgba(255,240,190,.8) 0 8px,transparent 18px),radial-gradient(circle at 70% 60%,rgba(255,246,214,.6) 0 5px,transparent 12px)}
+.pb-cfl{position:absolute;pointer-events:none;height:auto}
+.pb-cfl-1{width:62%;left:-14%;bottom:-6%;transform:rotate(-12deg)}
+.pb-cfl-2{width:44%;right:-8%;bottom:10%;transform:rotate(18deg) scaleX(-1)}
+.pb-cfl-3{width:30%;left:-6%;top:34%;transform:rotate(28deg);opacity:.85}
+.pb-cover-top,.pb-cover-foot,.pb-open{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:14px}
+.pb-cover-logo{width:min(76%,330px);height:auto}
+.pb-guide{display:flex;align-items:center;gap:12px;font-size:var(--t-lg);color:var(--pb-ink);letter-spacing:.02em}
+.pb-guide i{display:block;width:42px;height:1px;background:var(--pb-ink);opacity:.5}
+.pb-open{font-size:var(--t-sm);font-weight:700;background:rgba(255,255,255,.92);color:var(--pb-ink);padding:8px 20px;border-radius:999px;box-shadow:0 8px 18px -10px rgba(0,0,0,.35);animation:pbPulse 2.6s ease-in-out infinite}
+@keyframes pbPulse{50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){.pb-open{animation:none}}
+.pb-cover-foot{gap:4px;background:rgba(252,249,243,.75);border-radius:999px;padding:6px 22px}
+.pb-author{font-family:var(--display-heavy);font-size:clamp(22px,5vw,28px);font-weight:700;color:var(--pb-ink)}
+.pb-site{font-family:var(--pb-num-font);font-size:16px;color:var(--pb-ink);direction:ltr}
+
+/* The link panel (her services) */
+.pb-link{border:1px solid var(--pb-line);border-radius:6px;padding:14px;background:rgba(255,255,255,.7)}
 .pb-svc{list-style:none;margin:0;padding:0!important;gap:0!important}
 .pb-svc li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--pb-line);flex-wrap:wrap}
 .pb-svc label{display:flex;align-items:center;gap:10px;cursor:pointer;min-height:32px}
 .pb-svc input{width:18px;height:18px;accent-color:var(--pb-ink)}
 .pb-svc-state{font-size:var(--t-xs);color:var(--pb-ink-2)}
-.pb-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 22px 14px;border-top:1px solid var(--pb-line);font-size:var(--t-sm)}
-.pb-foot button{font:inherit;color:var(--pb-ink);background:none;border:0;cursor:pointer;min-height:36px;text-decoration:underline;text-underline-offset:3px}
-.pb-folio{color:var(--pb-ink-2)}
+
+.pb-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 24px 16px;font-size:var(--t-sm)}
+.pb-foot button{font:inherit;color:var(--pb-ink);background:none;border:0;cursor:pointer;min-height:36px}
+.pb-folio{font-family:var(--pb-num-font);font-size:17px;color:var(--pb-ink)}
 .pb-nav{display:flex;align-items:center;gap:12px}
-.pb-nav button{font:inherit;font-weight:600;font-size:var(--t-md);border:1px solid var(--pb-line);background:var(--surface,#fff);color:var(--pb-ink);border-radius:999px;padding:10px 20px;min-height:44px;cursor:pointer}
-.pb-nav .pb-next{background:var(--pb-ink);color:var(--pb-paper);border-color:var(--pb-ink)}
+.pb-nav button{font:inherit;font-weight:600;font-size:var(--t-md);border:1px solid var(--pb-line);background:#fff;color:var(--pb-ink);border-radius:999px;padding:10px 20px;min-height:44px;cursor:pointer}
+.pb-nav .pb-next{background:var(--pb-ink);color:#fff;border-color:var(--pb-ink)}
 .pb-nav button:disabled{opacity:.35;cursor:default}
 .pb-prog{flex:1;height:3px;background:var(--pb-line);border-radius:3px;overflow:hidden}
 .pb-prog i{display:block;height:100%;background:var(--pb-gold);transition:width .4s}
 @media (max-width:560px){
 .pb-contra,.pb-facts{grid-template-columns:1fr}
 .pb-intro-grid{grid-template-columns:1fr}
-.pb-body{padding:6px 16px 16px}.pb-head{padding:14px 16px 4px}.pb-foot{padding:10px 16px 12px}
-.pb-steps li{grid-template-columns:32px 1fr}.pb-si{width:32px;height:32px}
+.pb-body{padding:8px 16px 16px}.pb-ptop{padding:22px 16px 4px}.pb-foot{padding:10px 16px 14px}
+.pb-logo{height:38px}
+.pb-fl{width:110px}.pb-fl-br{width:96px}
+.pb-steps li{grid-template-columns:auto 1fr;gap:10px}
+.pb-steps .pb-si{display:none}
 .pb-time{grid-column:2;justify-self:start;margin-top:0}
-.pb-wm-lg{font-size:46px}
+.pb-toc-row{grid-template-columns:1fr 44%}
+.pb-no-xl{font-size:38px}
 }
 `;

@@ -23,6 +23,8 @@ export type BookUi = {
   prev: string; next: string; toContents: string; disclaimer: string; zones: Record<string, string>;
   askForm: string; link: string; linkHint: string; linkNone: string; linkSaved: string; linkError: string; linkTaken: string; noServices: string;
   backToApp: string; page: string;
+  /** The cover: who the book is for (by her fields), the line under the title, the author, the tap hint. */
+  forWho: { cosmetics: string; nails: string; both: string }; guide: string; author: string; open: string;
 };
 
 export const UI: Record<BookLang, BookUi> = {
@@ -39,6 +41,8 @@ export const UI: Record<BookLang, BookUi> = {
     link: 'הצמדה לטיפולים שלי', linkHint: 'טיפול שהצמדת לו פרוטוקול מראה את השלבים בכל תור שלו.', linkNone: 'בלי פרוטוקול',
     linkSaved: 'נשמר', linkError: 'לא נשמר, נסי שוב', linkTaken: 'מוצמד עכשיו ל', noServices: 'עוד אין טיפולים בתפריט שלך.',
     backToApp: 'חזרה למערכת', page: 'עמוד',
+    forWho: { cosmetics: 'לקוסמטיקאיות', nails: 'למניקוריסטיות', both: 'לקוסמטיקאיות ולמניקוריסטיות' },
+    guide: 'המדריך הדיגיטלי', author: 'מעיין בבאי', open: 'לחצי לפתיחה',
   },
   en: {
     book: 'The Protocol Book', sub: 'A professional treatment library', contents: 'Contents', back: 'Back', min: 'min', full: 'Full book',
@@ -53,6 +57,8 @@ export const UI: Record<BookLang, BookUi> = {
     link: 'Attach to my treatments', linkHint: 'A treatment with a protocol shows its steps on every appointment.', linkNone: 'No protocol',
     linkSaved: 'Saved', linkError: 'Not saved, try again', linkTaken: 'Now attached to', noServices: 'Your menu has no treatments yet.',
     backToApp: 'Back to Kalmea', page: 'Page',
+    forWho: { cosmetics: 'for Cosmeticians', nails: 'for Nail Technicians', both: 'for Cosmeticians & Nail Technicians' },
+    guide: 'The Digital Guide', author: 'Maayan Babai', open: 'Tap to open',
   },
   ar: {
     book: 'كتاب البروتوكولات', sub: 'مكتبة علاجات مهنية', contents: 'المحتويات', back: 'رجوع', min: 'د', full: 'من الكتاب الكامل',
@@ -67,6 +73,8 @@ export const UI: Record<BookLang, BookUi> = {
     link: 'ربط بعلاجاتي', linkHint: 'العلاج المرتبط ببروتوكول يعرض مراحله في كل موعد له.', linkNone: 'بدون بروتوكول',
     linkSaved: 'تمّ الحفظ', linkError: 'لم يُحفظ، حاولي مرة أخرى', linkTaken: 'مرتبط الآن بـ', noServices: 'لا توجد علاجات في قائمتكِ بعد.',
     backToApp: 'العودة إلى Kalmea', page: 'صفحة',
+    forWho: { cosmetics: 'لخبيرات التجميل', nails: 'لفنّيات الأظافر', both: 'لخبيرات التجميل وفنّيات الأظافر' },
+    guide: 'الدليل الرقمي', author: 'معيان باباي', open: 'اضغطي للفتح',
   },
 };
 
@@ -174,4 +182,17 @@ export const NAIL: Record<BookLang, { title: string; lead: string; parts: [strin
       ['الحرقان تحت المصباح', 'علامة على ظفر رقيق أو طبقة سميكة جداً. ليس "جزءاً من العملية".'],
     ],
   },
+};
+
+/** One photograph per chapter (public/defaults, the product's own treatment photos). Decoration with a meaning: what the chapter treats. */
+export const PHOTOS: Record<string, string> = {
+  skin: '/defaults/facial-classic.jpg',
+  nail: '/defaults/nails-about.jpg',
+  acne: '/defaults/acne.jpg',
+  pigmentation: '/defaults/pigmentation.jpg',
+  'anti-aging': '/defaults/anti-aging.jpg',
+  'sensitive-rosacea': '/defaults/deep-cleansing.jpg',
+  'gel-manicure': '/defaults/nails-manicure.jpg',
+  'gel-removal': '/defaults/nails-neutral.jpg',
+  'gel-extensions': '/defaults/nails-extensions.jpg',
 };
