@@ -64,3 +64,6 @@ CONFIRM_LINK_SECRET.local.txt
 
 # marketing videos: large renders stay local, only the source (marketing/video-src) is committed
 marketing/videos/
+
+# scripts/smoke-app/run.mjs writes this page for the length of one browser run
+/app/smoke-preview/

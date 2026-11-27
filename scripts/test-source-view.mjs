@@ -61,7 +61,16 @@ export function withScreens(src) {
     const a = s.indexOf('/* @section-body */'), z = s.lastIndexOf('/* @section-end */');
     return a < 0 || z < 0 ? m : indent + s.slice(a + '/* @section-body */'.length, z);
   });
-  return src.replace(/<([A-Z][A-Za-z]*(?:Screen|Modal)) ctx=\{\{[^{}]*\}\}\/>/g, (m, name) => {
+  // The constants and helpers moved into app/shared/ (scripts/extract-module.mjs): the tagged import line becomes the
+  // statements it replaced.
+  src = src.replace(/^import \{[^{}\n]*\} from "\.\/shared\/([A-Za-z]+)"; \/\/ @shared-module$/gm, (m, name) => {
+    const file = path.join(ROOT, 'app', 'shared', `${name}.jsx`);
+    if (!fs.existsSync(file)) return m;
+    const s = realRead.call(fs, file, 'utf8').replace(/\r\n/g, '\n');
+    const a = s.indexOf('/* @module-body */\n'), z = s.lastIndexOf('\n/* @module-end */');
+    return a < 0 || z < 0 ? m : s.slice(a + '/* @module-body */\n'.length, z);
+  });
+  return src.replace(/<([A-Z][A-Za-z]*(?:Screen|Modal|Part)) ctx=\{\{[^{}]*\}\}\/>/g, (m, name) => {
     const file = path.join(ROOT, 'app', 'screens', `${name}.jsx`);
     if (!fs.existsSync(file)) return m;
     const s = realRead.call(fs, file, 'utf8').replace(/\r\n/g, '\n');

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 
 const DIR = 'app/screens';
 const main = fs.readFileSync('app/beautyos.jsx', 'utf8');
-const files = fs.existsSync(DIR) ? fs.readdirSync(DIR).filter((f) => /(?:Screen|Modal)\.jsx$/.test(f)).sort() : [];
+const files = fs.existsSync(DIR) ? fs.readdirSync(DIR).filter((f) => /(?:Screen|Modal|Part)\.jsx$/.test(f)).sort() : [];
 const fail = [];
 const names = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
@@ -59,5 +59,20 @@ for (const f of sections) {
   for (const m of ['/* @section-body */', '/* @section-end */']) if (src.split(m).length !== 2) fail.push(`${f}: the marker ${m} must appear exactly once`);
 }
 
+// ── The shared modules (app/shared/, scripts/extract-module.mjs) ────────────────────────────────────────────────────────
+// What a module exports is what beautyos.jsx imports from it, on the one tagged line the test source view looks for.
+const MDIR = 'app/shared';
+const shared = fs.existsSync(MDIR) ? fs.readdirSync(MDIR).filter((f) => /^[a-z][A-Za-z]*\.jsx$/.test(f)).sort() : [];
+for (const f of shared) {
+  const name = f.replace(/\.jsx$/, '');
+  const src = fs.readFileSync(`${MDIR}/${f}`, 'utf8');
+  const imp = [...main.matchAll(new RegExp(`^import \\{([^{}\\n]*)\\} from "\\./shared/${name}"; // @shared-module$`, 'gm'))];
+  if (imp.length !== 1) { fail.push(`${f}: beautyos.jsx has ${imp.length} tagged import lines for it, expected one`); continue; }
+  const exp = src.match(/\/\* @module-end \*\/\nexport \{([\s\S]*?)\};\n$/);
+  if (!exp) { fail.push(`${f}: no export list after the end marker`); continue; }
+  if (!same(new Set(names(exp[1])), new Set(names(imp[0][1])))) fail.push(`${f}: its export list differs from what beautyos.jsx imports`);
+  for (const m of ['/* @module-body */', '/* @module-end */']) if (src.split(m).length !== 2) fail.push(`${f}: the marker ${m} must appear exactly once`);
+}
+
 if (fail.length) { console.error('check-screens: FAILED\n  ' + fail.join('\n  ')); process.exit(1); }
-console.log(`check-screens: ${files.length} screen(s) and ${sections.length} logic section(s) agree with app/beautyos.jsx`);
+console.log(`check-screens: ${files.length} screen(s), ${sections.length} logic section(s) and ${shared.length} shared module(s) agree with app/beautyos.jsx`);

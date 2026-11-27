@@ -71,11 +71,33 @@ const compScope = comp.scope, progScope = program.scope;
 /** Index of the component-level statement a path sits in; -1 for a parameter of the component. */
 const topIndex = (p) => { let cur = p; while (cur && !idxOfStmt.has(cur.node)) cur = cur.parentPath; return cur ? idxOfStmt.get(cur.node) : -1; };
 const inside = (p) => { const k = topIndex(p); return k >= i0 && k <= i1; };
+const fnInit = (init) => !!init && (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression'
+  || (init.type === 'CallExpression' && init.callee.type === 'Identifier' && init.callee.name === 'useCallback'));
+const sectionCache = new Map();
+/** Does app/sections/<hook>.jsx declare `name`, at the top level of the hook, as a function? */
+function sectionDeclaresFn(hookName, name) {
+  if (!sectionCache.has(hookName)) {
+    const file = `app/sections/${hookName}.jsx`;
+    const fns = new Set();
+    if (fs.existsSync(file)) {
+      const tree = parse(fs.readFileSync(file, 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
+      const decl = tree.program.body.map((n) => (n.type === 'ExportNamedDeclaration' ? n.declaration : n)).find((n) => n && n.type === 'FunctionDeclaration' && n.id.name === hookName);
+      for (const st of decl ? decl.body.body : []) {
+        if (st.type === 'FunctionDeclaration') fns.add(st.id.name);
+        if (st.type === 'VariableDeclaration') for (const d of st.declarations) if (d.id.type === 'Identifier' && fnInit(d.init)) fns.add(d.id.name);
+      }
+    }
+    sectionCache.set(hookName, fns);
+  }
+  return sectionCache.get(hookName).has(name);
+}
 const isFn = (b) => {
   if (b.kind === 'hoisted') return true;
   const init = b.path.node.init;
   if (!init) return false;
   if (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression') return true;
+  // A name an earlier-extracted section hands back: it is a function if that section declares it as one.
+  if (init.type === 'CallExpression' && init.callee.type === 'Identifier' && /^use[A-Z][A-Za-z]*Section$/.test(init.callee.name) && b.path.node.id.type === 'ObjectPattern') return sectionDeclaresFn(init.callee.name, b.identifier.name);
   return init.type === 'CallExpression' && init.callee.type === 'Identifier' && init.callee.name === 'useCallback' && b.path.node.id.type === 'Identifier';
 };
 
@@ -183,7 +205,7 @@ fs.writeFileSync(out, file);
 const lateArg = lateNames.length ? `${inNames.length ? ',' : ''}late:{${lateNames.map((n) => `get ${n}(){return ${n};}`).join(',')}}` : '';
 const call = `${outNames.length ? `const {${outNames.join(',')}} = ` : ''}${hook}({${inNames.join(',')}${lateArg}});`;
 let next = code.slice(0, start) + call + code.slice(end);
-const lastImport = ast.program.body.filter((n) => n.type === 'ImportDeclaration').at(-1);
+const lastImport = ast.program.body.filter((n) => n.type === 'ImportDeclaration' && !n.source.value.startsWith('./shared/')).at(-1);
 const at = next.indexOf('\n', lastImport.end) + 1;
 next = next.slice(0, at) + `import { ${hook} } from "./sections/${hook}";\n` + next.slice(at);
 fs.writeFileSync(SRC, next);

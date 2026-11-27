@@ -4,9 +4,11 @@
 //
 //   node scripts/extract-screen.mjs packages                         -> app/screens/PackagesScreen.jsx (the "packages" tab)
 //   node scripts/extract-screen.mjs --cond 'showCashier' CashierModal   -> any `{<cond> && (...)}` block, by its condition
+//   node scripts/extract-screen.mjs --at 3827 AppHeaderPart             -> the JSX element that starts on that line
 //   ... --dry                                                        -> prints what it would pass, changes nothing
 //
-// A name ends in Screen (a tab or a whole view) or Modal (something that opens over the app).
+// A name ends in Screen (a tab or a whole view), Modal (something that opens over the app) or Part (a piece of the app's
+// frame: its header, its menus, its stylesheet).
 //
 // ── Why a tool and not a hand edit ───────────────────────────────────────────────────────────────────────────────────────
 // app/beautyos.jsx is one component of some 13,800 lines. Every tab's JSX reads dozens of that component's variables. Moving
@@ -37,20 +39,22 @@ export const SCREENS_DIR = 'app/screens';
 export const BODY_OPEN = '/* @screen-body */';
 export const BODY_CLOSE = '/* @screen-end */';
 export const screenNameOf = (tab) => tab.replace(/(^|[-_])([a-z])/g, (m, a, c) => c.toUpperCase()) + 'Screen';
-export const NAME_RE = /^[A-Z][A-Za-z]*(?:Screen|Modal)$/;
+export const NAME_RE = /^[A-Z][A-Za-z]*(?:Screen|Modal|Part)$/;
 const squash = (s) => s.replace(/\s+/g, '');
 
 function main() {
   const args = process.argv.slice(2).filter((a) => a !== '--dry');
   const dry = process.argv.includes('--dry');
   const byCond = args[0] === '--cond';
-  const tab = byCond ? null : args[0];
+  const byLine = args[0] === '--at';
+  const tab = byCond || byLine ? null : args[0];
   const cond = byCond ? args[1] : null;
-  const name = byCond ? args[2] : tab && screenNameOf(tab);
-  if (byCond ? !(cond && NAME_RE.test(name || '')) : !(tab && /^[a-z_]+$/.test(tab))) {
-    console.error("usage: node scripts/extract-screen.mjs <tab> [--dry]\n       node scripts/extract-screen.mjs --cond '<condition>' <NameScreen|NameModal> [--dry]"); process.exit(2);
+  const atLine = byLine ? Number(args[1]) : null;
+  const name = byCond || byLine ? args[2] : tab && screenNameOf(tab);
+  if (byLine ? !(atLine > 0 && NAME_RE.test(name || '')) : byCond ? !(cond && NAME_RE.test(name || '')) : !(tab && /^[a-z_]+$/.test(tab))) {
+    console.error("usage: node scripts/extract-screen.mjs <tab> [--dry]\n       node scripts/extract-screen.mjs --cond '<condition>' <NameScreen|NameModal> [--dry]\n       node scripts/extract-screen.mjs --at <line> <NamePart> [--dry]"); process.exit(2);
   }
-  const what = byCond ? `{${cond} && ...}` : `the "${tab}" tab`;
+  const what = byLine ? `the <${name.replace(/Part$/, '')}> piece of the frame` : byCond ? `{${cond} && ...}` : `the "${tab}" tab`;
   const out = `${SCREENS_DIR}/${name}.jsx`;
   if (fs.existsSync(out)) { console.error(`${out} already exists`); process.exit(1); }
 
@@ -60,7 +64,15 @@ function main() {
   // 1. The block: the right-hand side of the `&&` whose chain tests activeTab === "<tab>".
   let block = null;
   traverse(ast, {
+    // By line: the outermost JSX element that starts on that line, and only where an element can be swapped for another
+    // (a child of JSX, not an attribute value or an argument).
+    JSXElement(p) {
+      if (!byLine || block || p.node.loc.start.line !== atLine) return;
+      if (!p.parentPath.isJSXElement() && !p.parentPath.isJSXFragment()) { console.error(`the element on line ${atLine} is not a child of JSX`); process.exit(1); }
+      block = p;
+    },
     JSXExpressionContainer(p) {
+      if (byLine) return;
       const e = p.node.expression;
       if (e.type !== 'LogicalExpression' || e.operator !== '&&') return;
       if (byCond) {
@@ -178,7 +190,7 @@ export default function ${name}({ ctx }) {
   // 4. Replace the block in beautyos.jsx and add the import after the last import line.
   const call = `<${name} ctx={{${names.join(',')}}}/>`;
   let next = code.slice(0, block.node.start) + call + code.slice(block.node.end);
-  const lastImport = ast.program.body.filter((n) => n.type === 'ImportDeclaration').at(-1);
+  const lastImport = ast.program.body.filter((n) => n.type === 'ImportDeclaration' && !n.source.value.startsWith('./shared/')).at(-1);
   const at = next.indexOf('\n', lastImport.end) + 1;
   next = next.slice(0, at) + `import ${name} from "./screens/${name}";\n` + next.slice(at);
   fs.writeFileSync(SRC, next);

@@ -18,12 +18,14 @@ const HEB = /[֐-׿]/;
 
 // The owner's app: the main screen and every component it shows (wrapped by scripts/i18n-wrap.mjs --mode=global).
 // The tabs moved out of beautyos.jsx (scripts/extract-screen.mjs) are part of the owner's app wherever they are filed.
-const SCREEN_FILES = fs.existsSync('app/screens') ? fs.readdirSync('app/screens').filter((f) => /(?:Screen|Modal)\.jsx$/.test(f)).sort().map((f) => `app/screens/${f}`) : [];
+const SCREEN_FILES = fs.existsSync('app/screens') ? fs.readdirSync('app/screens').filter((f) => /(?:Screen|Modal|Part)\.jsx$/.test(f)).sort().map((f) => `app/screens/${f}`) : [];
 const SECTION_FILES = fs.existsSync('app/sections') ? fs.readdirSync('app/sections').filter((f) => /^use[A-Z][A-Za-z]*Section\.jsx$/.test(f)).sort().map((f) => `app/sections/${f}`) : [];
+const SHARED_FILES = fs.existsSync('app/shared') ? fs.readdirSync('app/shared').filter((f) => /^[a-z][A-Za-z]*\.jsx$/.test(f)).sort().map((f) => `app/shared/${f}`) : [];
 const OWNER_FILES = [
       'app/beautyos.jsx',
       ...SCREEN_FILES,
       ...SECTION_FILES,
+      ...SHARED_FILES,
       'app/LeadImportModal.jsx',
       'app/ImportFromSystem.jsx',
       'app/GiftVouchersPanel.jsx',
